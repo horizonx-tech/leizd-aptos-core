@@ -1,0 +1,13 @@
+[package]
+name = 'Leizd Aptos Core'
+version = '0.1.0'
+[dependencies.AptosFramework]
+git = 'https://github.com/aptos-labs/aptos-core.git'
+rev = 'devnet'
+subdir = 'aptos-move/framework/aptos-framework'
+[addresses]
+leizd="0xfbd6fbf6fd3d3cda4d65c59de97900a4797a37419298aa4a5eeacda77b34e691"
+std = "0x1"
+aptos_std = "0x1"
+aptos_framework = "0x1"
+core_resources = "0xA550C18"
