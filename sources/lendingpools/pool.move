@@ -11,6 +11,9 @@ module leizd::pool {
     use leizd::math;
     use leizd::treasury;
     use leizd::interest_rate;
+    use leizd::system_status;
+
+    friend leizd::system_administrator;
 
     const U64_MAX: u64 = 18446744073709551615;
     const DECIMAL_PRECISION: u128 = 1000000000000000000;
@@ -18,6 +21,7 @@ module leizd::pool {
     struct Pool<phantom C> has key {
         asset: coin::Coin<C>,
         shadow: coin::Coin<ZUSD>,
+        is_active: bool,
     }
 
     struct Storage<phantom C, phantom P> has key {
@@ -36,13 +40,21 @@ module leizd::pool {
         interest_rate::initialize<C>(owner);
         move_to(owner, Pool<C> {
             asset: coin::zero<C>(),
-            shadow: coin::zero<ZUSD>()
+            shadow: coin::zero<ZUSD>(),
+            is_active: true
         });
         move_to(owner, default_storage<C,Asset>());
         move_to(owner, default_storage<C,Shadow>());
     }
 
+    public fun is_available<C>(): bool acquires Pool {
+        let system_is_active = system_status::status();
+        let pool_ref = borrow_global<Pool<C>>(@leizd);
+        system_is_active && pool_ref.is_active 
+    }
+
     public entry fun deposit<C>(account: &signer, amount: u64, is_collateral_only: bool, is_shadow: bool) acquires Pool, Storage {
+        assert!(is_available<C>(), 0);
         if (is_shadow) {
             deposit_shadow<C>(account, amount, is_collateral_only);
         } else {
@@ -51,6 +63,7 @@ module leizd::pool {
     }
 
     public entry fun withdraw<C>(account: &signer, amount: u64, is_collateral_only: bool, is_shadow: bool) acquires Pool, Storage {
+        assert!(is_available<C>(), 0);
         if (is_shadow) {
             withdraw_shadow<C>(account, amount, is_collateral_only);
         } else {
@@ -59,6 +72,7 @@ module leizd::pool {
     }
 
     public entry fun borrow<C>(account: &signer, amount: u64, is_shadow: bool) acquires Pool, Storage {
+        assert!(is_available<C>(), 0);
         if (is_shadow) {
             borrow_shadow<C>(account, amount);
         } else {
@@ -67,6 +81,7 @@ module leizd::pool {
     }
 
     public entry fun repay<C>(account: &signer, amount: u64, is_shadow: bool) acquires Pool, Storage {
+        assert!(is_available<C>(), 0);
         if (is_shadow) {
             repay_shadow<C>(account, amount);
         } else {
@@ -288,7 +303,7 @@ module leizd::pool {
             total_deposits: 0,
             total_collateral_only_deposits: 0,
             total_borrows: 0,
-            last_updated: 0
+            last_updated: 0,
         }
     }
 
@@ -329,12 +344,18 @@ module leizd::pool {
         borrow_global<Storage<C,P>>(@leizd).last_updated
     }
 
+    public(friend) entry fun update_status<C>(active: bool) acquires Pool {
+        let pool_ref = borrow_global_mut<Pool<C>>(@leizd);
+        pool_ref.is_active = active;
+    }
+
     #[test_only]
     use aptos_framework::account;
     use aptos_framework::managed_coin;
     use leizd::common::{Self,WETH,UNI};
     use leizd::zusd::{Self,ZUSD};
     use leizd::trove;
+    use leizd::initializer;
 
     #[test(owner=@leizd,account1=@0x111)]
     #[expected_failure(abort_code=524289)]
@@ -353,7 +374,7 @@ module leizd::pool {
         account::create_account(owner_addr);
         account::create_account(account1_addr);
         common::init_weth(&owner);
-        repository::initialize(&owner);
+        initializer::initialize(&owner);
         managed_coin::register<WETH>(&account1);
         managed_coin::mint<WETH>(&owner, account1_addr, 1000000);
         assert!(coin::balance<WETH>(account1_addr) == 1000000, 0);
@@ -374,7 +395,7 @@ module leizd::pool {
         account::create_account(owner_addr);
         account::create_account(account1_addr);
         common::init_weth(&owner);
-        repository::initialize(&owner);
+        initializer::initialize(&owner);
         managed_coin::register<WETH>(&account1);
         managed_coin::mint<WETH>(&owner, account1_addr, 1000000);
         assert!(coin::balance<WETH>(account1_addr) == 1000000, 0);
@@ -396,7 +417,7 @@ module leizd::pool {
         account::create_account(account1_addr);
         common::init_weth(&owner);
         trove::initialize(&owner);
-        repository::initialize(&owner);
+        initializer::initialize(&owner);
         managed_coin::register<WETH>(&account1);
         managed_coin::mint<WETH>(&owner, account1_addr, 1000000);
         assert!(coin::balance<WETH>(account1_addr) == 1000000, 0);
@@ -420,7 +441,7 @@ module leizd::pool {
         account::create_account(owner_addr);
         account::create_account(account1_addr);
         common::init_weth(&owner);
-        repository::initialize(&owner);
+        initializer::initialize(&owner);
         managed_coin::register<WETH>(&account1);
         managed_coin::mint<WETH>(&owner, account1_addr, 1000000);
         assert!(coin::balance<WETH>(account1_addr) == 1000000, 0);
@@ -442,7 +463,7 @@ module leizd::pool {
         account::create_account(account1_addr);
         common::init_weth(&owner);
         trove::initialize(&owner);
-        repository::initialize(&owner);
+        initializer::initialize(&owner);
         managed_coin::register<WETH>(&account1);
         managed_coin::mint<WETH>(&owner, account1_addr, 1000000);
         assert!(coin::balance<WETH>(account1_addr) == 1000000, 0);
@@ -471,7 +492,7 @@ module leizd::pool {
         common::init_weth(&owner);
         common::init_uni(&owner);
         trove::initialize(&owner);
-        repository::initialize(&owner);
+        initializer::initialize(&owner);
         managed_coin::register<UNI>(&account1);
         managed_coin::mint<UNI>(&owner, account1_addr, 1000000);
         managed_coin::register<ZUSD>(&account1);
@@ -518,7 +539,7 @@ module leizd::pool {
         common::init_weth(&owner);
         common::init_uni(&owner);
         trove::initialize(&owner);
-        repository::initialize(&owner);
+        initializer::initialize(&owner);
         managed_coin::register<UNI>(&account1);
         managed_coin::mint<UNI>(&owner, account1_addr, 1000000);
         managed_coin::register<ZUSD>(&account1);

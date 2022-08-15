@@ -1,13 +1,10 @@
 module leizd::initializer {
 
     use leizd::repository;
-    use leizd::pool;
+    use leizd::system_status;
 
     public entry fun initialize(owner: &signer) {
+        system_status::initialize(owner);
         repository::initialize(owner);
-    }
-
-    public entry fun initialize_coin<C>(owner: &signer) {
-        pool::init_pool<C>(owner);
     }
 }
