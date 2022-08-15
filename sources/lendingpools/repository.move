@@ -1,6 +1,7 @@
 module leizd::repository {
 
     use std::signer;
+    use leizd::permission;
 
     const DECIMAL_PRECISION: u64 = 1000000000000000000;
 
@@ -24,6 +25,7 @@ module leizd::repository {
     }
 
     public entry fun initialize(owner: &signer) {
+        permission::assert_owner(signer::address_of(owner));
         move_to(owner, Fees {
             entry_fee: DEFAULT_ENTRY_FEE,
             protocol_share_fee: DEFAULT_SHARE_FEE,
@@ -32,6 +34,7 @@ module leizd::repository {
     }
 
     public entry fun new_asset<C>(owner: &signer) {
+        permission::assert_owner(signer::address_of(owner));
         move_to(owner, AssetConfig<C> {
             ltv: DEFAULT_LTV,
             threshold: DEFAULT_THRESHOLD,
@@ -39,7 +42,7 @@ module leizd::repository {
     }
 
     public entry fun set_fees(owner: &signer, fees: Fees) acquires Fees {
-        assert!(signer::address_of(owner) == @leizd, 0);
+        permission::assert_owner(signer::address_of(owner));
 
         let _fees = borrow_global_mut<Fees>(@leizd);
         _fees.entry_fee = fees.entry_fee;

@@ -9,6 +9,7 @@ module leizd::pool {
     use leizd::debt;
     use leizd::repository;
     use leizd::pool_type::{Asset,Shadow};
+    use leizd::permission;
     use leizd::math;
     use leizd::treasury;
     use leizd::interest_rate;
@@ -61,6 +62,7 @@ module leizd::pool {
     }
 
     public entry fun init_pool<C>(owner: &signer) {
+        permission::assert_owner(signer::address_of(owner));
         collateral::initialize<C>(owner);
         collateral_only::initialize<C>(owner);
         debt::initialize<C>(owner);
