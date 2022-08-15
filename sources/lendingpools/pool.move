@@ -163,6 +163,8 @@ module leizd::pool {
 
 
     fun borrow_asset<C>(account: &signer, amount: u64) acquires Pool, Storage {
+        assert!(liquidity<C,Asset>() >= (amount as u128), 0);
+
         let account_addr = signer::address_of(account);
         let pool_ref = borrow_global_mut<Pool<C>>(@leizd);
         let storage_ref = borrow_global_mut<Storage<C,Asset>>(@leizd);
@@ -180,6 +182,8 @@ module leizd::pool {
     }
 
     fun borrow_shadow<C>(account: &signer, amount: u64) acquires Pool, Storage {
+        assert!(liquidity<C,Shadow>() >= (amount as u128), 0);
+
         let account_addr = signer::address_of(account);
         let pool_ref = borrow_global_mut<Pool<C>>(@leizd);
         let storage_ref = borrow_global_mut<Storage<C,Shadow>>(@leizd);
@@ -198,7 +202,6 @@ module leizd::pool {
 
 
     fun borrow_internal<C,P>(account: &signer, amount: u64, fee: u64, storage_ref: &mut Storage<C,P>) {
-        // TODO: validate borrow possible liquidity check
         let debt_share = math::to_share_roundup(((amount + fee) as u128), storage_ref.total_borrows, debt::supply<C,P>());
         storage_ref.total_borrows = storage_ref.total_borrows + (amount as u128) + (fee as u128);
         debt::mint<C,P>(account, debt_share);
@@ -280,8 +283,6 @@ module leizd::pool {
         storage_ref.last_updated = now;
     }
 
-    
-
     fun default_storage<C,P>(): Storage<C,P> {
         Storage<C,P>{
             total_deposits: 0,
@@ -305,6 +306,11 @@ module leizd::pool {
         } else {
             collateral::supply<C,P>()
         }
+    }
+
+    public entry fun liquidity<C,P>(): u128 acquires Storage {
+        let storage_ref = borrow_global<Storage<C,P>>(@leizd);
+        storage_ref.total_deposits - storage_ref.total_collateral_only_deposits
     }
 
     public entry fun total_deposits<C,P>(): u128 acquires Storage {
