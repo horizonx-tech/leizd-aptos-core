@@ -3,6 +3,7 @@ module leizd::pool {
     use std::signer;
     use aptos_framework::coin;
     use aptos_framework::timestamp;
+    use aptos_std::event;
     use leizd::collateral;
     use leizd::collateral_only;
     use leizd::debt;
@@ -31,6 +32,34 @@ module leizd::pool {
         last_updated: u64,
     }
 
+    // Events
+    struct DepositEvent has store, drop {
+        caller: address,
+        amount: u64,
+        is_shadow: bool,
+    }
+    struct WithdrawEvent has store, drop {
+        caller: address,
+        amount: u64,
+        is_shadow: bool,
+    }
+    struct BorrowEvent has store, drop {
+        caller: address,
+        amount: u64,
+        is_shadow: bool,
+    }
+    struct RepayEvent has store, drop {
+        caller: address,
+        amount: u64,
+        is_shadow: bool,
+    }
+    struct PoolEventHandle<phantom C> has key, store {
+        deposit_event: event::EventHandle<DepositEvent>,
+        withdraw_event: event::EventHandle<WithdrawEvent>,
+        borrow_event: event::EventHandle<BorrowEvent>,
+        repay_event: event::EventHandle<RepayEvent>,
+    }
+
     public entry fun init_pool<C>(owner: &signer) {
         collateral::initialize<C>(owner);
         collateral_only::initialize<C>(owner);
@@ -45,6 +74,12 @@ module leizd::pool {
         });
         move_to(owner, default_storage<C,Asset>());
         move_to(owner, default_storage<C,Shadow>());
+        move_to(owner, PoolEventHandle<C> {
+            deposit_event: event::new_event_handle<DepositEvent>(owner),
+            withdraw_event: event::new_event_handle<WithdrawEvent>(owner),
+            borrow_event: event::new_event_handle<BorrowEvent>(owner),
+            repay_event: event::new_event_handle<RepayEvent>(owner),
+        })
     }
 
     public fun is_available<C>(): bool acquires Pool {
@@ -53,40 +88,72 @@ module leizd::pool {
         system_is_active && pool_ref.is_active 
     }
 
-    public entry fun deposit<C>(account: &signer, amount: u64, is_collateral_only: bool, is_shadow: bool) acquires Pool, Storage {
+    public entry fun deposit<C>(account: &signer, amount: u64, is_collateral_only: bool, is_shadow: bool) acquires Pool, Storage, PoolEventHandle {
         assert!(is_available<C>(), 0);
         if (is_shadow) {
             deposit_shadow<C>(account, amount, is_collateral_only);
         } else {
             deposit_asset<C>(account, amount, is_collateral_only);
         };
+        event::emit_event<DepositEvent>(
+            &mut borrow_global_mut<PoolEventHandle<C>>(@leizd).deposit_event,
+            DepositEvent {
+                caller: signer::address_of(account),
+                amount,
+                is_shadow
+            },
+        );
     }
 
-    public entry fun withdraw<C>(account: &signer, amount: u64, is_collateral_only: bool, is_shadow: bool) acquires Pool, Storage {
+    public entry fun withdraw<C>(account: &signer, amount: u64, is_collateral_only: bool, is_shadow: bool) acquires Pool, Storage, PoolEventHandle {
         assert!(is_available<C>(), 0);
         if (is_shadow) {
             withdraw_shadow<C>(account, amount, is_collateral_only);
         } else {
             withdraw_asset<C>(account, amount, is_collateral_only);
         };
+        event::emit_event<WithdrawEvent>(
+            &mut borrow_global_mut<PoolEventHandle<C>>(@leizd).withdraw_event,
+            WithdrawEvent {
+                caller: signer::address_of(account),
+                amount,
+                is_shadow
+            },
+        );
     }
 
-    public entry fun borrow<C>(account: &signer, amount: u64, is_shadow: bool) acquires Pool, Storage {
+    public entry fun borrow<C>(account: &signer, amount: u64, is_shadow: bool) acquires Pool, Storage, PoolEventHandle {
         assert!(is_available<C>(), 0);
         if (is_shadow) {
             borrow_shadow<C>(account, amount);
         } else {
             borrow_asset<C>(account, amount);
         };
+        event::emit_event<BorrowEvent>(
+            &mut borrow_global_mut<PoolEventHandle<C>>(@leizd).borrow_event,
+            BorrowEvent {
+                caller: signer::address_of(account),
+                amount,
+                is_shadow
+            },
+        );
     }
 
-    public entry fun repay<C>(account: &signer, amount: u64, is_shadow: bool) acquires Pool, Storage {
+    public entry fun repay<C>(account: &signer, amount: u64, is_shadow: bool) acquires Pool, Storage, PoolEventHandle {
         assert!(is_available<C>(), 0);
         if (is_shadow) {
             repay_shadow<C>(account, amount);
         } else {
             repay_asset<C>(account, amount);
         };
+        event::emit_event<RepayEvent>(
+            &mut borrow_global_mut<PoolEventHandle<C>>(@leizd).repay_event,
+            RepayEvent {
+                caller: signer::address_of(account),
+                amount,
+                is_shadow
+            },
+        );
     }
 
     fun deposit_asset<C>(account: &signer, amount: u64, is_collateral_only: bool) acquires Pool, Storage {
@@ -367,7 +434,7 @@ module leizd::pool {
     }
 
     #[test(owner=@leizd,account1=@0x111,aptos_framework=@aptos_framework)]
-    public entry fun test_deposit_weth(owner: signer, account1: signer, aptos_framework: signer) acquires Pool, Storage {
+    public entry fun test_deposit_weth(owner: signer, account1: signer, aptos_framework: signer) acquires Pool, Storage, PoolEventHandle {
         timestamp::set_time_has_started_for_testing(&aptos_framework);
         let owner_addr = signer::address_of(&owner);
         let account1_addr = signer::address_of(&account1);
@@ -388,7 +455,7 @@ module leizd::pool {
     }
 
     #[test(owner=@leizd,account1=@0x111,aptos_framework=@aptos_framework)]
-    public entry fun test_deposit_weth_for_only_collateral(owner: signer, account1: signer, aptos_framework: signer) acquires Pool, Storage {
+    public entry fun test_deposit_weth_for_only_collateral(owner: signer, account1: signer, aptos_framework: signer) acquires Pool, Storage, PoolEventHandle {
         timestamp::set_time_has_started_for_testing(&aptos_framework);
         let owner_addr = signer::address_of(&owner);
         let account1_addr = signer::address_of(&account1);
@@ -409,7 +476,7 @@ module leizd::pool {
     }
 
     #[test(owner=@leizd,account1=@0x111,aptos_framework=@aptos_framework)]
-    public entry fun test_deposit_shadow(owner: signer, account1: signer, aptos_framework: signer) acquires Pool, Storage {
+    public entry fun test_deposit_shadow(owner: signer, account1: signer, aptos_framework: signer) acquires Pool, Storage, PoolEventHandle {
         timestamp::set_time_has_started_for_testing(&aptos_framework);
         let owner_addr = signer::address_of(&owner);
         let account1_addr = signer::address_of(&account1);
@@ -434,7 +501,7 @@ module leizd::pool {
     }
 
     #[test(owner=@leizd,account1=@0x111,aptos_framework=@aptos_framework)]
-    public entry fun test_withdraw_weth(owner: signer, account1: signer, aptos_framework: signer) acquires Pool, Storage {
+    public entry fun test_withdraw_weth(owner: signer, account1: signer, aptos_framework: signer) acquires Pool, Storage, PoolEventHandle {
         timestamp::set_time_has_started_for_testing(&aptos_framework);
         let owner_addr = signer::address_of(&owner);
         let account1_addr = signer::address_of(&account1);
@@ -455,7 +522,7 @@ module leizd::pool {
     }
 
     #[test(owner=@leizd,account1=@0x111,aptos_framework=@aptos_framework)]
-    public entry fun test_withdraw_shadow(owner: signer, account1: signer, aptos_framework: signer) acquires Pool, Storage {
+    public entry fun test_withdraw_shadow(owner: signer, account1: signer, aptos_framework: signer) acquires Pool, Storage, PoolEventHandle {
         timestamp::set_time_has_started_for_testing(&aptos_framework);
         let owner_addr = signer::address_of(&owner);
         let account1_addr = signer::address_of(&account1);
@@ -481,7 +548,7 @@ module leizd::pool {
     }
 
     #[test(owner=@leizd,account1=@0x111,account2=@0x222,aptos_framework=@aptos_framework)]
-    public entry fun test_borrow_uni(owner: signer, account1: signer, account2: signer, aptos_framework: signer) acquires Pool, Storage {
+    public entry fun test_borrow_uni(owner: signer, account1: signer, account2: signer, aptos_framework: signer) acquires Pool, Storage, PoolEventHandle {
         timestamp::set_time_has_started_for_testing(&aptos_framework);
         let owner_addr = signer::address_of(&owner);
         let account1_addr = signer::address_of(&account1);
@@ -528,7 +595,7 @@ module leizd::pool {
     }
 
     #[test(owner=@leizd,account1=@0x111,account2=@0x222,aptos_framework=@aptos_framework)]
-    public entry fun test_repay_uni(owner: signer, account1: signer, account2: signer, aptos_framework: signer) acquires Pool, Storage {
+    public entry fun test_repay_uni(owner: signer, account1: signer, account2: signer, aptos_framework: signer) acquires Pool, Storage, PoolEventHandle {
         timestamp::set_time_has_started_for_testing(&aptos_framework);
         let owner_addr = signer::address_of(&owner);
         let account1_addr = signer::address_of(&account1);
