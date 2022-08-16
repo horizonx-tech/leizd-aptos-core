@@ -55,11 +55,17 @@ module leizd::pool {
         amount: u64,
         is_shadow: bool,
     }
+    struct LiquidateEvent has store, drop {
+        caller: address,
+        target: address,
+        is_shadow: bool,
+    }
     struct PoolEventHandle<phantom C> has key, store {
         deposit_event: event::EventHandle<DepositEvent>,
         withdraw_event: event::EventHandle<WithdrawEvent>,
         borrow_event: event::EventHandle<BorrowEvent>,
         repay_event: event::EventHandle<RepayEvent>,
+        liquidate_event: event::EventHandle<LiquidateEvent>,
     }
 
     public entry fun init_pool<C>(owner: &signer) {
@@ -82,6 +88,7 @@ module leizd::pool {
             withdraw_event: event::new_event_handle<WithdrawEvent>(owner),
             borrow_event: event::new_event_handle<BorrowEvent>(owner),
             repay_event: event::new_event_handle<RepayEvent>(owner),
+            liquidate_event: event::new_event_handle<LiquidateEvent>(owner),
         })
     }
 
@@ -157,6 +164,27 @@ module leizd::pool {
                 is_shadow
             },
         );
+    }
+
+    public entry fun liquidate<C>(account: &signer, target_addr: address, is_shadow: bool) acquires Pool, Storage, PoolEventHandle {
+        let protocol_liquidation_fee = (repository::liquidation_fee() as u64);
+        if (is_shadow) {
+            assert!(is_shadow_solvent<C>(target_addr), 0);
+            withdraw_shadow<C>(account, target_addr, U64_MAX, true, protocol_liquidation_fee);
+            withdraw_shadow<C>(account, target_addr, U64_MAX, false, protocol_liquidation_fee);
+        } else {
+            assert!(is_asset_solvent<C>(target_addr), 0);
+            withdraw_asset<C>(account, target_addr, U64_MAX, true, protocol_liquidation_fee);
+            withdraw_asset<C>(account, target_addr, U64_MAX, false, protocol_liquidation_fee);
+        };
+        event::emit_event<LiquidateEvent>(
+            &mut borrow_global_mut<PoolEventHandle<C>>(@leizd).liquidate_event,
+            LiquidateEvent {
+                caller: signer::address_of(account),
+                target: target_addr,
+                is_shadow
+            }
+        )
     }
 
     fun deposit_asset<C>(account: &signer, amount: u64, is_collateral_only: bool) acquires Pool, Storage {
@@ -344,19 +372,6 @@ module leizd::pool {
             _repay_share = math::to_share((amount as u128), total_borrows, debt_supply);
         };
         (_amount, _repay_share)
-    }
-
-    public entry fun flash_liquidate<C>(account: &signer, target_addr: address, is_shadow: bool) acquires Storage, Pool {
-        let protocol_liquidation_fee = (repository::liquidation_fee() as u64);
-        if (is_shadow) {
-            assert!(is_shadow_solvent<C>(target_addr), 0);
-            withdraw_shadow<C>(account, target_addr, U64_MAX, true, protocol_liquidation_fee);
-            withdraw_shadow<C>(account, target_addr, U64_MAX, false, protocol_liquidation_fee);
-        } else {
-            assert!(is_asset_solvent<C>(target_addr), 0);
-            withdraw_asset<C>(account, target_addr, U64_MAX, true, protocol_liquidation_fee);
-            withdraw_asset<C>(account, target_addr, U64_MAX, false, protocol_liquidation_fee);
-        };
     }
 
     public entry fun collateral_value<C,P>(account: &signer): u64 {
