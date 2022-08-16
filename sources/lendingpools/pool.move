@@ -14,6 +14,7 @@ module leizd::pool {
     use leizd::treasury;
     use leizd::interest_rate;
     use leizd::system_status;
+    use leizd::price_oracle;
 
     friend leizd::system_administrator;
 
@@ -107,17 +108,17 @@ module leizd::pool {
         );
     }
 
-    public entry fun withdraw<C>(account: &signer, amount: u64, is_collateral_only: bool, is_shadow: bool) acquires Pool, Storage, PoolEventHandle {
+    public entry fun withdraw<C>(depositor: &signer, receiver_addr: address, amount: u64, is_collateral_only: bool, is_shadow: bool) acquires Pool, Storage, PoolEventHandle {
         assert!(is_available<C>(), 0);
         if (is_shadow) {
-            withdraw_shadow<C>(account, amount, is_collateral_only);
+            withdraw_shadow<C>(depositor, receiver_addr, amount, is_collateral_only, 0);
         } else {
-            withdraw_asset<C>(account, amount, is_collateral_only);
+            withdraw_asset<C>(depositor, receiver_addr, amount, is_collateral_only, 0);
         };
         event::emit_event<WithdrawEvent>(
             &mut borrow_global_mut<PoolEventHandle<C>>(@leizd).withdraw_event,
             WithdrawEvent {
-                caller: signer::address_of(account),
+                caller: signer::address_of(depositor),
                 amount,
                 is_shadow
             },
@@ -201,34 +202,38 @@ module leizd::pool {
         };
     }
 
-    fun withdraw_asset<C>(account: &signer, amount: u64, is_collateral_only: bool) acquires Pool, Storage {
+    fun withdraw_asset<C>(depositor: &signer, reciever_addr: address, amount: u64, is_collateral_only: bool, liquidation_fee: u64) acquires Pool, Storage {
         let pool_ref = borrow_global_mut<Pool<C>>(@leizd);
         let storage_ref = borrow_global_mut<Storage<C,Asset>>(@leizd);
 
         accrue_interest<C,Asset>(storage_ref);
 
-        let deposited = coin::extract(&mut pool_ref.asset, amount);
-        coin::deposit<C>(signer::address_of(account), deposited);
-        withdraw_internal<C,Asset>(account, amount, is_collateral_only, storage_ref);
+        // TODO: amount to transfer
+        let amount_to_transfer = amount - liquidation_fee;
+        let deposited = coin::extract(&mut pool_ref.asset, amount_to_transfer);
+        coin::deposit<C>(reciever_addr, deposited);
+        withdraw_internal<C,Asset>(depositor, amount, is_collateral_only, storage_ref);
     }
 
-    fun withdraw_shadow<C>(account: &signer, amount: u64, is_collateral_only: bool) acquires Pool, Storage { 
+    fun withdraw_shadow<C>(depositor: &signer, reciever_addr: address, amount: u64, is_collateral_only: bool, liquidation_fee: u64) acquires Pool, Storage { 
         let pool_ref = borrow_global_mut<Pool<C>>(@leizd);
         let storage_ref = borrow_global_mut<Storage<C,Shadow>>(@leizd);
 
         accrue_interest<C,Shadow>(storage_ref);
 
-        let deposited = coin::extract(&mut pool_ref.shadow, amount);
-        coin::deposit<ZUSD>(signer::address_of(account), deposited);
-        withdraw_internal<C,Shadow>(account, amount, is_collateral_only, storage_ref);
+        // TODO: amount to transfer
+        let amount_to_transfer = amount - liquidation_fee;
+        let deposited = coin::extract(&mut pool_ref.shadow, amount_to_transfer);
+        coin::deposit<ZUSD>(reciever_addr, deposited);
+        withdraw_internal<C,Shadow>(depositor, amount, is_collateral_only, storage_ref);
     }
 
-    fun withdraw_internal<C,P>(account: &signer, amount: u64, is_collateral_only: bool, storage_ref: &mut Storage<C,P>) {
-        let account_addr = signer::address_of(account);
+    fun withdraw_internal<C,P>(depositor: &signer, amount: u64, is_collateral_only: bool, storage_ref: &mut Storage<C,P>) {
+        let depositor_addr = signer::address_of(depositor);
         let burned_share;
         let withdrawn_amount;
         if (amount == U64_MAX) {
-            burned_share = collateral_balance<C,P>(account_addr, is_collateral_only);
+            burned_share = collateral_balance<C,P>(depositor_addr, is_collateral_only);
             withdrawn_amount = math::to_amount((burned_share as u128), storage_ref.total_deposits, collateral_supply<C,P>(is_collateral_only));
         } else {
             burned_share = math::to_share_roundup((amount as u128), storage_ref.total_deposits, collateral_supply<C,P>(is_collateral_only));
@@ -237,10 +242,10 @@ module leizd::pool {
 
         if (is_collateral_only) {
             storage_ref.total_collateral_only_deposits = storage_ref.total_collateral_only_deposits - (withdrawn_amount as u128);
-            collateral_only::burn<C,P>(account, burned_share);
+            collateral_only::burn<C,P>(depositor, burned_share);
         } else {
             storage_ref.total_deposits = storage_ref.total_deposits - (withdrawn_amount as u128);
-            collateral::burn<C,P>(account, burned_share);
+            collateral::burn<C,P>(depositor, burned_share);
         };
         // TODO is solvent
     }
@@ -341,8 +346,50 @@ module leizd::pool {
         (_amount, _repay_share)
     }
 
-    public entry fun flash_liquidate<C>() {
-        // TODO
+    public entry fun flash_liquidate<C>(account: &signer, target_addr: address, is_shadow: bool) acquires Storage, Pool {
+        let protocol_liquidation_fee = (repository::liquidation_fee() as u64);
+        if (is_shadow) {
+            assert!(is_shadow_solvent<C>(target_addr), 0);
+            withdraw_shadow<C>(account, target_addr, U64_MAX, true, protocol_liquidation_fee);
+            withdraw_shadow<C>(account, target_addr, U64_MAX, false, protocol_liquidation_fee);
+        } else {
+            assert!(is_asset_solvent<C>(target_addr), 0);
+            withdraw_asset<C>(account, target_addr, U64_MAX, true, protocol_liquidation_fee);
+            withdraw_asset<C>(account, target_addr, U64_MAX, false, protocol_liquidation_fee);
+        };
+    }
+
+    public entry fun collateral_value<C,P>(account: &signer): u64 {
+        let account_addr = signer::address_of(account);
+        let asset = collateral::balance_of<C,Asset>(account_addr) + collateral_only::balance_of<C,Asset>(account_addr);
+        let shadow = collateral::balance_of<C,Shadow>(account_addr) + collateral_only::balance_of<C,Shadow>(account_addr);
+
+        asset * price_oracle::price<C>() + shadow * price_oracle::price<ZUSD>()
+    }
+
+    public entry fun debt_value<C,P>(account: &signer): u64 {
+        let account_addr = signer::address_of(account);
+        let asset = debt::balance_of<C,Asset>(account_addr);
+        let shadow = debt::balance_of<C,Shadow>(account_addr);
+
+        asset * price_oracle::price<C>() + shadow * price_oracle::price<ZUSD>()
+    }
+
+    public entry fun is_asset_solvent<C>(account_addr: address): bool {
+        is_solvent<C,Asset,Shadow>(account_addr)
+    }
+
+    public entry fun is_shadow_solvent<C>(account_addr: address): bool {
+        is_solvent<C,Shadow,Asset>(account_addr)
+    }
+
+    fun is_solvent<COIN,COL,DEBT>(account_addr: address): bool {
+        let collateral = collateral::balance_of<COIN,COL>(account_addr) + collateral_only::balance_of<COIN,COL>(account_addr);
+        let collateral_value = collateral * price_oracle::price<COIN>();
+        let debt = debt::balance_of<COIN,DEBT>(account_addr);
+        let debt_value = debt * price_oracle::price<COIN>();
+
+        ((collateral_value / debt_value as u128) <= (repository::liquidation_threshold<COIN>() as u128) / DECIMAL_PRECISION)
     }
 
     public entry fun harvest_protocol_fees() {
@@ -351,7 +398,7 @@ module leizd::pool {
 
     fun accrue_interest<C,P>(storage_ref: &mut Storage<C,P>) {
         let now = timestamp::now_microseconds();
-        let protocol_share_fee = repository::protocol_share_fee();
+        let protocol_share_fee = repository::share_fee();
         let rcomp = interest_rate::update_interest_rate<C>(
             now,
             storage_ref.total_deposits,
@@ -518,7 +565,7 @@ module leizd::pool {
         init_pool<WETH>(&owner);
         deposit<WETH>(&account1, 800000, false, false);
 
-        withdraw<WETH>(&account1, 800000, false, false);
+        withdraw<WETH>(&account1, account1_addr, 800000, false, false);
         assert!(coin::balance<WETH>(account1_addr) == 1000000, 0);
         assert!(total_deposits<WETH,Asset>() == 0, 0);
     }
@@ -543,7 +590,7 @@ module leizd::pool {
         init_pool<WETH>(&owner);
         deposit<WETH>(&account1, 800000, false, true);
 
-        withdraw<WETH>(&account1, 800000, false, true);
+        withdraw<WETH>(&account1, account1_addr, 800000, false, true);
         assert!(coin::balance<WETH>(account1_addr) == 1000000, 0);
         assert!(total_deposits<WETH,Shadow>() == 0, 0);
         assert!(coin::balance<ZUSD>(account1_addr) == 1000000, 0);
