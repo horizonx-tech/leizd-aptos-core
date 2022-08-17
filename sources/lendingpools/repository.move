@@ -3,13 +3,11 @@ module leizd::repository {
     use std::signer;
     use aptos_std::event;
     use leizd::permission;
+    use leizd::constant;
 
-    const DECIMAL_PRECISION_U64: u64 = 1000000000000000000;
-    const DECIMAL_PRECISION_U128: u128 = 1000000000000000000;
-
-    const DEFAULT_ENTRY_FEE: u128 = 1000000000000000000 / 1000 * 5; // 0.5%
-    const DEFAULT_SHARE_FEE: u128 = 1000000000000000000 / 1000 * 5; // 0.5%
-    const DEFAULT_LIQUIDATION_FEE: u128 = 1000000000000000000 / 1000 * 5; // 0.5%
+    const DEFAULT_ENTRY_FEE: u64 = 1000000000000000000 / 1000 * 5; // 0.5%
+    const DEFAULT_SHARE_FEE: u64 = 1000000000000000000 / 1000 * 5; // 0.5%
+    const DEFAULT_LIQUIDATION_FEE: u64 = 1000000000000000000 / 1000 * 5; // 0.5%
 
     const DEFAULT_LTV: u64 = 1000000000000000000 / 100 * 5; // 50%
     const DEFAULT_THRESHOLD: u64 = 1000000000000000000 / 100 * 70 ; // 70%
@@ -21,9 +19,9 @@ module leizd::repository {
     const E_INVALID_LIQUIDATION_FEE: u64 = 5;
 
     struct ProtocolFees has key, drop {
-        entry_fee: u128,
-        share_fee: u128,
-        liquidation_fee: u128,
+        entry_fee: u64,
+        share_fee: u64,
+        liquidation_fee: u64,
     }
 
     struct Config<phantom C> has key, drop {
@@ -33,9 +31,9 @@ module leizd::repository {
 
     struct UpdateProtocolFeesEvent has store, drop {
         caller: address,
-        entry_fee: u128,
-        share_fee: u128,
-        liquidation_fee: u128,
+        entry_fee: u64,
+        share_fee: u64,
+        liquidation_fee: u64,
     }
 
     struct UpdateConfigEvent has store, drop {
@@ -73,9 +71,9 @@ module leizd::repository {
 
     public entry fun update_protocol_fees(owner: &signer, fees: ProtocolFees) acquires ProtocolFees {
         permission::assert_owner(signer::address_of(owner));
-        assert!(fees.entry_fee < DECIMAL_PRECISION_U128, E_INVALID_ENTRY_FEE);
-        assert!(fees.share_fee < DECIMAL_PRECISION_U128, E_INVALID_SHARE_FEE);
-        assert!(fees.liquidation_fee < DECIMAL_PRECISION_U128, E_INVALID_LIQUIDATION_FEE);
+        assert!(fees.entry_fee < constant::decimal_precision_u64(), E_INVALID_ENTRY_FEE);
+        assert!(fees.share_fee < constant::decimal_precision_u64(), E_INVALID_SHARE_FEE);
+        assert!(fees.liquidation_fee < constant::decimal_precision_u64(), E_INVALID_LIQUIDATION_FEE);
 
         let _fees = borrow_global_mut<ProtocolFees>(@leizd);
         _fees.entry_fee = fees.entry_fee;
@@ -101,19 +99,19 @@ module leizd::repository {
     }
 
     fun assert_liquidation_threashold(ltv: u64, liquidation_threshold: u64) {
-        assert!(liquidation_threshold <= DECIMAL_PRECISION_U64, E_INVALID_THRESHOLD);
+        assert!(liquidation_threshold <= constant::decimal_precision_u64(), E_INVALID_THRESHOLD);
         assert!(ltv != 0 && ltv < liquidation_threshold, E_INVALID_LTV);
     }
 
-    public entry fun entry_fee(): u128 acquires ProtocolFees {
+    public entry fun entry_fee(): u64 acquires ProtocolFees {
         borrow_global<ProtocolFees>(@leizd).entry_fee
     }
 
-    public entry fun share_fee(): u128 acquires ProtocolFees {
+    public entry fun share_fee(): u64 acquires ProtocolFees {
         borrow_global<ProtocolFees>(@leizd).share_fee
     }
 
-    public entry fun liquidation_fee(): u128 acquires ProtocolFees {
+    public entry fun liquidation_fee(): u64 acquires ProtocolFees {
         borrow_global<ProtocolFees>(@leizd).liquidation_fee
     }
 
