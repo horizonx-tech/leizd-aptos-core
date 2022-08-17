@@ -1,6 +1,6 @@
 module leizd::math {
 
-    const DECIMAL_PRECISION: u128 = 1000000000000000000;
+    use leizd::constant;
 
     public fun to_share(amount: u128, total_amount: u128, total_shares: u128): u64 {
         if (total_shares == 0 || total_amount == 0) {
@@ -59,7 +59,7 @@ module leizd::math {
         if (total_deposts == 0 || total_borrows == 0) {
             0
         } else {
-            ((total_borrows * DECIMAL_PRECISION / total_deposts) as u64)
+            ((total_borrows * constant::decimal_precision_u128() / total_deposts) as u64)
         }
     }
 

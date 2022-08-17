@@ -15,11 +15,9 @@ module leizd::pool {
     use leizd::interest_rate;
     use leizd::system_status;
     use leizd::price_oracle;
+    use leizd::constant;
 
     friend leizd::system_administrator;
-
-    const U64_MAX: u64 = 18446744073709551615;
-    const DECIMAL_PRECISION: u128 = 1000000000000000000;
 
     struct Pool<phantom C> has key {
         asset: coin::Coin<C>,
@@ -170,12 +168,12 @@ module leizd::pool {
         let protocol_liquidation_fee = (repository::liquidation_fee() as u64);
         if (is_shadow) {
             assert!(is_shadow_solvent<C>(target_addr), 0);
-            withdraw_shadow<C>(account, target_addr, U64_MAX, true, protocol_liquidation_fee);
-            withdraw_shadow<C>(account, target_addr, U64_MAX, false, protocol_liquidation_fee);
+            withdraw_shadow<C>(account, target_addr, constant::u64_max(), true, protocol_liquidation_fee);
+            withdraw_shadow<C>(account, target_addr, constant::u64_max(), false, protocol_liquidation_fee);
         } else {
             assert!(is_asset_solvent<C>(target_addr), 0);
-            withdraw_asset<C>(account, target_addr, U64_MAX, true, protocol_liquidation_fee);
-            withdraw_asset<C>(account, target_addr, U64_MAX, false, protocol_liquidation_fee);
+            withdraw_asset<C>(account, target_addr, constant::u64_max(), true, protocol_liquidation_fee);
+            withdraw_asset<C>(account, target_addr, constant::u64_max(), false, protocol_liquidation_fee);
         };
         event::emit_event<LiquidateEvent>(
             &mut borrow_global_mut<PoolEventHandle<C>>(@leizd).liquidate_event,
@@ -260,7 +258,7 @@ module leizd::pool {
         let depositor_addr = signer::address_of(depositor);
         let burned_share;
         let withdrawn_amount;
-        if (amount == U64_MAX) {
+        if (amount == constant::u64_max()) {
             burned_share = collateral_balance<C,P>(depositor_addr, is_collateral_only);
             withdrawn_amount = math::to_amount((burned_share as u128), storage_ref.total_deposits, collateral_supply<C,P>(is_collateral_only));
         } else {
@@ -289,7 +287,7 @@ module leizd::pool {
         accrue_interest<C,Asset>(storage_ref);
 
         let entry_fee = repository::entry_fee();
-        let fee = (((amount as u128) * entry_fee / DECIMAL_PRECISION) as u64);
+        let fee = (((amount as u128) * (entry_fee as u128) / constant::decimal_precision_u128()) as u64);
         let fee_extracted = coin::extract(&mut pool_ref.asset, (fee as u64));
         treasury::collect_asset_fee<C>(fee_extracted);
 
@@ -308,7 +306,7 @@ module leizd::pool {
         accrue_interest<C,Shadow>(storage_ref);
 
         let entry_fee = repository::entry_fee();
-        let fee = (((amount as u128) * entry_fee / DECIMAL_PRECISION) as u64);
+        let fee = (((amount as u128) * (entry_fee as u128) / constant::decimal_precision_u128()) as u64);
         let fee_extracted = coin::extract(&mut pool_ref.shadow, (fee as u64));
         treasury::collect_shadow_fee<C>(fee_extracted);
 
@@ -404,7 +402,7 @@ module leizd::pool {
         let debt = debt::balance_of<COIN,DEBT>(account_addr);
         let debt_value = debt * price_oracle::price<COIN>();
 
-        ((collateral_value / debt_value as u128) <= (repository::liquidation_threshold<COIN>() as u128) / DECIMAL_PRECISION)
+        ((collateral_value / debt_value as u128) <= (repository::liquidation_threshold<COIN>() as u128) / constant::decimal_precision_u128())
     }
 
     public entry fun harvest_protocol_fees() {
@@ -420,12 +418,12 @@ module leizd::pool {
             storage_ref.total_borrows,
             storage_ref.last_updated,
         );
-        let accrued_interest = storage_ref.total_borrows * (rcomp as u128) / (DECIMAL_PRECISION as u128);
-        let protocol_share = accrued_interest * protocol_share_fee / DECIMAL_PRECISION;
+        let accrued_interest = storage_ref.total_borrows * (rcomp as u128) / constant::decimal_precision_u128();
+        let protocol_share = (accrued_interest as u64) * protocol_share_fee / constant::decimal_precision_u64();
 
-        let depositors_share = accrued_interest - protocol_share;
+        let depositors_share = (accrued_interest as u64) - protocol_share;
         storage_ref.total_borrows = storage_ref.total_borrows + accrued_interest;
-        storage_ref.total_deposits = storage_ref.total_deposits + depositors_share;
+        storage_ref.total_deposits = storage_ref.total_deposits + (depositors_share as u128);
         storage_ref.last_updated = now;
     }
 
