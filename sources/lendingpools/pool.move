@@ -21,7 +21,7 @@ module leizd::pool {
 
     struct Pool<phantom C> has key {
         asset: coin::Coin<C>,
-        shadow: coin::Coin<ZUSD>,
+        shadow: coin::Coin<USDZ>,
         is_active: bool,
     }
 
@@ -76,7 +76,7 @@ module leizd::pool {
         interest_rate::initialize<C>(owner);
         move_to(owner, Pool<C> {
             asset: coin::zero<C>(),
-            shadow: coin::zero<ZUSD>(),
+            shadow: coin::zero<USDZ>(),
             is_active: true
         });
         move_to(owner, default_storage<C,Asset>());
@@ -214,7 +214,7 @@ module leizd::pool {
 
         accrue_interest<C,Shadow>(storage_ref);
 
-        let withdrawn = coin::withdraw<ZUSD>(account, amount);
+        let withdrawn = coin::withdraw<USDZ>(account, amount);
         coin::merge(&mut pool_ref.shadow, withdrawn);
         deposit_internal<C,Shadow>(depositor_addr, amount, is_collateral_only, storage_ref);
     }
@@ -263,7 +263,7 @@ module leizd::pool {
 
         let amount_to_transfer = amount - liquidation_fee;
         let deposited = coin::extract(&mut pool_ref.shadow, amount_to_transfer);
-        coin::deposit<ZUSD>(reciever_addr, deposited);
+        coin::deposit<USDZ>(reciever_addr, deposited);
         withdraw_internal<C,Shadow>(depositor, amount, is_collateral_only, storage_ref);
         assert!(is_shadow_solvent<C>(signer::address_of(depositor)),0);
     }
@@ -322,7 +322,7 @@ module leizd::pool {
         treasury::collect_shadow_fee<C>(fee_extracted);
 
         let deposited = coin::extract(&mut pool_ref.shadow, amount);
-        coin::deposit<ZUSD>(receiver_addr, deposited);
+        coin::deposit<USDZ>(receiver_addr, deposited);
         borrow_internal<C,Shadow>(borrower_addr, amount, fee, storage_ref);
     }
 
@@ -358,7 +358,7 @@ module leizd::pool {
 
         let (repaid_amount, repaid_share) = calc_debt_amount_and_share<C,Shadow>(account_addr, storage_ref.total_borrows, amount);
 
-        let withdrawn = coin::withdraw<ZUSD>(account, repaid_amount);
+        let withdrawn = coin::withdraw<USDZ>(account, repaid_amount);
         coin::merge(&mut pool_ref.shadow, withdrawn);
 
         storage_ref.total_borrows = storage_ref.total_borrows - (repaid_amount as u128);
@@ -388,7 +388,7 @@ module leizd::pool {
         let asset = collateral::balance_of<C,Asset>(account_addr) + collateral_only::balance_of<C,Asset>(account_addr);
         let shadow = collateral::balance_of<C,Shadow>(account_addr) + collateral_only::balance_of<C,Shadow>(account_addr);
 
-        asset * price_oracle::price<C>() + shadow * price_oracle::price<ZUSD>()
+        asset * price_oracle::price<C>() + shadow * price_oracle::price<USDZ>()
     }
 
     public entry fun debt_value<C,P>(account: &signer): u64 {
@@ -396,7 +396,7 @@ module leizd::pool {
         let asset = debt::balance_of<C,Asset>(account_addr);
         let shadow = debt::balance_of<C,Shadow>(account_addr);
 
-        asset * price_oracle::price<C>() + shadow * price_oracle::price<ZUSD>()
+        asset * price_oracle::price<C>() + shadow * price_oracle::price<USDZ>()
     }
 
     public entry fun is_asset_solvent<C>(account_addr: address): bool {
@@ -501,7 +501,7 @@ module leizd::pool {
     use aptos_framework::account;
     use aptos_framework::managed_coin;
     use leizd::common::{Self,WETH,UNI};
-    use leizd::zusd::{Self,ZUSD};
+    use leizd::usdz::{Self,USDZ};
     use leizd::trove;
     use leizd::initializer;
 
@@ -569,16 +569,16 @@ module leizd::pool {
         initializer::register<WETH>(&account1);
         managed_coin::mint<WETH>(&owner, account1_addr, 1000000);
         assert!(coin::balance<WETH>(account1_addr) == 1000000, 0);
-        initializer::register<ZUSD>(&account1);
-        zusd::mint_for_test(&account1, 1000000);
-        assert!(coin::balance<ZUSD>(account1_addr) == 1000000, 0);
+        initializer::register<USDZ>(&account1);
+        usdz::mint_for_test(&account1, 1000000);
+        assert!(coin::balance<USDZ>(account1_addr) == 1000000, 0);
 
         init_pool<WETH>(&owner);
 
         deposit<WETH>(&account1, 800000, false, true);
         assert!(coin::balance<WETH>(account1_addr) == 1000000, 0);
         assert!(total_deposits<WETH,Shadow>() == 800000, 0);
-        assert!(coin::balance<ZUSD>(account1_addr) == 200000, 0);
+        assert!(coin::balance<USDZ>(account1_addr) == 200000, 0);
     }
 
     #[test(owner=@leizd,account1=@0x111,aptos_framework=@aptos_framework)]
@@ -615,9 +615,9 @@ module leizd::pool {
         initializer::register<WETH>(&account1);
         managed_coin::mint<WETH>(&owner, account1_addr, 1000000);
         assert!(coin::balance<WETH>(account1_addr) == 1000000, 0);
-        managed_coin::register<ZUSD>(&account1);
-        zusd::mint_for_test(&account1, 1000000);
-        assert!(coin::balance<ZUSD>(account1_addr) == 1000000, 0);
+        managed_coin::register<USDZ>(&account1);
+        usdz::mint_for_test(&account1, 1000000);
+        assert!(coin::balance<USDZ>(account1_addr) == 1000000, 0);
 
         init_pool<WETH>(&owner);
         deposit<WETH>(&account1, 800000, false, true);
@@ -625,7 +625,7 @@ module leizd::pool {
         withdraw<WETH>(&account1, 800000, false, true);
         assert!(coin::balance<WETH>(account1_addr) == 1000000, 0);
         assert!(total_deposits<WETH,Shadow>() == 0, 0);
-        assert!(coin::balance<ZUSD>(account1_addr) == 1000000, 0);
+        assert!(coin::balance<USDZ>(account1_addr) == 1000000, 0);
     }
 
     #[test(owner=@leizd,account1=@0x111,account2=@0x222,aptos_framework=@aptos_framework)]
@@ -643,37 +643,37 @@ module leizd::pool {
         initializer::initialize(&owner);
         initializer::register<UNI>(&account1);
         managed_coin::mint<UNI>(&owner, account1_addr, 1000000);
-        initializer::register<ZUSD>(&account1);
+        initializer::register<USDZ>(&account1);
         initializer::register<WETH>(&account1);
-        zusd::mint_for_test(&account1, 1000000);
+        usdz::mint_for_test(&account1, 1000000);
         initializer::register<WETH>(&account2);
         managed_coin::mint<WETH>(&owner, account2_addr, 1000000);
         initializer::register<UNI>(&account2);
-        initializer::register<ZUSD>(&account2);
+        initializer::register<USDZ>(&account2);
 
         
         init_pool<WETH>(&owner);
         init_pool<UNI>(&owner);
 
         // Lender: 
-        // deposit ZUSD for WETH
+        // deposit USDZ for WETH
         // deposit UNI
         deposit<WETH>(&account1, 800000, false, true);
         deposit<UNI>(&account1, 800000, false, false);
 
         // Borrower:
         // deposit WETH
-        // borrow  ZUSD
+        // borrow  USDZ
         deposit<WETH>(&account2, 600000, false, false);
         borrow<WETH>(&account2, 300000, true);
 
         // Borrower:
-        // deposit ZUSD for UNI
+        // deposit USDZ for UNI
         // borrow UNI
         deposit<UNI>(&account2, 200000, false, true);
         borrow<UNI>(&account2, 100000, false);
         assert!(coin::balance<UNI>(account2_addr) == 100000, 0);
-        assert!(coin::balance<ZUSD>(account2_addr) == 100000, 0);
+        assert!(coin::balance<USDZ>(account2_addr) == 100000, 0);
         assert!(debt::balance_of<UNI,Asset>(account2_addr) == 100500, 0); // 0.5% fee
     }
 
@@ -692,31 +692,31 @@ module leizd::pool {
         initializer::initialize(&owner);
         initializer::register<UNI>(&account1);
         managed_coin::mint<UNI>(&owner, account1_addr, 1000000);
-        initializer::register<ZUSD>(&account1);
+        initializer::register<USDZ>(&account1);
         initializer::register<WETH>(&account1);
-        zusd::mint_for_test(&account1, 1000000);
+        usdz::mint_for_test(&account1, 1000000);
         initializer::register<WETH>(&account2);
         managed_coin::mint<WETH>(&owner, account2_addr, 1000000);
         initializer::register<UNI>(&account2);
-        initializer::register<ZUSD>(&account2);
+        initializer::register<USDZ>(&account2);
         
         init_pool<WETH>(&owner);
         init_pool<UNI>(&owner);
 
         // Lender: 
-        // deposit ZUSD for WETH
+        // deposit USDZ for WETH
         // deposit UNI
         deposit<WETH>(&account1, 800000, false, true);
         deposit<UNI>(&account1, 800000, false, false);
 
         // Borrower:
         // deposit WETH
-        // borrow  ZUSD
+        // borrow  USDZ
         deposit<WETH>(&account2, 600000, false, false);
         borrow<WETH>(&account2, 300000, true);
 
         // Borrower:
-        // deposit ZUSD for UNI
+        // deposit USDZ for UNI
         // borrow UNI
         deposit<UNI>(&account2, 200000, false, true);
         borrow<UNI>(&account2, 100000, false);
@@ -725,7 +725,7 @@ module leizd::pool {
         // repay UNI
         repay<UNI>(&account2, 100000, false);
         assert!(coin::balance<UNI>(account2_addr) == 0, 0);
-        assert!(coin::balance<ZUSD>(account2_addr) == 100000, 0);
+        assert!(coin::balance<USDZ>(account2_addr) == 100000, 0);
         assert!(debt::balance_of<UNI,Asset>(account2_addr) == 700, 0); // 0.5% entry fee + 0.2% interest
     }
 }
