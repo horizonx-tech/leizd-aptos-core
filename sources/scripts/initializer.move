@@ -5,6 +5,7 @@ module leizd::initializer {
     use leizd::system_status;
     use leizd::collateral;
     use leizd::collateral_only;
+    use leizd::debt;
 
     public entry fun initialize(owner: &signer) {
         system_status::initialize(owner);
@@ -15,5 +16,6 @@ module leizd::initializer {
         managed_coin::register<C>(account);
         collateral::register<C>(account);
         collateral_only::register<C>(account);
+        debt::register<C>(account);
     }
 }

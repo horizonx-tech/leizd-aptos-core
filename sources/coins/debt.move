@@ -28,6 +28,16 @@ module leizd::debt {
         initialize_internal<C,Shadow>(owner, prefix_name, prefix_symbol);
     }
 
+    public fun register<C>(account: &signer) {
+        let account_addr = signer::address_of(account);
+        if (!coin::is_account_registered<Debt<C,Asset>>(account_addr)) {
+            coins::register<Debt<C,Asset>>(account);
+        };
+        if (!coin::is_account_registered<Debt<C,Shadow>>(account_addr)) {
+            coins::register<Debt<C,Shadow>>(account);
+        };
+    }
+
     fun initialize_internal<C,P>(owner: &signer, prefix_name: vector<u8>, prefix_symbol: vector<u8>) {
         let coin_name = coin::name<C>();
         let coin_symbol = coin::symbol<C>();
@@ -49,15 +59,11 @@ module leizd::debt {
         });
     }
 
-    public(friend) fun mint<C,P>(account: &signer, amount: u64) acquires Capabilities {
-        let account_addr = signer::address_of(account);
+    public(friend) fun mint<C,P>(minter_addr: address, amount: u64) acquires Capabilities {
+        assert!(coin::is_account_registered<Debt<C,P>>(minter_addr), 0);
         let caps = borrow_global<Capabilities<Debt<C,P>>>(@leizd);
-        if (!coin::is_account_registered<Debt<C,P>>(account_addr)) {
-            coins::register<Debt<C,P>>(account);
-        };
-
         let coin_minted = coin::mint(amount, &caps.mint_cap);
-        coin::deposit(account_addr, coin_minted);
+        coin::deposit(minter_addr, coin_minted);
     }
 
     public(friend) fun burn<C,P>(account: &signer, amount: u64) acquires Capabilities {
