@@ -97,11 +97,15 @@ module leizd::pool {
     }
 
     public entry fun deposit<C>(account: &signer, amount: u64, is_collateral_only: bool, is_shadow: bool) acquires Pool, Storage, PoolEventHandle {
+        deposit_for<C>(account, signer::address_of(account), amount, is_collateral_only, is_shadow);
+    }
+
+    public entry fun deposit_for<C>(account: &signer, depositor_addr: address, amount: u64, is_collateral_only: bool, is_shadow: bool) acquires Pool, Storage, PoolEventHandle {
         assert!(is_available<C>(), 0);
         if (is_shadow) {
-            deposit_shadow<C>(account, amount, is_collateral_only);
+            deposit_shadow<C>(account, depositor_addr, amount, is_collateral_only);
         } else {
-            deposit_asset<C>(account, amount, is_collateral_only);
+            deposit_asset<C>(account, depositor_addr, amount, is_collateral_only);
         };
         event::emit_event<DepositEvent>(
             &mut borrow_global_mut<PoolEventHandle<C>>(@leizd).deposit_event,
@@ -185,7 +189,7 @@ module leizd::pool {
         )
     }
 
-    fun deposit_asset<C>(account: &signer, amount: u64, is_collateral_only: bool) acquires Pool, Storage {
+    fun deposit_asset<C>(account: &signer, depositor_addr: address, amount: u64, is_collateral_only: bool) acquires Pool, Storage {
         let storage_ref = borrow_global_mut<Storage<C,Asset>>(@leizd);
         let pool_ref = borrow_global_mut<Pool<C>>(@leizd);
 
@@ -193,10 +197,10 @@ module leizd::pool {
 
         let withdrawn = coin::withdraw<C>(account, amount);
         coin::merge(&mut pool_ref.asset, withdrawn);
-        deposit_internal<C,Asset>(account, amount, is_collateral_only, storage_ref);
+        deposit_internal<C,Asset>(account, depositor_addr, amount, is_collateral_only, storage_ref);
     }
 
-    fun deposit_shadow<C>(account: &signer, amount: u64, is_collateral_only: bool) acquires Pool, Storage {
+    fun deposit_shadow<C>(account: &signer, depositor_addr: address, amount: u64, is_collateral_only: bool) acquires Pool, Storage {
         let storage_ref = borrow_global_mut<Storage<C,Shadow>>(@leizd);
         let pool_ref = borrow_global_mut<Pool<C>>(@leizd);
 
@@ -204,10 +208,11 @@ module leizd::pool {
 
         let withdrawn = coin::withdraw<ZUSD>(account, amount);
         coin::merge(&mut pool_ref.shadow, withdrawn);
-        deposit_internal<C,Shadow>(account, amount, is_collateral_only, storage_ref);
+        deposit_internal<C,Shadow>(account, depositor_addr, amount, is_collateral_only, storage_ref);
     }
 
-    fun deposit_internal<C,P>(account: &signer, amount: u64, is_collateral_only: bool, storage_ref: &mut Storage<C,P>) {
+    fun deposit_internal<C,P>(account: &signer, depositor_addr: address, amount: u64, is_collateral_only: bool, storage_ref: &mut Storage<C,P>) {
+        account;
         let collateral_share;
         if (is_collateral_only) {
             collateral_share = math::to_share(
@@ -216,7 +221,7 @@ module leizd::pool {
                 collateral_only::supply<C,P>()
             );
             storage_ref.total_collateral_only_deposits = storage_ref.total_deposits + (amount as u128);
-            collateral_only::mint<C,P>(account, collateral_share); 
+            collateral_only::mint<C,P>(depositor_addr, collateral_share); 
         } else {
             collateral_share = math::to_share(
                 (amount as u128),
@@ -224,7 +229,7 @@ module leizd::pool {
                 collateral::supply<C,P>()
             );
             storage_ref.total_deposits = storage_ref.total_deposits + (amount as u128);
-            collateral::mint<C,P>(account, collateral_share);
+            collateral::mint<C,P>(depositor_addr, collateral_share);
         };
     }
 
@@ -504,7 +509,7 @@ module leizd::pool {
         account::create_account(account1_addr);
         common::init_weth(&owner);
         initializer::initialize(&owner);
-        managed_coin::register<WETH>(&account1);
+        initializer::register<WETH>(&account1);
         managed_coin::mint<WETH>(&owner, account1_addr, 1000000);
         assert!(coin::balance<WETH>(account1_addr) == 1000000, 0);
 
@@ -525,7 +530,7 @@ module leizd::pool {
         account::create_account(account1_addr);
         common::init_weth(&owner);
         initializer::initialize(&owner);
-        managed_coin::register<WETH>(&account1);
+        initializer::register<WETH>(&account1);
         managed_coin::mint<WETH>(&owner, account1_addr, 1000000);
         assert!(coin::balance<WETH>(account1_addr) == 1000000, 0);
 
@@ -547,10 +552,10 @@ module leizd::pool {
         common::init_weth(&owner);
         trove::initialize(&owner);
         initializer::initialize(&owner);
-        managed_coin::register<WETH>(&account1);
+        initializer::register<WETH>(&account1);
         managed_coin::mint<WETH>(&owner, account1_addr, 1000000);
         assert!(coin::balance<WETH>(account1_addr) == 1000000, 0);
-        managed_coin::register<ZUSD>(&account1);
+        initializer::register<ZUSD>(&account1);
         zusd::mint_for_test(&account1, 1000000);
         assert!(coin::balance<ZUSD>(account1_addr) == 1000000, 0);
 
@@ -571,7 +576,7 @@ module leizd::pool {
         account::create_account(account1_addr);
         common::init_weth(&owner);
         initializer::initialize(&owner);
-        managed_coin::register<WETH>(&account1);
+        initializer::register<WETH>(&account1);
         managed_coin::mint<WETH>(&owner, account1_addr, 1000000);
         assert!(coin::balance<WETH>(account1_addr) == 1000000, 0);
 
@@ -593,7 +598,7 @@ module leizd::pool {
         common::init_weth(&owner);
         trove::initialize(&owner);
         initializer::initialize(&owner);
-        managed_coin::register<WETH>(&account1);
+        initializer::register<WETH>(&account1);
         managed_coin::mint<WETH>(&owner, account1_addr, 1000000);
         assert!(coin::balance<WETH>(account1_addr) == 1000000, 0);
         managed_coin::register<ZUSD>(&account1);
@@ -622,14 +627,16 @@ module leizd::pool {
         common::init_uni(&owner);
         trove::initialize(&owner);
         initializer::initialize(&owner);
-        managed_coin::register<UNI>(&account1);
+        initializer::register<UNI>(&account1);
         managed_coin::mint<UNI>(&owner, account1_addr, 1000000);
-        managed_coin::register<ZUSD>(&account1);
+        initializer::register<ZUSD>(&account1);
+        initializer::register<WETH>(&account1);
         zusd::mint_for_test(&account1, 1000000);
-        managed_coin::register<WETH>(&account2);
+        initializer::register<WETH>(&account2);
         managed_coin::mint<WETH>(&owner, account2_addr, 1000000);
-        managed_coin::register<UNI>(&account2);
-        managed_coin::register<ZUSD>(&account2);
+        initializer::register<UNI>(&account2);
+        initializer::register<ZUSD>(&account2);
+
         
         init_pool<WETH>(&owner);
         init_pool<UNI>(&owner);
@@ -669,14 +676,15 @@ module leizd::pool {
         common::init_uni(&owner);
         trove::initialize(&owner);
         initializer::initialize(&owner);
-        managed_coin::register<UNI>(&account1);
+        initializer::register<UNI>(&account1);
         managed_coin::mint<UNI>(&owner, account1_addr, 1000000);
-        managed_coin::register<ZUSD>(&account1);
+        initializer::register<ZUSD>(&account1);
+        initializer::register<WETH>(&account1);
         zusd::mint_for_test(&account1, 1000000);
-        managed_coin::register<WETH>(&account2);
+        initializer::register<WETH>(&account2);
         managed_coin::mint<WETH>(&owner, account2_addr, 1000000);
-        managed_coin::register<UNI>(&account2);
-        managed_coin::register<ZUSD>(&account2);
+        initializer::register<UNI>(&account2);
+        initializer::register<ZUSD>(&account2);
         
         init_pool<WETH>(&owner);
         init_pool<UNI>(&owner);

@@ -49,15 +49,21 @@ module leizd::collateral_only {
         });
     }
 
-    public(friend) fun mint<C,P>(account: &signer, amount: u64) acquires Capabilities {
+    public fun register<C>(account: &signer) {
         let account_addr = signer::address_of(account);
-        let caps = borrow_global<Capabilities<CollateralOnly<C,P>>>(@leizd);
-        if (!coin::is_account_registered<CollateralOnly<C,P>>(account_addr)) {
-            coins::register<CollateralOnly<C,P>>(account);
+        if (!coin::is_account_registered<CollateralOnly<C,Asset>>(account_addr)) {
+            coins::register<CollateralOnly<C,Asset>>(account);
         };
+        if (!coin::is_account_registered<CollateralOnly<C,Shadow>>(account_addr)) {
+            coins::register<CollateralOnly<C,Shadow>>(account);
+        };
+    }
 
+    public(friend) fun mint<C,P>(minter_addr: address, amount: u64) acquires Capabilities {
+        assert!(coin::is_account_registered<CollateralOnly<C,P>>(minter_addr), 0);
+        let caps = borrow_global<Capabilities<CollateralOnly<C,P>>>(@leizd);
         let coin_minted = coin::mint(amount, &caps.mint_cap);
-        coin::deposit(account_addr, coin_minted);
+        coin::deposit(minter_addr, coin_minted);
     }
 
     public(friend) fun burn<C,P>(account: &signer, amount: u64) acquires Capabilities {
