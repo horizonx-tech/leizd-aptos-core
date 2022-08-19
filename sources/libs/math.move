@@ -87,4 +87,16 @@ module leizd::math {
             }
         }
     }
+
+    #[test]
+    public entry fun test_pow() {
+        let result = pow(10, 18);
+        assert!(result == 1000000000000000000, 0);
+
+        let result = pow(10, 1);
+        assert!(result == 10, 0);
+
+        let result = pow(10, 0);
+        assert!(result == 1, 0);
+    }
 }

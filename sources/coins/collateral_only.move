@@ -1,11 +1,10 @@
 module leizd::collateral_only {
-
     use std::string;
     use std::signer;
-    use std::option;
     use aptos_framework::coin;
     use aptos_framework::coins;
     use leizd::pool_type::{Asset,Shadow};
+    use leizd::coin_base;
 
     friend leizd::pool;
 
@@ -13,40 +12,22 @@ module leizd::collateral_only {
         coin: coin::Coin<C>
     }
 
-    struct Capabilities<phantom C> has key {
-        mint_cap: coin::MintCapability<C>,
-        burn_cap: coin::BurnCapability<C>
-    }
-
     public(friend) fun initialize<C>(owner: &signer) {
-        let prefix_name = b"Leizd Collateral Only ";
-        let prefix_symbol = b"co";
-        initialize_internal<C,Asset>(owner, prefix_name, prefix_symbol);
-
-        let prefix_name = b"Leizd Shadow Collateral Only ";
-        let prefix_symbol = b"sco";
-        initialize_internal<C,Shadow>(owner, prefix_name, prefix_symbol);
-    }
-
-    fun initialize_internal<C,P>(owner: &signer, prefix_name: vector<u8>, prefix_symbol: vector<u8>) {
-      let coin_name = coin::name<C>();
+        let coin_name = coin::name<C>();
         let coin_symbol = coin::symbol<C>();
         let coin_decimals = coin::decimals<C>();
 
+        let prefix_name = b"Leizd Collateral Only ";
+        let prefix_symbol = b"co";
         string::insert(&mut coin_name, 0, string::utf8(prefix_name));
         string::insert(&mut coin_symbol, 0, string::utf8(prefix_symbol));
+        coin_base::initialize<CollateralOnly<C,Asset>>(owner, coin_name, coin_symbol, coin_decimals);
 
-        let (mint_cap, burn_cap) = coin::initialize<CollateralOnly<C,P>>(
-            owner,
-            coin_name,
-            coin_symbol,
-            coin_decimals,
-            true
-        );
-        move_to(owner, Capabilities<CollateralOnly<C,P>> {
-            mint_cap,
-            burn_cap,
-        });
+        let prefix_name = b"Leizd Shadow Collateral Only ";
+        let prefix_symbol = b"sco";
+        string::insert(&mut coin_name, 0, string::utf8(prefix_name));
+        string::insert(&mut coin_symbol, 0, string::utf8(prefix_symbol));
+        coin_base::initialize<CollateralOnly<C,Shadow>>(owner, coin_name, coin_symbol, coin_decimals);
     }
 
     public fun register<C>(account: &signer) {
@@ -59,30 +40,19 @@ module leizd::collateral_only {
         };
     }
 
-    public(friend) fun mint<C,P>(minter_addr: address, amount: u64) acquires Capabilities {
-        assert!(coin::is_account_registered<CollateralOnly<C,P>>(minter_addr), 0);
-        let caps = borrow_global<Capabilities<CollateralOnly<C,P>>>(@leizd);
-        let coin_minted = coin::mint(amount, &caps.mint_cap);
-        coin::deposit(minter_addr, coin_minted);
+    public(friend) fun mint<C,P>(minter_addr: address, amount: u64) {
+        coin_base::mint<CollateralOnly<C,P>>(minter_addr, amount);
     }
 
-    public(friend) fun burn<C,P>(account: &signer, amount: u64) acquires Capabilities {
-        let caps = borrow_global<Capabilities<CollateralOnly<C,P>>>(@leizd);
-        
-        let coin_burned = coin::withdraw<CollateralOnly<C,P>>(account, amount);
-        coin::burn(coin_burned, &caps.burn_cap);
+    public(friend) fun burn<C,P>(account: &signer, amount: u64) {
+        coin_base::burn<CollateralOnly<C,P>>(account, amount);
     }
 
     public entry fun balance_of<C,P>(addr: address): u64 {
-        coin::balance<CollateralOnly<C,P>>(addr)
+        coin_base::balance_of<CollateralOnly<C,P>>(addr)
     }
 
     public entry fun supply<C,P>(): u128 {
-        let _supply = coin::supply<CollateralOnly<C,P>>();
-        if (option::is_some(&_supply)) {
-            *option::borrow<u128>(&_supply)
-        } else {
-            0
-        }
+        coin_base::supply<CollateralOnly<C,P>>()
     }
 }
