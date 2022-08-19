@@ -2,6 +2,10 @@ module leizd::coin_base {
     use std::string;
     use std::option;
     use aptos_framework::coin;
+
+    friend leizd::collateral;
+    friend leizd::collateral_only;
+    friend leizd::debt;
     
     struct Capabilities<phantom C> has key {
         mint_cap: coin::MintCapability<C>,
