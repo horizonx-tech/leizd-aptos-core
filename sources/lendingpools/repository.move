@@ -125,7 +125,9 @@ module leizd::repository {
 
     #[test_only]
     use aptos_framework::account;
+    #[test_only]
     use aptos_framework::managed_coin;
+    #[test_only]
     use leizd::common::{Self,WETH};
 
     #[test(owner=@leizd,account1=@0x111)]

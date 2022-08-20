@@ -14,6 +14,7 @@ module leizd::pool {
     use leizd::treasury;
     use leizd::interest_rate;
     use leizd::system_status;
+    use leizd::usdz::{USDZ};
     use leizd::price_oracle;
     use leizd::constant;
     use leizd::caster;
@@ -507,10 +508,15 @@ module leizd::pool {
 
     #[test_only]
     use aptos_framework::account;
+    #[test_only]
     use aptos_framework::managed_coin;
+    #[test_only]
     use leizd::common::{Self,WETH,UNI};
-    use leizd::usdz::{Self,USDZ};
+    #[test_only]
+    use leizd::usdz;
+    #[test_only]
     use leizd::trove;
+    #[test_only]
     use leizd::initializer;
 
     #[test(owner=@leizd,account1=@0x111)]
