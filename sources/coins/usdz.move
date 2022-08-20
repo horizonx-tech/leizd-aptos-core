@@ -2,59 +2,43 @@ module leizd::usdz {
     
     use std::string;
     use aptos_std::signer;
-    use aptos_framework::coin::{Self, MintCapability, BurnCapability};
-    use aptos_framework::coins;
+    use leizd::coin_base;
 
     friend leizd::trove;
 
     struct USDZ has key, store {}
 
-    struct Capabilities<phantom T> has key {
-        mint_cap: MintCapability<T>,
-        burn_cap: BurnCapability<T>,
-    }
-
     public(friend) fun initialize(owner: &signer) {
-        let (mint_cap, burn_cap) = coin::initialize<USDZ>(
+        coin_base::initialize<USDZ>(
             owner,
             string::utf8(b"USDZ"),
             string::utf8(b"USDZ"),
             18,
-            true
         );
-        move_to(owner, Capabilities<USDZ> {
-            mint_cap,
-            burn_cap,
-        });
     }
 
-    public(friend) fun mint(account: &signer, amount: u64) acquires Capabilities {
-        mint_internal(account, amount);
+    public(friend) fun mint(account: &signer, amount: u64) {
+        mint_internal(signer::address_of(account), amount);
     }
 
-    fun mint_internal(account: &signer, amount: u64) acquires Capabilities {
-        let account_addr = signer::address_of(account);
-        if (!coin::is_account_registered<USDZ>(account_addr)) {
-            coins::register<USDZ>(account);
-        };
-
-        let caps = borrow_global<Capabilities<USDZ>>(@leizd);
-        let coin_minted = coin::mint(amount, &caps.mint_cap);
-        coin::deposit(account_addr, coin_minted);
+    fun mint_internal(account_addr: address, amount: u64) {
+        coin_base::mint<USDZ>(account_addr, amount);
     }
 
-    public(friend) fun burn(account: &signer, amount: u64) acquires Capabilities {
-        let caps = borrow_global<Capabilities<USDZ>>(@leizd);
-        let coin_burned = coin::withdraw<USDZ>(account, amount);
-        coin::burn(coin_burned, &caps.burn_cap);
+    public(friend) fun burn(account: &signer, amount: u64) {
+        coin_base::burn<USDZ>(account, amount);
     }
 
-    public entry fun balance(owner: address): u64 {
-        coin::balance<USDZ>(owner)
+    public entry fun balance_of(owner: address): u64 {
+        coin_base::balance_of<USDZ>(owner)
+    }
+
+    public entry fun supply(): u128 {
+        coin_base::supply<USDZ>()
     }
 
     #[test_only]
-    public fun mint_for_test(account: &signer, amount: u64) acquires Capabilities {
-        mint_internal(account, amount);
+    public fun mint_for_test(account_addr: address, amount: u64) {
+        mint_internal(account_addr, amount);
     }
 }

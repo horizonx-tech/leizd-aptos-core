@@ -22,7 +22,7 @@ module leizd::common {
         init_coin<UNI>(account, b"UNI", 18);
     }
 
-    fun init_coin<T>(account: &signer, name: vector<u8>, decimals: u64) {
+    fun init_coin<T>(account: &signer, name: vector<u8>, decimals: u8) {
         managed_coin::initialize<T>(
             account,
             name,
