@@ -1,12 +1,10 @@
 #[test_only]
 module leizd::common {
 
-    #[test_only]
     struct USDC {}
     struct WETH {}
     struct UNI {}
 
-    #[test_only]
     use aptos_framework::coin;
     use aptos_framework::managed_coin;
 

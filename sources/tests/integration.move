@@ -1,7 +1,6 @@
 #[test_only]
 module leizd::integration {
 
-    #[test_only]
     use std::signer;
     use aptos_framework::account;
     // use aptos_framework::coin;
