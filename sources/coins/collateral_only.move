@@ -1,8 +1,6 @@
 module leizd::collateral_only {
     use std::string;
-    use std::signer;
     use aptos_framework::coin;
-    use aptos_framework::coins;
     use leizd::pool_type::{Asset,Shadow};
     use leizd::coin_base;
 
@@ -31,13 +29,8 @@ module leizd::collateral_only {
     }
 
     public fun register<C>(account: &signer) {
-        let account_addr = signer::address_of(account);
-        if (!coin::is_account_registered<CollateralOnly<C,Asset>>(account_addr)) {
-            coins::register<CollateralOnly<C,Asset>>(account);
-        };
-        if (!coin::is_account_registered<CollateralOnly<C,Shadow>>(account_addr)) {
-            coins::register<CollateralOnly<C,Shadow>>(account);
-        };
+        coin_base::register<CollateralOnly<C,Asset>>(account);
+        coin_base::register<CollateralOnly<C,Shadow>>(account);
     }
 
     public(friend) fun mint<C,P>(minter_addr: address, amount: u64) {

@@ -1,7 +1,9 @@
 module leizd::coin_base {
     use std::string;
+    use std::signer;
     use std::option;
     use aptos_framework::coin;
+    use aptos_framework::coins;
 
     friend leizd::collateral;
     friend leizd::collateral_only;
@@ -26,6 +28,13 @@ module leizd::coin_base {
             freeze_cap,
             mint_cap,
         });
+    }
+
+    public fun register<C>(account: &signer) {
+        let account_addr = signer::address_of(account);
+        if (!coin::is_account_registered<C>(account_addr)) {
+            coins::register<C>(account);
+        };
     }
 
     public fun mint<C>(minter_addr: address, amount: u64) acquires Capabilities {
