@@ -1,6 +1,9 @@
 module leizd::interest_rate {
-
+    use std::signer;
+    use aptos_framework::event;
     use leizd::math;
+    use leizd::permission;
+    use leizd::constant;
 
     friend leizd::pool;
 
@@ -9,7 +12,7 @@ module leizd::interest_rate {
     /// X_MAX = ln(RCOMP_MAX + 1)
     const X_MAX: u64 = 11090370147631773313;
 
-    struct Config<phantom C> has key {
+    struct Config<phantom C> has copy, drop, key {
         uopt: u64,
         ucrit: u64,
         ulow: u64,
@@ -22,8 +25,29 @@ module leizd::interest_rate {
         t_crit: u64
     }
 
+    struct SetConfigEvent has store, drop {
+        caller: address,
+        uopt: u64,
+        ucrit: u64,
+        ulow: u64,
+        ki: u64,
+        kcrit: u64,
+        klow: u64,
+        klin: u64,
+        beta: u64,
+        ri: u64,
+        t_crit: u64
+    }
+
+    struct InterestRateEventHandle<phantom C> has key, store {
+        set_config_event: event::EventHandle<SetConfigEvent>,
+    }
+
     public(friend) entry fun initialize<C>(owner: &signer) {
         move_to(owner, default_config<C>());
+        move_to(owner, InterestRateEventHandle<C> {
+            set_config_event: event::new_event_handle<SetConfigEvent>(owner)
+        });
     }
     
     public fun default_config<C>(): Config<C> {
@@ -39,6 +63,47 @@ module leizd::interest_rate {
             ri: 0,
             t_crit: 0,
         }
+    }
+
+    public fun config<C>(): Config<C> acquires Config {
+        *borrow_global<Config<C>>(@leizd)
+    }
+
+    public fun set_config<C>(owner: &signer, config: Config<C>) acquires Config, InterestRateEventHandle {
+        permission::assert_owner(signer::address_of(owner));
+        assert!(config.uopt > 0 && config.uopt < constant::decimal_precision_u64(), 0);
+        assert!(config.ucrit > config.uopt && config.ucrit < constant::decimal_precision_u64(), 0);
+        assert!(config.ulow > 0 && config.ulow < config.uopt, 0);
+        assert!(config.ki > 0, 0);
+        assert!(config.kcrit > 0, 0);
+
+        let config_ref = borrow_global_mut<Config<C>>(@leizd);
+        config_ref.uopt = config.uopt;
+        config_ref.ucrit = config.ucrit;
+        config_ref.ulow = config.ulow;
+        config_ref.ki = config.ki;
+        config_ref.kcrit = config.kcrit;
+        config_ref.klow = config.klow;
+        config_ref.klin = config.klin;
+        config_ref.beta = config.beta;
+        config_ref.ri = config.ri;
+        config_ref.t_crit = config.t_crit;
+        event::emit_event<SetConfigEvent>(
+            &mut borrow_global_mut<InterestRateEventHandle<C>>(@leizd).set_config_event,
+            SetConfigEvent {
+                caller: signer::address_of(owner),
+                uopt: config.uopt,
+                ucrit: config.ucrit,
+                ulow: config.ulow,
+                ki: config_ref.ki,
+                kcrit: config_ref.kcrit,
+                klow: config_ref.klow,
+                klin: config_ref.klin,
+                beta: config_ref.beta,
+                ri: config_ref.ri,
+                t_crit: config_ref.t_crit,
+            }
+        )
     }
 
     public(friend) fun update_interest_rate<C>(now: u64, total_deposits: u128, total_borrows: u128, last_updated: u64): u64 acquires Config {

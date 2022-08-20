@@ -19,14 +19,14 @@ module leizd::repository {
     const E_INVALID_LIQUIDATION_FEE: u64 = 5;
 
     struct ProtocolFees has key, drop {
-        entry_fee: u64,
-        share_fee: u64,
-        liquidation_fee: u64,
+        entry_fee: u64, // One time protocol fee for opening a borrow position
+        share_fee: u64, // Protocol revenue share in interest
+        liquidation_fee: u64, // Protocol share in liquidation profit
     }
 
     struct Config<phantom C> has key, drop {
-        ltv: u64,
-        liquidation_threshold: u64,
+        ltv: u64, // Loan To Value
+        lt: u64, // Liquidation Threshold
     }
 
     struct UpdateProtocolFeesEvent has store, drop {
@@ -39,7 +39,7 @@ module leizd::repository {
     struct UpdateConfigEvent has store, drop {
         caller: address,
         ltv: u64,
-        liquidation_threshold: u64,
+        lt: u64,
     }
 
     struct RepositoryEventHandle has key, store {
@@ -65,7 +65,7 @@ module leizd::repository {
         permission::assert_owner(signer::address_of(owner));
         move_to(owner, Config<C> {
             ltv: DEFAULT_LTV,
-            liquidation_threshold: DEFAULT_THRESHOLD,
+            lt: DEFAULT_THRESHOLD,
         });
     }
 
@@ -83,24 +83,24 @@ module leizd::repository {
 
     public entry fun update_config<T>(owner: &signer, config: Config<T>) acquires Config, RepositoryEventHandle {
         permission::assert_owner(signer::address_of(owner));
-        assert_liquidation_threashold(config.ltv, config.liquidation_threshold);
+        assert_liquidation_threashold(config.ltv, config.lt);
 
         let _config = borrow_global_mut<Config<T>>(@leizd);
         _config.ltv = config.ltv;
-        _config.liquidation_threshold = config.liquidation_threshold;
+        _config.lt = config.lt;
         event::emit_event<UpdateConfigEvent>(
             &mut borrow_global_mut<RepositoryEventHandle>(@leizd).update_config_event,
             UpdateConfigEvent {
                 caller: signer::address_of(owner),
                 ltv: config.ltv,
-                liquidation_threshold: config.liquidation_threshold,
+                lt: config.lt,
             }
         )
     }
 
-    fun assert_liquidation_threashold(ltv: u64, liquidation_threshold: u64) {
-        assert!(liquidation_threshold <= constant::decimal_precision_u64(), E_INVALID_THRESHOLD);
-        assert!(ltv != 0 && ltv < liquidation_threshold, E_INVALID_LTV);
+    fun assert_liquidation_threashold(ltv: u64, lt: u64) {
+        assert!(lt <= constant::decimal_precision_u64(), E_INVALID_THRESHOLD);
+        assert!(ltv != 0 && ltv < lt, E_INVALID_LTV);
     }
 
     public entry fun entry_fee(): u64 acquires ProtocolFees {
@@ -119,8 +119,8 @@ module leizd::repository {
         borrow_global<Config<C>>(@leizd).ltv
     }
 
-    public entry fun liquidation_threshold<C>(): u64 acquires Config {
-        borrow_global<Config<C>>(@leizd).liquidation_threshold
+    public entry fun lt<C>(): u64 acquires Config {
+        borrow_global<Config<C>>(@leizd).lt
     }
 
     #[test_only]
