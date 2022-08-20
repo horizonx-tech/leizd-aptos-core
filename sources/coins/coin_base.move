@@ -4,10 +4,12 @@ module leizd::coin_base {
     use std::option;
     use aptos_framework::coin;
     use aptos_framework::coins;
+    use leizd::permission;
 
     friend leizd::collateral;
     friend leizd::collateral_only;
     friend leizd::debt;
+    friend leizd::usdz;
     
     struct Capabilities<phantom C> has key {
         burn_cap: coin::BurnCapability<C>,
@@ -15,7 +17,8 @@ module leizd::coin_base {
         mint_cap: coin::MintCapability<C>,
     }
 
-    public fun initialize<C>(owner: &signer, coin_name: string::String, coin_symbol: string::String, coin_decimals: u8) {
+    public(friend) fun initialize<C>(owner: &signer, coin_name: string::String, coin_symbol: string::String, coin_decimals: u8) {
+        permission::assert_owner(signer::address_of(owner));
         let (burn_cap, freeze_cap, mint_cap) = coin::initialize<C>(
             owner,
             coin_name,
@@ -30,21 +33,21 @@ module leizd::coin_base {
         });
     }
 
-    public fun register<C>(account: &signer) {
+    public(friend) fun register<C>(account: &signer) {
         let account_addr = signer::address_of(account);
         if (!coin::is_account_registered<C>(account_addr)) {
             coins::register<C>(account);
         };
     }
 
-    public fun mint<C>(minter_addr: address, amount: u64) acquires Capabilities {
+    public(friend) fun mint<C>(minter_addr: address, amount: u64) acquires Capabilities {
         assert!(coin::is_account_registered<C>(minter_addr), 0);
         let caps = borrow_global<Capabilities<C>>(@leizd);
         let coin_minted = coin::mint(amount, &caps.mint_cap);
         coin::deposit(minter_addr, coin_minted);
     }
 
-    public fun burn<C>(account: &signer, amount: u64) acquires Capabilities {
+    public(friend) fun burn<C>(account: &signer, amount: u64) acquires Capabilities {
         let caps = borrow_global<Capabilities<C>>(@leizd);
         
         let coin_burned = coin::withdraw<C>(account, amount);
