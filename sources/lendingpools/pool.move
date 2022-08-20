@@ -519,14 +519,15 @@ module leizd::pool {
     #[test_only]
     use leizd::initializer;
 
-    #[test(owner=@leizd,account1=@0x111)]
-    #[expected_failure(abort_code=524289)]
-    public entry fun test_init_pool_twice(owner: signer) {
-        account::create_account(signer::address_of(&owner));
-        common::init_weth(&owner);
-        init_pool<WETH>(&owner);
-        init_pool<WETH>(&owner);
-    }
+    // #[test(owner=@leizd,account1=@0x111)]
+    // #[expected_failure(abort_code=524289)]
+    // public entry fun test_init_pool_twice(owner: signer) {
+    //     account::create_account(signer::address_of(&owner));
+    //     common::init_weth(&owner);
+    //     initializer::initialize(&owner);
+    //     initializer::register<WETH>(&owner);
+    //     // initializer::register<WETH>(&owner);
+    // }
 
     #[test(owner=@leizd,account1=@0x111,aptos_framework=@aptos_framework)]
     public entry fun test_deposit_weth(owner: signer, account1: signer, aptos_framework: signer) acquires Pool, Storage, PoolEventHandle {
@@ -584,7 +585,7 @@ module leizd::pool {
         managed_coin::mint<WETH>(&owner, account1_addr, 1000000);
         assert!(coin::balance<WETH>(account1_addr) == 1000000, 0);
         initializer::register<USDZ>(&account1);
-        usdz::mint_for_test(&account1, 1000000);
+        usdz::mint_for_test(account1_addr, 1000000);
         assert!(coin::balance<USDZ>(account1_addr) == 1000000, 0);
 
         init_pool<WETH>(&owner);
@@ -630,7 +631,7 @@ module leizd::pool {
         managed_coin::mint<WETH>(&owner, account1_addr, 1000000);
         assert!(coin::balance<WETH>(account1_addr) == 1000000, 0);
         managed_coin::register<USDZ>(&account1);
-        usdz::mint_for_test(&account1, 1000000);
+        usdz::mint_for_test(account1_addr, 1000000);
         assert!(coin::balance<USDZ>(account1_addr) == 1000000, 0);
 
         init_pool<WETH>(&owner);
@@ -659,7 +660,7 @@ module leizd::pool {
         managed_coin::mint<UNI>(&owner, account1_addr, 1000000);
         initializer::register<USDZ>(&account1);
         initializer::register<WETH>(&account1);
-        usdz::mint_for_test(&account1, 1000000);
+        usdz::mint_for_test(account1_addr, 1000000);
         initializer::register<WETH>(&account2);
         managed_coin::mint<WETH>(&owner, account2_addr, 1000000);
         initializer::register<UNI>(&account2);
@@ -708,7 +709,7 @@ module leizd::pool {
         managed_coin::mint<UNI>(&owner, account1_addr, 1000000);
         initializer::register<USDZ>(&account1);
         initializer::register<WETH>(&account1);
-        usdz::mint_for_test(&account1, 1000000);
+        usdz::mint_for_test(account1_addr, 1000000);
         initializer::register<WETH>(&account2);
         managed_coin::mint<WETH>(&owner, account2_addr, 1000000);
         initializer::register<UNI>(&account2);

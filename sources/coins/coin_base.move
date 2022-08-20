@@ -1,19 +1,22 @@
 module leizd::coin_base {
     use std::string;
+    use std::signer;
     use std::option;
     use aptos_framework::coin;
+    use aptos_framework::coins;
 
     friend leizd::collateral;
     friend leizd::collateral_only;
     friend leizd::debt;
     
     struct Capabilities<phantom C> has key {
+        burn_cap: coin::BurnCapability<C>,
+        freeze_cap: coin::FreezeCapability<C>,
         mint_cap: coin::MintCapability<C>,
-        burn_cap: coin::BurnCapability<C>
     }
 
-    public fun initialize<C>(owner: &signer, coin_name: string::String, coin_symbol: string::String, coin_decimals: u64) {
-        let (mint_cap, burn_cap) = coin::initialize<C>(
+    public fun initialize<C>(owner: &signer, coin_name: string::String, coin_symbol: string::String, coin_decimals: u8) {
+        let (burn_cap, freeze_cap, mint_cap) = coin::initialize<C>(
             owner,
             coin_name,
             coin_symbol,
@@ -21,9 +24,17 @@ module leizd::coin_base {
             true
         );
         move_to(owner, Capabilities<C> {
-            mint_cap,
             burn_cap,
+            freeze_cap,
+            mint_cap,
         });
+    }
+
+    public fun register<C>(account: &signer) {
+        let account_addr = signer::address_of(account);
+        if (!coin::is_account_registered<C>(account_addr)) {
+            coins::register<C>(account);
+        };
     }
 
     public fun mint<C>(minter_addr: address, amount: u64) acquires Capabilities {
