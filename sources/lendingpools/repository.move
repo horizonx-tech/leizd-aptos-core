@@ -139,6 +139,26 @@ module leizd::repository {
     #[test_only]
     use leizd::common::{Self,WETH};
 
+    #[test(owner = @leizd)]
+    public entry fun test_initialize(owner: signer) acquires ProtocolFees, RepositoryEventHandle {
+        let owner_addr = signer::address_of(&owner);
+        initialize(&owner);
+
+        let protocol_fees = borrow_global<ProtocolFees>(owner_addr);
+        assert!(protocol_fees.entry_fee == DEFAULT_ENTRY_FEE, 0);
+        assert!(protocol_fees.share_fee == DEFAULT_SHARE_FEE, 0);
+        assert!(protocol_fees.liquidation_fee == DEFAULT_LIQUIDATION_FEE, 0);
+        let event_handle = borrow_global<RepositoryEventHandle>(owner_addr);
+        assert!(event::counter(&event_handle.update_config_event) == 0, 0);
+        assert!(event::counter(&event_handle.update_protocol_fees_event) == 0, 0);   
+    }
+
+    #[test(account = @0x111)]
+    #[expected_failure(abort_code = 1)]
+    public entry fun test_initialize_without_owner(account: signer) {
+        initialize(&account);
+    }
+
     #[test(owner=@leizd,account1=@0x111)]
     public entry fun test_update_protocol_fees(owner: signer, account1: signer) acquires ProtocolFees, RepositoryEventHandle {
         let owner_addr = signer::address_of(&owner);
@@ -161,5 +181,22 @@ module leizd::repository {
         assert!(fees.entry_fee == 1000000000000000000 / 1000 * 8, 0);
         assert!(fees.share_fee == 1000000000000000000 / 1000 * 7, 0);
         assert!(fees.liquidation_fee == 1000000000000000000 / 1000 * 6, 0);
+        let event_handle = borrow_global<RepositoryEventHandle>(owner_addr);
+        assert!(event::counter(&event_handle.update_protocol_fees_event) == 1, 0);
+    }
+
+    #[test_only]
+    struct TestAsset {}
+    #[test(owner = @leizd)]
+    public entry fun test_new_asset(owner: &signer) acquires Config {
+        new_asset<TestAsset>(owner);
+        let config = borrow_global<Config<TestAsset>>(signer::address_of(owner));
+        assert!(config.ltv == DEFAULT_LTV, 0);
+        assert!(config.lt == DEFAULT_THRESHOLD, 0);
+    }
+    #[test(account = @0x111)]
+    #[expected_failure(abort_code = 1)]
+    public entry fun test_new_asset_without_owner(account: &signer) {
+        new_asset<TestAsset>(account);
     }
 }
