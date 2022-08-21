@@ -413,7 +413,7 @@ module leizd::pool {
 
     fun is_solvent<COIN,COL,DEBT>(account_addr: address): bool {
         let user_ltv = user_ltv<COIN,COL,DEBT>(account_addr);
-        caster::to_u128(user_ltv) <= (repository::liquidation_threshold<COIN>() as u128) / constant::decimal_precision_u128()
+        caster::to_u128(user_ltv) <= (repository::lt<COIN>() as u128) / constant::decimal_precision_u128()
     }
 
     public fun user_ltv<COIN,COL,DEBT>(account_addr: address): u64 {
