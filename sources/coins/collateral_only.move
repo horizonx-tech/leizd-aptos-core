@@ -6,11 +6,14 @@ module leizd::collateral_only {
 
     friend leizd::pool;
 
+    const E_NOT_INITIALIZED: u64 = 1;
+
     struct CollateralOnly<phantom C, phantom P> {
         coin: coin::Coin<C>
     }
 
     public(friend) fun initialize<C>(owner: &signer) {
+        assert!(coin::is_coin_initialized<C>(), E_NOT_INITIALIZED);
         let coin_name = coin::name<C>();
         let coin_symbol = coin::symbol<C>();
         let coin_decimals = coin::decimals<C>();
