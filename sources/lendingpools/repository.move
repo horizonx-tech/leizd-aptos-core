@@ -69,7 +69,7 @@ module leizd::repository {
         });
     }
 
-    public entry fun update_protocol_fees(owner: &signer, fees: ProtocolFees) acquires ProtocolFees {
+    public entry fun update_protocol_fees(owner: &signer, fees: ProtocolFees) acquires ProtocolFees, RepositoryEventHandle {
         permission::assert_owner(signer::address_of(owner));
         assert!(fees.entry_fee < constant::decimal_precision_u64(), E_INVALID_ENTRY_FEE);
         assert!(fees.share_fee < constant::decimal_precision_u64(), E_INVALID_SHARE_FEE);
@@ -79,6 +79,15 @@ module leizd::repository {
         _fees.entry_fee = fees.entry_fee;
         _fees.share_fee = fees.share_fee;
         _fees.liquidation_fee = fees.liquidation_fee;
+        event::emit_event<UpdateProtocolFeesEvent>(
+            &mut borrow_global_mut<RepositoryEventHandle>(@leizd).update_protocol_fees_event,
+            UpdateProtocolFeesEvent {
+                caller: signer::address_of(owner),
+                entry_fee: fees.entry_fee,
+                share_fee: fees.share_fee,
+                liquidation_fee: fees.liquidation_fee,
+            }
+        )
     }
 
     public entry fun update_config<T>(owner: &signer, config: Config<T>) acquires Config, RepositoryEventHandle {
@@ -131,7 +140,7 @@ module leizd::repository {
     use leizd::common::{Self,WETH};
 
     #[test(owner=@leizd,account1=@0x111)]
-    public entry fun test_update_protocol_fees(owner: signer, account1: signer) acquires ProtocolFees {
+    public entry fun test_update_protocol_fees(owner: signer, account1: signer) acquires ProtocolFees, RepositoryEventHandle {
         let owner_addr = signer::address_of(&owner);
         let account1_addr = signer::address_of(&account1);
         account::create_account(owner_addr);
