@@ -156,7 +156,6 @@ module leizd::repository {
         let event_handle = borrow_global<RepositoryEventHandle>(owner_addr);
         assert!(event::counter(&event_handle.update_protocol_fees_event) == 0, 0);
     }
-
     #[test(account = @0x111)]
     #[expected_failure(abort_code = 1)]
     public entry fun test_initialize_without_owner(account: signer) {
@@ -204,5 +203,22 @@ module leizd::repository {
     #[expected_failure(abort_code = 1)]
     public entry fun test_new_asset_without_owner(account: &signer) {
         new_asset<TestAsset>(account);
+    }
+
+    #[test(owner=@leizd)]
+    public entry fun test_update_config(owner: &signer) acquires Config, RepositoryAssetEventHandle {
+        let owner_addr = signer::address_of(owner);
+        new_asset<TestAsset>(owner);
+
+        let new_params = Config<TestAsset> {
+            ltv: 1000000000000000000 / 100 * 7, // 70%
+            lt: 1000000000000000000 / 100 * 9, // 90%,
+        };
+        update_config<TestAsset>(owner, new_params);
+        let config = borrow_global<Config<TestAsset>>(@leizd);
+        assert!(config.ltv == 1000000000000000000 / 100 * 7, 0);
+        assert!(config.lt == 1000000000000000000 / 100 * 9, 0);
+        let event_handle = borrow_global<RepositoryAssetEventHandle<TestAsset>>(owner_addr);
+        assert!(event::counter(&event_handle.update_config_event) == 1, 0);
     }
 }
