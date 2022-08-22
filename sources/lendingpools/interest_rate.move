@@ -15,6 +15,9 @@ module leizd::interest_rate {
     /// TODO: X_MAX = ln(RCOMP_MAX + 1)
     const X_MAX: u128 = 11090370147631773313;
 
+    /// 2^96
+    const ASSET_DATA_OVERFLOW_LIMIT: u128 = 79228162514264337593543950336;
+
     struct Config<phantom C> has copy, drop, key {
         uopt: u128,
         ucrit: u128,
@@ -116,7 +119,7 @@ module leizd::interest_rate {
         )
     }
 
-    public(friend) fun update_interest_rate<C>(now: u64, total_deposits: u128, total_borrows: u128, last_updated: u64): u64 acquires Config {
+    public(friend) fun update_interest_rate<C>(now: u64, total_deposits: u128, total_borrows: u128, last_updated: u64): u128 acquires Config {
         let config_ref = borrow_global_mut<Config<C>>(@leizd);
         let (rcomp,_,_,_) = calc_compound_interest_rate<C>(config_ref, total_deposits, total_borrows, last_updated, now);
         rcomp
@@ -130,7 +133,7 @@ module leizd::interest_rate {
         }
     }
 
-    public fun calc_compound_interest_rate<C>(config_ref: &Config<C>, total_deposits: u128, total_borrows: u128, last_updated: u64, now: u64): (u64, u64, u64, bool) {
+    public fun calc_compound_interest_rate<C>(config_ref: &Config<C>, total_deposits: u128, total_borrows: u128, last_updated: u64, now: u64): (u128, u128, u128, bool) {
         let time = ((now - last_updated) as u128);
         let u = math::utilization(total_deposits, total_borrows);
         let (slope_i, slope_i_positive) = slope_index(config_ref.ki, u, config_ref.uopt);
@@ -186,7 +189,7 @@ module leizd::interest_rate {
             tcrit = 0;
         };
 
-        ((rcomp as u64), (ri as u64), (tcrit as u64), overflow)
+        (rcomp, ri, tcrit, overflow)
     }
 
     fun calc_rcomp(total_deposits: u128, total_borrows: u128, x: u128): (u128,bool) {
@@ -197,7 +200,6 @@ module leizd::interest_rate {
             rcomp = (math::pow(2, 16) as u128) * DP;
             overflow = true;
         } else {
-            // TODO: exp
             let expx = prb_math_30x9::exp((x as u128));
             if (expx > (DP as u128)) {
                 rcomp = expx;
