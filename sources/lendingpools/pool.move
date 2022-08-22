@@ -741,6 +741,6 @@ module leizd::pool {
         repay<UNI>(&account2, 100000, false);
         assert!(coin::balance<UNI>(account2_addr) == 0, 0);
         assert!(coin::balance<USDZ>(account2_addr) == 100000, 0);
-        assert!(debt::balance_of<UNI,Asset>(account2_addr) == 700, 0); // 0.5% entry fee + 0.2% interest
+        assert!(debt::balance_of<UNI,Asset>(account2_addr) == 500, 0); // 0.5% entry fee + 0.0% interest
     }
 }

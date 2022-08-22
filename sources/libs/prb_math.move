@@ -1,6 +1,5 @@
 module leizd::prb_math {
     const SCALE: u128 = 1000000000;
-    const MAX_UD30x9: u128 = 340282366920938463463374607431768211455;
 
     /// @param x The exponent as an unsigned 96.32-bit fixed-point number.
     /// @return The result as an unsigned 30.9-decimal fixed-point number.

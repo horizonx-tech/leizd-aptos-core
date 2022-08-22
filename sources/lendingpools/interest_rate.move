@@ -2,6 +2,7 @@ module leizd::interest_rate {
     use std::signer;
     use aptos_framework::event;
     use leizd::math;
+    use leizd::prb_math_30x9;
     use leizd::permission;
     use leizd::constant;
 
@@ -162,16 +163,22 @@ module leizd::interest_rate {
     fun calc_rcomp(total_deposits: u128, total_borrows: u128, x: u64): (u64,bool) {
 
         let rcomp;
-        let overflow;
+        let overflow = false;
         if (x >= X_MAX) {
             rcomp = math::pow(2, 16) * DECIMAL_PRECISION;
             overflow = true;
         } else {
             // TODO: exp
+            let expx = prb_math_30x9::exp((x as u128));
+            if (expx > (DECIMAL_PRECISION as u128)) {
+                rcomp = (expx as u64);
+            } else {
+                rcomp = 0;
+            };
             total_deposits;
             total_borrows;
-            rcomp = DECIMAL_PRECISION / 1000 * 2; // 2%
-            overflow = false;
+            // let max_amount = if (total_deposits > total_borrows) total_deposits else total_borrows;
+            // let rcomp_mul_tba = (rcomp as u128) * total_borrows;
         };
 
         (rcomp, overflow)
