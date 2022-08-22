@@ -55,11 +55,11 @@ module leizd::math {
         (result as u64)
     }
 
-    public fun utilization(total_deposts: u128, total_borrows: u128): u64 {
+    public fun utilization(total_deposts: u128, total_borrows: u128): u128 {
         if (total_deposts == 0 || total_borrows == 0) {
             0
         } else {
-            ((total_borrows * constant::decimal_precision_u128() / total_deposts) as u64)
+            (total_borrows * constant::decimal_precision_u128() / total_deposts)
         }
     }
 
@@ -67,7 +67,15 @@ module leizd::math {
         if (a > b) a else b
     }
 
+    public fun max_u128(a: u128, b: u128): u128 {
+        if (a > b) a else b
+    }
+
     public fun min(a: u64, b: u64): u64 {
+        if (a < b) a else b
+    }
+
+    public fun min_u128(a: u128, b: u128): u128 {
         if (a < b) a else b
     }
 
