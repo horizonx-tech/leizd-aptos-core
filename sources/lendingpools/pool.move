@@ -513,21 +513,44 @@ module leizd::pool {
     #[test_only]
     use leizd::common::{Self,WETH,UNI};
     #[test_only]
+    use leizd::dummy;
+    #[test_only]
     use leizd::usdz;
     #[test_only]
     use leizd::trove;
     #[test_only]
     use leizd::initializer;
 
-    // #[test(owner=@leizd,account1=@0x111)]
-    // #[expected_failure(abort_code=524289)]
-    // public entry fun test_init_pool_twice(owner: signer) {
-    //     account::create_account(signer::address_of(&owner));
-    //     common::init_weth(&owner);
-    //     initializer::initialize(&owner);
-    //     initializer::register<WETH>(&owner);
-    //     // initializer::register<WETH>(&owner);
-    // }
+    #[test(owner=@leizd,account1=@0x111)]
+    #[expected_failure]
+    public entry fun test_init_pool_twice(owner: signer) {
+        account::create_account(signer::address_of(&owner));
+        common::init_weth(&owner);
+        initializer::initialize(&owner);
+        initializer::register<WETH>(&owner);
+        initializer::register<WETH>(&owner);
+    }
+
+    #[test(owner=@leizd,account1=@0x111,aptos_framework=@aptos_framework)]
+    #[expected_failure]
+    public entry fun test_deposit_dummy_weth(owner: signer, account1: signer, aptos_framework: signer) acquires Pool, Storage, PoolEventHandle {
+        timestamp::set_time_has_started_for_testing(&aptos_framework);
+        let owner_addr = signer::address_of(&owner);
+        let account1_addr = signer::address_of(&account1);
+        account::create_account(owner_addr);
+        account::create_account(account1_addr);
+        common::init_weth(&owner);
+        dummy::init_weth(&owner);
+        initializer::initialize(&owner);
+        initializer::register<WETH>(&account1);
+        initializer::register<dummy::WETH>(&account1);
+        managed_coin::mint<WETH>(&owner, account1_addr, 1000000);
+        managed_coin::mint<dummy::WETH>(&owner, account1_addr, 1000000);
+        
+        init_pool<WETH>(&owner);
+
+        deposit<dummy::WETH>(&account1, 800000, false, false);
+    }
 
     #[test(owner=@leizd,account1=@0x111,aptos_framework=@aptos_framework)]
     public entry fun test_deposit_weth(owner: signer, account1: signer, aptos_framework: signer) acquires Pool, Storage, PoolEventHandle {
