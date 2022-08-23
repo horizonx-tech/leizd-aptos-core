@@ -1,7 +1,5 @@
 module leizd::math128 {
 
-    use leizd::constant;
-
     public fun to_share(amount: u128, total_amount: u128, total_shares: u128): u128 {
         if (total_shares == 0 || total_amount == 0) {
             amount
@@ -55,11 +53,11 @@ module leizd::math128 {
         result
     }
 
-    public fun utilization(total_deposts: u128, total_borrows: u128): u128 {
+    public fun utilization(dp: u128, total_deposts: u128, total_borrows: u128): u128 {
         if (total_deposts == 0 || total_borrows == 0) {
             0
         } else {
-            (total_borrows * constant::e18_u128() / total_deposts)
+            (total_borrows * dp / total_deposts)
         }
     }
 
