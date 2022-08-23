@@ -202,18 +202,27 @@ module leizd::interest_rate {
         let (r1, r1_positive) = r1(slope, r0, time);
 
         let x; // TODO: possibly negative?
+        let x_positive;
         if (r0 >= rlin && r1_gte_rlin(r1, r1_positive, rlin)) {
-            x = (r0 + r1) * time / 2;
+            x = (r0 + r1) * time / 2; // x:positive
+            x_positive = true;
         } else if (r0 < rlin && !r1_gte_rlin(r1, r1_positive, rlin)) {
-            x = rlin * time;
+            x = rlin * time; // x:positive
+            x_positive = true;
         } else if (r0 >= rlin && !r1_gte_rlin(r1, r1_positive, rlin)) {
             x = rlin * time - (r0 - rlin) * (r0 - rlin) / slope / 2;
+            if (rlin * time >= ((r0 - rlin) * (r0 - rlin) / slope / 2)) {
+                x_positive = true;
+            } else {
+                x_positive = false;
+            }
         } else {
-            x = rlin * time + (rlin - r1) * (rlin - r1) / slope / 2;
+            x = rlin * time + (rlin - r1) * (rlin - r1) / slope / 2; // x:positive
+            x_positive = true;
         };
 
         ri = math128::max(ri + slope_i * time, rlin);
-        let (rcomp, overflow) = calc_rcomp(total_deposits, total_borrows, x);
+        let (rcomp, overflow) = calc_rcomp(total_deposits, total_borrows, x, x_positive);
 
         if (overflow) {
             ri = 0;
@@ -223,7 +232,7 @@ module leizd::interest_rate {
         (rcomp, ri, tcrit, overflow)
     }
 
-    fun calc_rcomp(total_deposits: u128, total_borrows: u128, x: u128): (u128,bool) {
+    fun calc_rcomp(total_deposits: u128, total_borrows: u128, x: u128, x_positive: bool): (u128,bool) {
 
         let rcomp;
         let overflow = false;
@@ -231,7 +240,7 @@ module leizd::interest_rate {
             rcomp = RCOMP_MAX;
             overflow = true;
         } else {
-            let expx = prb_math_30x9::exp(x);
+            let expx = prb_math_30x9::exp(x, x_positive);
             if (expx > PRECISION) {
                 rcomp = expx;
             } else {
