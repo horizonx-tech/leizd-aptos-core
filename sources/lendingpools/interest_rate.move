@@ -1,22 +1,25 @@
 module leizd::interest_rate {
     use std::signer;
     use aptos_framework::event;
-    use leizd::math;
+    use leizd::math128;
     use leizd::prb_math_30x9;
     use leizd::permission;
 
     friend leizd::pool;
 
-    /// DP is 9 decimal points used for integer calculations
-    const DP: u128 = 1000000000;
+    /// PRECISION is 9 decimal points used for integer calculations
+    const PRECISION: u128 = 1000000000;
 
+    /// maximum value of compound interest: 2^16 * 1e9
     const RCOMP_MAX: u128 = 65536000000000;
 
     /// TODO: X_MAX = ln(RCOMP_MAX + 1)
     const X_MAX: u128 = 11090370147631773313;
 
-    /// 2^96
+    /// 96-32: 2^96
     const ASSET_DATA_OVERFLOW_LIMIT: u128 = 79228162514264337593543950336;
+
+    const E_INVALID_TIMESTAMP: u64 = 0;
 
     struct Config<phantom C> has copy, drop, key {
         uopt: u128,
@@ -65,7 +68,7 @@ module leizd::interest_rate {
             ucrit: 900000000, // 90%
             ulow: 500000000,  // 50%
             ki: 367011,
-            kcrit: 951293759513, // TODO
+            kcrit: 951293759513, // TODO: ideal number
             klow: 95129375951,
             klin: 1585489599,
             beta: 277777777777778,
@@ -79,8 +82,8 @@ module leizd::interest_rate {
     }
 
     fun assert_config<C>(config: Config<C>) {
-        assert!(config.uopt > 0 && config.uopt < DP, 0);
-        assert!(config.ucrit > config.uopt && config.ucrit < DP, 0);
+        assert!(config.uopt > 0 && config.uopt < PRECISION, 0);
+        assert!(config.ucrit > config.uopt && config.ucrit < PRECISION, 0);
         assert!(config.ulow > 0 && config.ulow < config.uopt, 0);
         assert!(config.ki > 0, 0);
         assert!(config.kcrit > 0, 0);
@@ -127,62 +130,99 @@ module leizd::interest_rate {
 
     fun slope_index(ki: u128, u0: u128, uopt: u128): (u128, bool) {
         if (u0 >= uopt) {
-            (ki * (u0 - uopt) / DP, true)
+            (ki * (u0 - uopt) / PRECISION, true) // positive
         } else {
-            (ki * (uopt - u0) / DP, false)
+            (ki * (uopt - u0) / PRECISION, false) // negative
         }
     }
 
-    public fun calc_compound_interest_rate<C>(config_ref: &Config<C>, total_deposits: u128, total_borrows: u128, last_updated: u64, now: u64): (u128, u128, u128, bool) {
+    fun r1(slope: u128, r0: u128, time: u128): (u128, bool) {
+        if (slope >= 0) {
+            (r0 + slope * time, true) // positive
+        } else if (slope * time >= r0) {
+            (slope * time - r0, false) // negative
+        } else {
+            (r0 - (slope * time), true) // positive
+        }
+    }
+
+    fun r1_gte_rlin(r1: u128, r1_positive: bool, rlin: u128): bool {
+        if (r1_positive) {
+            if (r1 >= rlin) {
+                true
+            } else {
+                false
+            }
+        } else {
+            if (r1 >= rlin) {
+                false
+            } else {
+                true
+            }
+        }
+    }
+
+    public fun calc_compound_interest_rate<C>(cref: &Config<C>, total_deposits: u128, total_borrows: u128, last_updated: u64, now: u64): (u128, u128, u128, bool) {
+        assert!(last_updated <= now, E_INVALID_TIMESTAMP);
+
         let time = ((now - last_updated) as u128);
-        let u = math::utilization(total_deposits, total_borrows);
-        let (slope_i, slope_i_positive) = slope_index(config_ref.ki, u, config_ref.uopt);
+        let u = math128::utilization(PRECISION, total_deposits, total_borrows);
+        let (slope_i, slope_i_positive) = slope_index(cref.ki, u, cref.uopt);
         
-        let ri = config_ref.ri;
-        let tcrit = config_ref.tcrit;
-        let rp;
-        let slope;
+        let ri = cref.ri;
+        let tcrit = cref.tcrit;
+        let rp; // negative
+        let slope; // possibly negative
         
-        if (u > config_ref.ucrit) {
-            rp = config_ref.kcrit * (DP + config_ref.tcrit) / DP * (u - config_ref.ucrit) / DP;
+        if (u > cref.ucrit) {
+            rp = cref.kcrit * (PRECISION + cref.tcrit) / PRECISION * (u - cref.ucrit) / PRECISION;
             if (slope_i_positive) {
-                slope = slope_i + config_ref.kcrit * config_ref.beta / DP * (u - config_ref.ucrit) / DP;
+                slope = cref.kcrit * cref.beta / PRECISION * (u - cref.ucrit) / PRECISION + slope_i;
             } else {
-                slope = config_ref.kcrit * config_ref.beta / DP * (u - config_ref.ucrit) / DP - slope_i;
+                slope = cref.kcrit * cref.beta / PRECISION * (u - cref.ucrit) / PRECISION - slope_i;
             };
-            tcrit = tcrit + config_ref.beta * time;
+            tcrit = tcrit + cref.beta * time;
         } else {
-            if (config_ref.ulow >= u) {
-                // TODO: min?
-                let rp_tmp = config_ref.kcrit * (config_ref.ulow - u) / DP;
-                rp = math::min_u128(0, rp_tmp);
+            if (u >= cref.ulow) {
+                rp = 0;
             } else {
-                let rptmp = config_ref.kcrit * (u - config_ref.ulow) / DP;
-                rp = math::min_u128(0, rptmp);
-            };
-            
+                rp = cref.klow * (cref.ulow - u) / PRECISION; // rp:negative
+            };            
             slope = slope_i;
-            tcrit = math::max_u128(0, tcrit - config_ref.beta * time);
+            if (tcrit >= cref.beta * time) {
+                tcrit = tcrit - cref.beta * time;
+            } else {
+                tcrit = 0;
+            };
         };
         
-        let rlin = config_ref.klin * u / DP;
-        ri = math::max_u128(ri, rlin);
+        let rlin = cref.klin * u / PRECISION; // rlin:positive
+        ri = math128::max(ri, rlin); // ri:positive
         let r0 = ri + rp;
-        let r1 = r0 + slope * time;
+        let (r1, r1_positive) = r1(slope, r0, time);
 
-        let x;
-        if (r0 >= rlin && r1 >= rlin) {
-            x = (r0 + r1) * time / 2;
-        } else if (r0 < rlin && r1 < rlin) {
-            x = rlin * time;
-        } else if (r0 >= rlin && r1 < rlin) {
+        let x; // TODO: possibly negative?
+        let x_positive;
+        if (r0 >= rlin && r1_gte_rlin(r1, r1_positive, rlin)) {
+            x = (r0 + r1) * time / 2; // x:positive
+            x_positive = true;
+        } else if (r0 < rlin && !r1_gte_rlin(r1, r1_positive, rlin)) {
+            x = rlin * time; // x:positive
+            x_positive = true;
+        } else if (r0 >= rlin && !r1_gte_rlin(r1, r1_positive, rlin)) {
             x = rlin * time - (r0 - rlin) * (r0 - rlin) / slope / 2;
+            if (rlin * time >= ((r0 - rlin) * (r0 - rlin) / slope / 2)) {
+                x_positive = true;
+            } else {
+                x_positive = false;
+            }
         } else {
-            x = rlin * time + (r1 - rlin) * (r1 - rlin) / slope / 2;
+            x = rlin * time + (rlin - r1) * (rlin - r1) / slope / 2; // x:positive
+            x_positive = true;
         };
 
-        ri = math::max_u128(ri + slope_i * time, rlin);
-        let (rcomp, overflow) = calc_rcomp(total_deposits, total_borrows, x);
+        ri = math128::max(ri + slope_i * time, rlin);
+        let (rcomp, overflow) = calc_rcomp(total_deposits, total_borrows, x, x_positive);
 
         if (overflow) {
             ri = 0;
@@ -192,25 +232,38 @@ module leizd::interest_rate {
         (rcomp, ri, tcrit, overflow)
     }
 
-    fun calc_rcomp(total_deposits: u128, total_borrows: u128, x: u128): (u128,bool) {
+    fun calc_rcomp(total_deposits: u128, total_borrows: u128, x: u128, x_positive: bool): (u128,bool) {
 
         let rcomp;
         let overflow = false;
         if (x >= X_MAX) {
-            rcomp = (math::pow(2, 16) as u128) * DP;
+            rcomp = RCOMP_MAX;
             overflow = true;
         } else {
-            let expx = prb_math_30x9::exp((x as u128));
-            if (expx > (DP as u128)) {
+            let expx = prb_math_30x9::exp(x, x_positive);
+            if (expx > PRECISION) {
                 rcomp = expx;
             } else {
                 rcomp = 0;
             };
             total_deposits;
             total_borrows;
-            // TODO MAX AMOUNT
-            // let max_amount = if (total_deposits > total_borrows) total_deposits else total_borrows;
-            // let rcomp_mul_tba = (rcomp as u128) * total_borrows;
+
+            let max_amount = if (total_deposits > total_borrows) total_deposits else total_borrows;
+            if (max_amount >= ASSET_DATA_OVERFLOW_LIMIT) {
+                return (0, true)
+            };
+
+            let rcomp_mul_tba = (rcomp as u128) * total_borrows;
+            if (rcomp_mul_tba == 0) {
+                return (rcomp, overflow)
+            };
+
+            if (rcomp_mul_tba / rcomp != total_borrows || 
+                rcomp_mul_tba / PRECISION > ASSET_DATA_OVERFLOW_LIMIT - max_amount) {
+                    rcomp = (ASSET_DATA_OVERFLOW_LIMIT - max_amount) * PRECISION / total_borrows;
+                return (rcomp, true)
+            };
         };
 
         (rcomp, overflow)

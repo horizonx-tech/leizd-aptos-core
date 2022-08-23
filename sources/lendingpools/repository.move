@@ -3,13 +3,12 @@ module leizd::repository {
     use std::signer;
     use aptos_std::event;
     use leizd::permission;
-    use leizd::constant;
 
+    const PRECISION: u64 = 1000000000000000000;
     const DEFAULT_ENTRY_FEE: u64 = 1000000000000000000 / 1000 * 5; // 0.5%
     const DEFAULT_SHARE_FEE: u64 = 1000000000000000000 / 1000 * 5; // 0.5%
     const DEFAULT_LIQUIDATION_FEE: u64 = 1000000000000000000 / 1000 * 5; // 0.5%
-
-    const DEFAULT_LTV: u64 = 1000000000000000000 / 100 * 5; // 50%
+    const DEFAULT_LTV: u64 = 1000000000000000000 / 100 * 50; // 50%
     const DEFAULT_THRESHOLD: u64 = 1000000000000000000 / 100 * 70 ; // 70%
 
     const E_INVALID_THRESHOLD: u64 = 1;
@@ -53,6 +52,7 @@ module leizd::repository {
     public entry fun initialize(owner: &signer) {
         permission::assert_owner(signer::address_of(owner));
         assert_liquidation_threashold(DEFAULT_LTV, DEFAULT_THRESHOLD);
+
         move_to(owner, ProtocolFees {
             entry_fee: DEFAULT_ENTRY_FEE,
             share_fee: DEFAULT_SHARE_FEE,
@@ -65,6 +65,7 @@ module leizd::repository {
 
     public entry fun new_asset<C>(owner: &signer) {
         permission::assert_owner(signer::address_of(owner));
+
         move_to(owner, Config<C> {
             ltv: DEFAULT_LTV,
             lt: DEFAULT_THRESHOLD,
@@ -76,9 +77,9 @@ module leizd::repository {
 
     public entry fun update_protocol_fees(owner: &signer, fees: ProtocolFees) acquires ProtocolFees, RepositoryEventHandle {
         permission::assert_owner(signer::address_of(owner));
-        assert!(fees.entry_fee < constant::decimal_precision_u64(), E_INVALID_ENTRY_FEE);
-        assert!(fees.share_fee < constant::decimal_precision_u64(), E_INVALID_SHARE_FEE);
-        assert!(fees.liquidation_fee < constant::decimal_precision_u64(), E_INVALID_LIQUIDATION_FEE);
+        assert!(fees.entry_fee < PRECISION, E_INVALID_ENTRY_FEE);
+        assert!(fees.share_fee < PRECISION, E_INVALID_SHARE_FEE);
+        assert!(fees.liquidation_fee < PRECISION, E_INVALID_LIQUIDATION_FEE);
 
         let _fees = borrow_global_mut<ProtocolFees>(@leizd);
         _fees.entry_fee = fees.entry_fee;
@@ -113,7 +114,7 @@ module leizd::repository {
     }
 
     fun assert_liquidation_threashold(ltv: u64, lt: u64) {
-        assert!(lt <= constant::decimal_precision_u64(), E_INVALID_THRESHOLD);
+        assert!(lt <= PRECISION, E_INVALID_THRESHOLD);
         assert!(ltv != 0 && ltv < lt, E_INVALID_LTV);
     }
 
@@ -211,13 +212,13 @@ module leizd::repository {
         new_asset<TestAsset>(owner);
 
         let new_params = Config<TestAsset> {
-            ltv: 1000000000000000000 / 100 * 7, // 70%
-            lt: 1000000000000000000 / 100 * 9, // 90%,
+            ltv: 1000000000000000000 / 100 * 70, // 70%
+            lt: 1000000000000000000 / 100 * 90, // 90%,
         };
         update_config<TestAsset>(owner, new_params);
         let config = borrow_global<Config<TestAsset>>(@leizd);
-        assert!(config.ltv == 1000000000000000000 / 100 * 7, 0);
-        assert!(config.lt == 1000000000000000000 / 100 * 9, 0);
+        assert!(config.ltv == 1000000000000000000 / 100 * 70, 0);
+        assert!(config.lt == 1000000000000000000 / 100 * 90, 0);
         let event_handle = borrow_global<RepositoryAssetEventHandle<TestAsset>>(owner_addr);
         assert!(event::counter(&event_handle.update_config_event) == 1, 0);
     }

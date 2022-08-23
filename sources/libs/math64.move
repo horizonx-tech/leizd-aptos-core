@@ -1,23 +1,23 @@
-module leizd::math {
+module leizd::math64 {
 
     use leizd::constant;
 
-    public fun to_share(amount: u128, total_amount: u128, total_shares: u128): u64 {
+    public fun to_share(amount: u64, total_amount: u64, total_shares: u64): u64 {
         if (total_shares == 0 || total_amount == 0) {
-            (amount as u64)
+            amount
         } else {
             let result = amount * total_shares / total_amount;
 
             // prevent rounding error
             assert!(result != 0 || amount == 0, 0);
 
-            (result as u64)
+            result
         }
     }
 
-    public fun to_share_roundup(amount: u128, total_amount: u128, total_shares: u128): u64 {
+    public fun to_share_roundup(amount: u64, total_amount: u64, total_shares: u64): u64 {
         if (total_amount == 0 || total_shares == 0 ) {
-             (amount as u64)
+             amount
         } else {
             let numerator = amount * total_shares;
             let result = numerator / total_amount;
@@ -26,11 +26,11 @@ module leizd::math {
             if (numerator % total_amount != 0) {
                 result = result + 1;
             };
-            (result as u64)
+            result
         }   
     }
 
-    public fun to_amount(share: u128, total_amount: u128, total_shares: u128): u64 {
+    public fun to_amount(share: u64, total_amount: u64, total_shares: u64): u64 {
         if (total_amount == 0 || total_shares == 0 ) {
             return 0
         };
@@ -38,10 +38,10 @@ module leizd::math {
 
         // prevent rouding error
         assert!(result != 0 || share == 0, 0);
-        (result as u64) 
+        result
     }
 
-    public fun to_amount_roundup(share: u128, total_amount: u128, total_shares: u128): u64 {
+    public fun to_amount_roundup(share: u64, total_amount: u64, total_shares: u64): u64 {
         if (total_amount == 0 || total_shares == 0 ) {
             return 0
         };
@@ -52,14 +52,14 @@ module leizd::math {
         if (numerator % total_shares != 0) {
             result = result + 1;
         };
-        (result as u64)
+        result
     }
 
-    public fun utilization(total_deposts: u128, total_borrows: u128): u128 {
+    public fun utilization(total_deposts: u64, total_borrows: u64): u64 {
         if (total_deposts == 0 || total_borrows == 0) {
             0
         } else {
-            (total_borrows * constant::decimal_precision_u128() / total_deposts)
+            (total_borrows * constant::e18_u64() / total_deposts)
         }
     }
 
@@ -67,17 +67,11 @@ module leizd::math {
         if (a > b) a else b
     }
 
-    public fun max_u128(a: u128, b: u128): u128 {
-        if (a > b) a else b
-    }
 
     public fun min(a: u64, b: u64): u64 {
         if (a < b) a else b
     }
 
-    public fun min_u128(a: u128, b: u128): u128 {
-        if (a < b) a else b
-    }
 
     public fun pow(n: u64, e: u64): u64 {
         if (e == 0) {
