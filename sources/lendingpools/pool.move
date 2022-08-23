@@ -1,9 +1,9 @@
 module leizd::pool {
 
     use std::signer;
+    use aptos_std::event;
     use aptos_framework::coin;
     use aptos_framework::timestamp;
-    use aptos_std::event;
     use leizd::collateral;
     use leizd::collateral_only;
     use leizd::debt;
