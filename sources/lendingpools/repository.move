@@ -43,8 +43,11 @@ module leizd::repository {
     }
 
     struct RepositoryEventHandle has key, store {
-        update_config_event: event::EventHandle<UpdateConfigEvent>,
         update_protocol_fees_event: event::EventHandle<UpdateProtocolFeesEvent>,
+    }
+
+    struct RepositoryAssetEventHandle<phantom C> has key, store {
+        update_config_event: event::EventHandle<UpdateConfigEvent>,
     }
 
     public entry fun initialize(owner: &signer) {
@@ -56,7 +59,6 @@ module leizd::repository {
             liquidation_fee: DEFAULT_LIQUIDATION_FEE
         });
         move_to(owner, RepositoryEventHandle {
-            update_config_event: event::new_event_handle<UpdateConfigEvent>(owner),
             update_protocol_fees_event: event::new_event_handle<UpdateProtocolFeesEvent>(owner),
         });
     }
@@ -67,9 +69,12 @@ module leizd::repository {
             ltv: DEFAULT_LTV,
             lt: DEFAULT_THRESHOLD,
         });
+        move_to(owner, RepositoryAssetEventHandle<C> {
+            update_config_event: event::new_event_handle<UpdateConfigEvent>(owner),
+        });
     }
 
-    public entry fun update_protocol_fees(owner: &signer, fees: ProtocolFees) acquires ProtocolFees {
+    public entry fun update_protocol_fees(owner: &signer, fees: ProtocolFees) acquires ProtocolFees, RepositoryEventHandle {
         permission::assert_owner(signer::address_of(owner));
         assert!(fees.entry_fee < constant::decimal_precision_u64(), E_INVALID_ENTRY_FEE);
         assert!(fees.share_fee < constant::decimal_precision_u64(), E_INVALID_SHARE_FEE);
@@ -79,9 +84,18 @@ module leizd::repository {
         _fees.entry_fee = fees.entry_fee;
         _fees.share_fee = fees.share_fee;
         _fees.liquidation_fee = fees.liquidation_fee;
+        event::emit_event<UpdateProtocolFeesEvent>(
+            &mut borrow_global_mut<RepositoryEventHandle>(@leizd).update_protocol_fees_event,
+            UpdateProtocolFeesEvent {
+                caller: signer::address_of(owner),
+                entry_fee: fees.entry_fee,
+                share_fee: fees.share_fee,
+                liquidation_fee: fees.liquidation_fee,
+            }
+        )
     }
 
-    public entry fun update_config<T>(owner: &signer, config: Config<T>) acquires Config, RepositoryEventHandle {
+    public entry fun update_config<T>(owner: &signer, config: Config<T>) acquires Config, RepositoryAssetEventHandle {
         permission::assert_owner(signer::address_of(owner));
         assert_liquidation_threashold(config.ltv, config.lt);
 
@@ -89,7 +103,7 @@ module leizd::repository {
         _config.ltv = config.ltv;
         _config.lt = config.lt;
         event::emit_event<UpdateConfigEvent>(
-            &mut borrow_global_mut<RepositoryEventHandle>(@leizd).update_config_event,
+            &mut borrow_global_mut<RepositoryAssetEventHandle<T>>(@leizd).update_config_event,
             UpdateConfigEvent {
                 caller: signer::address_of(owner),
                 ltv: config.ltv,
@@ -130,8 +144,26 @@ module leizd::repository {
     #[test_only]
     use leizd::common::{Self,WETH};
 
+    #[test(owner = @leizd)]
+    public entry fun test_initialize(owner: signer) acquires ProtocolFees, RepositoryEventHandle {
+        let owner_addr = signer::address_of(&owner);
+        initialize(&owner);
+
+        let protocol_fees = borrow_global<ProtocolFees>(owner_addr);
+        assert!(protocol_fees.entry_fee == DEFAULT_ENTRY_FEE, 0);
+        assert!(protocol_fees.share_fee == DEFAULT_SHARE_FEE, 0);
+        assert!(protocol_fees.liquidation_fee == DEFAULT_LIQUIDATION_FEE, 0);
+        let event_handle = borrow_global<RepositoryEventHandle>(owner_addr);
+        assert!(event::counter(&event_handle.update_protocol_fees_event) == 0, 0);
+    }
+    #[test(account = @0x111)]
+    #[expected_failure(abort_code = 1)]
+    public entry fun test_initialize_without_owner(account: signer) {
+        initialize(&account);
+    }
+
     #[test(owner=@leizd,account1=@0x111)]
-    public entry fun test_update_protocol_fees(owner: signer, account1: signer) acquires ProtocolFees {
+    public entry fun test_update_protocol_fees(owner: signer, account1: signer) acquires ProtocolFees, RepositoryEventHandle {
         let owner_addr = signer::address_of(&owner);
         let account1_addr = signer::address_of(&account1);
         account::create_account(owner_addr);
@@ -152,5 +184,41 @@ module leizd::repository {
         assert!(fees.entry_fee == 1000000000000000000 / 1000 * 8, 0);
         assert!(fees.share_fee == 1000000000000000000 / 1000 * 7, 0);
         assert!(fees.liquidation_fee == 1000000000000000000 / 1000 * 6, 0);
+        let event_handle = borrow_global<RepositoryEventHandle>(owner_addr);
+        assert!(event::counter(&event_handle.update_protocol_fees_event) == 1, 0);
+    }
+
+    #[test_only]
+    struct TestAsset {}
+    #[test(owner = @leizd)]
+    public entry fun test_new_asset(owner: &signer) acquires Config, RepositoryAssetEventHandle {
+        new_asset<TestAsset>(owner);
+        let config = borrow_global<Config<TestAsset>>(signer::address_of(owner));
+        assert!(config.ltv == DEFAULT_LTV, 0);
+        assert!(config.lt == DEFAULT_THRESHOLD, 0);
+        let event_handle = borrow_global<RepositoryAssetEventHandle<TestAsset>>(signer::address_of(owner));
+        assert!(event::counter(&event_handle.update_config_event) == 0, 0);
+    }
+    #[test(account = @0x111)]
+    #[expected_failure(abort_code = 1)]
+    public entry fun test_new_asset_without_owner(account: &signer) {
+        new_asset<TestAsset>(account);
+    }
+
+    #[test(owner=@leizd)]
+    public entry fun test_update_config(owner: &signer) acquires Config, RepositoryAssetEventHandle {
+        let owner_addr = signer::address_of(owner);
+        new_asset<TestAsset>(owner);
+
+        let new_params = Config<TestAsset> {
+            ltv: 1000000000000000000 / 100 * 7, // 70%
+            lt: 1000000000000000000 / 100 * 9, // 90%,
+        };
+        update_config<TestAsset>(owner, new_params);
+        let config = borrow_global<Config<TestAsset>>(@leizd);
+        assert!(config.ltv == 1000000000000000000 / 100 * 7, 0);
+        assert!(config.lt == 1000000000000000000 / 100 * 9, 0);
+        let event_handle = borrow_global<RepositoryAssetEventHandle<TestAsset>>(owner_addr);
+        assert!(event::counter(&event_handle.update_config_event) == 1, 0);
     }
 }
