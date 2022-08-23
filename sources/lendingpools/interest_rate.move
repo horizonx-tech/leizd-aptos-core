@@ -1,7 +1,7 @@
 module leizd::interest_rate {
     use std::signer;
     use aptos_framework::event;
-    use leizd::math;
+    use leizd::math128;
     use leizd::prb_math_30x9;
     use leizd::permission;
 
@@ -135,7 +135,7 @@ module leizd::interest_rate {
 
     public fun calc_compound_interest_rate<C>(config_ref: &Config<C>, total_deposits: u128, total_borrows: u128, last_updated: u64, now: u64): (u128, u128, u128, bool) {
         let time = ((now - last_updated) as u128);
-        let u = math::utilization(total_deposits, total_borrows);
+        let u = math128::utilization(total_deposits, total_borrows);
         let (slope_i, slope_i_positive) = slope_index(config_ref.ki, u, config_ref.uopt);
         
         let ri = config_ref.ri;
@@ -155,18 +155,18 @@ module leizd::interest_rate {
             if (config_ref.ulow >= u) {
                 // TODO: min?
                 let rp_tmp = config_ref.kcrit * (config_ref.ulow - u) / DP;
-                rp = math::min_u128(0, rp_tmp);
+                rp = math128::min(0, rp_tmp);
             } else {
                 let rptmp = config_ref.kcrit * (u - config_ref.ulow) / DP;
-                rp = math::min_u128(0, rptmp);
+                rp = math128::min(0, rptmp);
             };
             
             slope = slope_i;
-            tcrit = math::max_u128(0, tcrit - config_ref.beta * time);
+            tcrit = math128::max(0, tcrit - config_ref.beta * time);
         };
         
         let rlin = config_ref.klin * u / DP;
-        ri = math::max_u128(ri, rlin);
+        ri = math128::max(ri, rlin);
         let r0 = ri + rp;
         let r1 = r0 + slope * time;
 
@@ -181,7 +181,7 @@ module leizd::interest_rate {
             x = rlin * time + (r1 - rlin) * (r1 - rlin) / slope / 2;
         };
 
-        ri = math::max_u128(ri + slope_i * time, rlin);
+        ri = math128::max(ri + slope_i * time, rlin);
         let (rcomp, overflow) = calc_rcomp(total_deposits, total_borrows, x);
 
         if (overflow) {
@@ -197,7 +197,7 @@ module leizd::interest_rate {
         let rcomp;
         let overflow = false;
         if (x >= X_MAX) {
-            rcomp = (math::pow(2, 16) as u128) * DP;
+            rcomp = (math128::pow(2, 16) as u128) * DP;
             overflow = true;
         } else {
             let expx = prb_math_30x9::exp((x as u128));
