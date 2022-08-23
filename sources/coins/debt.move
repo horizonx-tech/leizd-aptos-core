@@ -13,22 +13,27 @@ module leizd::debt {
     }
 
     public(friend) fun initialize<C>(owner: &signer) {
+        initialize_internal<C>(owner);
+    }
+
+    fun initialize_internal<C>(owner: &signer) {
         assert!(coin::is_coin_initialized<C>(), E_NOT_INITIALIZED);
+
         let coin_name = coin::name<C>();
         let coin_symbol = coin::symbol<C>();
         let coin_decimals = coin::decimals<C>();
 
-        let prefix_name = b"Leizd Debt ";
-        let prefix_symbol = b"d";
-        string::insert(&mut coin_name, 0, string::utf8(prefix_name));
-        string::insert(&mut coin_symbol, 0, string::utf8(prefix_symbol));
-        coin_base::initialize<Debt<C,Asset>>(owner, coin_name, coin_symbol, coin_decimals);
+        let name = string::utf8(b"Leizd Debt ");
+        let symbol = string::utf8(b"d");
+        string::append(&mut name, coin_name);
+        string::append(&mut symbol, coin_symbol);
+        coin_base::initialize<Debt<C,Asset>>(owner, name, symbol, coin_decimals);
 
-        let prefix_name = b"Leizd Shadow Debt ";
-        let prefix_symbol = b"sd";
-        string::insert(&mut coin_name, 0, string::utf8(prefix_name));
-        string::insert(&mut coin_symbol, 0, string::utf8(prefix_symbol));
-        coin_base::initialize<Debt<C,Shadow>>(owner, coin_name, coin_symbol, coin_decimals);
+        let name = string::utf8(b"Leizd Shadow Debt ");
+        let symbol = string::utf8(b"sd");
+        string::append(&mut name, coin_name);
+        string::append(&mut symbol, coin_symbol);
+        coin_base::initialize<Debt<C,Shadow>>(owner, name, symbol, 18);
     }
 
     public fun register<C>(account: &signer) {
@@ -50,5 +55,47 @@ module leizd::debt {
 
     public entry fun supply<C,P>(): u128 {
         coin_base::supply<Debt<C,P>>()
+    }
+
+    #[test_only]
+    use aptos_framework::account;
+    #[test_only]
+    use leizd::common::{Self,WETH};
+    #[test_only]
+    use std::signer;
+    #[test_only]
+    use aptos_std::comparator;
+
+    #[test(owner=@leizd,account1=@0x111)]
+    public entry fun test_initialize_debt_coins(owner: signer) {
+        let owner_addr = signer::address_of(&owner);
+        account::create_account(owner_addr);
+        common::init_weth(&owner);
+        initialize_internal<WETH>(&owner);
+        
+        assert!(comparator::is_equal(&comparator::compare(
+            string::bytes(&coin::name<Debt<WETH,Asset>>()),
+            &b"Leizd Debt WETH"
+        )), 0);
+        assert!(comparator::is_equal(&comparator::compare(
+            string::bytes(&coin::symbol<Debt<WETH,Asset>>()),
+            &b"dWETH"
+        )), 0);
+        assert!(comparator::is_equal(&comparator::compare(
+            &coin::decimals<Debt<WETH,Asset>>(),
+            &coin::decimals<WETH>()
+        )), 0);
+        assert!(comparator::is_equal(&comparator::compare(
+            string::bytes(&coin::name<Debt<WETH,Shadow>>()),
+            &b"Leizd Shadow Debt WETH"
+        )), 0);
+        assert!(comparator::is_equal(&comparator::compare(
+            string::bytes(&coin::symbol<Debt<WETH,Shadow>>()),
+            &b"sdWETH"
+        )), 0);
+        assert!(comparator::is_equal(&comparator::compare(
+            &coin::decimals<Debt<WETH,Shadow>>(),
+            &18
+        )), 0);
     }
 }

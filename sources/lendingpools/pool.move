@@ -29,7 +29,7 @@ module leizd::pool {
 
     struct Storage<phantom C, phantom P> has key {
         total_deposits: u128,
-        total_collateral_only_deposits: u128,
+        total_conly_deposits: u128, // collateral only
         total_borrows: u128,
         last_updated: u64,
     }
@@ -40,26 +40,31 @@ module leizd::pool {
         amount: u64,
         is_shadow: bool,
     }
+
     struct WithdrawEvent has store, drop {
         caller: address,
         amount: u64,
         is_shadow: bool,
     }
+    
     struct BorrowEvent has store, drop {
         caller: address,
         amount: u64,
         is_shadow: bool,
     }
+    
     struct RepayEvent has store, drop {
         caller: address,
         amount: u64,
         is_shadow: bool,
     }
+    
     struct LiquidateEvent has store, drop {
         caller: address,
         target: address,
         is_shadow: bool,
     }
+    
     struct PoolEventHandle<phantom C> has key, store {
         deposit_event: event::EventHandle<DepositEvent>,
         withdraw_event: event::EventHandle<WithdrawEvent>,
@@ -226,10 +231,10 @@ module leizd::pool {
         if (is_collateral_only) {
             collateral_share = math::to_share(
                 (amount as u128),
-                storage_ref.total_collateral_only_deposits,
+                storage_ref.total_conly_deposits,
                 collateral_only::supply<C,P>()
             );
-            storage_ref.total_collateral_only_deposits = storage_ref.total_deposits + (amount as u128);
+            storage_ref.total_conly_deposits = storage_ref.total_deposits + (amount as u128);
             collateral_only::mint<C,P>(depositor_addr, collateral_share); 
         } else {
             collateral_share = math::to_share(
@@ -283,7 +288,7 @@ module leizd::pool {
         };
 
         if (is_collateral_only) {
-            storage_ref.total_collateral_only_deposits = storage_ref.total_collateral_only_deposits - (withdrawn_amount as u128);
+            storage_ref.total_conly_deposits = storage_ref.total_conly_deposits - (withdrawn_amount as u128);
             collateral_only::burn<C,P>(depositor, burned_share);
         } else {
             storage_ref.total_deposits = storage_ref.total_deposits - (withdrawn_amount as u128);
@@ -458,7 +463,7 @@ module leizd::pool {
     fun default_storage<C,P>(): Storage<C,P> {
         Storage<C,P>{
             total_deposits: 0,
-            total_collateral_only_deposits: 0,
+            total_conly_deposits: 0,
             total_borrows: 0,
             last_updated: 0,
         }
@@ -482,7 +487,7 @@ module leizd::pool {
 
     public entry fun liquidity<C,P>(): u128 acquires Storage {
         let storage_ref = borrow_global<Storage<C,P>>(@leizd);
-        storage_ref.total_deposits - storage_ref.total_collateral_only_deposits
+        storage_ref.total_deposits - storage_ref.total_conly_deposits
     }
 
     public entry fun total_deposits<C,P>(): u128 acquires Storage {
@@ -490,7 +495,7 @@ module leizd::pool {
     }
 
     public entry fun total_conly_deposits<C,P>(): u128 acquires Storage {
-        borrow_global<Storage<C,P>>(@leizd).total_collateral_only_deposits
+        borrow_global<Storage<C,P>>(@leizd).total_conly_deposits
     }
 
     public entry fun total_borrows<C,P>(): u128 acquires Storage {
@@ -513,21 +518,44 @@ module leizd::pool {
     #[test_only]
     use leizd::common::{Self,WETH,UNI};
     #[test_only]
+    use leizd::dummy;
+    #[test_only]
     use leizd::usdz;
     #[test_only]
     use leizd::trove;
     #[test_only]
     use leizd::initializer;
 
-    // #[test(owner=@leizd,account1=@0x111)]
-    // #[expected_failure(abort_code=524289)]
-    // public entry fun test_init_pool_twice(owner: signer) {
-    //     account::create_account(signer::address_of(&owner));
-    //     common::init_weth(&owner);
-    //     initializer::initialize(&owner);
-    //     initializer::register<WETH>(&owner);
-    //     // initializer::register<WETH>(&owner);
-    // }
+    #[test(owner=@leizd,account1=@0x111)]
+    #[expected_failure]
+    public entry fun test_init_pool_twice(owner: signer) {
+        account::create_account(signer::address_of(&owner));
+        common::init_weth(&owner);
+        initializer::initialize(&owner);
+        initializer::register<WETH>(&owner);
+        initializer::register<WETH>(&owner);
+    }
+
+    #[test(owner=@leizd,account1=@0x111,aptos_framework=@aptos_framework)]
+    #[expected_failure]
+    public entry fun test_deposit_dummy_weth(owner: signer, account1: signer, aptos_framework: signer) acquires Pool, Storage, PoolEventHandle {
+        timestamp::set_time_has_started_for_testing(&aptos_framework);
+        let owner_addr = signer::address_of(&owner);
+        let account1_addr = signer::address_of(&account1);
+        account::create_account(owner_addr);
+        account::create_account(account1_addr);
+        common::init_weth(&owner);
+        dummy::init_weth(&owner);
+        initializer::initialize(&owner);
+        initializer::register<WETH>(&account1);
+        initializer::register<dummy::WETH>(&account1);
+        managed_coin::mint<WETH>(&owner, account1_addr, 1000000);
+        managed_coin::mint<dummy::WETH>(&owner, account1_addr, 1000000);
+        
+        init_pool<WETH>(&owner);
+
+        deposit<dummy::WETH>(&account1, 800000, false, false);
+    }
 
     #[test(owner=@leizd,account1=@0x111,aptos_framework=@aptos_framework)]
     public entry fun test_deposit_weth(owner: signer, account1: signer, aptos_framework: signer) acquires Pool, Storage, PoolEventHandle {
