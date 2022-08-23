@@ -1,5 +1,8 @@
 module leizd::system_status { 
 
+    use std::signer;
+    use leizd::permission;
+
     friend leizd::system_administrator;
 
     struct SystemStatus has key {
@@ -7,6 +10,7 @@ module leizd::system_status {
     }
 
     public fun initialize(owner: &signer) {
+        permission::assert_owner(signer::address_of(owner));
         move_to(owner, SystemStatus { is_active: true });
     }
 
@@ -17,5 +21,16 @@ module leizd::system_status {
 
     public fun status(): bool acquires SystemStatus {
         borrow_global<SystemStatus>(@leizd).is_active
+    }
+
+    #[test(owner = @leizd)]
+    fun test_initialize(owner: &signer) {
+        initialize(owner);
+        assert!(exists<SystemStatus>(@leizd), 0);
+    }
+    #[test(account = @0x111)]
+    #[expected_failure(abort_code = 1)]
+    fun test_initialize_with_not_owner(account: &signer) {
+        initialize(account);
     }
 }
