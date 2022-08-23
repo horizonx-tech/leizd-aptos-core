@@ -11,21 +11,25 @@ module leizd::collateral_only {
     }
 
     public(friend) fun initialize<C>(owner: &signer) {
+         initialize_internal<C>(owner);
+    }
+
+    fun initialize_internal<C>(owner: &signer) {
         let coin_name = coin::name<C>();
         let coin_symbol = coin::symbol<C>();
         let coin_decimals = coin::decimals<C>();
 
-        let prefix_name = b"Leizd Collateral Only ";
-        let prefix_symbol = b"co";
-        string::insert(&mut coin_name, 0, string::utf8(prefix_name));
-        string::insert(&mut coin_symbol, 0, string::utf8(prefix_symbol));
-        coin_base::initialize<CollateralOnly<C,Asset>>(owner, coin_name, coin_symbol, coin_decimals);
+        let name = string::utf8(b"Leizd Collateral Only ");
+        let symbol = string::utf8(b"co");
+        string::append(&mut name, coin_name);
+        string::append(&mut symbol, coin_symbol);
+        coin_base::initialize<CollateralOnly<C,Asset>>(owner, name, symbol, coin_decimals);
 
-        let prefix_name = b"Leizd Shadow Collateral Only ";
-        let prefix_symbol = b"sco";
-        string::insert(&mut coin_name, 0, string::utf8(prefix_name));
-        string::insert(&mut coin_symbol, 0, string::utf8(prefix_symbol));
-        coin_base::initialize<CollateralOnly<C,Shadow>>(owner, coin_name, coin_symbol, coin_decimals);
+        let name = string::utf8(b"Leizd Shadow Collateral Only ");
+        let symbol = string::utf8(b"sco");
+        string::append(&mut name, coin_name);
+        string::append(&mut symbol, coin_symbol);
+        coin_base::initialize<CollateralOnly<C,Shadow>>(owner, name, symbol, 18);
     }
 
     public fun register<C>(account: &signer) {
@@ -47,5 +51,47 @@ module leizd::collateral_only {
 
     public entry fun supply<C,P>(): u128 {
         coin_base::supply<CollateralOnly<C,P>>()
+    }
+
+    #[test_only]
+    use aptos_framework::account;
+    #[test_only]
+    use leizd::common::{Self,WETH};
+    #[test_only]
+    use std::signer;
+    #[test_only]
+    use aptos_std::comparator;
+
+    #[test(owner=@leizd,account1=@0x111)]
+    public entry fun test_initialize_collateral_only_coins(owner: signer) {
+        let owner_addr = signer::address_of(&owner);
+        account::create_account(owner_addr);
+        common::init_weth(&owner);
+        initialize_internal<WETH>(&owner);
+        
+        assert!(comparator::is_equal(&comparator::compare(
+            string::bytes(&coin::name<CollateralOnly<WETH,Asset>>()),
+            &b"Leizd Collateral Only WETH"
+        )), 0);
+        assert!(comparator::is_equal(&comparator::compare(
+            string::bytes(&coin::symbol<CollateralOnly<WETH,Asset>>()),
+            &b"coWETH"
+        )), 0);
+        assert!(comparator::is_equal(&comparator::compare(
+            &coin::decimals<CollateralOnly<WETH,Asset>>(),
+            &coin::decimals<WETH>()
+        )), 0);
+        assert!(comparator::is_equal(&comparator::compare(
+            string::bytes(&coin::name<CollateralOnly<WETH,Shadow>>()),
+            &b"Leizd Shadow Collateral Only WETH"
+        )), 0);
+        assert!(comparator::is_equal(&comparator::compare(
+            string::bytes(&coin::symbol<CollateralOnly<WETH,Shadow>>()),
+            &b"scoWETH"
+        )), 0);
+        assert!(comparator::is_equal(&comparator::compare(
+            &coin::decimals<CollateralOnly<WETH,Shadow>>(),
+            &18
+        )), 0);
     }
 }

@@ -29,7 +29,7 @@ module leizd::collateral {
         let symbol = string::utf8(b"sc");
         string::append(&mut name, coin_name);
         string::append(&mut symbol, coin_symbol);
-        coin_base::initialize<Collateral<C,Shadow>>(owner, name, symbol, coin_decimals);
+        coin_base::initialize<Collateral<C,Shadow>>(owner, name, symbol, 18);
     }
 
     public fun register<C>(account: &signer) {
@@ -63,27 +63,35 @@ module leizd::collateral {
     use aptos_std::comparator;
 
     #[test(owner=@leizd,account1=@0x111)]
-    public entry fun test_initialize_collateral(owner: signer) {
+    public entry fun test_initialize_collateral_coins(owner: signer) {
         let owner_addr = signer::address_of(&owner);
         account::create_account(owner_addr);
         common::init_weth(&owner);
         initialize_internal<WETH>(&owner);
         
-        assert!(comparator::is_equal(
-            &comparator::compare(string::bytes(&coin::name<Collateral<WETH,Asset>>()),
-            &b"Leizd Collateral WETH")), 
-        0);
-        assert!(comparator::is_equal(
-            &comparator::compare(string::bytes(&coin::symbol<Collateral<WETH,Asset>>()),
-            &b"cWETH")), 
-        0);
-        assert!(comparator::is_equal(
-            &comparator::compare(string::bytes(&coin::name<Collateral<WETH,Shadow>>()),
-            &b"Leizd Shadow Collateral WETH")), 
-        0);
-        assert!(comparator::is_equal(
-            &comparator::compare(string::bytes(&coin::symbol<Collateral<WETH,Shadow>>()),
-            &b"scWETH")), 
-        0);
+        assert!(comparator::is_equal(&comparator::compare(
+            string::bytes(&coin::name<Collateral<WETH,Asset>>()),
+            &b"Leizd Collateral WETH"
+        )), 0);
+        assert!(comparator::is_equal(&comparator::compare(
+            string::bytes(&coin::symbol<Collateral<WETH,Asset>>()),
+            &b"cWETH"
+        )), 0);
+        assert!(comparator::is_equal(&comparator::compare(
+            &coin::decimals<Collateral<WETH,Asset>>(),
+            &coin::decimals<WETH>()
+        )), 0);
+        assert!(comparator::is_equal(&comparator::compare(
+            string::bytes(&coin::name<Collateral<WETH,Shadow>>()),
+            &b"Leizd Shadow Collateral WETH"
+        )), 0);
+        assert!(comparator::is_equal(&comparator::compare(
+            string::bytes(&coin::symbol<Collateral<WETH,Shadow>>()),
+            &b"scWETH"
+        )), 0);
+        assert!(comparator::is_equal(&comparator::compare(
+            &coin::decimals<Collateral<WETH,Shadow>>(),
+            &18
+        )), 0);
     }
 }
