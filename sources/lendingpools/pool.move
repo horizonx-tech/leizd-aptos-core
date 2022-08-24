@@ -17,10 +17,12 @@ module leizd::pool {
     use leizd::usdz::{USDZ};
     use leizd::price_oracle;
     use leizd::constant;
+    use leizd::dex_facade;
 
     friend leizd::system_administrator;
 
     const E_IS_ALREADY_EXISTED: u64 = 1;
+    const E_DEX_DOES_NOT_HAVE_LIQUIDITY: u64 = 2;
 
     struct Pool<phantom C> has key {
         asset: coin::Coin<C>,
@@ -77,6 +79,7 @@ module leizd::pool {
     public entry fun init_pool<C>(owner: &signer) {
         permission::assert_owner(signer::address_of(owner));
         assert!(!is_pool_initialized<C>(), E_IS_ALREADY_EXISTED);
+        assert!(dex_facade::has_liquidity<C>(), E_DEX_DOES_NOT_HAVE_LIQUIDITY);
 
         collateral::initialize<C>(owner);
         collateral_only::initialize<C>(owner);
