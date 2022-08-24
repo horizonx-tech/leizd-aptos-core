@@ -17,4 +17,8 @@ module leizd::constant {
     public fun u64_max(): u64 {
         U64_MAX
     }
+
+    public fun u128_max(): u128 {
+        U128_MAX
+    }
 }
