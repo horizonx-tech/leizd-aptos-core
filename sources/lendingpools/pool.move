@@ -20,6 +20,8 @@ module leizd::pool {
 
     friend leizd::system_administrator;
 
+    const E_IS_ALREADY_EXISTED: u64 = 1;
+
     struct Pool<phantom C> has key {
         asset: coin::Coin<C>,
         shadow: coin::Coin<USDZ>,
@@ -74,6 +76,8 @@ module leizd::pool {
 
     public entry fun init_pool<C>(owner: &signer) {
         permission::assert_owner(signer::address_of(owner));
+        assert!(!is_pool_initialized<C>(), E_IS_ALREADY_EXISTED);
+
         collateral::initialize<C>(owner);
         collateral_only::initialize<C>(owner);
         debt::initialize<C>(owner);
@@ -100,6 +104,10 @@ module leizd::pool {
         let system_is_active = system_status::status();
         let pool_ref = borrow_global<Pool<C>>(@leizd);
         system_is_active && pool_ref.is_active 
+    }
+
+    public fun is_pool_initialized<C>(): bool {
+        exists<Pool<C>>(@leizd)
     }
 
     public entry fun deposit<C>(account: &signer, amount: u64, is_collateral_only: bool, is_shadow: bool) acquires Pool, Storage, PoolEventHandle {
