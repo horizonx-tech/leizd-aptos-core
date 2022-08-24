@@ -67,10 +67,10 @@ module leizd::interest_rate {
             uopt: 800000000,  // 80%
             ucrit: 900000000, // 90%
             ulow: 500000000,  // 50%
-            ki: 367011,
-            kcrit: 951293759513, // TODO: ideal number
-            klow: 95129375951,
-            klin: 1585489599,
+            ki: 367011, // TODO
+            kcrit: 951, // 30%   -> 30  e9 / (365*24*3600)
+            klow: 10,   // 3%    -> 3   e9 / (365*24*3600)
+            klin: 2,    // 0.05% -> 0.05e9 / (365*24*3600)
             beta: 277777777777778,
             ri: 0,
             tcrit: 0,
@@ -201,7 +201,7 @@ module leizd::interest_rate {
         let r0 = ri + rp;
         let (r1, r1_positive) = r1(slope, r0, time);
 
-        let x; // TODO: possibly negative?
+        let x; // x:possibly negative
         let x_positive;
         if (r0 >= rlin && r1_gte_rlin(r1, r1_positive, rlin)) {
             x = (r0 + r1) * time / 2; // x:positive
