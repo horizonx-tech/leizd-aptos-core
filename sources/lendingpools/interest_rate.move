@@ -67,7 +67,7 @@ module leizd::interest_rate {
             uopt: 800000000,  // 80%
             ucrit: 900000000, // 90%
             ulow: 500000000,  // 50%
-            ki: 367011, // TODO
+            ki: 367011, // double scale 0.000367011
             kcrit: 951, // 30%   -> 30  e9 / (365*24*3600)
             klow: 10,   // 3%    -> 3   e9 / (365*24*3600)
             klin: 2,    // 0.05% -> 0.05e9 / (365*24*3600)
@@ -130,9 +130,9 @@ module leizd::interest_rate {
 
     fun slope_index(ki: u128, u0: u128, uopt: u128): (u128, bool) {
         if (u0 >= uopt) {
-            (ki * (u0 - uopt) / PRECISION, true) // positive
+            (ki * (u0 - uopt) / (PRECISION*PRECISION), true) // positive
         } else {
-            (ki * (uopt - u0) / PRECISION, false) // negative
+            (ki * (uopt - u0) / (PRECISION*PRECISION), false) // negative
         }
     }
 
