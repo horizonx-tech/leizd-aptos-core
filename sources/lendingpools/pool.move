@@ -40,7 +40,9 @@ module leizd::pool {
     // Events
     struct DepositEvent has store, drop {
         caller: address,
+        depositor: address,
         amount: u64,
+        is_collateral_only: bool,
         is_shadow: bool,
     }
 
@@ -113,11 +115,24 @@ module leizd::pool {
         exists<Pool<C>>(@leizd)
     }
 
-    public entry fun deposit<C>(account: &signer, amount: u64, is_collateral_only: bool, is_shadow: bool) acquires Pool, Storage, PoolEventHandle {
+    /// Deposits an asset or a shadow to the pool.
+    /// If a user wants to protect the asset, it's possible that it can be used only for the collateral.
+    public entry fun deposit<C>(
+        account: &signer,
+        amount: u64,
+        is_collateral_only: bool,
+        is_shadow: bool
+    ) acquires Pool, Storage, PoolEventHandle {
         deposit_for<C>(account, signer::address_of(account), amount, is_collateral_only, is_shadow);
     }
 
-    public entry fun deposit_for<C>(account: &signer, depositor_addr: address, amount: u64, is_collateral_only: bool, is_shadow: bool) acquires Pool, Storage, PoolEventHandle {
+    public entry fun deposit_for<C>(
+        account: &signer,
+        depositor_addr: address,
+        amount: u64,
+        is_collateral_only: bool,
+        is_shadow: bool
+    ) acquires Pool, Storage, PoolEventHandle {
         assert!(is_available<C>(), 0);
         if (is_shadow) {
             deposit_shadow<C>(account, depositor_addr, amount, is_collateral_only);
@@ -128,7 +143,9 @@ module leizd::pool {
             &mut borrow_global_mut<PoolEventHandle<C>>(@leizd).deposit_event,
             DepositEvent {
                 caller: signer::address_of(account),
+                depositor: depositor_addr,
                 amount,
+                is_collateral_only,
                 is_shadow
             },
         );
@@ -222,7 +239,7 @@ module leizd::pool {
 
         let withdrawn = coin::withdraw<C>(account, amount);
         coin::merge(&mut pool_ref.asset, withdrawn);
-        deposit_internal<C,Asset>(depositor_addr, amount, is_collateral_only, storage_ref);
+        deposit_internal<C,Asset>(depositor_addr, (amount as u128), is_collateral_only, storage_ref);
     }
 
     fun deposit_shadow<C>(account: &signer, depositor_addr: address, amount: u64, is_collateral_only: bool) acquires Pool, Storage {
@@ -233,26 +250,25 @@ module leizd::pool {
 
         let withdrawn = coin::withdraw<USDZ>(account, amount);
         coin::merge(&mut pool_ref.shadow, withdrawn);
-        deposit_internal<C,Shadow>(depositor_addr, amount, is_collateral_only, storage_ref);
+        deposit_internal<C,Shadow>(depositor_addr, (amount as u128), is_collateral_only, storage_ref);
     }
 
-    fun deposit_internal<C,P>(depositor_addr: address, amount: u64, is_collateral_only: bool, storage_ref: &mut Storage<C,P>) {
-        let collateral_share;
+    fun deposit_internal<C,P>(depositor_addr: address, amount128: u128, is_collateral_only: bool, storage_ref: &mut Storage<C,P>) {
         if (is_collateral_only) {
-            collateral_share = math128::to_share(
-                (amount as u128),
+            let collateral_share = math128::to_share(
+                amount128,
                 storage_ref.total_conly_deposits,
                 collateral_only::supply<C,P>()
             );
-            storage_ref.total_conly_deposits = storage_ref.total_deposits + (amount as u128);
+            storage_ref.total_conly_deposits = storage_ref.total_deposits + amount128;
             collateral_only::mint<C,P>(depositor_addr, (collateral_share as u64)); 
         } else {
-            collateral_share = math128::to_share(
-                (amount as u128),
+            let collateral_share = math128::to_share(
+                amount128,
                 storage_ref.total_deposits,
                 collateral::supply<C,P>()
             );
-            storage_ref.total_deposits = storage_ref.total_deposits + (amount as u128);
+            storage_ref.total_deposits = storage_ref.total_deposits + amount128;
             collateral::mint<C,P>(depositor_addr, (collateral_share as u64));
         };
     }
