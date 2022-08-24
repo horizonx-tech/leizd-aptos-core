@@ -17,7 +17,6 @@ module leizd::pool {
     use leizd::usdz::{USDZ};
     use leizd::price_oracle;
     use leizd::constant;
-    use leizd::caster;
 
     friend leizd::system_administrator;
 
@@ -418,7 +417,7 @@ module leizd::pool {
 
     fun is_solvent<COIN,COL,DEBT>(account_addr: address): bool {
         let user_ltv = user_ltv<COIN,COL,DEBT>(account_addr);
-        caster::to_u128(user_ltv) <= (repository::lt<COIN>() as u128) / constant::e18_u128()
+        user_ltv <= repository::lt<COIN>() / constant::e18_u64()
     }
 
     public fun user_ltv<COIN,COL,DEBT>(account_addr: address): u64 {
@@ -427,8 +426,8 @@ module leizd::pool {
         let debt = debt::balance_of<COIN,DEBT>(account_addr);
         let debt_value = debt * price_oracle::price<COIN>();
 
-        let user_ltv = if (debt_value == 0) 0 else (collateral_value / debt_value as u128);
-        caster::to_u64(user_ltv)
+        let user_ltv = if (debt_value == 0) 0 else collateral_value / debt_value;
+        user_ltv
     }
 
     fun accrue_interest<C,P>(storage_ref: &mut Storage<C,P>) {
