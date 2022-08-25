@@ -118,6 +118,14 @@ module leizd::repository {
         assert!(ltv != 0 && ltv < lt, E_INVALID_LTV);
     }
 
+    // TODO: special asset
+    public fun usdz_config<USDZ>(): Config<USDZ> {
+        Config {
+            ltv: PRECISION / 100 * 90, // 90%
+            lt: PRECISION / 100 * 95, // 95%
+        }
+    }
+
     public entry fun entry_fee(): u64 acquires ProtocolFees {
         borrow_global<ProtocolFees>(@leizd).entry_fee
     }
