@@ -24,12 +24,19 @@ module leizd::pool {
     const E_IS_ALREADY_EXISTED: u64 = 1;
     const E_DEX_DOES_NOT_HAVE_LIQUIDITY: u64 = 2;
 
+    /// Asset Pool where users can deposit and borrow.
+    /// Each asset is separately deposited into a pool.
+    /// The pair for the asset can be stored as shadow.
     struct Pool<phantom C> has key {
         asset: coin::Coin<C>,
         shadow: coin::Coin<USDZ>,
         is_active: bool,
     }
 
+    /// The total deposit amount and total borrowed amount can be updated
+    /// in this struct. The collateral only asset is separately managed
+    /// to calculate the borrowable amount in the pool.
+    /// C is the coin type and P is the pool type: Asset or Shadow.
     struct Storage<phantom C, phantom P> has key {
         total_deposits: u128,
         total_conly_deposits: u128, // collateral only
@@ -245,6 +252,7 @@ module leizd::pool {
         );
     }
 
+    /// Repays an asset or a shadow for the borrowed position.
     public entry fun repay<C>(
         account: &signer,
         amount: u64,
@@ -266,7 +274,11 @@ module leizd::pool {
         );
     }
 
-    public entry fun liquidate<C>(account: &signer, target_addr: address, is_shadow: bool) acquires Pool, Storage, PoolEventHandle {
+    public entry fun liquidate<C>(
+        account: &signer,
+        target_addr: address,
+        is_shadow: bool
+    ) acquires Pool, Storage, PoolEventHandle {
         let liquidation_fee = repository::liquidation_fee();
         if (is_shadow) {
             assert!(is_shadow_solvent<C>(target_addr), 0);

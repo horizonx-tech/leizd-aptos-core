@@ -2,6 +2,7 @@ module leizd::prb_math_30x9 {
     use leizd::prb_math;
 
     // log2(e) as a signed 30.9-decimal fixed-point number.
+    // 1_442695040
     const LOG2_E: u128 = 1442695040;
 
     // The maximum value a signed 30.9-decimal fixed-point number:
