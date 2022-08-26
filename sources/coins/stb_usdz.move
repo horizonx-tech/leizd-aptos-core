@@ -33,6 +33,10 @@ module leizd::stb_usdz {
         coin_base::register<StabilityCollateral>(account);
     }
 
+    public fun is_account_registered(addr: address): bool {
+        coin::is_account_registered<StabilityCollateral>(addr)
+    }
+
     public(friend) fun mint(minter_addr: address, amount: u64) {
         coin_base::mint<StabilityCollateral>(minter_addr, amount);
     }

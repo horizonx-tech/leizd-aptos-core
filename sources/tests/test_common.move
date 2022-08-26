@@ -1,5 +1,5 @@
 #[test_only]
-module leizd::common {
+module leizd::test_common {
 
     struct USDC {}
     struct WETH {}

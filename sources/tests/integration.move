@@ -7,7 +7,7 @@ module leizd::integration {
     // use aptos_framework::managed_coin;
     use leizd::pool;
     use leizd::pool_type::{Asset,Shadow};
-    use leizd::common::{Self,USDC,WETH};
+    use leizd::test_common::{Self,USDC,WETH};
 
     #[test(owner=@leizd)]
     public entry fun test_init_by_owner(owner: signer) {
@@ -15,8 +15,8 @@ module leizd::integration {
         account::create_account_for_test(signer::address_of(&owner));
 
         // init coins
-        common::init_usdc(&owner);
-        common::init_weth(&owner);
+        test_common::init_usdc(&owner);
+        test_common::init_weth(&owner);
 
         // list coins on the pool
         pool::init_pool<USDC>(&owner);

@@ -6,10 +6,12 @@ module leizd::initializer {
     use leizd::collateral;
     use leizd::collateral_only;
     use leizd::debt;
+    use leizd::trove;
 
     public entry fun initialize(owner: &signer) {
         system_status::initialize(owner);
         repository::initialize(owner);
+        trove::initialize(owner);
     }
 
     public entry fun register<C>(account: &signer) {

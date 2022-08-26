@@ -60,7 +60,7 @@ module leizd::collateral {
     #[test_only]
     use aptos_framework::account;
     #[test_only]
-    use leizd::common::{Self,WETH};
+    use leizd::test_common::{Self,WETH};
     #[test_only]
     use std::signer;
     #[test_only]
@@ -70,7 +70,7 @@ module leizd::collateral {
     public entry fun test_initialize_collateral_coins(owner: signer) {
         let owner_addr = signer::address_of(&owner);
         account::create_account_for_test(owner_addr);
-        common::init_weth(&owner);
+        test_common::init_weth(&owner);
         initialize_internal<WETH>(&owner);
         
         assert!(comparator::is_equal(&comparator::compare(

@@ -150,7 +150,7 @@ module leizd::repository {
     #[test_only]
     use aptos_framework::managed_coin;
     #[test_only]
-    use leizd::common::{Self,WETH};
+    use leizd::test_common::{Self,WETH};
 
     #[test(owner = @leizd)]
     public entry fun test_initialize(owner: signer) acquires ProtocolFees, RepositoryEventHandle {
@@ -178,7 +178,7 @@ module leizd::repository {
         account::create_account_for_test(owner_addr);
         account::create_account_for_test(account1_addr);
 
-        common::init_weth(&owner);
+        test_common::init_weth(&owner);
         initialize(&owner);
         managed_coin::register<WETH>(&account1);
         managed_coin::mint<WETH>(&owner, account1_addr, 1000000);

@@ -699,13 +699,11 @@ module leizd::pool {
     #[test_only]
     use aptos_framework::managed_coin;
     #[test_only]
-    use leizd::common::{Self,WETH,UNI};
+    use leizd::test_common::{Self,WETH,UNI};
     #[test_only]
     use leizd::dummy;
     #[test_only]
     use leizd::usdz;
-    #[test_only]
-    use leizd::trove;
     #[test_only]
     use leizd::initializer;
 
@@ -713,7 +711,7 @@ module leizd::pool {
     #[expected_failure]
     public entry fun test_init_pool_twice(owner: signer) {
         account::create_account_for_test(signer::address_of(&owner));
-        common::init_weth(&owner);
+        test_common::init_weth(&owner);
         initializer::initialize(&owner);
         initializer::register<WETH>(&owner);
         initializer::register<WETH>(&owner);
@@ -727,7 +725,7 @@ module leizd::pool {
         let account1_addr = signer::address_of(&account1);
         account::create_account_for_test(owner_addr);
         account::create_account_for_test(account1_addr);
-        common::init_weth(&owner);
+        test_common::init_weth(&owner);
         dummy::init_weth(&owner);
         initializer::initialize(&owner);
         initializer::register<WETH>(&account1);
@@ -747,7 +745,7 @@ module leizd::pool {
         let account1_addr = signer::address_of(&account1);
         account::create_account_for_test(owner_addr);
         account::create_account_for_test(account1_addr);
-        common::init_weth(&owner);
+        test_common::init_weth(&owner);
         initializer::initialize(&owner);
         initializer::register<WETH>(&account1);
         managed_coin::mint<WETH>(&owner, account1_addr, 1000000);
@@ -768,7 +766,7 @@ module leizd::pool {
         let account1_addr = signer::address_of(&account1);
         account::create_account_for_test(owner_addr);
         account::create_account_for_test(account1_addr);
-        common::init_weth(&owner);
+        test_common::init_weth(&owner);
         initializer::initialize(&owner);
         initializer::register<WETH>(&account1);
         managed_coin::mint<WETH>(&owner, account1_addr, 1000000);
@@ -789,8 +787,7 @@ module leizd::pool {
         let account1_addr = signer::address_of(&account1);
         account::create_account_for_test(owner_addr);
         account::create_account_for_test(account1_addr);
-        common::init_weth(&owner);
-        trove::initialize(&owner);
+        test_common::init_weth(&owner);
         initializer::initialize(&owner);
         initializer::register<WETH>(&account1);
         managed_coin::mint<WETH>(&owner, account1_addr, 1000000);
@@ -814,7 +811,7 @@ module leizd::pool {
         let account1_addr = signer::address_of(&account1);
         account::create_account_for_test(owner_addr);
         account::create_account_for_test(account1_addr);
-        common::init_weth(&owner);
+        test_common::init_weth(&owner);
         initializer::initialize(&owner);
         initializer::register<WETH>(&account1);
         managed_coin::mint<WETH>(&owner, account1_addr, 1000000);
@@ -835,8 +832,7 @@ module leizd::pool {
         let account1_addr = signer::address_of(&account1);
         account::create_account_for_test(owner_addr);
         account::create_account_for_test(account1_addr);
-        common::init_weth(&owner);
-        trove::initialize(&owner);
+        test_common::init_weth(&owner);
         initializer::initialize(&owner);
         initializer::register<WETH>(&account1);
         managed_coin::mint<WETH>(&owner, account1_addr, 1000000);
@@ -863,9 +859,8 @@ module leizd::pool {
         account::create_account_for_test(owner_addr);
         account::create_account_for_test(account1_addr);
         account::create_account_for_test(account2_addr);
-        common::init_weth(&owner);
-        common::init_uni(&owner);
-        trove::initialize(&owner);
+        test_common::init_weth(&owner);
+        test_common::init_uni(&owner);
         initializer::initialize(&owner);
         initializer::register<UNI>(&account1);
         managed_coin::mint<UNI>(&owner, account1_addr, 1000000);
@@ -912,9 +907,8 @@ module leizd::pool {
         account::create_account_for_test(owner_addr);
         account::create_account_for_test(account1_addr);
         account::create_account_for_test(account2_addr);
-        common::init_weth(&owner);
-        common::init_uni(&owner);
-        trove::initialize(&owner);
+        test_common::init_weth(&owner);
+        test_common::init_uni(&owner);
         initializer::initialize(&owner);
         initializer::register<UNI>(&account1);
         managed_coin::mint<UNI>(&owner, account1_addr, 1000000);
