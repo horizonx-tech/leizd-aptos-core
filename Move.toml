@@ -1,10 +1,12 @@
 [package]
 name = 'LeizdAptosCore'
 version = '0.1.0'
+
 [dependencies.AptosFramework]
 git = 'https://github.com/aptos-labs/aptos-core.git'
 rev = 'devnet'
 subdir = 'aptos-move/framework/aptos-framework'
+
 [addresses]
 leizd="0x0123456789ABCDEF"
 std = "0x1"
