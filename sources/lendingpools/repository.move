@@ -174,8 +174,8 @@ module leizd::repository {
     public entry fun test_update_protocol_fees(owner: signer, account1: signer) acquires ProtocolFees, RepositoryEventHandle {
         let owner_addr = signer::address_of(&owner);
         let account1_addr = signer::address_of(&account1);
-        // account::create_account(owner_addr);
-        // account::create_account(account1_addr);
+        account::create_account_for_test(owner_addr);
+        account::create_account_for_test(account1_addr);
 
         common::init_weth(&owner);
         initialize(&owner);

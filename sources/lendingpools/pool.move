@@ -683,7 +683,7 @@ module leizd::pool {
     #[test(owner=@leizd,account1=@0x111)]
     #[expected_failure]
     public entry fun test_init_pool_twice(owner: signer) {
-        // account::create_account(signer::address_of(&owner));
+        account::create_account_for_test(signer::address_of(&owner));
         common::init_weth(&owner);
         initializer::initialize(&owner);
         initializer::register<WETH>(&owner);
@@ -696,8 +696,8 @@ module leizd::pool {
         timestamp::set_time_has_started_for_testing(&aptos_framework);
         let owner_addr = signer::address_of(&owner);
         let account1_addr = signer::address_of(&account1);
-        // account::create_account(owner_addr);
-        // account::create_account(account1_addr);
+        account::create_account_for_test(owner_addr);
+        account::create_account_for_test(account1_addr);
         common::init_weth(&owner);
         dummy::init_weth(&owner);
         initializer::initialize(&owner);
@@ -716,8 +716,8 @@ module leizd::pool {
         timestamp::set_time_has_started_for_testing(&aptos_framework);
         let owner_addr = signer::address_of(&owner);
         let account1_addr = signer::address_of(&account1);
-        // account::create_account(owner_addr);
-        // account::create_account(account1_addr);
+        account::create_account_for_test(owner_addr);
+        account::create_account_for_test(account1_addr);
         common::init_weth(&owner);
         initializer::initialize(&owner);
         initializer::register<WETH>(&account1);
@@ -737,8 +737,8 @@ module leizd::pool {
         timestamp::set_time_has_started_for_testing(&aptos_framework);
         let owner_addr = signer::address_of(&owner);
         let account1_addr = signer::address_of(&account1);
-        // account::create_account(owner_addr);
-        // account::create_account(account1_addr);
+        account::create_account_for_test(owner_addr);
+        account::create_account_for_test(account1_addr);
         common::init_weth(&owner);
         initializer::initialize(&owner);
         initializer::register<WETH>(&account1);
@@ -758,8 +758,8 @@ module leizd::pool {
         timestamp::set_time_has_started_for_testing(&aptos_framework);
         let owner_addr = signer::address_of(&owner);
         let account1_addr = signer::address_of(&account1);
-        // account::create_account(owner_addr);
-        // account::create_account(account1_addr);
+        account::create_account_for_test(owner_addr);
+        account::create_account_for_test(account1_addr);
         common::init_weth(&owner);
         trove::initialize(&owner);
         initializer::initialize(&owner);
@@ -783,8 +783,8 @@ module leizd::pool {
         timestamp::set_time_has_started_for_testing(&aptos_framework);
         let owner_addr = signer::address_of(&owner);
         let account1_addr = signer::address_of(&account1);
-        // account::create_account(owner_addr);
-        // account::create_account(account1_addr);
+        account::create_account_for_test(owner_addr);
+        account::create_account_for_test(account1_addr);
         common::init_weth(&owner);
         initializer::initialize(&owner);
         initializer::register<WETH>(&account1);
@@ -804,8 +804,8 @@ module leizd::pool {
         timestamp::set_time_has_started_for_testing(&aptos_framework);
         let owner_addr = signer::address_of(&owner);
         let account1_addr = signer::address_of(&account1);
-        // account::create_account(owner_addr);
-        // account::create_account(account1_addr);
+        account::create_account_for_test(owner_addr);
+        account::create_account_for_test(account1_addr);
         common::init_weth(&owner);
         trove::initialize(&owner);
         initializer::initialize(&owner);
@@ -831,9 +831,9 @@ module leizd::pool {
         let owner_addr = signer::address_of(&owner);
         let account1_addr = signer::address_of(&account1);
         let account2_addr = signer::address_of(&account2);
-        // account::create_account(owner_addr);
-        // account::create_account(account1_addr);
-        // account::create_account(account2_addr);
+        account::create_account_for_test(owner_addr);
+        account::create_account_for_test(account1_addr);
+        account::create_account_for_test(account2_addr);
         common::init_weth(&owner);
         common::init_uni(&owner);
         trove::initialize(&owner);
@@ -880,9 +880,9 @@ module leizd::pool {
         let owner_addr = signer::address_of(&owner);
         let account1_addr = signer::address_of(&account1);
         let account2_addr = signer::address_of(&account2);
-        // account::create_account(owner_addr);
-        // account::create_account(account1_addr);
-        // account::create_account(account2_addr);
+        account::create_account_for_test(owner_addr);
+        account::create_account_for_test(account1_addr);
+        account::create_account_for_test(account2_addr);
         common::init_weth(&owner);
         common::init_uni(&owner);
         trove::initialize(&owner);
