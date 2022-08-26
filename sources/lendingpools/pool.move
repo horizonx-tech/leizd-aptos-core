@@ -106,6 +106,7 @@ module leizd::pool {
         treasury::initialize<C>(owner);
         repository::new_asset<C>(owner);
         interest_rate::initialize<C>(owner);
+        stability_pool::init_pool<C>(owner);
         
         move_to(owner, Pool<C> {
             asset: coin::zero<C>(),
@@ -496,7 +497,7 @@ module leizd::pool {
     }
 
     fun borrow_shadow_from_stability_pool<C>(receiver_addr: address, amount: u64) {
-        let borrowed = stability_pool::borrow<C>(amount);
+        let borrowed = stability_pool::borrow<C>(receiver_addr, amount);
         coin::deposit(receiver_addr, borrowed);
     }
 

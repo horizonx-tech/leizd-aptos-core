@@ -1,3 +1,4 @@
+// TODO: This file and related logic should be moved under `leizd-aptos-stablecoin`
 module leizd::trove {
 
     use aptos_framework::coin;
