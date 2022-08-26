@@ -472,9 +472,10 @@ module leizd::pool {
 
         if (storage_ref.total_deposits - storage_ref.total_conly_deposits < (amount as u128)) {
             // check the staiblity left
-            let left = stability_pool::balance();
+            let left = stability_pool::left();
             assert!(left >= (amount as u128), 0);
             borrow_shadow_from_stability_pool<C>(receiver_addr, amount);
+            fee = fee + stability_pool::stability_fee_amount(amount);
         } else {
             let deposited = coin::extract(&mut pool_ref.shadow, amount);
             coin::deposit<USDZ>(receiver_addr, deposited);
@@ -504,17 +505,15 @@ module leizd::pool {
     /// Repays the shadow to the stability pool if someone has already borrowed from the pool.
     /// @return repaid amount
     fun repay_to_stability_pool<C>(account: &signer, amount: u64): u64 {
-        let balance = stability_pool::balance();
-        if (balance == 0) {
+        let left = stability_pool::left();
+        if (left == 0) {
             return 0
-        } else if (balance >= (amount as u128)) {
-            let repaid = coin::withdraw<USDZ>(account, amount);
-            stability_pool::repay<C>(signer::address_of(account), repaid);
+        } else if (left >= (amount as u128)) {
+            stability_pool::repay<C>(account, amount);
             return amount
         } else {
-            let repaid = coin::withdraw<USDZ>(account, (balance as u64));
-            stability_pool::repay<C>(signer::address_of(account), repaid);
-            return (balance as u64)
+            stability_pool::repay<C>(account, (left as u64));
+            return (left as u64)
         }
     }
 

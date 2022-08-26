@@ -9,13 +9,18 @@ module leizd::stability_pool {
 
     friend leizd::pool;
 
+    const PRECISION: u64 = 1000000000;
+    const STABILITY_FEE: u64 = 1000000000 * 5 / 1000; // 0.5%
+
     struct StabilityPool has key {
-        shadow: coin::Coin<USDZ>,
+        left: coin::Coin<USDZ>,
         total_deposited: u128,
+        collected_fee: coin::Coin<USDZ>,
     }
 
     struct Balance<phantom C> has key {
         total_borrowed: u128,
+        uncollected_fee: u64,
     }
 
     struct DepositEvent has store, drop {
@@ -52,8 +57,9 @@ module leizd::stability_pool {
     public entry fun initialize(owner: &signer) {
         stb_usdz::initialize(owner);
         move_to(owner, StabilityPool {
-            shadow: coin::zero<USDZ>(),
-            total_deposited: 0
+            left: coin::zero<USDZ>(),
+            total_deposited: 0,
+            collected_fee: coin::zero<USDZ>(),
         });
         move_to(owner, StabilityPoolEventHandle {
             deposit_event: account::new_event_handle<DepositEvent>(owner),
@@ -65,14 +71,15 @@ module leizd::stability_pool {
 
     public entry fun init_pool<C>(owner: &signer) {
         move_to(owner, Balance<C> {
-            total_borrowed: 0
+            total_borrowed: 0,
+            uncollected_fee: 0
         });
     }
 
     public entry fun deposit(account: &signer, amount: u64) acquires StabilityPool, StabilityPoolEventHandle {
         let pool_ref = borrow_global_mut<StabilityPool>(@leizd);
         
-        coin::merge(&mut pool_ref.shadow, coin::withdraw<USDZ>(account, amount));
+        coin::merge(&mut pool_ref.left, coin::withdraw<USDZ>(account, amount));
         pool_ref.total_deposited = pool_ref.total_deposited + (amount as u128);
         if (!stb_usdz::is_account_registered(signer::address_of(account))) {
             stb_usdz::register(account);
@@ -91,7 +98,7 @@ module leizd::stability_pool {
     public entry fun withdraw(account: &signer, amount: u64) acquires StabilityPool, StabilityPoolEventHandle {
         let pool_ref = borrow_global_mut<StabilityPool>(@leizd);
 
-        coin::deposit(signer::address_of(account), coin::extract(&mut pool_ref.shadow, amount));
+        coin::deposit(signer::address_of(account), coin::extract(&mut pool_ref.left, amount));
         pool_ref.total_deposited = pool_ref.total_deposited - (amount as u128);
         stb_usdz::burn(account, amount);
         event::emit_event<WithdrawEvent>(
@@ -117,40 +124,69 @@ module leizd::stability_pool {
         borrowed
     }
 
+    public fun stability_fee_amount(borrow_amount: u64): u64 {
+        borrow_amount * STABILITY_FEE / PRECISION
+    }
+
     fun borrow_internal<C>(amount: u64): coin::Coin<USDZ> acquires StabilityPool, Balance {
         let pool_ref = borrow_global_mut<StabilityPool>(@leizd);
         let balance_ref = borrow_global_mut<Balance<C>>(@leizd);
-        assert!(coin::value<USDZ>(&pool_ref.shadow) >= amount, 0);
+        assert!(coin::value<USDZ>(&pool_ref.left) >= amount, 0);
 
-        balance_ref.total_borrowed = balance_ref.total_borrowed + (amount as u128);
-        coin::extract<USDZ>(&mut pool_ref.shadow, amount)
+        let fee = stability_fee_amount(amount);
+        balance_ref.total_borrowed = balance_ref.total_borrowed + (amount as u128) + (fee as u128);
+        balance_ref.uncollected_fee = balance_ref.uncollected_fee + fee;
+        coin::extract<USDZ>(&mut pool_ref.left, amount)
     }
 
-    public(friend) entry fun repay<C>(addr: address, shadow: coin::Coin<USDZ>) acquires StabilityPool, Balance, StabilityPoolEventHandle {
-        let repaid = repay_internal<C>(shadow);
+    public(friend) entry fun repay<C>(account: &signer, amount: u64) acquires StabilityPool, Balance, StabilityPoolEventHandle {
+        repay_internal<C>(account, amount);
         event::emit_event<RepayEvent>(
             &mut borrow_global_mut<StabilityPoolEventHandle>(@leizd).repay_event,
             RepayEvent {
-                caller: addr,
-                repayer: addr,
-                amount: repaid
+                caller: signer::address_of(account),
+                repayer: signer::address_of(account),
+                amount: amount
             }
         );
     }
 
-    fun repay_internal<C>(shadow: coin::Coin<USDZ>): u64 acquires StabilityPool, Balance {
+    // public entry fun claim_reward(account: &signer, amount: u64) {
+    //     // TODO
+    // }
+
+    fun repay_internal<C>(account: &signer, amount: u64) acquires StabilityPool, Balance {
         let pool_ref = borrow_global_mut<StabilityPool>(@leizd);
         let balance_ref = borrow_global_mut<Balance<C>>(@leizd);
 
-        let amount = (coin::value<USDZ>(&shadow) as u128);
-        balance_ref.total_borrowed = balance_ref.total_borrowed - amount;
-        coin::merge<USDZ>(&mut pool_ref.shadow, shadow);
-        (amount as u64)
+        if (balance_ref.uncollected_fee > 0) {
+            // collect as fees at first
+            if (balance_ref.uncollected_fee >= amount) {
+                balance_ref.total_borrowed = balance_ref.total_borrowed - (amount as u128);
+                balance_ref.uncollected_fee = balance_ref.uncollected_fee - amount;
+                coin::merge<USDZ>(&mut pool_ref.collected_fee, coin::withdraw<USDZ>(account, amount));
+            } else {
+                let to_fee = balance_ref.uncollected_fee;
+                let to_left = amount - to_fee;
+                balance_ref.total_borrowed = balance_ref.total_borrowed - (amount as u128);
+                balance_ref.uncollected_fee = 0;
+                coin::merge<USDZ>(&mut pool_ref.collected_fee, coin::withdraw<USDZ>(account, to_fee));
+                coin::merge<USDZ>(&mut pool_ref.left, coin::withdraw<USDZ>(account, to_left));
+            }
+        } else {
+            balance_ref.total_borrowed = balance_ref.total_borrowed - (amount as u128);
+            coin::merge<USDZ>(&mut pool_ref.left, coin::withdraw<USDZ>(account, amount));
+        };
     }
 
-    public fun balance(): u128 acquires StabilityPool {
-        (coin::value<USDZ>(&borrow_global<StabilityPool>(@leizd).shadow) as u128)
+    public fun left(): u128 acquires StabilityPool {
+        (coin::value<USDZ>(&borrow_global<StabilityPool>(@leizd).left) as u128)
     }
+
+    public fun collected_fee(): u64 acquires StabilityPool {
+        coin::value<USDZ>(&borrow_global<StabilityPool>(@leizd).collected_fee)
+    }
+
 
     public fun total_deposited(): u128 acquires StabilityPool {
         borrow_global<StabilityPool>(@leizd).total_deposited
@@ -187,7 +223,7 @@ module leizd::stability_pool {
         init_pool<WETH>(&owner);
                 
         deposit(&account1, 400000);
-        assert!(balance() == 400000, 0);
+        assert!(left() == 400000, 0);
         assert!(total_deposited() == 400000, 0);
         assert!(usdz::balance_of(signer::address_of(&account1)) == 600000, 0);
         assert!(stb_usdz::balance_of(signer::address_of(&account1)) == 400000, 0);
@@ -213,7 +249,7 @@ module leizd::stability_pool {
         deposit(&account1, 400000);
 
         withdraw(&account1, 300000);
-        assert!(balance() == 100000, 0);
+        assert!(left() == 100000, 0);
         assert!(total_deposited() == 100000, 0);
         assert!(usdz::balance_of(signer::address_of(&account1)) == 900000, 0);
         assert!(stb_usdz::balance_of(signer::address_of(&account1)) == 100000, 0);
@@ -267,9 +303,9 @@ module leizd::stability_pool {
         deposit(&account1, 400000);
         let borrowed = borrow_internal<WETH>(300000);
         coin::deposit(account2_addr, borrowed);
-        assert!(balance() == 100000, 0);
+        assert!(left() == 100000, 0);
         assert!(total_deposited() == 400000, 0);
-        assert!(total_borrowed<WETH>() == 300000, 0);
+        assert!(total_borrowed<WETH>() == 301500, 0);
         assert!(usdz::balance_of(signer::address_of(&account2)) == 300000, 0);
         assert!(stb_usdz::balance_of(signer::address_of(&account1)) == 400000, 0);
     }
@@ -298,11 +334,12 @@ module leizd::stability_pool {
         deposit(&account1, 400000);
         let borrowed = borrow_internal<WETH>(300000);
         coin::deposit(account2_addr, borrowed);
-        let repayed = coin::withdraw<USDZ>(&account2, 200000);
-        repay_internal<WETH>(repayed);
-        assert!(balance() == 300000, 0);
+        // let repayed = coin::withdraw<USDZ>(&account2, 200000);
+        repay_internal<WETH>(&account2, 200000);
+        assert!(left() == 298500, 0);
+        assert!(collected_fee() == 1500, 0);
         assert!(total_deposited() == 400000, 0);
-        assert!(total_borrowed<WETH>() == 100000, 0);
+        assert!(total_borrowed<WETH>() == 101500, 0);
         assert!(usdz::balance_of(signer::address_of(&account2)) == 100000, 0);
         assert!(stb_usdz::balance_of(signer::address_of(&account1)) == 400000, 0);
     }
