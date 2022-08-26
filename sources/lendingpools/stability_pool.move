@@ -36,10 +36,17 @@ module leizd::stability_pool {
         amount: u64
     }
 
+    struct RepayEvent has store, drop {
+        caller: address,
+        repayer: address,
+        amount: u64
+    }
+
     struct StabilityPoolEventHandle has key, store {
         deposit_event: event::EventHandle<DepositEvent>,
         withdraw_event: event::EventHandle<WithdrawEvent>,
         borrow_event: event::EventHandle<BorrowEvent>,
+        repay_event: event::EventHandle<RepayEvent>,
     }
 
     public entry fun initialize(owner: &signer) {
@@ -52,6 +59,7 @@ module leizd::stability_pool {
             deposit_event: account::new_event_handle<DepositEvent>(owner),
             withdraw_event: account::new_event_handle<WithdrawEvent>(owner),
             borrow_event: account::new_event_handle<BorrowEvent>(owner),
+            repay_event: account::new_event_handle<RepayEvent>(owner),
         })
     }
 
@@ -118,17 +126,26 @@ module leizd::stability_pool {
         coin::extract<USDZ>(&mut pool_ref.shadow, amount)
     }
 
-    public(friend) entry fun repay<C>(shadow: coin::Coin<USDZ>) acquires StabilityPool, Balance {
-        repay_internal<C>(shadow)
+    public(friend) entry fun repay<C>(addr: address, shadow: coin::Coin<USDZ>) acquires StabilityPool, Balance, StabilityPoolEventHandle {
+        let repaid = repay_internal<C>(shadow);
+        event::emit_event<RepayEvent>(
+            &mut borrow_global_mut<StabilityPoolEventHandle>(@leizd).repay_event,
+            RepayEvent {
+                caller: addr,
+                repayer: addr,
+                amount: repaid
+            }
+        );
     }
 
-    fun repay_internal<C>(shadow: coin::Coin<USDZ>) acquires StabilityPool, Balance {
+    fun repay_internal<C>(shadow: coin::Coin<USDZ>): u64 acquires StabilityPool, Balance {
         let pool_ref = borrow_global_mut<StabilityPool>(@leizd);
         let balance_ref = borrow_global_mut<Balance<C>>(@leizd);
 
         let amount = (coin::value<USDZ>(&shadow) as u128);
         balance_ref.total_borrowed = balance_ref.total_borrowed - amount;
         coin::merge<USDZ>(&mut pool_ref.shadow, shadow);
+        (amount as u64)
     }
 
     public fun balance(): u128 acquires StabilityPool {
@@ -227,7 +244,6 @@ module leizd::stability_pool {
     }
 
     #[test(owner=@leizd,account1=@0x111,account2=@0x222,aptos_framework=@aptos_framework)]
-    #[expected_failure]
     public entry fun test_borrow_from_stability_pool(owner: signer, account1: signer, account2: signer) acquires StabilityPool, Balance, StabilityPoolEventHandle {
         let owner_addr = signer::address_of(&owner);
         let account1_addr = signer::address_of(&account1);
@@ -240,8 +256,10 @@ module leizd::stability_pool {
         initializer::initialize(&owner);
         initializer::register<WETH>(&account1);
         managed_coin::mint<WETH>(&owner, account1_addr, 1000000);
+        initializer::register<WETH>(&account2);
         initializer::register<USDZ>(&account1);
         usdz::mint_for_test(account1_addr, 1000000);
+        initializer::register<USDZ>(&account2);
 
         initialize(&owner); // stability pool
         init_pool<WETH>(&owner);
@@ -253,6 +271,39 @@ module leizd::stability_pool {
         assert!(total_deposited() == 400000, 0);
         assert!(total_borrowed<WETH>() == 300000, 0);
         assert!(usdz::balance_of(signer::address_of(&account2)) == 300000, 0);
+        assert!(stb_usdz::balance_of(signer::address_of(&account1)) == 400000, 0);
+    }
+
+    #[test(owner=@leizd,account1=@0x111,account2=@0x222,aptos_framework=@aptos_framework)]
+    public entry fun test_repay_to_stability_pool(owner: signer, account1: signer, account2: signer) acquires StabilityPool, Balance, StabilityPoolEventHandle {
+        let owner_addr = signer::address_of(&owner);
+        let account1_addr = signer::address_of(&account1);
+        let account2_addr = signer::address_of(&account2);
+        account::create_account_for_test(owner_addr);
+        account::create_account_for_test(account1_addr);
+        account::create_account_for_test(account2_addr);
+
+        test_common::init_weth(&owner);
+        initializer::initialize(&owner);
+        initializer::register<WETH>(&account1);
+        managed_coin::mint<WETH>(&owner, account1_addr, 1000000);
+        initializer::register<WETH>(&account2);
+        initializer::register<USDZ>(&account1);
+        usdz::mint_for_test(account1_addr, 1000000);
+        initializer::register<USDZ>(&account2);
+
+        initialize(&owner); // stability pool
+        init_pool<WETH>(&owner);
+                
+        deposit(&account1, 400000);
+        let borrowed = borrow_internal<WETH>(300000);
+        coin::deposit(account2_addr, borrowed);
+        let repayed = coin::withdraw<USDZ>(&account2, 200000);
+        repay_internal<WETH>(repayed);
+        assert!(balance() == 300000, 0);
+        assert!(total_deposited() == 400000, 0);
+        assert!(total_borrowed<WETH>() == 100000, 0);
+        assert!(usdz::balance_of(signer::address_of(&account2)) == 100000, 0);
         assert!(stb_usdz::balance_of(signer::address_of(&account1)) == 400000, 0);
     }
 }

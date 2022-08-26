@@ -509,11 +509,11 @@ module leizd::pool {
             return 0
         } else if (balance >= (amount as u128)) {
             let repaid = coin::withdraw<USDZ>(account, amount);
-            stability_pool::repay<C>(repaid);
+            stability_pool::repay<C>(signer::address_of(account), repaid);
             return amount
         } else {
             let repaid = coin::withdraw<USDZ>(account, (balance as u64));
-            stability_pool::repay<C>(repaid);
+            stability_pool::repay<C>(signer::address_of(account), repaid);
             return (balance as u64)
         }
     }
