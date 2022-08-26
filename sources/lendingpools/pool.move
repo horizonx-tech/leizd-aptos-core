@@ -459,8 +459,6 @@ module leizd::pool {
         receiver_addr: address,
         amount: u64
     ) acquires Pool, Storage {
-        assert!(liquidity<C,Shadow>() >= (amount as u128), 0);
-
         let pool_ref = borrow_global_mut<Pool<C>>(@leizd);
         let storage_ref = borrow_global_mut<Storage<C,Shadow>>(@leizd);
 
@@ -471,8 +469,16 @@ module leizd::pool {
         let fee_extracted = coin::extract(&mut pool_ref.shadow, fee);
         treasury::collect_shadow_fee<C>(fee_extracted);
 
-        let deposited = coin::extract(&mut pool_ref.shadow, amount);
-        coin::deposit<USDZ>(receiver_addr, deposited);
+        if (storage_ref.total_deposits - storage_ref.total_conly_deposits < (amount as u128)) {
+            // check the staiblity left
+            let left = stability_pool::balance();
+            assert!(left >= (amount as u128), 0);
+            borrow_shadow_from_stability_pool<C>(receiver_addr, amount);
+        } else {
+            let deposited = coin::extract(&mut pool_ref.shadow, amount);
+            coin::deposit<USDZ>(receiver_addr, deposited);
+        };
+
         borrow_internal<C,Shadow>(borrower_addr, amount, fee, storage_ref);
         assert!(is_shadow_solvent<C>(borrower_addr),0);
     }
@@ -489,15 +495,15 @@ module leizd::pool {
         debt::mint<C,P>(depositor_addr, (debt_share as u64));
     }
 
-    fun borrow_shadow_from_stability_pool<C>(account: &signer, amount: u64) {
+    fun borrow_shadow_from_stability_pool<C>(receiver_addr: address, amount: u64) {
         let borrowed = stability_pool::borrow<C>(amount);
-        coin::deposit(signer::address_of(account), borrowed);
+        coin::deposit(receiver_addr, borrowed);
     }
 
     /// Repays the shadow to the stability pool if someone has already borrowed from the pool.
     /// @return repaid amount
     fun repay_to_stability_pool<C>(account: &signer, amount: u64): u64 {
-        let balance = stability_pool::balance<C>();
+        let balance = stability_pool::balance();
         if (balance == 0) {
             return 0
         } else if (balance >= (amount as u128)) {

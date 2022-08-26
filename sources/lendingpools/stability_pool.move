@@ -62,7 +62,7 @@ module leizd::stability_pool {
         coin::merge<USDZ>(&mut pool_ref.shadow, shadow);
     }
 
-    public fun balance<C>(): u128 acquires Balance {
-        borrow_global<Balance<C>>(@leizd).total_borrowed
+    public fun balance(): u128 acquires StabilityPool {
+        (coin::value<USDZ>(&borrow_global<StabilityPool>(@leizd).shadow) as u128)
     }
 }
