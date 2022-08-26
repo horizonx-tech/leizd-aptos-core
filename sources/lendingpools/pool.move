@@ -10,6 +10,7 @@ module leizd::pool {
     use leizd::debt;
     use leizd::repository;
     use leizd::pool_type::{Asset,Shadow};
+    use leizd::stability_pool;
     use leizd::permission;
     use leizd::math128;
     use leizd::treasury;
@@ -486,6 +487,28 @@ module leizd::pool {
         let debt_share = math128::to_share_roundup(((amount + fee) as u128), storage_ref.total_borrows, debt::supply<C,P>());
         storage_ref.total_borrows = storage_ref.total_borrows + (amount as u128) + (fee as u128);
         debt::mint<C,P>(depositor_addr, (debt_share as u64));
+    }
+
+    fun borrow_shadow_from_stability_pool<C>(account: &signer, amount: u64) {
+        let borrowed = stability_pool::borrow<C>(amount);
+        coin::deposit(signer::address_of(account), borrowed);
+    }
+
+    /// Repays the shadow to the stability pool if someone has already borrowed from the pool.
+    /// @return repaid amount
+    fun repay_to_stability_pool<C>(account: &signer, amount: u64): u64 {
+        let balance = stability_pool::balance<C>();
+        if (balance == 0) {
+            return 0
+        } else if (balance >= (amount as u128)) {
+            let repaid = coin::withdraw<USDZ>(account, amount);
+            stability_pool::repay<C>(repaid);
+            return amount
+        } else {
+            let repaid = coin::withdraw<USDZ>(account, (balance as u64));
+            stability_pool::repay<C>(repaid);
+            return (balance as u64)
+        }
     }
 
     fun repay_asset<C>(

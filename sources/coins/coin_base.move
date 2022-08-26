@@ -9,6 +9,7 @@ module leizd::coin_base {
     friend leizd::collateral_only;
     friend leizd::debt;
     friend leizd::usdz;
+    friend leizd::stb_usdz;
     
     struct Capabilities<phantom C> has key {
         burn_cap: coin::BurnCapability<C>,
