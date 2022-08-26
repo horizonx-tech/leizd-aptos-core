@@ -2,6 +2,7 @@ module leizd::repository {
 
     use std::signer;
     use aptos_std::event;
+    use aptos_framework::account;
     use leizd::permission;
 
     const PRECISION: u64 = 1000000000000000000;
@@ -59,7 +60,7 @@ module leizd::repository {
             liquidation_fee: DEFAULT_LIQUIDATION_FEE
         });
         move_to(owner, RepositoryEventHandle {
-            update_protocol_fees_event: event::new_event_handle<UpdateProtocolFeesEvent>(owner),
+            update_protocol_fees_event: account::new_event_handle<UpdateProtocolFeesEvent>(owner),
         });
     }
 
@@ -71,7 +72,7 @@ module leizd::repository {
             lt: DEFAULT_THRESHOLD,
         });
         move_to(owner, RepositoryAssetEventHandle<C> {
-            update_config_event: event::new_event_handle<UpdateConfigEvent>(owner),
+            update_config_event: account::new_event_handle<UpdateConfigEvent>(owner),
         });
     }
 
@@ -147,8 +148,6 @@ module leizd::repository {
     }
 
     #[test_only]
-    use aptos_framework::account;
-    #[test_only]
     use aptos_framework::managed_coin;
     #[test_only]
     use leizd::common::{Self,WETH};
@@ -156,6 +155,7 @@ module leizd::repository {
     #[test(owner = @leizd)]
     public entry fun test_initialize(owner: signer) acquires ProtocolFees, RepositoryEventHandle {
         let owner_addr = signer::address_of(&owner);
+        account::create_account_for_test(owner_addr);
         initialize(&owner);
 
         let protocol_fees = borrow_global<ProtocolFees>(owner_addr);
@@ -175,8 +175,8 @@ module leizd::repository {
     public entry fun test_update_protocol_fees(owner: signer, account1: signer) acquires ProtocolFees, RepositoryEventHandle {
         let owner_addr = signer::address_of(&owner);
         let account1_addr = signer::address_of(&account1);
-        account::create_account(owner_addr);
-        account::create_account(account1_addr);
+        account::create_account_for_test(owner_addr);
+        account::create_account_for_test(account1_addr);
 
         common::init_weth(&owner);
         initialize(&owner);
@@ -201,11 +201,13 @@ module leizd::repository {
     struct TestAsset {}
     #[test(owner = @leizd)]
     public entry fun test_new_asset(owner: &signer) acquires Config, RepositoryAssetEventHandle {
+        let owner_addr = signer::address_of(owner);
+        account::create_account_for_test(owner_addr);
         new_asset<TestAsset>(owner);
-        let config = borrow_global<Config<TestAsset>>(signer::address_of(owner));
+        let config = borrow_global<Config<TestAsset>>(owner_addr);
         assert!(config.ltv == DEFAULT_LTV, 0);
         assert!(config.lt == DEFAULT_THRESHOLD, 0);
-        let event_handle = borrow_global<RepositoryAssetEventHandle<TestAsset>>(signer::address_of(owner));
+        let event_handle = borrow_global<RepositoryAssetEventHandle<TestAsset>>(owner_addr);
         assert!(event::counter(&event_handle.update_config_event) == 0, 0);
     }
     #[test(account = @0x111)]
@@ -217,6 +219,7 @@ module leizd::repository {
     #[test(owner=@leizd)]
     public entry fun test_update_config(owner: &signer) acquires Config, RepositoryAssetEventHandle {
         let owner_addr = signer::address_of(owner);
+        account::create_account_for_test(owner_addr);
         new_asset<TestAsset>(owner);
 
         let new_params = Config<TestAsset> {

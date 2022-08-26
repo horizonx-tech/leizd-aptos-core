@@ -3,7 +3,6 @@ module leizd::coin_base {
     use std::signer;
     use std::option;
     use aptos_framework::coin;
-    use aptos_framework::coins;
     use leizd::permission;
 
     friend leizd::collateral;
@@ -36,7 +35,7 @@ module leizd::coin_base {
     public(friend) fun register<C>(account: &signer) {
         let account_addr = signer::address_of(account);
         if (!coin::is_account_registered<C>(account_addr)) {
-            coins::register<C>(account);
+            coin::register<C>(account);
         };
     }
 

@@ -69,7 +69,7 @@ module leizd::collateral_only {
     #[test(owner=@leizd,account1=@0x111)]
     public entry fun test_initialize_collateral_only_coins(owner: signer) {
         let owner_addr = signer::address_of(&owner);
-        account::create_account(owner_addr);
+        account::create_account_for_test(owner_addr);
         common::init_weth(&owner);
         initialize_internal<WETH>(&owner);
         

@@ -32,7 +32,7 @@ module leizd::system_administrator {
     #[test(owner = @leizd)]
     fun test_operate_pool(owner: &signer) {
         let owner_address = signer::address_of(owner);
-        account::create_account(owner_address);
+        account::create_account_for_test(owner_address);
         common::init_weth(owner);
         pool::init_pool<WETH>(owner);
         system_status::initialize(owner);

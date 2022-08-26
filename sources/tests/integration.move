@@ -12,7 +12,7 @@ module leizd::integration {
     #[test(owner=@leizd)]
     public entry fun test_init_by_owner(owner: signer) {
         // init account
-        account::create_account(signer::address_of(&owner));
+        account::create_account_for_test(signer::address_of(&owner));
 
         // init coins
         common::init_usdc(&owner);
