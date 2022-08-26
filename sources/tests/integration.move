@@ -1,8 +1,8 @@
 #[test_only]
 module leizd::integration {
 
-    use std::signer;
-    use aptos_framework::account;
+    // use std::signer;
+    // use aptos_framework::account;
     // use aptos_framework::coin;
     // use aptos_framework::managed_coin;
     use leizd::pool;
@@ -12,7 +12,7 @@ module leizd::integration {
     #[test(owner=@leizd)]
     public entry fun test_init_by_owner(owner: signer) {
         // init account
-        account::create_account(signer::address_of(&owner));
+        // account::create_account(signer::address_of(&owner));
 
         // init coins
         common::init_usdc(&owner);

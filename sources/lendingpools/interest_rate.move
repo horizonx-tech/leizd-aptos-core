@@ -1,6 +1,7 @@
 module leizd::interest_rate {
     use std::signer;
-    use aptos_framework::event;
+    use aptos_std::event;
+    use aptos_framework::account;
     use leizd::math128;
     use leizd::prb_math_30x9;
     use leizd::permission;
@@ -58,7 +59,7 @@ module leizd::interest_rate {
 
         move_to(owner, config);
         move_to(owner, InterestRateEventHandle<C> {
-            set_config_event: event::new_event_handle<SetConfigEvent>(owner)
+            set_config_event: account::new_event_handle<SetConfigEvent>(owner)
         });
     }
     
