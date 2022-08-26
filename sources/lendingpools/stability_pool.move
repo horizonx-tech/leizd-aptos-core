@@ -109,6 +109,33 @@ module leizd::stability_pool {
                 
         deposit(&account1, 400000);
         assert!(balance() == 400000, 0);
+        assert!(usdz::balance_of(signer::address_of(&account1)) == 600000, 0);
+        assert!(stb_usdz::balance_of(signer::address_of(&account1)) == 400000, 0);
+    }
+
+    #[test(owner=@leizd,account1=@0x111,account2=@0x222,aptos_framework=@aptos_framework)]
+    public entry fun test_withdraw_from_stability_pool(owner: signer, account1: signer) acquires StabilityPool {
+        let owner_addr = signer::address_of(&owner);
+        let account1_addr = signer::address_of(&account1);
+        account::create_account_for_test(owner_addr);
+        account::create_account_for_test(account1_addr);
+
+        test_common::init_weth(&owner);
+        initializer::initialize(&owner);
+        initializer::register<WETH>(&account1);
+        managed_coin::mint<WETH>(&owner, account1_addr, 1000000);
+        initializer::register<USDZ>(&account1);
+        usdz::mint_for_test(account1_addr, 1000000);
+
+        initialize(&owner); // stability pool
+        init_pool<WETH>(&owner);
+                
+        deposit(&account1, 400000);
+
+        withdraw(&account1, 300000);
+        assert!(balance() == 100000, 0);
+        assert!(usdz::balance_of(signer::address_of(&account1)) == 900000, 0);
+        assert!(stb_usdz::balance_of(signer::address_of(&account1)) == 100000, 0);
     }
 
 }
