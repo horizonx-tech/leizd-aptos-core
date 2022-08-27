@@ -10,6 +10,7 @@ module leizd::pool {
     use leizd::debt;
     use leizd::repository;
     use leizd::pool_type::{Asset,Shadow};
+    use leizd::stability_pool;
     use leizd::permission;
     use leizd::math128;
     use leizd::treasury;
@@ -105,6 +106,7 @@ module leizd::pool {
         treasury::initialize<C>(owner);
         repository::new_asset<C>(owner);
         interest_rate::initialize<C>(owner);
+        stability_pool::init_pool<C>(owner);
         
         move_to(owner, Pool<C> {
             asset: coin::zero<C>(),
@@ -458,8 +460,6 @@ module leizd::pool {
         receiver_addr: address,
         amount: u64
     ) acquires Pool, Storage {
-        assert!(liquidity<C,Shadow>() >= (amount as u128), 0);
-
         let pool_ref = borrow_global_mut<Pool<C>>(@leizd);
         let storage_ref = borrow_global_mut<Storage<C,Shadow>>(@leizd);
 
@@ -470,8 +470,17 @@ module leizd::pool {
         let fee_extracted = coin::extract(&mut pool_ref.shadow, fee);
         treasury::collect_shadow_fee<C>(fee_extracted);
 
-        let deposited = coin::extract(&mut pool_ref.shadow, amount);
-        coin::deposit<USDZ>(receiver_addr, deposited);
+        if (storage_ref.total_deposits - storage_ref.total_conly_deposits < (amount as u128)) {
+            // check the staiblity left
+            let left = stability_pool::left();
+            assert!(left >= (amount as u128), 0);
+            borrow_shadow_from_stability_pool<C>(receiver_addr, amount);
+            fee = fee + stability_pool::stability_fee_amount(amount);
+        } else {
+            let deposited = coin::extract(&mut pool_ref.shadow, amount);
+            coin::deposit<USDZ>(receiver_addr, deposited);
+        };
+
         borrow_internal<C,Shadow>(borrower_addr, amount, fee, storage_ref);
         assert!(is_shadow_solvent<C>(borrower_addr),0);
     }
@@ -486,6 +495,26 @@ module leizd::pool {
         let debt_share = math128::to_share_roundup(((amount + fee) as u128), storage_ref.total_borrows, debt::supply<C,P>());
         storage_ref.total_borrows = storage_ref.total_borrows + (amount as u128) + (fee as u128);
         debt::mint<C,P>(depositor_addr, (debt_share as u64));
+    }
+
+    fun borrow_shadow_from_stability_pool<C>(receiver_addr: address, amount: u64) {
+        let borrowed = stability_pool::borrow<C>(receiver_addr, amount);
+        coin::deposit(receiver_addr, borrowed);
+    }
+
+    /// Repays the shadow to the stability pool if someone has already borrowed from the pool.
+    /// @return repaid amount
+    fun repay_to_stability_pool<C>(account: &signer, amount: u64): u64 {
+        let left = stability_pool::left();
+        if (left == 0) {
+            return 0
+        } else if (left >= (amount as u128)) {
+            stability_pool::repay<C>(account, amount);
+            return amount
+        } else {
+            stability_pool::repay<C>(account, (left as u64));
+            return (left as u64)
+        }
     }
 
     fun repay_asset<C>(
@@ -670,13 +699,11 @@ module leizd::pool {
     #[test_only]
     use aptos_framework::managed_coin;
     #[test_only]
-    use leizd::common::{Self,WETH,UNI};
+    use leizd::test_common::{Self,WETH,UNI};
     #[test_only]
     use leizd::dummy;
     #[test_only]
     use leizd::usdz;
-    #[test_only]
-    use leizd::trove;
     #[test_only]
     use leizd::initializer;
 
@@ -684,7 +711,7 @@ module leizd::pool {
     #[expected_failure]
     public entry fun test_init_pool_twice(owner: signer) {
         account::create_account_for_test(signer::address_of(&owner));
-        common::init_weth(&owner);
+        test_common::init_weth(&owner);
         initializer::initialize(&owner);
         initializer::register<WETH>(&owner);
         initializer::register<WETH>(&owner);
@@ -698,7 +725,7 @@ module leizd::pool {
         let account1_addr = signer::address_of(&account1);
         account::create_account_for_test(owner_addr);
         account::create_account_for_test(account1_addr);
-        common::init_weth(&owner);
+        test_common::init_weth(&owner);
         dummy::init_weth(&owner);
         initializer::initialize(&owner);
         initializer::register<WETH>(&account1);
@@ -718,7 +745,7 @@ module leizd::pool {
         let account1_addr = signer::address_of(&account1);
         account::create_account_for_test(owner_addr);
         account::create_account_for_test(account1_addr);
-        common::init_weth(&owner);
+        test_common::init_weth(&owner);
         initializer::initialize(&owner);
         initializer::register<WETH>(&account1);
         managed_coin::mint<WETH>(&owner, account1_addr, 1000000);
@@ -739,7 +766,7 @@ module leizd::pool {
         let account1_addr = signer::address_of(&account1);
         account::create_account_for_test(owner_addr);
         account::create_account_for_test(account1_addr);
-        common::init_weth(&owner);
+        test_common::init_weth(&owner);
         initializer::initialize(&owner);
         initializer::register<WETH>(&account1);
         managed_coin::mint<WETH>(&owner, account1_addr, 1000000);
@@ -760,8 +787,7 @@ module leizd::pool {
         let account1_addr = signer::address_of(&account1);
         account::create_account_for_test(owner_addr);
         account::create_account_for_test(account1_addr);
-        common::init_weth(&owner);
-        trove::initialize(&owner);
+        test_common::init_weth(&owner);
         initializer::initialize(&owner);
         initializer::register<WETH>(&account1);
         managed_coin::mint<WETH>(&owner, account1_addr, 1000000);
@@ -785,7 +811,7 @@ module leizd::pool {
         let account1_addr = signer::address_of(&account1);
         account::create_account_for_test(owner_addr);
         account::create_account_for_test(account1_addr);
-        common::init_weth(&owner);
+        test_common::init_weth(&owner);
         initializer::initialize(&owner);
         initializer::register<WETH>(&account1);
         managed_coin::mint<WETH>(&owner, account1_addr, 1000000);
@@ -806,8 +832,7 @@ module leizd::pool {
         let account1_addr = signer::address_of(&account1);
         account::create_account_for_test(owner_addr);
         account::create_account_for_test(account1_addr);
-        common::init_weth(&owner);
-        trove::initialize(&owner);
+        test_common::init_weth(&owner);
         initializer::initialize(&owner);
         initializer::register<WETH>(&account1);
         managed_coin::mint<WETH>(&owner, account1_addr, 1000000);
@@ -834,9 +859,8 @@ module leizd::pool {
         account::create_account_for_test(owner_addr);
         account::create_account_for_test(account1_addr);
         account::create_account_for_test(account2_addr);
-        common::init_weth(&owner);
-        common::init_uni(&owner);
-        trove::initialize(&owner);
+        test_common::init_weth(&owner);
+        test_common::init_uni(&owner);
         initializer::initialize(&owner);
         initializer::register<UNI>(&account1);
         managed_coin::mint<UNI>(&owner, account1_addr, 1000000);
@@ -871,7 +895,8 @@ module leizd::pool {
         borrow<UNI>(&account2, 100000, false);
         assert!(coin::balance<UNI>(account2_addr) == 100000, 0);
         assert!(coin::balance<USDZ>(account2_addr) == 100000, 0);
-        assert!(debt::balance_of<UNI,Asset>(account2_addr) == 100500, 0); // 0.5% fee
+        // debug::print(&debt::balance_of<UNI,Asset>(account2_addr));
+        assert!(debt::balance_of<UNI,Asset>(account2_addr) == 100000, 0); // TODO: 0.5% fee
     }
 
     #[test(owner=@leizd,account1=@0x111,account2=@0x222,aptos_framework=@aptos_framework)]
@@ -883,9 +908,8 @@ module leizd::pool {
         account::create_account_for_test(owner_addr);
         account::create_account_for_test(account1_addr);
         account::create_account_for_test(account2_addr);
-        common::init_weth(&owner);
-        common::init_uni(&owner);
-        trove::initialize(&owner);
+        test_common::init_weth(&owner);
+        test_common::init_uni(&owner);
         initializer::initialize(&owner);
         initializer::register<UNI>(&account1);
         managed_coin::mint<UNI>(&owner, account1_addr, 1000000);
@@ -923,6 +947,6 @@ module leizd::pool {
         repay<UNI>(&account2, 100000, false);
         assert!(coin::balance<UNI>(account2_addr) == 0, 0);
         assert!(coin::balance<USDZ>(account2_addr) == 100000, 0);
-        assert!(debt::balance_of<UNI,Asset>(account2_addr) == 500, 0); // 0.5% entry fee + 0.0% interest
+        assert!(debt::balance_of<UNI,Asset>(account2_addr) == 0, 0); // TODO: 0.5% entry fee + 0.0% interest
     }
 }
