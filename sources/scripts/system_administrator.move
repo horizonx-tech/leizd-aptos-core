@@ -28,12 +28,15 @@ module leizd::system_administrator {
     #[test_only]
     use aptos_framework::account;
     #[test_only]
+    use leizd::repository;
+    #[test_only]
     use leizd::test_common::{Self, WETH};
     #[test(owner = @leizd)]
     fun test_operate_pool(owner: &signer) {
         let owner_address = signer::address_of(owner);
         account::create_account_for_test(owner_address);
         test_common::init_weth(owner);
+        repository::initialize(owner);
         pool::init_pool<WETH>(owner);
         system_status::initialize(owner);
         assert!(pool::is_available<WETH>(), 0);
