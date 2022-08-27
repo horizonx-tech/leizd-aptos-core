@@ -7,6 +7,7 @@ module leizd::repository {
     use aptos_framework::account;
     use aptos_framework::table;
     use leizd::permission;
+    use leizd::usdz::{USDZ};
 
     const PRECISION: u64 = 1000000000;
     const DEFAULT_ENTRY_FEE: u64 = 1000000000 / 1000 * 5; // 0.5%
@@ -57,9 +58,14 @@ module leizd::repository {
         permission::assert_owner(signer::address_of(owner));
         assert_liquidation_threashold(DEFAULT_LTV, DEFAULT_THRESHOLD);
 
+        let ltv = table::new<string::String,u64>();
+        let lt = table::new<string::String,u64>();
+        let usdz_name = type_info::type_name<USDZ>();
+        table::add<string::String,u64>(&mut ltv, usdz_name, PRECISION / 100 * 90);
+        table::add<string::String,u64>(&mut lt, usdz_name, PRECISION / 100 * 95);
         move_to(owner, Config {
-            ltv: table::new<string::String,u64>(),
-            lt: table::new<string::String,u64>(),
+            ltv: ltv,
+            lt: lt,
         });
         move_to(owner, ProtocolFees {
             entry_fee: DEFAULT_ENTRY_FEE,
@@ -78,23 +84,9 @@ module leizd::repository {
         permission::assert_owner(signer::address_of(owner));
 
         let config_ref = borrow_global_mut<Config>(@leizd);
-
         let name = type_info::type_name<C>();
-        // let ltv = table::new<string::String,u64>();
-        // table::add<string::String,u64>(&mut ltv, name, DEFAULT_LTV);
-        // let lt = table::new<string::String,u64>();
-        // table::add<string::String,u64>(&mut lt, name, DEFAULT_THRESHOLD);
-
         table::upsert<string::String,u64>(&mut config_ref.ltv, name, DEFAULT_LTV);
         table::upsert<string::String,u64>(&mut config_ref.lt, name, DEFAULT_THRESHOLD);
-        // *config_ref.ltv = ltv;
-        // move_to(owner, Config {
-        //     ltv: ltv,
-        //     lt: lt,
-        // });
-        // move_to(owner, RepositoryAssetEventHandle {
-        //     update_config_event: account::new_event_handle<UpdateConfigEvent>(owner),
-        // });
     }
 
     public entry fun update_protocol_fees(owner: &signer, fees: ProtocolFees) acquires ProtocolFees, RepositoryEventHandle {
@@ -123,14 +115,10 @@ module leizd::repository {
 
         let _config = borrow_global_mut<Config>(@leizd);
         let name = type_info::type_name<T>();
-        // let new_ltv = table::borrow<string::String,u64>(&ltv, name);
-        // let new_lt = table::borrow<string::String,u64>(&lt, name);
         assert_liquidation_threashold(new_ltv, new_lt);
 
         table::upsert<string::String,u64>(&mut _config.ltv, name, new_ltv);
         table::upsert<string::String,u64>(&mut _config.lt, name, new_lt);
-        // _config.ltv = config.ltv;
-        // _config.lt = config.lt;
         event::emit_event<UpdateConfigEvent>(
             &mut borrow_global_mut<RepositoryAssetEventHandle>(@leizd).update_config_event,
             UpdateConfigEvent {
@@ -145,14 +133,6 @@ module leizd::repository {
         assert!(lt <= PRECISION, E_INVALID_THRESHOLD);
         assert!(ltv != 0 && ltv < lt, E_INVALID_LTV);
     }
-
-    // // TODO: special asset
-    // public fun usdz_config<USDZ>(): Config {
-    //     Config {
-    //         ltv: PRECISION / 100 * 90, // 90%
-    //         lt: PRECISION / 100 * 95, // 95%
-    //     }
-    // }
 
     public fun entry_fee(): u64 acquires ProtocolFees {
         borrow_global<ProtocolFees>(@leizd).entry_fee
