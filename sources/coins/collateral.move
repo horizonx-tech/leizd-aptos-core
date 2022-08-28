@@ -98,4 +98,29 @@ module leizd::collateral {
             &18
         )), 0);
     }
+
+    #[test(owner=@leizd,account1=@0x111,account2=@0x222)]
+    public entry fun test_transfer(owner: &signer, account1: &signer, account2: &signer) {
+        let owner_addr = signer::address_of(owner);
+        let account1_addr = signer::address_of(account1);
+        let account2_addr = signer::address_of(account2);
+        account::create_account_for_test(owner_addr);
+        account::create_account_for_test(account1_addr);
+        account::create_account_for_test(account2_addr);
+        test_common::init_weth(owner);
+        initialize_internal<WETH>(owner);
+
+        register<WETH>(account1);
+        register<WETH>(account2);
+        coin_base::mint<Collateral<WETH,Asset>>(account1_addr, 1000000);
+        assert!(balance_of<WETH,Asset>(account1_addr) == 1000000, 0);
+        assert!(supply<WETH,Asset>() == 1000000, 0);
+        assert!(balance_of<WETH,Shadow>(account1_addr) == 0, 0);
+        assert!(supply<WETH,Shadow>() == 0, 0);
+
+        coin::transfer<Collateral<WETH,Asset>>(account1, account2_addr, 300000);
+        assert!(balance_of<WETH,Asset>(account1_addr) == 700000, 0);
+        assert!(supply<WETH,Asset>() == 1000000, 0);
+        assert!(balance_of<WETH,Asset>(account2_addr) == 300000, 0);
+    }
 }

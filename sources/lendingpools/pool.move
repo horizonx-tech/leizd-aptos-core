@@ -38,7 +38,8 @@ module leizd::pool {
     /// The total deposit amount and total borrowed amount can be updated
     /// in this struct. The collateral only asset is separately managed
     /// to calculate the borrowable amount in the pool.
-    /// C is the coin type and P is the pool type: Asset or Shadow.
+    /// C: The coin type of the pool e.g. WETH / APT / USDC
+    /// P: The pool type - Asset or Shadow.
     struct Storage<phantom C, phantom P> has key {
         total_deposits: u128,
         total_conly_deposits: u128, // collateral only
