@@ -9,6 +9,8 @@ module leizd::position {
     use leizd::pool_type::{Asset,Shadow};
     use leizd::repository;
     use leizd::price_oracle;
+    
+    friend leizd::pool;
 
     struct Account has key {
         addr: address,
@@ -25,7 +27,7 @@ module leizd::position {
         borrowed: u64,
     }
 
-    public entry fun open(account: &signer) {
+    public entry fun initialize(account: &signer) {
         move_to(account, Account {
             addr: signer::address_of(account),
             rebalance_on: true,
@@ -39,21 +41,39 @@ module leizd::position {
         });
     }
 
-    public fun take_deposit_position<C,P>(account: &signer, amount: u64) acquires Account, Position {
-        update_position<C,P>(account, amount, true, true);
+    public(friend) fun take_deposit_position<C>(addr: address, amount: u64, is_shadow: bool) acquires Account, Position {
+        let account_ref = borrow_global_mut<Account>(addr);
+        if (is_shadow) {
+            update_shadow_position<C>(
+                account_ref, 
+                amount, 
+                true, // deposited
+                true  // position increased
+            );
+        } else {
+            update_asset_position<C>(
+                account_ref, 
+                amount, 
+                true, // deposited
+                true  // position increased
+            );
+        }
     }
 
-    public fun cancel_deposit_position<C,P>(account: &signer, amount: u64) acquires Account, Position {
-        update_position<C,P>(account, amount, true, false);
-    }
+    // public(friend) fun cancel_deposit_position<C,P>(addr: address, amount: u64) acquires Account, Position {
+    //     let account_ref = borrow_global_mut<Account>(addr);
+    //     update_position<C,P>(account_ref, amount, true, false);
+    // }
 
-    public fun take_borrow_position<C,P>(account: &signer, amount: u64) acquires Account, Position {
-        update_position<C,P>(account, amount, false, true);
-    }
+    // public(friend) fun take_borrow_position<C,P>(addr: address, amount: u64) acquires Account, Position {
+    //     let account_ref = borrow_global_mut<Account>(addr);
+    //     update_position<C,P>(account_ref, amount, false, true);
+    // }
 
-    public fun cancel_borrow_position<C,P>(account: &signer, amount: u64) acquires Account, Position {
-        update_position<C,P>(account, amount, false, false);
-    }
+    // public(friend) fun cancel_borrow_position<C,P>(addr: address, amount: u64) acquires Account, Position {
+    //     let account_ref = borrow_global_mut<Account>(addr);
+    //     update_position<C,P>(account_ref, amount, false, false);
+    // }
 
     // fun rebalance(account_addr: address) acquires Position {
 
@@ -120,11 +140,103 @@ module leizd::position {
         user_ltv(account_ref, name) > repository::lt_of(name)
     }
 
-    fun update_position<C,P>(account: &signer, amount: u64, is_deposit: bool, is_increase: bool) acquires Account, Position {
-        let account_addr = signer::address_of(account);
-        let account_ref = borrow_global_mut<Account>(account_addr);
+    // fun balance(position: Position, name: string::String, is_shadow: bool): u64 {
+    //     if (is_shadow) {
+    //         table::borrow_mut<string::String,Balance<Shadow>>(&mut position.balance, name)
+    //     } else {
+    //         table::borrow_mut<string::String,Balance<Asset>>(&mut position.balance, name)
+    //     }
+    // }
 
-        let position = borrow_global_mut<Position<P>>(account_addr);
+    fun update_shadow_position<C>(
+        account_ref: &mut Account,
+        amount: u64,
+        is_deposit: bool,
+        is_increase: bool
+    ) acquires Position {
+        let position = borrow_global_mut<Position<Shadow>>(account_ref.addr);
+        let name = type_info::type_name<C>();
+        if (vector::contains<string::String>(&account_ref.types, &name)) {
+            let balance = table::borrow_mut<string::String,Balance<Shadow>>(&mut position.balance, name);
+            if (is_deposit && is_increase) {
+                balance.deposited = balance.deposited + amount;
+            } else if (is_deposit && !is_increase) {
+                balance.deposited = balance.deposited - amount;
+                if (balance.deposited == 0) {
+                    let (_, index) = vector::index_of<string::String>(&account_ref.types, &name);
+                    vector::remove<string::String>(&mut account_ref.types, index);
+                }
+            } else if (!is_deposit && is_increase) {
+                balance.borrowed = balance.borrowed + amount;
+            } else {
+                balance.borrowed = balance.borrowed - amount;
+                if (balance.borrowed == 0) {
+                    let (_, index) = vector::index_of<string::String>(&account_ref.types, &name);
+                    vector::remove<string::String>(&mut account_ref.types, index);
+                }
+            }
+        } else {
+            vector::push_back<string::String>(&mut account_ref.types, name);
+            if (is_deposit) {
+                table::add<string::String,Balance<Shadow>>(&mut position.balance, name, Balance { deposited: amount, borrowed: 0 });
+                let asset_position = borrow_global_mut<Position<Asset>>(account_ref.addr);
+                table::add<string::String,Balance<Asset>>(&mut asset_position.balance, name, Balance { deposited: 0, borrowed: 0 });
+            } else {
+                table::add<string::String,Balance<Shadow>>(&mut position.balance, name, Balance { deposited: 0, borrowed: amount });
+                let asset_position = borrow_global_mut<Position<Asset>>(account_ref.addr);
+                table::add<string::String,Balance<Asset>>(&mut asset_position.balance, name, Balance { deposited: 0, borrowed: 0 });
+            };
+        };
+    }
+
+    fun update_asset_position<C>(
+        account_ref: &mut Account,
+        amount: u64,
+        is_deposit: bool,
+        is_increase: bool
+    ) acquires Position {
+        let position = borrow_global_mut<Position<Asset>>(account_ref.addr);
+        let name = type_info::type_name<C>();
+        if (vector::contains<string::String>(&account_ref.types, &name)) {
+            let balance = table::borrow_mut<string::String,Balance<Asset>>(&mut position.balance, name);
+            if (is_deposit && is_increase) {
+                balance.deposited = balance.deposited + amount;
+            } else if (is_deposit && !is_increase) {
+                balance.deposited = balance.deposited - amount;
+                if (balance.deposited == 0) {
+                    let (_, index) = vector::index_of<string::String>(&account_ref.types, &name);
+                    vector::remove<string::String>(&mut account_ref.types, index);
+                }
+            } else if (!is_deposit && is_increase) {
+                balance.borrowed = balance.borrowed + amount;
+            } else {
+                balance.borrowed = balance.borrowed - amount;
+                if (balance.borrowed == 0) {
+                    let (_, index) = vector::index_of<string::String>(&account_ref.types, &name);
+                    vector::remove<string::String>(&mut account_ref.types, index);
+                }
+            }
+        } else {
+            vector::push_back<string::String>(&mut account_ref.types, name);
+            if (is_deposit) {
+                table::add<string::String,Balance<Asset>>(&mut position.balance, name, Balance { deposited: amount, borrowed: 0 });
+                let shadow_position = borrow_global_mut<Position<Shadow>>(account_ref.addr);
+                table::add<string::String,Balance<Shadow>>(&mut shadow_position.balance, name, Balance { deposited: 0, borrowed: 0 });
+            } else {
+                table::add<string::String,Balance<Asset>>(&mut position.balance, name, Balance { deposited: 0, borrowed: amount });
+                let shadow_position = borrow_global_mut<Position<Shadow>>(account_ref.addr);
+                table::add<string::String,Balance<Shadow>>(&mut shadow_position.balance, name, Balance { deposited: 0, borrowed: 0 });
+            };
+        };
+    }
+
+    fun update<C,P>(
+        account_ref: &mut Account,
+        amount: u64,
+        is_deposit: bool,
+        is_increase: bool
+    ) acquires Position {
+        let position = borrow_global_mut<Position<P>>(account_ref.addr);
         let name = type_info::type_name<C>();
         if (vector::contains<string::String>(&account_ref.types, &name)) {
             let balance = table::borrow_mut<string::String,Balance<P>>(&mut position.balance, name);
@@ -149,9 +261,128 @@ module leizd::position {
             vector::push_back<string::String>(&mut account_ref.types, name);
             if (is_deposit) {
                 table::add<string::String,Balance<P>>(&mut position.balance, name, Balance { deposited: amount, borrowed: 0 });
+                let shadow_position = borrow_global_mut<Position<Shadow>>(account_ref.addr);
+                table::add<string::String,Balance<Shadow>>(&mut shadow_position.balance, name, Balance { deposited: 0, borrowed: 0 });
             } else {
                 table::add<string::String,Balance<P>>(&mut position.balance, name, Balance { deposited: 0, borrowed: amount });
-            }
-        }
+                let shadow_position = borrow_global_mut<Position<Shadow>>(account_ref.addr);
+                table::add<string::String,Balance<Shadow>>(&mut shadow_position.balance, name, Balance { deposited: 0, borrowed: 0 });
+            };
+        };
     }
+
+    fun is_type_shadow<P>():bool {
+        comparator::is_equal(
+            &comparator::compare(
+                &type_info::type_name<P>(),
+                &string::utf8(b"0x123456789abcdef::pool_type::Shadow"),
+            )
+        )
+    }
+
+    // use std::debug;
+    use aptos_framework::comparator;
+
+    #[test_only]
+    use leizd::test_common::{Self,WETH,UNI};
+    #[test_only]
+    use aptos_framework::account;
+    #[test_only]
+    use leizd::initializer;
+    #[test_only]
+    use leizd::usdz::{USDZ};
+
+    #[test]
+    public entry fun test_is_shadow() {
+        assert!(is_type_shadow<Shadow>(), 0);
+    }
+
+    #[test(owner=@leizd,account1=@0x111,aptos_framework=@aptos_framework)]
+    public entry fun test_take_deposit_asset_position(owner: &signer, account1: &signer) acquires Account, Position {
+        let owner_addr = signer::address_of(owner);
+        let account1_addr = signer::address_of(account1);
+        account::create_account_for_test(owner_addr);
+        account::create_account_for_test(account1_addr);
+        initializer::register<WETH>(account1);
+        test_common::init_weth(owner);
+
+        initialize(account1);
+        let account_ref = borrow_global_mut<Account>(account1_addr);
+        update_asset_position<WETH>(account_ref, 10000, true, true);
+
+        let account_ref = borrow_global<Account>(account1_addr);
+        assert!(account_ref.addr == account1_addr, 0);
+        assert!(vector::contains<string::String>(&account_ref.types, &type_info::type_name<WETH>()), 0);
+        assert!(vector::length<string::String>(&account_ref.types) == 1, 0);
+        let position_ref = borrow_global_mut<Position<Asset>>(account1_addr);
+        let balance = table::borrow_mut<string::String,Balance<Asset>>(&mut position_ref.balance, type_info::type_name<WETH>());
+        assert!(balance.deposited == 10000, 0);
+        assert!(balance.borrowed == 0, 0);
+    }
+
+    #[test(owner=@leizd,account1=@0x111,aptos_framework=@aptos_framework)]
+    public entry fun test_take_borrow_asset_position(owner: &signer, account1: &signer) acquires Account, Position {
+        let owner_addr = signer::address_of(owner);
+        let account1_addr = signer::address_of(account1);
+        account::create_account_for_test(owner_addr);
+        account::create_account_for_test(account1_addr);
+        initializer::register<WETH>(account1);
+        initializer::register<UNI>(account1);
+        initializer::register<USDZ>(account1);
+        test_common::init_weth(owner);
+        test_common::init_uni(owner);
+
+        initialize(account1);
+        let account_ref = borrow_global_mut<Account>(account1_addr);
+        update_asset_position<WETH>(account_ref, 10000, true, true); // deposit WETH
+        update_shadow_position<WETH>(account_ref, 8000, false, true); // borrow USDZ
+        // update_position<UNI,Shadow>(account_ref, 8000, true, true); // deposit USDZ
+        // update_position<UNI,Asset>(account_ref, 4000, false, true); // borrow UNI
+
+        // let account1_ref = borrow_global<Account>(account1_addr);
+        // assert!(vector::contains<string::String>(&account1_ref.types, &type_info::type_name<WETH>()), 0);
+        // assert!(vector::contains<string::String>(&account1_ref.types, &type_info::type_name<UNI>()), 0);
+        // assert!(vector::length<string::String>(&account1_ref.types) == 2, 0);
+        // let position_ref = borrow_global_mut<Position<Asset>>(account1_addr);
+        // let weth_balance = table::borrow_mut<string::String,Balance<Asset>>(&mut position_ref.balance, type_info::type_name<WETH>());
+        // assert!(weth_balance.deposited == 10000, 0);
+        // assert!(weth_balance.borrowed == 8000, 0);
+        // let uni_balance = table::borrow_mut<string::String,Balance<Asset>>(&mut position_ref.balance, type_info::type_name<UNI>());
+        // assert!(uni_balance.deposited == 8000, 0);
+        // assert!(uni_balance.borrowed == 4000, 0);
+
+        // if WETH = $1 && UNI = $1
+        // assert!(user_ltv(account1_ref, type_info::type_name<WETH>() == ))
+    }
+// fun user_ltv(account_ref: &Account, name: string::String): u64 acquires  Position {
+
+
+    // #[test(owner=@leizd,account1=@0x111,aptos_framework=@aptos_framework)]
+    // public entry fun test_take_borrow_asset_position(owner: &signer, account1: &signer) acquires Account, Position {
+    //     let owner_addr = signer::address_of(owner);
+    //     let account1_addr = signer::address_of(account1);
+    //     account::create_account_for_test(owner_addr);
+    //     account::create_account_for_test(account1_addr);
+    //     initializer::register<WETH>(account1);
+    //     initializer::register<UNI>(account1);
+    //     test_common::init_weth(owner);
+    //     test_common::init_uni(owner);
+
+    //     initialize(account1);
+    //     let account_ref = borrow_global_mut<Account>(account1_addr);
+    //     update_position<WETH,Asset>(account_ref, 10000, true, true); // deposit WETH
+    //     update_position<UNI,Asset>(account_ref, 5000, false, true); // borrow UNI
+
+    //     let account_ref = borrow_global<Account>(account1_addr);
+    //     assert!(vector::contains<string::String>(&account_ref.types, &type_info::type_name<WETH>()), 0);
+    //     assert!(vector::contains<string::String>(&account_ref.types, &type_info::type_name<UNI>()), 0);
+    //     assert!(vector::length<string::String>(&account_ref.types) == 2, 0);
+    //     let position_ref = borrow_global_mut<Position<Asset>>(account1_addr);
+    //     let weth_balance = table::borrow_mut<string::String,Balance<Asset>>(&mut position_ref.balance, type_info::type_name<WETH>());
+    //     assert!(weth_balance.deposited == 10000, 0);
+    //     assert!(weth_balance.borrowed == 0, 0);
+    //     let uni_balance = table::borrow_mut<string::String,Balance<Asset>>(&mut position_ref.balance, type_info::type_name<UNI>());
+    //     assert!(uni_balance.deposited == 0, 0);
+    //     assert!(uni_balance.borrowed == 5000, 0);
+    // }
 }
