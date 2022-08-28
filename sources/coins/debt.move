@@ -17,6 +17,7 @@ module leizd::debt {
     }
 
     fun initialize_internal<C>(owner: &signer) {
+        // TODO: should not be initialized based on aptos_framework::coin to prevent it from transferring to others
         assert!(coin::is_coin_initialized<C>(), E_NOT_INITIALIZED);
 
         let coin_name = coin::name<C>();
