@@ -1,5 +1,11 @@
+/// Main point of interaction with Leizd Protocol
+/// Users can:
+/// # Deposit
+/// # Withdraw
+/// # Borrow
+/// # Repay
+/// # Liquidate
 module leizd::pool {
-
     use std::signer;
     use aptos_std::event;
     use aptos_framework::account;
@@ -38,7 +44,8 @@ module leizd::pool {
     /// The total deposit amount and total borrowed amount can be updated
     /// in this struct. The collateral only asset is separately managed
     /// to calculate the borrowable amount in the pool.
-    /// C is the coin type and P is the pool type: Asset or Shadow.
+    /// C: The coin type of the pool e.g. WETH / APT / USDC
+    /// P: The pool type - Asset or Shadow.
     struct Storage<phantom C, phantom P> has key {
         total_deposits: u128,
         total_conly_deposits: u128, // collateral only
@@ -445,9 +452,8 @@ module leizd::pool {
         accrue_interest<C,Asset>(storage_ref);
 
         let entry_fee = repository::entry_fee();
-        let fee = (((amount as u128) * (entry_fee as u128) / constant::e18_u128()) as u64);
-        let fee_extracted = coin::extract(&mut pool_ref.asset, fee);
-        treasury::collect_asset_fee<C>(fee_extracted);
+        let fee = amount * entry_fee / constant::e18_u64();
+        collect_asset_fee<C>(pool_ref, fee);
 
         let deposited = coin::extract(&mut pool_ref.asset, amount);
         coin::deposit<C>(receiver_addr, deposited);
@@ -466,9 +472,8 @@ module leizd::pool {
         accrue_interest<C,Shadow>(storage_ref);
 
         let entry_fee = repository::entry_fee();
-        let fee = (((amount as u128) * (entry_fee as u128) / constant::e18_u128()) as u64);
-        let fee_extracted = coin::extract(&mut pool_ref.shadow, fee);
-        treasury::collect_shadow_fee<C>(fee_extracted);
+        let fee = amount * entry_fee / constant::e18_u64();
+        collect_shadow_fee<C>(pool_ref, fee);
 
         if (storage_ref.total_deposits - storage_ref.total_conly_deposits < (amount as u128)) {
             // check the staiblity left
