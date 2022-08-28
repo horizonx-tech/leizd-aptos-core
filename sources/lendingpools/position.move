@@ -61,16 +61,100 @@ module leizd::position {
         update_position<C,P>(account_ref, amount, false, false);
     }
 
-    // fun rebalance(account_addr: address) acquires Position {
+    fun should_rebalance(addr: address):bool acquires Account, Position {
+        let (safe,unsafe) = separate_positions(addr);
+        let safe_length = vector::length<string::String>(&safe);
+        let unsafe_length = vector::length<string::String>(&unsafe);
+        return safe_length != 0 && unsafe_length != 0
+    }
 
-    // }
+    /// Return true if one of the positions could be rebalanced.
+    fun rebalance_if_possible(addr: address):bool acquires Account, Position {
+        let (safe,unsafe) = separate_positions(addr);
+        let safe_length = vector::length<string::String>(&safe);
+        let unsafe_length = vector::length<string::String>(&unsafe);
+        if (safe_length != 0 && unsafe_length != 0) {
+            let account_ref = borrow_global<Account>(addr);
 
-    // fun rebalance_between(account_addr: address, name_from: string::String, name_to: string::String) acquires Account, Position {
-    //     let account_ref = borrow_global<Account>(account_addr);
-    //     assert!(!is_safe(account_ref, name_to), 0);
+            // insufficient volume
+            // let insufficient_deposited_map = simple_map::create<string::String,u64>();
+            let insufficient_deposited_key = vector::empty<string::String>();
+            let insufficient_deposited_value = vector::empty<u64>();
+            let insufficient_deposited_sum = 0;
+            let i = 0;
+            while (i < unsafe_length) {
+                let target_type = vector::borrow<string::String>(&account_ref.types, i);
+                let target_borrowed = borrowed_volume(account_ref, *target_type);
+                let required_deposited = target_borrowed * repository::precision() / repository::lt_of(*target_type);
+                let current_deposit = deposited_volume(account_ref, *target_type);
+                let diff = required_deposited - current_deposit;
+                vector::push_back<string::String>(&mut insufficient_deposited_key, *target_type);
+                vector::push_back<u64>(&mut insufficient_deposited_value, diff);
+                insufficient_deposited_sum = insufficient_deposited_sum + diff;
+                i = i + i;
+            };
 
-    //     let lacked_amount = 
-    // }
+            // extra volume
+            // let extra_deposited_map = simple_map::create<string::String,u64>();
+            let extra_deposited_key = vector::empty<string::String>();
+            let extra_deposited_value = vector::empty<u64>();
+            let extra_deposited_sum = 0;
+            let i = 0;
+            while (i < safe_length) {
+                let target_type = vector::borrow<string::String>(&account_ref.types, i);
+                let target_borrowed = borrowed_volume(account_ref, *target_type);
+                let required_deposited = target_borrowed * repository::precision() / repository::lt_of(*target_type);
+                let current_deposit = deposited_volume(account_ref, *target_type);
+                let diff = current_deposit - required_deposited;
+                vector::push_back<string::String>(&mut extra_deposited_key, *target_type);
+                vector::push_back<u64>(&mut extra_deposited_value, diff);
+                extra_deposited_sum = extra_deposited_sum + diff;
+                i = i + i;
+            };
+
+            // insufficient overall
+            if (insufficient_deposited_sum >= extra_deposited_sum) {
+                return false
+            };
+
+            // rebalance
+            let i = vector::length<u64>(&insufficient_deposited_value);
+            // let asset_position_ref = borrow_global<Position<Asset>>(account_ref.addr);
+            let shadow_position_ref = borrow_global<Position<Shadow>>(account_ref.addr);
+            while (i == 0) {
+                let insufficient_key = vector::borrow<string::String>(&insufficient_deposited_key, i-1);
+                let insufficient_value = vector::pop_back<u64>(&mut insufficient_deposited_value);
+
+                // let extra_key = vector::borrow<string::String>(&insufficient_deposited_key, i-1);
+                let extra_value = vector::pop_back<u64>(&mut extra_deposited_value);
+
+                if (extra_value >= insufficient_value) {
+                    // rebalance extra_value -> insufficient_value
+                    let required_value = insufficient_value;
+                    // 1. shadow
+                    let shadow_balance = table::borrow<string::String,Balance<Shadow>>(&shadow_position_ref.balance, *insufficient_key);
+                    if (shadow_balance.deposited >= required_value) {
+                        // enough with the shadow
+                        // table::upsert<string::String,Balance<Shadow>>(&mut shadow_position_ref.balance, *insufficient_key, (shadow_balance.deposited - required_value));
+                        // TODO: change the balance on pool
+                        return true
+                    } else {
+                        // not enough only with the shadow
+                        // table::upsert<string::String,Balance<Shadow>>(&shadow_position_ref.balance, *insufficient_key, 0);
+                        // TODO: change the balance on pool
+                    }
+                    // 2. asset
+                    // TODO: change the balance on pool
+                } else {
+                    // TODO: rebalance with all extra_value
+                    i = i - 1;
+                };
+            };        
+            true
+        } else {
+            false
+        }
+    }
 
     fun safe_positions(account_addr: address): vector<string::String> acquires Account, Position {
         let account_ref = borrow_global<Account>(account_addr);
@@ -80,7 +164,7 @@ module leizd::position {
 
         while (i < position_length) {
             let target = vector::borrow<string::String>(&account_ref.types, i);
-            if (!is_safe(account_ref, *target)) {
+            if (is_safe(account_ref, *target)) {
                 vector::push_back<string::String>(&mut safe, *target);
             };
             i = i + 1;
@@ -104,6 +188,25 @@ module leizd::position {
         unsafe
     }
 
+    fun separate_positions(addr: address): (vector<string::String>,vector<string::String>) acquires Account, Position {
+        let account_ref = borrow_global<Account>(addr);
+        let position_length = vector::length<string::String>(&account_ref.types);
+        let i = 0;
+
+        let safe = vector::empty<string::String>();
+        let unsafe = vector::empty<string::String>();
+        while (i < position_length) {
+            let target = vector::borrow<string::String>(&account_ref.types, i);
+            if (is_safe(account_ref, *target)) {
+                vector::push_back<string::String>(&mut safe, *target);
+            } else {
+                vector::push_back<string::String>(&mut safe, *target);
+            };
+            i = i + 1;
+        };
+        (safe,unsafe)
+    }
+
     fun utilization_of(account_ref: &Account, name: string::String): u64 acquires  Position {
         if (vector::contains<string::String>(&account_ref.types, &name)) {
             let asset_position_ref = borrow_global<Position<Asset>>(account_ref.addr);
@@ -117,6 +220,30 @@ module leizd::position {
                 / (price_oracle::volume(&name, asset_balance.deposited)
                     + price_oracle::volume(&name, shadow_balance.deposited));
             user_ltv
+        } else {
+            0
+        }
+    }
+
+    fun deposited_volume(account_ref: &Account, name: string::String): u64 acquires  Position {
+        if (vector::contains<string::String>(&account_ref.types, &name)) {
+            let asset_position_ref = borrow_global<Position<Asset>>(account_ref.addr);
+            let shadow_position_ref = borrow_global<Position<Shadow>>(account_ref.addr);
+            let asset_balance = table::borrow<string::String,Balance<Asset>>(&asset_position_ref.balance, name);
+            let shadow_balance = table::borrow<string::String,Balance<Shadow>>(&shadow_position_ref.balance, name);
+            (price_oracle::volume(&name, asset_balance.deposited) + price_oracle::volume(&name, shadow_balance.deposited)) 
+        } else {
+            0
+        }
+    }
+
+    fun borrowed_volume(account_ref: &Account, name: string::String): u64 acquires  Position {
+        if (vector::contains<string::String>(&account_ref.types, &name)) {
+            let asset_position_ref = borrow_global<Position<Asset>>(account_ref.addr);
+            let shadow_position_ref = borrow_global<Position<Shadow>>(account_ref.addr);
+            let asset_balance = table::borrow<string::String,Balance<Asset>>(&asset_position_ref.balance, name);
+            let shadow_balance = table::borrow<string::String,Balance<Shadow>>(&shadow_position_ref.balance, name);
+            (price_oracle::volume(&name, asset_balance.borrowed) + price_oracle::volume(&name, shadow_balance.borrowed)) 
         } else {
             0
         }
