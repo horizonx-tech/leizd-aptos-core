@@ -34,7 +34,9 @@ module leizd::stability_pool {
     }
 
     struct UserDistribution has key {
-        index: u64
+        index: u64,
+        unclaimed: u64,
+        deposited: u64,
     }
 
     struct DepositEvent has store, drop {
@@ -104,7 +106,11 @@ module leizd::stability_pool {
 
     public entry fun deposit(account: &signer, amount: u64) acquires StabilityPool, StabilityPoolEventHandle {
         if (!exists<UserDistribution>(signer::address_of(account))) {
-            move_to(account, UserDistribution { index: 0 });
+            move_to(account, UserDistribution { 
+                index: 0, 
+                unclaimed: 0,
+                deposited: 0,
+            });
         };
         let pool_ref = borrow_global_mut<StabilityPool>(@leizd);
         
@@ -184,9 +190,26 @@ module leizd::stability_pool {
         );
     }
 
-    // public entry fun claim_reward(account: &signer, amount: u64) {
-    //     // TODO
-    // }
+    public entry fun claim_reward(account: &signer, amount: u64) acquires DistributionConfig, UserDistribution, StabilityPool {
+        let pool_ref = borrow_global_mut<StabilityPool>(@leizd);
+        let user_ref = borrow_global<UserDistribution>(signer::address_of(account));
+        let unclaimed_reward = user_ref.unclaimed;
+
+        let staked_by_user = user_ref.deposited;
+        let total_staked = pool_ref.total_deposited;
+        let accrued_reward = update_user_asset(signer::address_of(account), staked_by_user, (total_staked as u64));
+        if (accrued_reward != 0) {
+            unclaimed_reward = unclaimed_reward + accrued_reward;
+        };
+        assert!(unclaimed_reward != 0, 0); // no claimable amount
+
+        let amount_to_claim = if (amount > unclaimed_reward) unclaimed_reward else amount;
+        let user_mut_ref = borrow_global_mut<UserDistribution>(signer::address_of(account));
+        user_mut_ref.unclaimed = user_mut_ref.unclaimed - amount_to_claim;
+
+        coin::deposit<USDZ>(signer::address_of(account), coin::extract(&mut pool_ref.collected_fee, amount_to_claim));
+        // TODO: emit claim event
+    }
 
     fun update_user_asset(addr: address, staked_by_user: u64, total_staked: u64): u64 acquires DistributionConfig, UserDistribution {
         let config_ref = borrow_global_mut<DistributionConfig>(@leizd);
