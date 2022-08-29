@@ -48,7 +48,7 @@ module leizd::trove {
         });
     }
 
-    public entry fun close_trobe<C>(account: &signer, amount: u64){
+    public entry fun close_trove<C>(account: &signer, amount: u64){
         close_trove_internal<C>(account, amount);
     }
 
