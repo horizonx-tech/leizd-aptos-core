@@ -3,9 +3,20 @@ module leizd::trove {
     use aptos_framework::coin;
     use leizd::usdz;
     use leizd::price_oracle;
+    use std::string;
+    use aptos_framework::table;
 
     struct Trove<phantom C> has key {
         coin: coin::Coin<C>,
+    }
+
+    struct Position<phantom P> has key {
+        balance: table::Table<string::String,Balance<P>>,
+    }
+
+    struct Balance<phantom P> has store {
+        deposited: u64,
+        borrowed: u64,
     }
 
     public entry fun initialize(owner: &signer) {
@@ -18,6 +29,7 @@ module leizd::trove {
 
     public entry fun close_trove<C>(_account: &signer, _amount: u64) {
     }
+
 
     public entry fun borrowable_usdz<C>(amount:u64):u64 {
         let price = price_oracle::price<C>();
@@ -34,6 +46,13 @@ module leizd::trove {
         move_to(account, Trove<C> {
             coin: coin::zero<C>()
         });
+    }
+
+    public entry fun close_trobe<C>(account: &signer, amount: u64){
+        close_trove_internal<C>(account, amount);
+    }
+
+    fun close_trove_internal<C>(_accont: &signer, _amount:u64) {
     }
 
     fun validate_open_trove<C>(account: &signer, amount: u64) {
