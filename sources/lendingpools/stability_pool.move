@@ -4,6 +4,7 @@ module leizd::stability_pool {
     use aptos_framework::coin;
     use aptos_framework::event;
     use aptos_framework::account;
+    use aptos_framework::timestamp;
     use leizd::usdz::{USDZ};
     use leizd::stb_usdz;
     use leizd::permission;
@@ -24,6 +25,16 @@ module leizd::stability_pool {
     struct Balance<phantom C> has key {
         total_borrowed: u128,
         uncollected_fee: u64,
+    }
+
+    struct DistributionConfig has key {
+        emission_per_sec: u64,
+        last_updated: u64,
+        index: u64,
+    }
+
+    struct UserDistribution has key {
+        index: u64
     }
 
     struct DepositEvent has store, drop {
@@ -67,12 +78,17 @@ module leizd::stability_pool {
             total_deposited: 0,
             collected_fee: coin::zero<USDZ>(),
         });
+        move_to(owner, DistributionConfig {
+            emission_per_sec: 0,
+            last_updated: 0,
+            index: 0,
+        });
         move_to(owner, StabilityPoolEventHandle {
             deposit_event: account::new_event_handle<DepositEvent>(owner),
             withdraw_event: account::new_event_handle<WithdrawEvent>(owner),
             borrow_event: account::new_event_handle<BorrowEvent>(owner),
             repay_event: account::new_event_handle<RepayEvent>(owner),
-        })
+        });
     }
 
     public fun is_pool_initialized(): bool {
@@ -87,6 +103,9 @@ module leizd::stability_pool {
     }
 
     public entry fun deposit(account: &signer, amount: u64) acquires StabilityPool, StabilityPoolEventHandle {
+        if (!exists<UserDistribution>(signer::address_of(account))) {
+            move_to(account, UserDistribution { index: 0 });
+        };
         let pool_ref = borrow_global_mut<StabilityPool>(@leizd);
         
         coin::merge(&mut pool_ref.left, coin::withdraw<USDZ>(account, amount));
@@ -122,6 +141,10 @@ module leizd::stability_pool {
     }
 
     public(friend) entry fun borrow<C>(addr: address, amount: u64): coin::Coin<USDZ> acquires StabilityPool, Balance, StabilityPoolEventHandle {
+        // TODO: 
+        // if (!exists<UserDistribution>(signer::address_of(account))) {
+        //     move_to(account, UserDistribution { index: 0 });
+        // };
         let borrowed = borrow_internal<C>(amount);
         event::emit_event<WithdrawEvent>(
             &mut borrow_global_mut<StabilityPoolEventHandle>(@leizd).withdraw_event,
@@ -164,6 +187,45 @@ module leizd::stability_pool {
     // public entry fun claim_reward(account: &signer, amount: u64) {
     //     // TODO
     // }
+
+    fun update_user_asset(addr: address, staked_by_user: u64, total_staked: u64): u64 acquires DistributionConfig, UserDistribution {
+        let config_ref = borrow_global_mut<DistributionConfig>(@leizd);
+        let user_ref = borrow_global_mut<UserDistribution>(addr);
+        let accrued_reward = 0;
+        let new_index = update_asset_state(config_ref, total_staked);
+        if (user_ref.index != new_index) {
+            accrued_reward = rewards(staked_by_user, new_index, user_ref.index);
+        };
+        user_ref.index = new_index;
+        accrued_reward
+    }
+
+    fun update_asset_state(config_ref: &mut DistributionConfig, total_staked: u64): u64 {        
+        let old_index = config_ref.index;
+        let last_updated = config_ref.last_updated;
+        let now = timestamp::now_microseconds();
+        if (now == last_updated) {
+            return old_index
+        };
+
+        let new_index = asset_index(old_index, config_ref.emission_per_sec, last_updated, total_staked);
+        if (new_index != old_index) {
+            config_ref.index = new_index;
+            // TODO: emit event
+        };
+        config_ref.last_updated = now;
+        new_index
+    }
+
+    fun asset_index(current_index: u64, emission_per_sec: u64, last_updated: u64, total_balance: u64): u64 {
+        let current_timestamp = timestamp::now_microseconds();
+        let time_delta = current_timestamp - last_updated;
+        emission_per_sec * time_delta * PRECISION / total_balance + current_index
+    }
+
+    fun rewards(user_balance: u64, reserve_index: u64, user_index: u64): u64 {
+         user_balance * (reserve_index - user_index) / PRECISION
+    }
 
     fun repay_internal<C>(account: &signer, amount: u64) acquires StabilityPool, Balance {
         let pool_ref = borrow_global_mut<StabilityPool>(@leizd);
