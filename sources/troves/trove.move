@@ -13,10 +13,13 @@ module leizd::trove {
     }
 
     public entry fun open_trove<C>(account: &signer, amount: u64) {
-        open_trove_internal<C>(account, usdz_amount<C>(amount));
+        open_trove_internal<C>(account, borrowable_usdz<C>(amount));
     }
 
-    public entry fun usdz_amount<C>(amount:u64):u64 {
+    public entry fun close_trove<C>(_account: &signer, _amount: u64) {
+    }
+
+    public entry fun borrowable_usdz<C>(amount:u64):u64 {
         let price = price_oracle::price<C>();
         let decimals = (coin::decimals<C>() as u64);
         let decimals_usdz = (coin::decimals<usdz::USDZ>() as u64);
@@ -24,12 +27,76 @@ module leizd::trove {
     }
 
     fun open_trove_internal<C>(account: &signer, amount: u64) {
+        validate_open_trove<C>(account, amount);
         // TODO: active pool -> increate USDZ debt
         usdz::mint(account, amount);
 
         move_to(account, Trove<C> {
             coin: coin::zero<C>()
         });
+    }
+
+    fun validate_open_trove<C>(account: &signer, amount: u64) {
+        require_valid_max_fee_percentage(account);
+        require_trove_is_not_active(account);
+        require_at_least_min_net_debt<C>(account, amount);
+        let icr = current_collateral_ratio(account);
+        if (is_recovery_mode()) {
+            require_icr_is_above_ccr(icr);
+        } else {
+            require_icr_is_above_mcr(icr);
+            requir_new_tcr_is_above_ccr(0);
+        };
+    }
+
+
+    fun is_recovery_mode(): bool {
+        // TODO: implement
+        false
+    }
+
+    fun require_valid_max_fee_percentage(_account: &signer) {
+        // TODO: implement
+    }
+
+    fun require_trove_is_not_active(_account: &signer) {
+        // TODO: implement
+    }
+
+    fun require_at_least_min_net_debt<C>(_account: &signer, _amount: u64) {
+        // TODO: implement
+    }
+
+    fun new_collateral_ratio<C>(_account: &signer, _amount: u64) :u64 {
+        // TODO: implement
+        1
+    }
+
+    fun current_collateral_ratio(_acccount: &signer): u64 {
+        // TODO: implement
+        return 1
+    }
+
+    fun nominal_collateral_ratio(_account: &signer): u64 {
+        // TODO: implement
+        1
+    }
+
+    fun require_icr_is_above_ccr(_new_icr: u64) {
+        // TODO: implement
+    }
+
+    fun minimum_collateral_ratio(): u64 {
+        // TODO: implement
+        1
+    }
+
+    fun require_icr_is_above_mcr(_new_icr: u64) {
+        // TODO: implement
+    }
+
+    fun requir_new_tcr_is_above_ccr(_new_rcr: u64) {
+        // TODO: implement
     }
 
 
@@ -78,7 +145,7 @@ module leizd::trove {
         test_common::init_usdc(&owner);
         initialize(&owner);
         assert!(comparator::is_equal(&comparator::compare(
-            &usdz_amount<USDC>(usdc_amt),
+            &borrowable_usdz<USDC>(usdc_amt),
             &usdc_want
         )), 0);
     }
