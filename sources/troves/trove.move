@@ -27,7 +27,8 @@ module leizd::trove {
         open_trove_internal<C>(account, borrowable_usdz<C>(amount));
     }
 
-    public entry fun close_trove<C>(_account: &signer, _amount: u64) {
+    public entry fun close_trove<C>(account: &signer, amount: u64) {
+        close_trove_internal<C>(account, amount);
     }
 
 
@@ -46,10 +47,6 @@ module leizd::trove {
         move_to(account, Trove<C> {
             coin: coin::zero<C>()
         });
-    }
-
-    public entry fun close_trove<C>(account: &signer, amount: u64){
-        close_trove_internal<C>(account, amount);
     }
 
     fun close_trove_internal<C>(_accont: &signer, _amount:u64) {
