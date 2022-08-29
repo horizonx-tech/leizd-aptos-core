@@ -199,7 +199,7 @@ module leizd::stability_pool {
     #[test_only]
     use aptos_framework::managed_coin;
     #[test_only]
-    use leizd::test_common::{Self,WETH};
+    use leizd::test_coin::{Self,WETH};
     #[test_only]
     use leizd::usdz;
     #[test_only]
@@ -212,7 +212,7 @@ module leizd::stability_pool {
         account::create_account_for_test(owner_addr);
         account::create_account_for_test(account1_addr);
 
-        test_common::init_weth(&owner);
+        test_coin::init_weth(&owner);
         initializer::initialize(&owner);
         initializer::register<WETH>(&account1);
         managed_coin::mint<WETH>(&owner, account1_addr, 1000000);
@@ -236,7 +236,7 @@ module leizd::stability_pool {
         account::create_account_for_test(owner_addr);
         account::create_account_for_test(account1_addr);
 
-        test_common::init_weth(&owner);
+        test_coin::init_weth(&owner);
         initializer::initialize(&owner);
         initializer::register<WETH>(&account1);
         managed_coin::mint<WETH>(&owner, account1_addr, 1000000);
@@ -265,7 +265,7 @@ module leizd::stability_pool {
         account::create_account_for_test(account1_addr);
         account::create_account_for_test(account2_addr);
 
-        test_common::init_weth(&owner);
+        test_coin::init_weth(&owner);
         initializer::initialize(&owner);
         initializer::register<WETH>(&account1);
         managed_coin::mint<WETH>(&owner, account1_addr, 1000000);
@@ -288,7 +288,7 @@ module leizd::stability_pool {
         account::create_account_for_test(account1_addr);
         account::create_account_for_test(account2_addr);
 
-        test_common::init_weth(&owner);
+        test_coin::init_weth(&owner);
         initializer::initialize(&owner);
         initializer::register<WETH>(&account1);
         managed_coin::mint<WETH>(&owner, account1_addr, 1000000);
@@ -319,7 +319,7 @@ module leizd::stability_pool {
         account::create_account_for_test(account1_addr);
         account::create_account_for_test(account2_addr);
 
-        test_common::init_weth(&owner);
+        test_coin::init_weth(&owner);
         initializer::initialize(&owner);
         initializer::register<WETH>(&account1);
         managed_coin::mint<WETH>(&owner, account1_addr, 1000000);
