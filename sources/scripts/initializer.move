@@ -8,11 +8,13 @@ module leizd::initializer {
     use leizd::debt;
     use leizd::trove;
     use leizd::position;
+    use leizd::stability_pool;
 
     public entry fun initialize(owner: &signer) {
         system_status::initialize(owner);
         repository::initialize(owner);
         trove::initialize(owner);
+        stability_pool::initialize(owner);
     }
 
     public entry fun initialize_by_users(account: &signer) {

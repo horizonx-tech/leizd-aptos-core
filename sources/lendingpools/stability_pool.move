@@ -6,11 +6,14 @@ module leizd::stability_pool {
     use aptos_framework::account;
     use leizd::usdz::{USDZ};
     use leizd::stb_usdz;
+    use leizd::permission;
 
     friend leizd::pool;
 
     const PRECISION: u64 = 1000000000;
     const STABILITY_FEE: u64 = 1000000000 * 5 / 1000; // 0.5%
+
+    const E_IS_ALREADY_EXISTED: u64 = 1;
 
     struct StabilityPool has key {
         left: coin::Coin<USDZ>,
@@ -55,6 +58,9 @@ module leizd::stability_pool {
     }
 
     public entry fun initialize(owner: &signer) {
+        permission::assert_owner(signer::address_of(owner));
+        assert!(!is_pool_initialized(), E_IS_ALREADY_EXISTED);
+
         stb_usdz::initialize(owner);
         move_to(owner, StabilityPool {
             left: coin::zero<USDZ>(),
@@ -69,7 +75,11 @@ module leizd::stability_pool {
         })
     }
 
-    public entry fun init_pool<C>(owner: &signer) {
+    public fun is_pool_initialized(): bool {
+        exists<StabilityPool>(@leizd)
+    }
+
+    public(friend) fun init_pool<C>(owner: &signer) {
         move_to(owner, Balance<C> {
             total_borrowed: 0,
             uncollected_fee: 0
