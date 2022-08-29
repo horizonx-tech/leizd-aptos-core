@@ -203,144 +203,146 @@ module leizd::stability_pool {
     #[test_only]
     use leizd::usdz;
     #[test_only]
-    use leizd::initializer;
+    use leizd::test_initializer;
+    #[test_only]
+    use leizd::trove;
 
     #[test(owner=@leizd,account1=@0x111,account2=@0x222,aptos_framework=@aptos_framework)]
-    public entry fun test_deposit_to_stability_pool(owner: signer, account1: signer) acquires StabilityPool, StabilityPoolEventHandle {
-        let owner_addr = signer::address_of(&owner);
-        let account1_addr = signer::address_of(&account1);
+    public entry fun test_deposit_to_stability_pool(owner: &signer, account1: &signer) acquires StabilityPool, StabilityPoolEventHandle {
+        let owner_addr = signer::address_of(owner);
+        let account1_addr = signer::address_of(account1);
         account::create_account_for_test(owner_addr);
         account::create_account_for_test(account1_addr);
 
-        test_coin::init_weth(&owner);
-        initializer::initialize(&owner);
-        initializer::register<WETH>(&account1);
-        managed_coin::mint<WETH>(&owner, account1_addr, 1000000);
-        initializer::register<USDZ>(&account1);
+        test_coin::init_weth(owner);
+        trove::initialize(owner);
+        test_initializer::register<WETH>(account1);
+        managed_coin::mint<WETH>(owner, account1_addr, 1000000);
+        test_initializer::register<USDZ>(account1);
         usdz::mint_for_test(account1_addr, 1000000);
 
-        initialize(&owner); // stability pool
-        init_pool<WETH>(&owner);
+        initialize(owner); // stability pool
+        init_pool<WETH>(owner);
                 
-        deposit(&account1, 400000);
+        deposit(account1, 400000);
         assert!(left() == 400000, 0);
         assert!(total_deposited() == 400000, 0);
-        assert!(usdz::balance_of(signer::address_of(&account1)) == 600000, 0);
-        assert!(stb_usdz::balance_of(signer::address_of(&account1)) == 400000, 0);
+        assert!(usdz::balance_of(account1_addr) == 600000, 0);
+        assert!(stb_usdz::balance_of(account1_addr) == 400000, 0);
     }
 
     #[test(owner=@leizd,account1=@0x111,account2=@0x222,aptos_framework=@aptos_framework)]
-    public entry fun test_withdraw_from_stability_pool(owner: signer, account1: signer) acquires StabilityPool, StabilityPoolEventHandle {
-        let owner_addr = signer::address_of(&owner);
-        let account1_addr = signer::address_of(&account1);
+    public entry fun test_withdraw_from_stability_pool(owner: &signer, account1: &signer) acquires StabilityPool, StabilityPoolEventHandle {
+        let owner_addr = signer::address_of(owner);
+        let account1_addr = signer::address_of(account1);
         account::create_account_for_test(owner_addr);
         account::create_account_for_test(account1_addr);
 
-        test_coin::init_weth(&owner);
-        initializer::initialize(&owner);
-        initializer::register<WETH>(&account1);
-        managed_coin::mint<WETH>(&owner, account1_addr, 1000000);
-        initializer::register<USDZ>(&account1);
+        test_coin::init_weth(owner);
+        trove::initialize(owner);
+        test_initializer::register<WETH>(account1);
+        managed_coin::mint<WETH>(owner, account1_addr, 1000000);
+        test_initializer::register<USDZ>(account1);
         usdz::mint_for_test(account1_addr, 1000000);
 
-        initialize(&owner); // stability pool
-        init_pool<WETH>(&owner);
+        initialize(owner); // stability pool
+        init_pool<WETH>(owner);
                 
-        deposit(&account1, 400000);
+        deposit(account1, 400000);
 
-        withdraw(&account1, 300000);
+        withdraw(account1, 300000);
         assert!(left() == 100000, 0);
         assert!(total_deposited() == 100000, 0);
-        assert!(usdz::balance_of(signer::address_of(&account1)) == 900000, 0);
-        assert!(stb_usdz::balance_of(signer::address_of(&account1)) == 100000, 0);
+        assert!(usdz::balance_of(account1_addr) == 900000, 0);
+        assert!(stb_usdz::balance_of(account1_addr) == 100000, 0);
     }
 
     #[test(owner=@leizd,account1=@0x111,account2=@0x222,aptos_framework=@aptos_framework)]
     #[expected_failure]
-    public entry fun test_withdraw_without_any_deposit(owner: signer, account1: signer, account2: signer) acquires StabilityPool, StabilityPoolEventHandle {
-        let owner_addr = signer::address_of(&owner);
-        let account1_addr = signer::address_of(&account1);
-        let account2_addr = signer::address_of(&account2);
+    public entry fun test_withdraw_without_any_deposit(owner: &signer, account1: &signer, account2: &signer) acquires StabilityPool, StabilityPoolEventHandle {
+        let owner_addr = signer::address_of(owner);
+        let account1_addr = signer::address_of(account1);
+        let account2_addr = signer::address_of(account2);
         account::create_account_for_test(owner_addr);
         account::create_account_for_test(account1_addr);
         account::create_account_for_test(account2_addr);
 
-        test_coin::init_weth(&owner);
-        initializer::initialize(&owner);
-        initializer::register<WETH>(&account1);
-        managed_coin::mint<WETH>(&owner, account1_addr, 1000000);
-        initializer::register<USDZ>(&account1);
+        test_coin::init_weth(owner);
+        trove::initialize(owner);
+        test_initializer::register<WETH>(account1);
+        managed_coin::mint<WETH>(owner, account1_addr, 1000000);
+        test_initializer::register<USDZ>(account1);
         usdz::mint_for_test(account1_addr, 1000000);
 
-        initialize(&owner); // stability pool
-        init_pool<WETH>(&owner);
+        initialize(owner); // stability pool
+        init_pool<WETH>(owner);
                 
-        deposit(&account1, 400000);
-        withdraw(&account2, 300000);
+        deposit(account1, 400000);
+        withdraw(account2, 300000);
     }
 
     #[test(owner=@leizd,account1=@0x111,account2=@0x222,aptos_framework=@aptos_framework)]
-    public entry fun test_borrow_from_stability_pool(owner: signer, account1: signer, account2: signer) acquires StabilityPool, Balance, StabilityPoolEventHandle {
-        let owner_addr = signer::address_of(&owner);
-        let account1_addr = signer::address_of(&account1);
-        let account2_addr = signer::address_of(&account2);
+    public entry fun test_borrow_from_stability_pool(owner: &signer, account1: &signer, account2: &signer) acquires StabilityPool, Balance, StabilityPoolEventHandle {
+        let owner_addr = signer::address_of(owner);
+        let account1_addr = signer::address_of(account1);
+        let account2_addr = signer::address_of(account2);
         account::create_account_for_test(owner_addr);
         account::create_account_for_test(account1_addr);
         account::create_account_for_test(account2_addr);
 
-        test_coin::init_weth(&owner);
-        initializer::initialize(&owner);
-        initializer::register<WETH>(&account1);
-        managed_coin::mint<WETH>(&owner, account1_addr, 1000000);
-        initializer::register<WETH>(&account2);
-        initializer::register<USDZ>(&account1);
+        test_coin::init_weth(owner);
+        trove::initialize(owner);
+        test_initializer::register<WETH>(account1);
+        managed_coin::mint<WETH>(owner, account1_addr, 1000000);
+        test_initializer::register<WETH>(account2);
+        test_initializer::register<USDZ>(account1);
         usdz::mint_for_test(account1_addr, 1000000);
-        initializer::register<USDZ>(&account2);
+        test_initializer::register<USDZ>(account2);
 
-        initialize(&owner); // stability pool
-        init_pool<WETH>(&owner);
+        initialize(owner); // stability pool
+        init_pool<WETH>(owner);
                 
-        deposit(&account1, 400000);
+        deposit(account1, 400000);
         let borrowed = borrow_internal<WETH>(300000);
         coin::deposit(account2_addr, borrowed);
         assert!(left() == 100000, 0);
         assert!(total_deposited() == 400000, 0);
         assert!(total_borrowed<WETH>() == 301500, 0);
-        assert!(usdz::balance_of(signer::address_of(&account2)) == 300000, 0);
-        assert!(stb_usdz::balance_of(signer::address_of(&account1)) == 400000, 0);
+        assert!(usdz::balance_of(account2_addr) == 300000, 0);
+        assert!(stb_usdz::balance_of(account1_addr) == 400000, 0);
     }
 
     #[test(owner=@leizd,account1=@0x111,account2=@0x222,aptos_framework=@aptos_framework)]
-    public entry fun test_repay_to_stability_pool(owner: signer, account1: signer, account2: signer) acquires StabilityPool, Balance, StabilityPoolEventHandle {
-        let owner_addr = signer::address_of(&owner);
-        let account1_addr = signer::address_of(&account1);
-        let account2_addr = signer::address_of(&account2);
+    public entry fun test_repay_to_stability_pool(owner: &signer, account1: &signer, account2: &signer) acquires StabilityPool, Balance, StabilityPoolEventHandle {
+        let owner_addr = signer::address_of(owner);
+        let account1_addr = signer::address_of(account1);
+        let account2_addr = signer::address_of(account2);
         account::create_account_for_test(owner_addr);
         account::create_account_for_test(account1_addr);
         account::create_account_for_test(account2_addr);
 
-        test_coin::init_weth(&owner);
-        initializer::initialize(&owner);
-        initializer::register<WETH>(&account1);
-        managed_coin::mint<WETH>(&owner, account1_addr, 1000000);
-        initializer::register<WETH>(&account2);
-        initializer::register<USDZ>(&account1);
+        test_coin::init_weth(owner);
+        trove::initialize(owner);
+        test_initializer::register<WETH>(account1);
+        managed_coin::mint<WETH>(owner, account1_addr, 1000000);
+        test_initializer::register<WETH>(account2);
+        test_initializer::register<USDZ>(account1);
         usdz::mint_for_test(account1_addr, 1000000);
-        initializer::register<USDZ>(&account2);
+        test_initializer::register<USDZ>(account2);
 
-        initialize(&owner); // stability pool
-        init_pool<WETH>(&owner);
+        initialize(owner); // stability pool
+        init_pool<WETH>(owner);
                 
-        deposit(&account1, 400000);
+        deposit(account1, 400000);
         let borrowed = borrow_internal<WETH>(300000);
         coin::deposit(account2_addr, borrowed);
         // let repayed = coin::withdraw<USDZ>(&account2, 200000);
-        repay_internal<WETH>(&account2, 200000);
+        repay_internal<WETH>(account2, 200000);
         assert!(left() == 298500, 0);
         assert!(collected_fee() == 1500, 0);
         assert!(total_deposited() == 400000, 0);
         assert!(total_borrowed<WETH>() == 101500, 0);
-        assert!(usdz::balance_of(signer::address_of(&account2)) == 100000, 0);
-        assert!(stb_usdz::balance_of(signer::address_of(&account1)) == 400000, 0);
+        assert!(usdz::balance_of(account2_addr) == 100000, 0);
+        assert!(stb_usdz::balance_of(account1_addr) == 400000, 0);
     }
 }

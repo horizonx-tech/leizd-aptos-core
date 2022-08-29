@@ -11,7 +11,6 @@ module leizd::test_initializer {
     use leizd::debt;
 
     // initializer.move (avoid the dependency cycle)
-    #[test_only]
     public fun register<C>(account: &signer) {
         managed_coin::register<C>(account);
         collateral::register<C>(account);
