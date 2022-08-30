@@ -27,18 +27,22 @@ module leizd::position {
         borrowed: u64,
     }
 
-    public entry fun initialize(account: &signer) {
-        move_to(account, Account {
-            addr: signer::address_of(account),
-            rebalance_on: true,
-            types: vector::empty<string::String>(),
-        });
-        move_to(account, Position<Asset> {
-            balance: table::new<string::String,Balance<Asset>>(),
-        });
-        move_to(account, Position<Shadow> {
-            balance: table::new<string::String,Balance<Shadow>>(),
-        });
+    // Called by leizd::pool
+
+    public(friend) fun initialize_if_necessary(account: &signer) {
+        if (!exists<Account>(signer::address_of(account))) {
+            move_to(account, Account {
+                addr: signer::address_of(account),
+                rebalance_on: true,
+                types: vector::empty<string::String>(),
+            });
+            move_to(account, Position<Asset> {
+                balance: table::new<string::String,Balance<Asset>>(),
+            });
+            move_to(account, Position<Shadow> {
+                balance: table::new<string::String,Balance<Shadow>>(),
+            });
+        }
     }
 
     public(friend) fun take_deposit_position<C,P>(addr: address, amount: u64) acquires Account, Position {
@@ -343,7 +347,7 @@ module leizd::position {
         test_initializer::register<WETH>(account1);
         test_coin::init_weth(owner);
 
-        initialize(account1);
+        initialize_if_necessary(account1);
         let account_ref = borrow_global_mut<Account>(account1_addr);
         update_position<WETH,Asset>(account_ref, 10000, true, true);
 
@@ -369,7 +373,7 @@ module leizd::position {
         test_coin::init_weth(owner);
         test_coin::init_uni(owner);
 
-        initialize(account1);
+        initialize_if_necessary(account1);
         let account1_ref = borrow_global_mut<Account>(account1_addr);
         update_position<WETH,Asset>(account1_ref, 10000, true, true); // deposit WETH
         update_position<WETH,Shadow>(account1_ref, 8000, false, true); // borrow USDZ
@@ -406,7 +410,46 @@ module leizd::position {
         test_coin::init_weth(owner);
         test_coin::init_uni(owner);
 
-        initialize(account1);
+        initialize_if_necessary(account1);
+        let account1_ref = borrow_global_mut<Account>(account1_addr);
+        update_position<WETH,Asset>(account1_ref, 10000, true, true); // deposit WETH
+        update_position<WETH,Shadow>(account1_ref, 8000, false, true); // borrow USDZ
+        update_position<UNI,Shadow>(account1_ref, 8000, true, true); // deposit USDZ
+        update_position<UNI,Asset>(account1_ref, 4000, false, true); // borrow UNI
+        update_position<UNI,Asset>(account1_ref, 2000, false, false); // repay UNI
+        update_position<WETH,Asset>(account1_ref, 400, true, false); // withdraw WETH
+
+        assert!(vector::contains<string::String>(&account1_ref.types, &type_info::type_name<WETH>()), 0);
+        assert!(vector::contains<string::String>(&account1_ref.types, &type_info::type_name<UNI>()), 0);
+        assert!(vector::length<string::String>(&account1_ref.types) == 2, 0);
+        let asset_ref = borrow_global<Position<Asset>>(account1_addr);
+        let shadow_ref = borrow_global<Position<Shadow>>(account1_addr);
+        let weth_asset = table::borrow<string::String,Balance<Asset>>(&asset_ref.balance, type_info::type_name<WETH>());
+        let weth_shadow = table::borrow<string::String,Balance<Shadow>>(&shadow_ref.balance, type_info::type_name<WETH>());
+        assert!(weth_asset.deposited == 9600, 0);
+        assert!(weth_shadow.borrowed == 8000, 0);
+        let uni_asset = table::borrow<string::String,Balance<Asset>>(&asset_ref.balance, type_info::type_name<UNI>());
+        let uni_shadow = table::borrow<string::String,Balance<Shadow>>(&shadow_ref.balance, type_info::type_name<UNI>());
+        assert!(uni_shadow.deposited == 8000, 0);
+        assert!(uni_asset.borrowed == 2000, 0);
+
+        // if WETH = $1 && UNI = $1
+        assert!(utilization_of(account1_ref, type_info::type_name<WETH>()) == 833333333, 0);
+        assert!(utilization_of(account1_ref, type_info::type_name<UNI>()) == 250000000, 0);
+    }
+
+    #[test(owner=@leizd,account1=@0x111,aptos_framework=@aptos_framework)]
+    public entry fun test_rebalance(owner: &signer, account1: &signer) acquires Account, Position {
+        let owner_addr = signer::address_of(owner);
+        let account1_addr = signer::address_of(account1);
+        account::create_account_for_test(owner_addr);
+        account::create_account_for_test(account1_addr);
+        test_initializer::register<WETH>(account1);
+        test_initializer::register<UNI>(account1);
+        test_coin::init_weth(owner);
+        test_coin::init_uni(owner);
+
+        initialize_if_necessary(account1);
         let account1_ref = borrow_global_mut<Account>(account1_addr);
         update_position<WETH,Asset>(account1_ref, 10000, true, true); // deposit WETH
         update_position<WETH,Shadow>(account1_ref, 8000, false, true); // borrow USDZ

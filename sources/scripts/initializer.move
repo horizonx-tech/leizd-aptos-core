@@ -7,7 +7,6 @@ module leizd::initializer {
     use leizd::collateral_only;
     use leizd::debt;
     use leizd::trove;
-    use leizd::position;
     use leizd::stability_pool;
 
     public entry fun initialize(owner: &signer) {
@@ -15,10 +14,6 @@ module leizd::initializer {
         repository::initialize(owner);
         trove::initialize(owner);
         stability_pool::initialize(owner);
-    }
-
-    public entry fun initialize_by_users(account: &signer) {
-        position::initialize(account);
     }
 
     public entry fun register<C>(account: &signer) {
