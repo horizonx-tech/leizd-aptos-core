@@ -97,4 +97,9 @@ module leizd::math128 {
         let result = pow(10, 0);
         assert!(result == 1, 0);
     }
+
+    #[test]
+    public entry fun test_to_share() {
+        assert!(to_share(100, 500, 100000) == 20000, 0);
+    }
 }
