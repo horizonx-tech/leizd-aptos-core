@@ -77,7 +77,6 @@ module leizd::position {
             let account_ref = borrow_global<Account>(addr);
 
             // insufficient volume
-            // let insufficient_deposited_map = simple_map::create<string::String,u64>();
             let insufficient_deposited_key = vector::empty<string::String>();
             let insufficient_deposited_value = vector::empty<u64>();
             let insufficient_deposited_sum = 0;
@@ -95,7 +94,6 @@ module leizd::position {
             };
 
             // extra volume
-            // let extra_deposited_map = simple_map::create<string::String,u64>();
             let extra_deposited_key = vector::empty<string::String>();
             let extra_deposited_value = vector::empty<u64>();
             let extra_deposited_sum = 0;
@@ -125,7 +123,7 @@ module leizd::position {
                 let insufficient_key = vector::borrow<string::String>(&insufficient_deposited_key, i-1);
                 let insufficient_value = vector::pop_back<u64>(&mut insufficient_deposited_value);
 
-                // let extra_key = vector::borrow<string::String>(&insufficient_deposited_key, i-1);
+                let extra_key = vector::borrow<string::String>(&insufficient_deposited_key, i-1);
                 let extra_value = vector::pop_back<u64>(&mut extra_deposited_value);
 
                 if (extra_value >= insufficient_value) {
@@ -133,9 +131,11 @@ module leizd::position {
                     let required_value = insufficient_value;
                     // 1. shadow
                     let shadow_balance = table::borrow<string::String,Balance<Shadow>>(&shadow_position_ref.balance, *insufficient_key);
-                    if (shadow_balance.deposited >= required_value) {
+                    let shadow_deposited_value = price_oracle::volume(extra_key, shadow_balance.deposited);
+                    if (shadow_deposited_value >= required_value) {
                         // enough with the shadow
-                        // table::upsert<string::String,Balance<Shadow>>(&mut shadow_position_ref.balance, *insufficient_key, (shadow_balance.deposited - required_value));
+                        // let deposited = table::borrow_mut<string::String,Balance<Shadow>>(&mut shadow_position_ref.balance, *insufficient_key);
+                        // *deposited =  (shadow_deposited_value - required_value);
                         // TODO: change the balance on pool
                         return true
                     } else {
@@ -321,13 +321,13 @@ module leizd::position {
     use aptos_framework::comparator;
 
     #[test_only]
-    use leizd::test_common::{Self,WETH,UNI};
+    use leizd::test_coin::{Self,WETH,UNI};
     #[test_only]
     use aptos_framework::account;
     #[test_only]
-    use leizd::initializer;
-    #[test_only]
     use leizd::usdz::{USDZ};
+    #[test_only]
+    use leizd::test_initializer;
 
     #[test]
     public entry fun test_is_shadow() {
@@ -340,8 +340,8 @@ module leizd::position {
         let account1_addr = signer::address_of(account1);
         account::create_account_for_test(owner_addr);
         account::create_account_for_test(account1_addr);
-        initializer::register<WETH>(account1);
-        test_common::init_weth(owner);
+        test_initializer::register<WETH>(account1);
+        test_coin::init_weth(owner);
 
         initialize(account1);
         let account_ref = borrow_global_mut<Account>(account1_addr);
@@ -363,11 +363,11 @@ module leizd::position {
         let account1_addr = signer::address_of(account1);
         account::create_account_for_test(owner_addr);
         account::create_account_for_test(account1_addr);
-        initializer::register<WETH>(account1);
-        initializer::register<UNI>(account1);
-        initializer::register<USDZ>(account1);
-        test_common::init_weth(owner);
-        test_common::init_uni(owner);
+        test_initializer::register<WETH>(account1);
+        test_initializer::register<UNI>(account1);
+        test_initializer::register<USDZ>(account1);
+        test_coin::init_weth(owner);
+        test_coin::init_uni(owner);
 
         initialize(account1);
         let account1_ref = borrow_global_mut<Account>(account1_addr);
@@ -401,10 +401,10 @@ module leizd::position {
         let account1_addr = signer::address_of(account1);
         account::create_account_for_test(owner_addr);
         account::create_account_for_test(account1_addr);
-        initializer::register<WETH>(account1);
-        initializer::register<UNI>(account1);
-        test_common::init_weth(owner);
-        test_common::init_uni(owner);
+        test_initializer::register<WETH>(account1);
+        test_initializer::register<UNI>(account1);
+        test_coin::init_weth(owner);
+        test_coin::init_uni(owner);
 
         initialize(account1);
         let account1_ref = borrow_global_mut<Account>(account1_addr);
