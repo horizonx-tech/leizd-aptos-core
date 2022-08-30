@@ -5,6 +5,7 @@
 /// # Borrow
 /// # Repay
 /// # Liquidate
+/// # Rebalance
 module leizd::pool {
     use std::signer;
     use aptos_std::event;
@@ -26,6 +27,7 @@ module leizd::pool {
     use leizd::price_oracle;
     use leizd::constant;
     use leizd::dex_facade;
+    use leizd::position;
 
     friend leizd::system_administrator;
 
@@ -51,6 +53,7 @@ module leizd::pool {
         total_conly_deposits: u128, // collateral only
         total_borrows: u128,
         last_updated: u64,
+        protocol_fees: u64,
     }
 
     // Events
@@ -169,6 +172,8 @@ module leizd::pool {
         is_shadow: bool
     ) acquires Pool, Storage, PoolEventHandle {
         assert!(is_available<C>(), 0);
+        position::initialize_if_necessary(account);
+
         if (is_shadow) {
             deposit_shadow<C>(account, depositor_addr, amount, is_collateral_only);
         } else {
@@ -210,6 +215,7 @@ module leizd::pool {
         is_shadow: bool
     ) acquires Pool, Storage, PoolEventHandle {
         assert!(is_available<C>(), 0);
+
         if (is_shadow) {
             withdraw_shadow<C>(depositor, receiver_addr, amount, is_collateral_only, 0);
         } else {
@@ -245,6 +251,8 @@ module leizd::pool {
         is_shadow: bool
     ) acquires Pool, Storage, PoolEventHandle {
         assert!(is_available<C>(), 0);
+        position::initialize_if_necessary(account);
+
         if (is_shadow) {
             borrow_shadow<C>(borrower_addr, receiver_addr, amount);
         } else {
@@ -269,6 +277,7 @@ module leizd::pool {
         is_shadow: bool
     ) acquires Pool, Storage, PoolEventHandle {
         assert!(is_available<C>(), 0);
+        
         if (is_shadow) {
             repay_shadow<C>(account, amount);
         } else {
@@ -327,6 +336,7 @@ module leizd::pool {
             is_collateral_only,
             storage_ref
         );
+        position::take_deposit_position<C,Asset>(depositor_addr, amount);
     }
 
     fun deposit_shadow<C>(
@@ -347,6 +357,7 @@ module leizd::pool {
             is_collateral_only,
             storage_ref
         );
+        position::take_deposit_position<C,Shadow>(depositor_addr, amount);
     }
 
     fun deposit_internal<C,P>(
@@ -391,6 +402,7 @@ module leizd::pool {
         coin::deposit<C>(reciever_addr, coin::extract(&mut pool_ref.asset, amount_to_transfer));
         withdraw_internal<C,Asset>(depositor, (amount as u128), is_collateral_only, storage_ref);
         assert!(is_asset_solvent<C>(signer::address_of(depositor)),0);
+        position::cancel_deposit_position<C,Asset>(signer::address_of(depositor), amount);
     }
 
     fun withdraw_shadow<C>(
@@ -410,6 +422,7 @@ module leizd::pool {
         coin::deposit<USDZ>(reciever_addr, coin::extract(&mut pool_ref.shadow, amount_to_transfer));
         withdraw_internal<C,Shadow>(depositor, (amount as u128), is_collateral_only, storage_ref);
         assert!(is_shadow_solvent<C>(signer::address_of(depositor)),0);
+        position::cancel_deposit_position<C,Shadow>(signer::address_of(depositor), amount);
     }
 
     fun withdraw_internal<C,P>(
@@ -459,6 +472,7 @@ module leizd::pool {
         coin::deposit<C>(receiver_addr, deposited);
         borrow_internal<C,Asset>(borrower_addr, amount, fee, storage_ref);
         assert!(is_asset_solvent<C>(borrower_addr),0);
+        position::take_borrow_position<C,Asset>(borrower_addr, amount);
     }
 
     fun borrow_shadow<C>(
@@ -488,6 +502,7 @@ module leizd::pool {
 
         borrow_internal<C,Shadow>(borrower_addr, amount, fee, storage_ref);
         assert!(is_shadow_solvent<C>(borrower_addr),0);
+        position::take_borrow_position<C,Shadow>(borrower_addr, amount);
     }
 
 
@@ -539,6 +554,7 @@ module leizd::pool {
 
         storage_ref.total_borrows = storage_ref.total_borrows - (repaid_amount as u128);
         debt::burn<C,Asset>(account, repaid_share);
+        position::cancel_borrow_position<C,Asset>(signer::address_of(account), amount);
     }
 
     fun repay_shadow<C>(
@@ -558,6 +574,7 @@ module leizd::pool {
 
         storage_ref.total_borrows = storage_ref.total_borrows - (repaid_amount as u128);
         debt::burn<C,Shadow>(account, repaid_share);
+        position::cancel_borrow_position<C,Shadow>(signer::address_of(account), amount);
     }
 
 
@@ -621,21 +638,35 @@ module leizd::pool {
         user_ltv
     }
 
+    /// This function is called on every user action.
     fun accrue_interest<C,P>(storage_ref: &mut Storage<C,P>) {
         let now = timestamp::now_microseconds();
+
+        // This is the first time
+        if (storage_ref.last_updated == 0) {
+            storage_ref.last_updated = now;
+            return
+        };
+
+        if (storage_ref.last_updated == now) {
+            return
+        };
+
         let protocol_share_fee = repository::share_fee();
         let rcomp = interest_rate::update_interest_rate<C>(
-            now,
             storage_ref.total_deposits,
             storage_ref.total_borrows,
             storage_ref.last_updated,
+            now,
         );
-        let accrued_interest = storage_ref.total_borrows * (rcomp as u128) / constant::e18_u128();
-        let protocol_share = (accrued_interest as u64) * protocol_share_fee / constant::e18_u64();
+        let accrued_interest = storage_ref.total_borrows * rcomp / interest_rate::precision();
+        let protocol_share = accrued_interest * (protocol_share_fee as u128) / interest_rate::precision();
+        let new_protocol_fees = storage_ref.protocol_fees + (protocol_share as u64);
 
-        let depositors_share = (accrued_interest as u64) - protocol_share;
+        let depositors_share = accrued_interest - protocol_share;
         storage_ref.total_borrows = storage_ref.total_borrows + accrued_interest;
-        storage_ref.total_deposits = storage_ref.total_deposits + (depositors_share as u128);
+        storage_ref.total_deposits = storage_ref.total_deposits + depositors_share;
+        storage_ref.protocol_fees = new_protocol_fees;
         storage_ref.last_updated = now;
     }
 
@@ -656,6 +687,7 @@ module leizd::pool {
             total_conly_deposits: 0,
             total_borrows: 0,
             last_updated: 0,
+            protocol_fees: 0,
         }
     }
 

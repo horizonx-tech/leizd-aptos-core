@@ -27,18 +27,22 @@ module leizd::position {
         borrowed: u64,
     }
 
-    public entry fun initialize(account: &signer) {
-        move_to(account, Account {
-            addr: signer::address_of(account),
-            rebalance_on: true,
-            types: vector::empty<string::String>(),
-        });
-        move_to(account, Position<Asset> {
-            balance: table::new<string::String,Balance<Asset>>(),
-        });
-        move_to(account, Position<Shadow> {
-            balance: table::new<string::String,Balance<Shadow>>(),
-        });
+    // Called by leizd::pool
+
+    public(friend) fun initialize_if_necessary(account: &signer) {
+        if (!exists<Account>(signer::address_of(account))) {
+            move_to(account, Account {
+                addr: signer::address_of(account),
+                rebalance_on: true,
+                types: vector::empty<string::String>(),
+            });
+            move_to(account, Position<Asset> {
+                balance: table::new<string::String,Balance<Asset>>(),
+            });
+            move_to(account, Position<Shadow> {
+                balance: table::new<string::String,Balance<Shadow>>(),
+            });
+        }
     }
 
     public(friend) fun take_deposit_position<C,P>(addr: address, amount: u64) acquires Account, Position {
@@ -82,7 +86,7 @@ module leizd::position {
             let insufficient_deposited_sum = 0;
             let i = 0;
             while (i < unsafe_length) {
-                let target_type = vector::borrow<string::String>(&account_ref.types, i);
+                let target_type = vector::borrow<string::String>(&unsafe, i);
                 let target_borrowed = borrowed_volume(account_ref, *target_type);
                 let required_deposited = target_borrowed * repository::precision() / repository::lt_of(*target_type);
                 let current_deposit = deposited_volume(account_ref, *target_type);
@@ -90,7 +94,7 @@ module leizd::position {
                 vector::push_back<string::String>(&mut insufficient_deposited_key, *target_type);
                 vector::push_back<u64>(&mut insufficient_deposited_value, diff);
                 insufficient_deposited_sum = insufficient_deposited_sum + diff;
-                i = i + i;
+                i = i + 1;
             };
 
             // extra volume
@@ -99,7 +103,7 @@ module leizd::position {
             let extra_deposited_sum = 0;
             let i = 0;
             while (i < safe_length) {
-                let target_type = vector::borrow<string::String>(&account_ref.types, i);
+                let target_type = vector::borrow<string::String>(&safe, i);
                 let target_borrowed = borrowed_volume(account_ref, *target_type);
                 let required_deposited = target_borrowed * repository::precision() / repository::lt_of(*target_type);
                 let current_deposit = deposited_volume(account_ref, *target_type);
@@ -107,7 +111,7 @@ module leizd::position {
                 vector::push_back<string::String>(&mut extra_deposited_key, *target_type);
                 vector::push_back<u64>(&mut extra_deposited_value, diff);
                 extra_deposited_sum = extra_deposited_sum + diff;
-                i = i + i;
+                i = i + 1;
             };
 
             // insufficient overall
@@ -118,8 +122,8 @@ module leizd::position {
             // rebalance
             let i = vector::length<u64>(&insufficient_deposited_value);
             // let asset_position_ref = borrow_global<Position<Asset>>(account_ref.addr);
-            let shadow_position_ref = borrow_global<Position<Shadow>>(account_ref.addr);
-            while (i == 0) {
+            let shadow_position_ref = borrow_global_mut<Position<Shadow>>(account_ref.addr);
+            while (i != 0) {
                 let insufficient_key = vector::borrow<string::String>(&insufficient_deposited_key, i-1);
                 let insufficient_value = vector::pop_back<u64>(&mut insufficient_deposited_value);
 
@@ -127,15 +131,18 @@ module leizd::position {
                 let extra_value = vector::pop_back<u64>(&mut extra_deposited_value);
 
                 if (extra_value >= insufficient_value) {
-                    // rebalance extra_value -> insufficient_value
+                    // rebalance from extra_value to insufficient_value
                     let required_value = insufficient_value;
                     // 1. shadow
-                    let shadow_balance = table::borrow<string::String,Balance<Shadow>>(&shadow_position_ref.balance, *insufficient_key);
-                    let shadow_deposited_value = price_oracle::volume(extra_key, shadow_balance.deposited);
+                    let balance_ref = &mut shadow_position_ref.balance;
+                    let insufficient_shadow_balance = table::borrow_mut<string::String,Balance<Shadow>>(balance_ref, *insufficient_key);
+                    // let extra_shadow_balance = table::borrow_mut<string::String,Balance<Shadow>>(balance_ref, *insufficient_key);
+                    let shadow_deposited_value = price_oracle::volume(extra_key, insufficient_shadow_balance.deposited);
                     if (shadow_deposited_value >= required_value) {
                         // enough with the shadow
-                        // let deposited = table::borrow_mut<string::String,Balance<Shadow>>(&mut shadow_position_ref.balance, *insufficient_key);
-                        // *deposited =  (shadow_deposited_value - required_value);
+                        let required_amount = price_oracle::amount(insufficient_key, required_value);
+                        insufficient_shadow_balance.deposited = insufficient_shadow_balance.deposited + required_amount;
+                        // extra_shadow_balance.deposited = extra_shadow_balance.deposited - required_amount;
                         // TODO: change the balance on pool
                         return true
                     } else {
@@ -200,7 +207,7 @@ module leizd::position {
             if (is_safe(account_ref, *target)) {
                 vector::push_back<string::String>(&mut safe, *target);
             } else {
-                vector::push_back<string::String>(&mut safe, *target);
+                vector::push_back<string::String>(&mut unsafe, *target);
             };
             i = i + 1;
         };
@@ -250,7 +257,7 @@ module leizd::position {
     }
 
     fun is_safe(account_ref: &Account, name: string::String): bool acquires Position {
-        utilization_of(account_ref, name) > repository::lt_of(name)
+        utilization_of(account_ref, name) < repository::lt_of(name)
     }
 
     fun update_position<C,P>(
@@ -343,7 +350,7 @@ module leizd::position {
         test_initializer::register<WETH>(account1);
         test_coin::init_weth(owner);
 
-        initialize(account1);
+        initialize_if_necessary(account1);
         let account_ref = borrow_global_mut<Account>(account1_addr);
         update_position<WETH,Asset>(account_ref, 10000, true, true);
 
@@ -369,7 +376,7 @@ module leizd::position {
         test_coin::init_weth(owner);
         test_coin::init_uni(owner);
 
-        initialize(account1);
+        initialize_if_necessary(account1);
         let account1_ref = borrow_global_mut<Account>(account1_addr);
         update_position<WETH,Asset>(account1_ref, 10000, true, true); // deposit WETH
         update_position<WETH,Shadow>(account1_ref, 8000, false, true); // borrow USDZ
@@ -406,7 +413,7 @@ module leizd::position {
         test_coin::init_weth(owner);
         test_coin::init_uni(owner);
 
-        initialize(account1);
+        initialize_if_necessary(account1);
         let account1_ref = borrow_global_mut<Account>(account1_addr);
         update_position<WETH,Asset>(account1_ref, 10000, true, true); // deposit WETH
         update_position<WETH,Shadow>(account1_ref, 8000, false, true); // borrow USDZ
@@ -432,5 +439,48 @@ module leizd::position {
         // if WETH = $1 && UNI = $1
         assert!(utilization_of(account1_ref, type_info::type_name<WETH>()) == 833333333, 0);
         assert!(utilization_of(account1_ref, type_info::type_name<UNI>()) == 250000000, 0);
+    }
+
+    #[test(owner=@leizd,account1=@0x111,aptos_framework=@aptos_framework)]
+    public entry fun test_rebalance(owner: &signer, account1: &signer) acquires Account, Position {
+        let owner_addr = signer::address_of(owner);
+        let account1_addr = signer::address_of(account1);
+        account::create_account_for_test(owner_addr);
+        account::create_account_for_test(account1_addr);
+        test_initializer::register<WETH>(account1);
+        test_initializer::register<UNI>(account1);
+        test_coin::init_weth(owner);
+        test_coin::init_uni(owner);
+        repository::initialize(owner);
+
+        initialize_if_necessary(account1);
+        let account1_ref = borrow_global_mut<Account>(account1_addr);
+
+        repository::update_config<WETH>(owner, 80*repository::precision()/100, 90*repository::precision()/100);
+        repository::update_config<UNI>(owner, 70*repository::precision()/100, 80*repository::precision()/100);
+
+        // ETH: 80% (MAX: 90%)
+        update_position<WETH,Asset>(account1_ref, 10000, true, true); // deposit WETH
+        update_position<WETH,Shadow>(account1_ref, 8000, false, true); // borrow USDZ
+        assert!(utilization_of(account1_ref, type_info::type_name<WETH>()) == 800000000, 0);
+
+        // UNI: 85% (MAX: 80%)
+        update_position<UNI,Shadow>(account1_ref, 8000, true, true); // deposit USDZ
+        update_position<UNI,Asset>(account1_ref, 6800, false, true); // borrow UNI
+        assert!(utilization_of(account1_ref, type_info::type_name<UNI>()) == 850000000, 0);
+
+        // Safe: ETH / Unsafe: UNI
+        let safe_pos = safe_positions(account1_addr);
+        let unsafe_pos = unsafe_positions(account1_addr);
+        assert!(vector::length<string::String>(&safe_pos) == 1, 0);
+        assert!(vector::contains<string::String>(&safe_pos, &type_info::type_name<WETH>()), 0);
+        assert!(vector::length<string::String>(&unsafe_pos) == 1, 0);
+        assert!(vector::contains<string::String>(&unsafe_pos, &type_info::type_name<UNI>()), 0);
+        assert!(should_rebalance(account1_addr), 0);
+
+        // 5% UNI (Insufficient $400) <- 10% ETH (Extra $1000)
+        assert!(rebalance_if_possible(account1_addr), 0);
+        // TODO assert UNI-Shadow 8500
+        // TODO assert WETH-Asset ?
     }
 }

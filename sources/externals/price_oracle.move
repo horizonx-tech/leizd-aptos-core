@@ -15,4 +15,8 @@ module leizd::price_oracle {
     public fun volume(name: &string::String, amount: u64): u64 {
         amount * price_of(name)
     }
+
+    public fun amount(name: &string::String, volume: u64): u64 {
+        volume / price_of(name)
+    }
 }
