@@ -12,6 +12,9 @@ module leizd::interest_rate {
     /// PRECISION is 9 decimal points used for integer calculations
     const PRECISION: u128 = 1000000000;
 
+    /// 18 decimal points used for k value
+    const DOUBLE_SCALE: u128 = 1000000000000000000;
+
     /// maximum value of compound interest: 2^16 * 1e9
     const RCOMP_MAX: u128 = 65536000000000;
 
@@ -164,7 +167,7 @@ module leizd::interest_rate {
                     &i128::from(cref.uopt)
                 )
             ), 
-            &i128::from(PRECISION)
+            &i128::from(DOUBLE_SCALE)
         );
         
         let rp; // possibly negative
