@@ -51,6 +51,7 @@ module leizd::pool {
         total_conly_deposits: u128, // collateral only
         total_borrows: u128,
         last_updated: u64,
+        protocol_fees: u64,
     }
 
     // Events
@@ -621,21 +622,35 @@ module leizd::pool {
         user_ltv
     }
 
+    /// This function is called on every user action.
     fun accrue_interest<C,P>(storage_ref: &mut Storage<C,P>) {
         let now = timestamp::now_microseconds();
+
+        // This is the first time
+        if (storage_ref.last_updated == 0) {
+            storage_ref.last_updated = now;
+            return
+        };
+
+        if (storage_ref.last_updated == now) {
+            return
+        };
+
         let protocol_share_fee = repository::share_fee();
         let rcomp = interest_rate::update_interest_rate<C>(
-            now,
             storage_ref.total_deposits,
             storage_ref.total_borrows,
             storage_ref.last_updated,
+            now,
         );
-        let accrued_interest = storage_ref.total_borrows * (rcomp as u128) / constant::e18_u128();
-        let protocol_share = (accrued_interest as u64) * protocol_share_fee / constant::e18_u64();
+        let accrued_interest = storage_ref.total_borrows * rcomp / interest_rate::precision();
+        let protocol_share = accrued_interest * (protocol_share_fee as u128) / interest_rate::precision();
+        let new_protocol_fees = storage_ref.protocol_fees + (protocol_share as u64);
 
-        let depositors_share = (accrued_interest as u64) - protocol_share;
+        let depositors_share = accrued_interest - protocol_share;
         storage_ref.total_borrows = storage_ref.total_borrows + accrued_interest;
-        storage_ref.total_deposits = storage_ref.total_deposits + (depositors_share as u128);
+        storage_ref.total_deposits = storage_ref.total_deposits + depositors_share;
+        storage_ref.protocol_fees = new_protocol_fees;
         storage_ref.last_updated = now;
     }
 
@@ -656,6 +671,7 @@ module leizd::pool {
             total_conly_deposits: 0,
             total_borrows: 0,
             last_updated: 0,
+            protocol_fees: 0,
         }
     }
 
