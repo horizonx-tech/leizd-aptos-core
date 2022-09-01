@@ -2,18 +2,77 @@
 module leizd::trove {
     use aptos_framework::coin;
     use leizd::usdz;
+    use aptos_std::event;
+    use leizd::permission;
     //use leizd::price_oracle;
 
     struct Trove<phantom C> has key {
         coin: coin::Coin<C>
     }
 
+    struct SupportedCoin<phantom C> has key {
+        coin: coin::Coin<C>
+    }
+
+    struct OpenTroveEvent has store, drop {
+        caller: address,
+        amount: u64,
+    }
+
+    struct CloseTroveEvent has store, drop {
+        caller: address,
+    }
+
+    struct RepayEvent has store, drop {
+        caller: address,
+        amount: u64,
+    }
+
+    struct TroveEventHandle<phantom C> has key, store {
+        open_trove_event: event::EventHandle<OpenTroveEvent>,
+        close_trove_event: event::EventHandle<CloseTroveEvent>,
+        repay_event: event::EventHandle<RepayEvent>,
+    }    
+    
     public entry fun initialize(owner: &signer) {
+        permission::assert_owner(signer::address_of(owner));
         usdz::initialize(owner);
+        move_to(owner, SupportedCoin<USDC> {
+            coin: coin::zero<USDC>(),
+        });
+        move_to(owner, SupportedCoin<USDT> {
+            coin: coin::zero<USDT>(),
+        });
+    }
+
+    public entry fun add_supported_coin<C>(owner: &signer) {
+        move_to(owner, SupportedCoin<C> {
+            coin: coin::zero<C>(),
+        });
     }
 
     public entry fun open_trove<C>(account: &signer, amount: u64) acquires Trove {
         open_trove_internal<C>(account, amount, borrowable_usdz<C>(amount));
+    }
+
+    fun  validate_open_trove<C>() {
+        validate_internal<C>()
+    }
+
+    fun validate_close_trove<C>() {
+        validate_internal<C>()
+    }
+
+    fun validate_repay<C>() {
+        validate_internal<C>()
+    }
+
+    fun validate_internal<C>() {
+        assert!(is_coin_supported<C>(), 0)
+    }
+
+    fun is_coin_supported<C>(): bool {
+        exists<SupportedCoin<C>>(@leizd)
     }
 
     public entry fun close_trove<C>(account: &signer) acquires Trove {
@@ -35,6 +94,7 @@ module leizd::trove {
 
 
     fun open_trove_internal<C>(account: &signer, collateral_amount: u64, amount: u64) acquires Trove {
+        validate_open_trove<C>();
         let initialized = exists<Trove<C>>(signer::address_of(account));
         if (!initialized) {
             move_to(account, Trove<C> {
@@ -47,17 +107,18 @@ module leizd::trove {
     }
 
     fun close_trove_internal<C>(account: &signer) acquires Trove {
+        validate_close_trove<C>();
         let trove = borrow_global_mut<Trove<C>>(signer::address_of(account));
         let balance = coin::value(&trove.coin);
         repay_internal<C>(account, balance);
     }
 
     fun repay_internal<C>(account: &signer, collateral_amount: u64) acquires Trove {
+        validate_repay<C>();
         let trove = borrow_global_mut<Trove<C>>(signer::address_of(account));
         usdz::burn(account, borrowable_usdz<C>(collateral_amount));
         coin::deposit<C>(signer::address_of(account), coin::extract(&mut trove.coin, collateral_amount));
     }
-
 
 
     #[test_only]
@@ -70,7 +131,7 @@ module leizd::trove {
     #[test_only]
     use aptos_framework::account;
     #[test_only]
-    use leizd::test_coin::{Self,USDC,USDT};
+    use leizd::test_coin::{Self,USDC,USDT,WETH};
     #[test_only]
     use aptos_framework::signer;
     #[test_only]
@@ -85,16 +146,19 @@ module leizd::trove {
         account::create_account_for_test(account1_addr);
         test_coin::init_usdc(owner);
         test_coin::init_usdt(owner);
+        test_coin::init_weth(owner);
         managed_coin::register<USDC>(account1);
         managed_coin::register<USDT>(account1);
+        managed_coin::register<WETH>(account1);
         managed_coin::register<usdz::USDZ>(account1);
         managed_coin::mint<USDC>(owner, account1_addr, usdc_amt);
         managed_coin::mint<USDT>(owner, account1_addr, usdc_amt);
+        managed_coin::mint<WETH>(owner, account1_addr, usdc_amt);
         initialize(owner);
     }
 
     #[test(owner=@leizd,account1=@0x111,aptos_framework=@aptos_framework)]
-    fun test_open_trove(owner: signer, account1: signer) acquires Trove{
+    fun test_open_trove(owner: signer, account1: signer) acquires Trove {
         set_up(&owner, &account1);
         let account1_addr = signer::address_of(&account1);
         let usdc_amt = 10000;
