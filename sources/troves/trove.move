@@ -20,9 +20,10 @@ module leizd::trove {
         close_trove_internal<C>(account);
     }
 
-    public entry fun repay<C>(_account: &signer, _amount: u64) {
-
+    public entry fun repay<C>(account: &signer, collateral_amount: u64) acquires Trove {
+        repay_internal<C>(account, collateral_amount);
     }
+
 
     public entry fun borrowable_usdz<C>(amount:u64):u64 {
         //let price = price_oracle::price<C>();
@@ -34,8 +35,6 @@ module leizd::trove {
 
 
     fun open_trove_internal<C>(account: &signer, collateral_amount: u64, amount: u64) acquires Trove {
-        validate_open_trove<C>(account, amount);
-        // TODO: active pool -> increate USDZ debt
         let initialized = exists<Trove<C>>(signer::address_of(account));
         if (!initialized) {
             move_to(account, Trove<C> {
@@ -47,75 +46,18 @@ module leizd::trove {
         usdz::mint(account, amount);
     }
 
-    fun close_trove_internal<C>(accont: &signer) acquires Trove {
-        let trove = borrow_global_mut<Trove<C>>(signer::address_of(accont));
+    fun close_trove_internal<C>(account: &signer) acquires Trove {
+        let trove = borrow_global_mut<Trove<C>>(signer::address_of(account));
         let balance = coin::value(&trove.coin);
-        usdz::burn(accont, borrowable_usdz<C>(balance));
-        coin::deposit<C>(signer::address_of(accont), coin::extract(&mut trove.coin, balance));
+        repay_internal<C>(account, balance);
     }
 
-    fun validate_open_trove<C>(account: &signer, amount: u64) {
-        require_valid_max_fee_percentage(account);
-        require_trove_is_not_active(account);
-        require_at_least_min_net_debt<C>(account, amount);
-        let icr = current_collateral_ratio(account);
-        if (is_recovery_mode()) {
-            require_icr_is_above_ccr(icr);
-        } else {
-            require_icr_is_above_mcr(icr);
-            requir_new_tcr_is_above_ccr(0);
-        };
+    fun repay_internal<C>(account: &signer, collateral_amount: u64) acquires Trove {
+        let trove = borrow_global_mut<Trove<C>>(signer::address_of(account));
+        usdz::burn(account, borrowable_usdz<C>(collateral_amount));
+        coin::deposit<C>(signer::address_of(account), coin::extract(&mut trove.coin, collateral_amount));
     }
 
-
-    fun is_recovery_mode(): bool {
-        // TODO: implement
-        false
-    }
-
-    fun require_valid_max_fee_percentage(_account: &signer) {
-        // TODO: implement
-    }
-
-    fun require_trove_is_not_active(_account: &signer) {
-        // TODO: implement
-    }
-
-    fun require_at_least_min_net_debt<C>(_account: &signer, _amount: u64) {
-        // TODO: implement
-    }
-
-    fun new_collateral_ratio<C>(_account: &signer, _amount: u64) :u64 {
-        // TODO: implement
-        1
-    }
-
-    fun current_collateral_ratio(_acccount: &signer): u64 {
-        // TODO: implement
-        return 1
-    }
-
-    fun nominal_collateral_ratio(_account: &signer): u64 {
-        // TODO: implement
-        1
-    }
-
-    fun require_icr_is_above_ccr(_new_icr: u64) {
-        // TODO: implement
-    }
-
-    fun minimum_collateral_ratio(): u64 {
-        // TODO: implement
-        1
-    }
-
-    fun require_icr_is_above_mcr(_new_icr: u64) {
-        // TODO: implement
-    }
-
-    fun requir_new_tcr_is_above_ccr(_new_rcr: u64) {
-        // TODO: implement
-    }
 
 
     #[test_only]
@@ -128,7 +70,7 @@ module leizd::trove {
     #[test_only]
     use aptos_framework::account;
     #[test_only]
-    use leizd::test_coin::{Self,USDC};
+    use leizd::test_coin::{Self,USDC,USDT};
     #[test_only]
     use aptos_framework::signer;
     #[test_only]
@@ -142,9 +84,12 @@ module leizd::trove {
         account::create_account_for_test(owner_addr);
         account::create_account_for_test(account1_addr);
         test_coin::init_usdc(owner);
+        test_coin::init_usdt(owner);
         managed_coin::register<USDC>(account1);
+        managed_coin::register<USDT>(account1);
         managed_coin::register<usdz::USDZ>(account1);
         managed_coin::mint<USDC>(owner, account1_addr, usdc_amt);
+        managed_coin::mint<USDT>(owner, account1_addr, usdc_amt);
         initialize(owner);
     }
 
@@ -167,6 +112,12 @@ module leizd::trove {
             &usdz::balance_of(account1_addr),
             &(want * 2)
         )), 0);
+        // add USDT
+        open_trove<USDT>(&account1, 10000);
+        assert!(comparator::is_equal(&comparator::compare(
+            &usdz::balance_of(account1_addr),
+            &(want * 3)
+        )), 0);
     }
 
 
@@ -179,6 +130,22 @@ module leizd::trove {
         assert!(coin::balance<USDC>(account1_addr) == 10000, 0);
         let trove = borrow_global<Trove<USDC>>(account1_addr);
         assert!(coin::value(&trove.coin) == 0, 0);
+    }
+
+    #[test(owner=@leizd,account1=@0x111,aptos_framework=@aptos_framework)]
+    fun test_repay(owner: signer, account1: signer) acquires Trove {
+        set_up(&owner, &account1);
+        open_trove<USDC>(&account1, 10000);
+        repay<USDC>(&account1, 5000);
+        let account1_addr = signer::address_of(&account1);
+        assert!(coin::balance<USDC>(account1_addr) == 5000, 0);
+        let trove = borrow_global<Trove<USDC>>(account1_addr);
+        assert!(coin::value(&trove.coin) == 5000, 0);
+        // repay more
+        repay<USDC>(&account1, 5000);
+        assert!(coin::balance<USDC>(account1_addr) == 10000, 0);
+        let trove2 = borrow_global<Trove<USDC>>(account1_addr);
+        assert!(coin::value(&trove2.coin) == 0, 0);
     }
 
     #[test(owner=@leizd,aptos_framework=@aptos_framework)]

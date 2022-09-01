@@ -4,12 +4,17 @@ module leizd::test_coin {
     struct USDC {}
     struct WETH {}
     struct UNI {}
+    struct USDT {}
 
     use aptos_framework::coin;
     use aptos_framework::managed_coin;
 
     public fun init_usdc(account: &signer) {
         init_coin<USDC>(account, b"USDC", 6);
+    }
+
+    public fun init_usdt(account: &signer) {
+        init_coin<USDT>(account, b"USDT", 6);
     }
 
     public fun init_weth(account: &signer) {
