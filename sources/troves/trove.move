@@ -11,9 +11,7 @@ module leizd::trove {
         coin: coin::Coin<C>
     }
 
-    struct SupportedCoin<phantom C> has key {
-        coin: coin::Coin<C>
-    }
+    struct SupportedCoin<phantom C> has key {}
 
     struct OpenTroveEvent has store, drop {
         caller: address,
@@ -42,9 +40,7 @@ module leizd::trove {
 
     public entry fun add_supported_coin<C>(owner: &signer) {
         permission::assert_owner(signer::address_of(owner));
-        move_to(owner, SupportedCoin<C> {
-            coin: coin::zero<C>(),
-        });
+        move_to(owner, SupportedCoin<C> {});
     }
 
     public entry fun open_trove<C>(account: &signer, amount: u64) acquires Trove {
