@@ -3,28 +3,17 @@ module leizd::trove {
     use aptos_framework::coin;
     use leizd::usdz;
     use leizd::price_oracle;
-    use std::string;
-    use aptos_framework::table;
 
     struct Trove<phantom C> has key {
         coin: coin::Coin<C>,
-    }
-
-    struct Position<phantom P> has key {
-        balance: table::Table<string::String,Balance<P>>,
-    }
-
-    struct Balance<phantom P> has store {
-        deposited: u64,
-        borrowed: u64,
     }
 
     public entry fun initialize(owner: &signer) {
         usdz::initialize(owner);
     }
 
-    public entry fun open_trove<C>(account: &signer, amount: u64) {
-        open_trove_internal<C>(account, borrowable_usdz<C>(amount));
+    public entry fun open_trove<C>(account: &signer, amount: u64) acquires Trove {
+        open_trove_internal<C>(account, amount, borrowable_usdz<C>(amount));
     }
 
     public entry fun close_trove<C>(account: &signer, amount: u64) {
@@ -39,14 +28,18 @@ module leizd::trove {
         (price * amount) * decimals_usdz / decimals
     }
 
-    fun open_trove_internal<C>(account: &signer, amount: u64) {
+    fun open_trove_internal<C>(account: &signer, collateral_amount: u64, amount: u64) acquires Trove {
         validate_open_trove<C>(account, amount);
         // TODO: active pool -> increate USDZ debt
+        let initialized = exists<Trove<C>>(signer::address_of(account));
+        if (!initialized) {
+            move_to(account, Trove<C> {
+                    coin: coin::zero<C>()
+            });
+        };
+        let trove = borrow_global_mut<Trove<C>>(signer::address_of(account));
+        coin::merge(&mut trove.coin, coin::withdraw<C>(account, collateral_amount));        
         usdz::mint(account, amount);
-
-        move_to(account, Trove<C> {
-            coin: coin::zero<C>()
-        });
     }
 
     fun close_trove_internal<C>(_accont: &signer, _amount:u64) {
@@ -117,8 +110,8 @@ module leizd::trove {
 
 
     #[test_only]
-    fun open_trove_for_test<C>(account: &signer, amount: u64) {
-        open_trove_internal<C>(account, amount);
+    fun open_trove_for_test<C>(account: &signer, amount: u64) acquires Trove {
+        open_trove_internal<C>(account, amount, amount);
     }
 
     #[test_only]
@@ -126,21 +119,21 @@ module leizd::trove {
     #[test_only]
     use aptos_framework::account;
     #[test_only]
-    use leizd::test_common::{Self,USDC};
+    use leizd::test_coin::{Self,USDC};
     #[test_only]
     use aptos_framework::signer;
     #[test_only]
     use aptos_std::comparator;
 
     #[test(owner=@leizd,account1=@0x111,aptos_framework=@aptos_framework)]
-    fun test_open_trove(owner: signer, account1: signer)  {
+    fun test_open_trove(owner: signer, account1: signer) acquires Trove{
         let owner_addr = signer::address_of(&owner);
         let account1_addr = signer::address_of(&account1);
         let usdc_amt = 10000;
         let want = usdc_amt * 3;
         account::create_account_for_test(owner_addr);
         account::create_account_for_test(account1_addr);
-        test_common::init_usdc(&owner);
+        test_coin::init_usdc(&owner);
         managed_coin::register<USDC>(&account1);
         managed_coin::register<usdz::USDZ>(&account1);
         managed_coin::mint<USDC>(&owner, account1_addr, usdc_amt);
@@ -150,6 +143,7 @@ module leizd::trove {
             &usdz::balance_of(account1_addr),
             &want
         )), 0);
+        assert!(coin::balance<USDC>(account1_addr) == 0, 0);
     }
 
     #[test(owner=@leizd,aptos_framework=@aptos_framework)]
@@ -158,7 +152,7 @@ module leizd::trove {
         account::create_account_for_test(owner_addr);
         let usdc_amt = 12345678;
         let usdc_want = usdc_amt * 3;
-        test_common::init_usdc(&owner);
+        test_coin::init_usdc(&owner);
         initialize(&owner);
         assert!(comparator::is_equal(&comparator::compare(
             &borrowable_usdz<USDC>(usdc_amt),
