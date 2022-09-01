@@ -46,6 +46,7 @@ module leizd::trove {
     }
 
     public entry fun add_supported_coin<C>(owner: &signer) {
+        permission::assert_owner(signer::address_of(owner));
         move_to(owner, SupportedCoin<C> {
             coin: coin::zero<C>(),
         });
