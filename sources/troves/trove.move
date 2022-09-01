@@ -1,8 +1,9 @@
 // TODO: This file and related logic should be moved under `leizd-aptos-stablecoin`
 module leizd::trove {
+    use std::signer;
+    use aptos_std::event;
     use aptos_framework::coin;
     use leizd::usdz;
-    use aptos_std::event;
     use leizd::permission;
     //use leizd::price_oracle;
 
@@ -37,12 +38,6 @@ module leizd::trove {
     public entry fun initialize(owner: &signer) {
         permission::assert_owner(signer::address_of(owner));
         usdz::initialize(owner);
-        move_to(owner, SupportedCoin<USDC> {
-            coin: coin::zero<USDC>(),
-        });
-        move_to(owner, SupportedCoin<USDT> {
-            coin: coin::zero<USDT>(),
-        });
     }
 
     public entry fun add_supported_coin<C>(owner: &signer) {
@@ -134,8 +129,6 @@ module leizd::trove {
     #[test_only]
     use leizd::test_coin::{Self,USDC,USDT,WETH};
     #[test_only]
-    use aptos_framework::signer;
-    #[test_only]
     use aptos_std::comparator;
 
     #[test_only]
@@ -156,6 +149,8 @@ module leizd::trove {
         managed_coin::mint<USDT>(owner, account1_addr, usdc_amt);
         managed_coin::mint<WETH>(owner, account1_addr, usdc_amt);
         initialize(owner);
+        add_supported_coin<USDC>(owner);
+        add_supported_coin<USDT>(owner);
     }
 
     #[test(owner=@leizd,account1=@0x111,aptos_framework=@aptos_framework)]
