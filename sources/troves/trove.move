@@ -2,6 +2,7 @@
 module leizd::trove {
     use aptos_framework::coin;
     use leizd::usdz;
+    use leizd::math64;
     use aptos_std::event;
     use leizd::permission;
     //use leizd::price_oracle;
@@ -90,7 +91,7 @@ module leizd::trove {
         let price = 1;
         let decimals = (coin::decimals<C>() as u64);
         let decimals_usdz = (coin::decimals<usdz::USDZ>() as u64);
-        (price * amount) * decimals_usdz / decimals
+        (price * amount) * (math64::pow(10, decimals_usdz) / (math64::pow(10, decimals)))
     }
 
 
@@ -163,7 +164,7 @@ module leizd::trove {
         set_up(&owner, &account1);
         let account1_addr = signer::address_of(&account1);
         let usdc_amt = 10000;
-        let want = usdc_amt * 3;
+        let want = usdc_amt * math64::pow(10, 12);
         open_trove<USDC>(&account1, 10000);
         assert!(comparator::is_equal(&comparator::compare(
             &usdz::balance_of(account1_addr),
@@ -218,7 +219,7 @@ module leizd::trove {
         let owner_addr = signer::address_of(&owner);
         account::create_account_for_test(owner_addr);
         let usdc_amt = 12345678;
-        let usdc_want = usdc_amt * 3;
+        let usdc_want = usdc_amt * math64::pow(10, 12);
         test_coin::init_usdc(&owner);
         initialize(&owner);
         assert!(comparator::is_equal(&comparator::compare(
