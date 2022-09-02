@@ -28,23 +28,27 @@ module leizd::price_oracle {
     fun price_internal(aggregator: address): u128 {
         let latest_value = aggregator::latest_value(aggregator);
         let (value, _, _) = math::unpack(latest_value);
-        value / math::pow_10(9) // temp
+        value / math::pow_10(9) // TODO: modify scaling (currently, temp)
     }
 
-    public fun price<C>(): u64 {
-        (price_internal(@leizd) as u64) // TOOD: convert type_args to address
+    public fun price<C>(): u64 acquires AggregatorStorage {
+        let key = type_info::type_name<C>();
+        let aggrs = &borrow_global<AggregatorStorage>(permission::owner_address()).aggregators;
+        let aggregator_address = table::borrow<string::String, address>(aggrs, key);
+        (price_internal(*aggregator_address) as u64)
     }
 
-    public fun price_of(name: &string::String): u64 {
-        name;
-        (price_internal(@leizd) as u64) // TOOD: convert name(type_name) to address
+    public fun price_of(name: &string::String): u64 acquires AggregatorStorage {
+        let aggrs = &borrow_global<AggregatorStorage>(permission::owner_address()).aggregators;
+        let aggregator_address = table::borrow<string::String, address>(aggrs, *name);
+        (price_internal(*aggregator_address) as u64)
     }
 
-    public fun volume(name: &string::String, amount: u64): u64 {
+    public fun volume(name: &string::String, amount: u64): u64 acquires AggregatorStorage {
         amount * price_of(name)
     }
 
-    public fun amount(name: &string::String, volume: u64): u64 {
+    public fun amount(name: &string::String, volume: u64): u64 acquires AggregatorStorage {
         volume / price_of(name)
     }
 
@@ -79,29 +83,8 @@ module leizd::price_oracle {
         initialize(owner);
         add_aggregator<test_coin::USDC>(account, @0x111AAA);
     }
-    #[test_only]
-    public fun initialize_oracle_for_test(owner: &signer) {
-        aggregator::new_test(owner, 1, 0, false);
-    }
-    #[test(leizd = @leizd)]
-    fun test_price(leizd: &signer) {
-        initialize_oracle_for_test(leizd);
-        assert!(price<test_coin::USDC>() == 1, 0);
-        assert!(price<test_coin::WETH>() == 1, 0);
-        assert!(price<test_coin::UNI>() == 1, 0);
-        assert!(price<test_coin::USDT>() == 1, 0);
-    }
-    #[test(leizd = @leizd)]
-    fun test_price_of(leizd: &signer) {
-        initialize_oracle_for_test(leizd);
-        assert!(price_of(&type_info::type_name<test_coin::USDC>()) == 1, 0);
-        assert!(price_of(&type_info::type_name<test_coin::WETH>()) == 1, 0);
-        assert!(price_of(&type_info::type_name<test_coin::UNI>()) == 1, 0);
-        assert!(price_of(&type_info::type_name<test_coin::USDT>()) == 1, 0);
-    }
-
     #[test(owner = @leizd, usdc_aggr = @0x111AAA, weth_aggr = @0x222AAA)]
-    fun test_temp_end_to_end(owner: &signer, usdc_aggr: &signer, weth_aggr: &signer) acquires AggregatorStorage {
+    fun test_end_to_end(owner: &signer, usdc_aggr: &signer, weth_aggr: &signer) acquires AggregatorStorage {
         aggregator::new_test(usdc_aggr, 2, 0, false);
         aggregator::new_test(weth_aggr, 3, 0, false);
 
@@ -111,5 +94,36 @@ module leizd::price_oracle {
 
         assert!(price_internal(signer::address_of(usdc_aggr)) == 2, 0);
         assert!(price_internal(signer::address_of(weth_aggr)) == 3, 0);
+        assert!(price<test_coin::USDC>() == 2, 0);
+        assert!(price<test_coin::WETH>() == 3, 0);
+        assert!(price_of(&type_info::type_name<test_coin::USDC>()) == 2, 0);
+        assert!(price_of(&type_info::type_name<test_coin::WETH>()) == 3, 0);
     }
+    #[test_only]
+    public fun initialize_oracle_for_test(owner: &signer) acquires AggregatorStorage {
+        aggregator::new_test(owner, 1, 0, false);
+        let owner_address = signer::address_of(owner);
+        initialize(owner);
+        add_aggregator<test_coin::USDC>(owner, owner_address);
+        add_aggregator<test_coin::WETH>(owner, owner_address);
+        add_aggregator<test_coin::UNI>(owner, owner_address);
+        add_aggregator<test_coin::USDT>(owner, owner_address);
+    }
+    #[test(leizd = @leizd)]
+    fun test_price_after_initialize_oracle_for_test(leizd: &signer) acquires AggregatorStorage {
+        initialize_oracle_for_test(leizd);
+        assert!(price<test_coin::USDC>() == 1, 0);
+        assert!(price<test_coin::WETH>() == 1, 0);
+        assert!(price<test_coin::UNI>() == 1, 0);
+        assert!(price<test_coin::USDT>() == 1, 0);
+    }
+    #[test(leizd = @leizd)]
+    fun test_price_of_after_initialize_oracle_for_test(leizd: &signer) acquires AggregatorStorage {
+        initialize_oracle_for_test(leizd);
+        assert!(price_of(&type_info::type_name<test_coin::USDC>()) == 1, 0);
+        assert!(price_of(&type_info::type_name<test_coin::WETH>()) == 1, 0);
+        assert!(price_of(&type_info::type_name<test_coin::UNI>()) == 1, 0);
+        assert!(price_of(&type_info::type_name<test_coin::USDT>()) == 1, 0);
+    }
+
 }
