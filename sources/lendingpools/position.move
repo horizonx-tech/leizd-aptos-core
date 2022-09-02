@@ -375,6 +375,7 @@ module leizd::position {
         test_initializer::register<USDZ>(account1);
         test_coin::init_weth(owner);
         test_coin::init_uni(owner);
+        price_oracle::initialize_oracle_for_test(owner);
 
         initialize_if_necessary(account1);
         let account1_ref = borrow_global_mut<Account>(account1_addr);
@@ -412,6 +413,7 @@ module leizd::position {
         test_initializer::register<UNI>(account1);
         test_coin::init_weth(owner);
         test_coin::init_uni(owner);
+        price_oracle::initialize_oracle_for_test(owner);
 
         initialize_if_necessary(account1);
         let account1_ref = borrow_global_mut<Account>(account1_addr);
@@ -452,6 +454,7 @@ module leizd::position {
         test_coin::init_weth(owner);
         test_coin::init_uni(owner);
         repository::initialize(owner);
+        price_oracle::initialize_oracle_for_test(owner);
 
         initialize_if_necessary(account1);
         let account1_ref = borrow_global_mut<Account>(account1_addr);

@@ -877,6 +877,7 @@ module leizd::pool {
         account::create_account_for_test(owner_addr);
         account::create_account_for_test(account1_addr);
         test_coin::init_weth(owner);
+        price_oracle::initialize_oracle_for_test(owner);
         initializer::initialize(owner);
         initializer::register<WETH>(account1);
         managed_coin::mint<WETH>(owner, account1_addr, 1000000);
@@ -898,6 +899,7 @@ module leizd::pool {
         account::create_account_for_test(owner_addr);
         account::create_account_for_test(account1_addr);
         test_coin::init_weth(owner);
+        price_oracle::initialize_oracle_for_test(owner);
         initializer::initialize(owner);
         initializer::register<WETH>(account1);
         managed_coin::mint<WETH>(owner, account1_addr, 1000000);
@@ -926,6 +928,7 @@ module leizd::pool {
         account::create_account_for_test(account2_addr);
         test_coin::init_weth(owner);
         test_coin::init_uni(owner);
+        price_oracle::initialize_oracle_for_test(owner);
         initializer::initialize(owner);
         initializer::register<UNI>(account1);
         managed_coin::mint<UNI>(owner, account1_addr, 1000000);
@@ -937,7 +940,6 @@ module leizd::pool {
         initializer::register<UNI>(account2);
         initializer::register<USDZ>(account2);
 
-        
         init_pool<WETH>(owner);
         init_pool<UNI>(owner);
 
@@ -975,6 +977,7 @@ module leizd::pool {
         account::create_account_for_test(account2_addr);
         test_coin::init_weth(owner);
         test_coin::init_uni(owner);
+        price_oracle::initialize_oracle_for_test(owner);
         initializer::initialize(owner);
         initializer::register<UNI>(account1);
         managed_coin::mint<UNI>(owner, account1_addr, 1000000);
@@ -985,7 +988,7 @@ module leizd::pool {
         managed_coin::mint<WETH>(owner, account2_addr, 1000000);
         initializer::register<UNI>(account2);
         initializer::register<USDZ>(account2);
-        
+
         init_pool<WETH>(owner);
         init_pool<UNI>(owner);
 
