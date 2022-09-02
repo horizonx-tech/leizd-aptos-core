@@ -125,5 +125,4 @@ module leizd::price_oracle {
         assert!(price_of(&type_info::type_name<test_coin::UNI>()) == 1, 0);
         assert!(price_of(&type_info::type_name<test_coin::USDT>()) == 1, 0);
     }
-
 }
