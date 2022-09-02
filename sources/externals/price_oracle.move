@@ -99,4 +99,17 @@ module leizd::price_oracle {
         assert!(price_of(&type_info::type_name<test_coin::UNI>()) == 1, 0);
         assert!(price_of(&type_info::type_name<test_coin::USDT>()) == 1, 0);
     }
+
+    #[test(owner = @leizd, usdc_aggr = @0x111AAA, weth_aggr = @0x222AAA)]
+    fun test_temp_end_to_end(owner: &signer, usdc_aggr: &signer, weth_aggr: &signer) acquires AggregatorStorage {
+        aggregator::new_test(usdc_aggr, 2, 0, false);
+        aggregator::new_test(weth_aggr, 3, 0, false);
+
+        initialize(owner);
+        add_aggregator<test_coin::USDC>(owner, signer::address_of(usdc_aggr));
+        add_aggregator<test_coin::WETH>(owner, signer::address_of(weth_aggr));
+
+        assert!(price_internal(signer::address_of(usdc_aggr)) == 2, 0);
+        assert!(price_internal(signer::address_of(weth_aggr)) == 3, 0);
+    }
 }
