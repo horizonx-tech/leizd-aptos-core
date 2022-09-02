@@ -1,8 +1,25 @@
 module leizd::price_oracle {
 
+    use std::signer;
     use std::string;
+    use aptos_std::type_info;
+    use aptos_framework::table;
     use switchboard::aggregator;
     use switchboard::math;
+
+    struct AggregatorStorage has key {
+        aggregators: table::Table<string::String, address>
+    }
+
+    public entry fun initialize(owner: &signer) {
+        move_to(owner, AggregatorStorage { aggregators: table::new<string::String, address>() });
+    }
+
+    public entry fun add_aggregator<C>(owner: &signer, aggregator: address) acquires AggregatorStorage {
+        let key = type_info::type_name<C>();
+        let aggrs = &mut borrow_global_mut<AggregatorStorage>(signer::address_of(owner)).aggregators;
+        table::add<string::String, address>(aggrs, key, aggregator)
+    }
 
     fun price_internal(aggregator: address): u128 {
         let latest_value = aggregator::latest_value(aggregator);
@@ -28,9 +45,25 @@ module leizd::price_oracle {
     }
 
     #[test_only]
-    use aptos_std::type_info;
-    #[test_only]
     use leizd::test_coin;
+    #[test(owner = @leizd)]
+    fun test_initialize(owner: &signer) {
+        initialize(owner);
+        assert!(exists<AggregatorStorage>(signer::address_of(owner)), 0);
+    }
+    #[test(owner = @leizd)]
+    fun test_add_aggregator(owner: &signer) acquires AggregatorStorage {
+        initialize(owner);
+        add_aggregator<test_coin::USDC>(owner, @0x111AAA);
+        add_aggregator<test_coin::WETH>(owner, @0x222AAA);
+        let aggrs = &borrow_global<AggregatorStorage>(signer::address_of(owner)).aggregators;
+        let aggr_usdc = table::borrow<string::String, address>(aggrs, type_info::type_name<test_coin::USDC>());
+        assert!(aggr_usdc == &@0x111AAA, 0);
+        let aggr_weth = table::borrow<string::String, address>(aggrs, type_info::type_name<test_coin::WETH>());
+        assert!(aggr_weth == &@0x222AAA, 0);
+        assert!(!table::contains<string::String, address>(aggrs, type_info::type_name<test_coin::UNI>()), 0);
+        assert!(!table::contains<string::String, address>(aggrs, type_info::type_name<test_coin::USDT>()), 0);
+    }
     #[test_only]
     public fun initialize_oracle_for_test(owner: &signer) {
         aggregator::new_test(owner, 1, 0, false);
