@@ -6,18 +6,22 @@ module leizd::price_oracle {
     use aptos_framework::table;
     use switchboard::aggregator;
     use switchboard::math;
+    use leizd::permission;
 
     struct AggregatorStorage has key {
         aggregators: table::Table<string::String, address>
     }
 
     public entry fun initialize(owner: &signer) {
+        permission::assert_owner(signer::address_of(owner));
         move_to(owner, AggregatorStorage { aggregators: table::new<string::String, address>() });
     }
 
     public entry fun add_aggregator<C>(owner: &signer, aggregator: address) acquires AggregatorStorage {
+        let owner_address = signer::address_of(owner);
+        permission::assert_owner(owner_address);
         let key = type_info::type_name<C>();
-        let aggrs = &mut borrow_global_mut<AggregatorStorage>(signer::address_of(owner)).aggregators;
+        let aggrs = &mut borrow_global_mut<AggregatorStorage>(owner_address).aggregators;
         table::add<string::String, address>(aggrs, key, aggregator)
     }
 
@@ -51,6 +55,11 @@ module leizd::price_oracle {
         initialize(owner);
         assert!(exists<AggregatorStorage>(signer::address_of(owner)), 0);
     }
+    #[test(account = @0x111)]
+    #[expected_failure(abort_code = 1)]
+    fun test_initialize_with_not_owner(account: &signer) {
+        initialize(account);
+    }
     #[test(owner = @leizd)]
     fun test_add_aggregator(owner: &signer) acquires AggregatorStorage {
         initialize(owner);
@@ -63,6 +72,12 @@ module leizd::price_oracle {
         assert!(aggr_weth == &@0x222AAA, 0);
         assert!(!table::contains<string::String, address>(aggrs, type_info::type_name<test_coin::UNI>()), 0);
         assert!(!table::contains<string::String, address>(aggrs, type_info::type_name<test_coin::USDT>()), 0);
+    }
+    #[test(owner = @leizd, account = @0x111)]
+    #[expected_failure(abort_code = 1)]
+    fun test_add_aggregator_with_not_owner(owner: &signer, account: &signer) acquires AggregatorStorage {
+        initialize(owner);
+        add_aggregator<test_coin::USDC>(account, @0x111AAA);
     }
     #[test_only]
     public fun initialize_oracle_for_test(owner: &signer) {
