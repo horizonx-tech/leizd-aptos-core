@@ -17,7 +17,14 @@ module leizd::prb_math_30x9 {
 
     /// Calculates the natural exponent of x.
     public fun exp(x: u128, positive: bool): u128 {
-        // TODO: should be under 64e9 for "exp2"
+        // Without this check, the value passed to "exp2" would be less than -29897352854.
+        if (!positive && x < 20723265849) {
+            return 0
+        };
+        
+        // Without this check, the value passed to "exp2" would be greater than 64e9.
+        assert!(positive && x < 44361419583, 0);
+
         let double_scale_product = x * LOG2_E;
         exp2((double_scale_product + HALF_SCALE) / SCALE, positive)
     }

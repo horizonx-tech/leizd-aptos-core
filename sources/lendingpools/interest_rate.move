@@ -22,7 +22,7 @@ module leizd::interest_rate {
     const X_MAX: u128 = 11090370148;
 
     /// 2^98 < log2(2^128/10^9)
-    const ASSET_DATA_OVERFLOW_LIMIT: u128 = 316912650057057350374175801344;        
+    const ASSET_DATA_OVERFLOW_LIMIT: u128 = 316912650057057350374175801344;
 
     /// When `a` is less than `b` in i128.
     const LESS_THAN: u8 = 1;
