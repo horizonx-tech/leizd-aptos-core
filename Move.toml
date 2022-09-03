@@ -1,6 +1,7 @@
 [package]
 name = 'LeizdAptosCore'
 version = '0.1.0'
+upgrade_policy = "compatible"
 
 [dependencies.AptosFramework]
 git = 'https://github.com/aptos-labs/aptos-core.git'
