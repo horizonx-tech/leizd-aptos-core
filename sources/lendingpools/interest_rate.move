@@ -18,7 +18,7 @@ module leizd::interest_rate {
     /// maximum value of compound interest: 2^16 * 1e9
     const RCOMP_MAX: u128 = 65536000000000;
 
-    /// TODO: X_MAX = ln(RCOMP_MAX + 1)
+    /// X_MAX = ln(RCOMP_MAX + 1)
     const X_MAX: u128 = 11090370148;
 
     /// 2^98 < log2(2^128/10^9)

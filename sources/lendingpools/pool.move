@@ -796,6 +796,30 @@ module leizd::pool {
         assert!(total_conly_deposits<WETH,Asset>() == 0, 0);
     }
 
+    #[test(owner=@leizd,account1=@0x111,aptos_framework=@aptos_framework)]
+    public entry fun test_deposit_weth_twice_sequentially(owner: &signer, account1: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+        timestamp::set_time_has_started_for_testing(aptos_framework);
+        let owner_addr = signer::address_of(owner);
+        let account1_addr = signer::address_of(account1);
+        account::create_account_for_test(owner_addr);
+        account::create_account_for_test(account1_addr);
+        test_coin::init_weth(owner);
+        initializer::initialize(owner);
+        initializer::register<WETH>(account1);
+        managed_coin::mint<WETH>(owner, account1_addr, 1000000);
+        assert!(coin::balance<WETH>(account1_addr) == 1000000, 0);
+
+        init_pool<WETH>(owner);
+
+        timestamp::update_global_time_for_test(1662125899730897);
+        deposit<WETH>(account1, 400000, false, false);
+        timestamp::update_global_time_for_test(1662125899830897);
+        deposit<WETH>(account1, 400000, false, false);
+        assert!(coin::balance<WETH>(account1_addr) == 200000, 0);
+        assert!(total_deposits<WETH,Asset>() == 800000, 0);
+        assert!(total_conly_deposits<WETH,Asset>() == 0, 0);
+    }
+
     #[test(owner=@leizd,account1=@0x111,account2=@0x222,aptos_framework=@aptos_framework)]
     public entry fun test_deposit_weth_by_two(owner: &signer, account1: &signer, account2: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
         timestamp::set_time_has_started_for_testing(aptos_framework);
