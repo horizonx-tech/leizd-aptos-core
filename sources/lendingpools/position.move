@@ -4,7 +4,7 @@ module leizd::position {
     use std::signer;
     use std::vector;
     use std::string;
-    use aptos_framework::table;
+    use aptos_std::simple_map;
     use aptos_framework::type_info;
     use leizd::pool_type::{Asset,Shadow};
     use leizd::repository;
@@ -19,7 +19,7 @@ module leizd::position {
     }
 
     struct Position<phantom P> has key {
-        balance: table::Table<string::String,Balance<P>>,
+        balance: simple_map::SimpleMap<string::String,Balance<P>>,
     }
 
     struct Balance<phantom P> has store {
@@ -37,10 +37,10 @@ module leizd::position {
                 types: vector::empty<string::String>(),
             });
             move_to(account, Position<Asset> {
-                balance: table::new<string::String,Balance<Asset>>(),
+                balance: simple_map::create<string::String,Balance<Asset>>(),
             });
             move_to(account, Position<Shadow> {
-                balance: table::new<string::String,Balance<Shadow>>(),
+                balance: simple_map::create<string::String,Balance<Shadow>>(),
             });
         }
     }
@@ -77,90 +77,133 @@ module leizd::position {
         let (safe,unsafe) = separate_positions(addr);
         let safe_length = vector::length<string::String>(&safe);
         let unsafe_length = vector::length<string::String>(&unsafe);
-        if (safe_length != 0 && unsafe_length != 0) {
-            let account_ref = borrow_global<Account>(addr);
+        // return if there is enough position to rebalance
+        if (safe_length == 0 || unsafe_length == 0) { return false };
 
-            // insufficient volume
-            let insufficient_deposited_key = vector::empty<string::String>();
-            let insufficient_deposited_value = vector::empty<u64>();
-            let insufficient_deposited_sum = 0;
-            let i = 0;
-            while (i < unsafe_length) {
-                let target_type = vector::borrow<string::String>(&unsafe, i);
-                let target_borrowed = borrowed_volume(account_ref, *target_type);
-                let required_deposited = target_borrowed * repository::precision() / repository::lt_of(*target_type);
-                let current_deposit = deposited_volume(account_ref, *target_type);
-                let diff = required_deposited - current_deposit;
-                vector::push_back<string::String>(&mut insufficient_deposited_key, *target_type);
-                vector::push_back<u64>(&mut insufficient_deposited_value, diff);
-                insufficient_deposited_sum = insufficient_deposited_sum + diff;
-                i = i + 1;
-            };
+        let account_ref = borrow_global<Account>(addr);
 
-            // extra volume
-            let extra_deposited_key = vector::empty<string::String>();
-            let extra_deposited_value = vector::empty<u64>();
-            let extra_deposited_sum = 0;
-            let i = 0;
-            while (i < safe_length) {
-                let target_type = vector::borrow<string::String>(&safe, i);
-                let target_borrowed = borrowed_volume(account_ref, *target_type);
-                let required_deposited = target_borrowed * repository::precision() / repository::lt_of(*target_type);
-                let current_deposit = deposited_volume(account_ref, *target_type);
-                let diff = current_deposit - required_deposited;
-                vector::push_back<string::String>(&mut extra_deposited_key, *target_type);
-                vector::push_back<u64>(&mut extra_deposited_value, diff);
-                extra_deposited_sum = extra_deposited_sum + diff;
-                i = i + 1;
-            };
+        // insufficient volume
+        let insufficient_deposited_keys = vector::empty<string::String>();
+        let insufficient_deposited_values = vector::empty<u64>();
+        let insufficient_deposited_sum = 0;
+        let i = 0;
+        while (i < unsafe_length) {
+            let target_type = vector::borrow<string::String>(&unsafe, i);
+            let target_borrowed = borrowed_volume(account_ref, *target_type);
+            let required_deposited = target_borrowed * repository::precision() / repository::lt_of(*target_type);
+            let current_deposit = deposited_volume(account_ref, *target_type);
+            let diff = required_deposited - current_deposit;
+            vector::push_back<string::String>(&mut insufficient_deposited_keys, *target_type);
+            vector::push_back<u64>(&mut insufficient_deposited_values, diff);
+            insufficient_deposited_sum = insufficient_deposited_sum + diff;
+            i = i + 1;
+        };
 
-            // insufficient overall
-            if (insufficient_deposited_sum >= extra_deposited_sum) {
-                return false
-            };
+        // extra volume
+        let extra_deposited_keys = vector::empty<string::String>();
+        let extra_deposited_values = vector::empty<u64>();
+        let extra_deposited_sum = 0;
+        let i = 0;
+        while (i < safe_length) {
+            let target_type = vector::borrow<string::String>(&safe, i);
+            let target_borrowed = borrowed_volume(account_ref, *target_type);
+            let required_deposited = target_borrowed * repository::precision() / repository::lt_of(*target_type);
+            let current_deposit = deposited_volume(account_ref, *target_type);
+            let diff = current_deposit - required_deposited;
+            vector::push_back<string::String>(&mut extra_deposited_keys, *target_type);
+            vector::push_back<u64>(&mut extra_deposited_values, diff);
+            extra_deposited_sum = extra_deposited_sum + diff;
+            i = i + 1;
+        };
 
-            // rebalance
-            let i = vector::length<u64>(&insufficient_deposited_value);
-            // let asset_position_ref = borrow_global<Position<Asset>>(account_ref.addr);
-            let shadow_position_ref = borrow_global_mut<Position<Shadow>>(account_ref.addr);
-            while (i != 0) {
-                let insufficient_key = vector::borrow<string::String>(&insufficient_deposited_key, i-1);
-                let insufficient_value = vector::pop_back<u64>(&mut insufficient_deposited_value);
+        // insufficient overall
+        if (insufficient_deposited_sum >= extra_deposited_sum) {
+            return false
+        };
 
-                let extra_key = vector::borrow<string::String>(&insufficient_deposited_key, i-1);
-                let extra_value = vector::pop_back<u64>(&mut extra_deposited_value);
+        // // rebalance
+        // let asset_position_ref = borrow_global_mut<Position<Asset>>(account_ref.addr);
+        // // let shadow_position_ref = borrow_global_mut<Position<Shadow>>(account_ref.addr);
+        // let extra_index = vector::length<string::String>(&extra_deposited_keys); 
+        // let insufficient_key = vector::pop_back<string::String>(&mut insufficient_deposited_keys);
+        // while (extra_index != 0) {
+        //     let extra_key = vector::borrow<string::String>(&mut extra_deposited_keys, extra_index);
+        //     let extra_asset_balance = simple_map::borrow_mut<string::String,Balance<Asset>>(&mut asset_position_ref.balance, extra_key);
 
-                if (extra_value >= insufficient_value) {
-                    // rebalance from extra_value to insufficient_value
-                    let required_value = insufficient_value;
-                    // 1. shadow
-                    let balance_ref = &mut shadow_position_ref.balance;
-                    let insufficient_shadow_balance = table::borrow_mut<string::String,Balance<Shadow>>(balance_ref, *insufficient_key);
-                    // let extra_shadow_balance = table::borrow_mut<string::String,Balance<Shadow>>(balance_ref, *insufficient_key);
-                    let shadow_deposited_value = price_oracle::volume(extra_key, insufficient_shadow_balance.deposited);
-                    if (shadow_deposited_value >= required_value) {
-                        // enough with the shadow
-                        let required_amount = price_oracle::amount(insufficient_key, required_value);
-                        insufficient_shadow_balance.deposited = insufficient_shadow_balance.deposited + required_amount;
-                        // extra_shadow_balance.deposited = extra_shadow_balance.deposited - required_amount;
-                        // TODO: change the balance on pool
-                        return true
-                    } else {
-                        // not enough only with the shadow
-                        // table::upsert<string::String,Balance<Shadow>>(&shadow_position_ref.balance, *insufficient_key, 0);
-                        // TODO: change the balance on pool
-                    }
-                    // 2. asset
-                    // TODO: change the balance on pool
-                } else {
-                    // TODO: rebalance with all extra_value
-                    i = i - 1;
-                };
-            };        
-            true
-        } else {
-            false
-        }
+        //     // let insufficient_asset = simple_map::borrow_mut<string::String,Balance<Asset>>(&mut asset_position_ref.balance, &insufficient_key);
+        //     // if (insufficient_asset.deposited != 0)
+        //     // let extra_shadow_balance = simple_map::borrow_mut<string::String,Balance<Shadow>>(&mut shadow_position_ref.balance, extra_key);
+            
+        //     // let insufficient_shadow_balance = simple_map::borrow<string::String,Balance<Shadow>>(&mut shadow_position_ref.balance, insufficient_key);
+        //     i = i - 1;
+        // };
+
+        // while (insufficient_deposited_sum != 0) {
+            // find extra position from shadow
+                // find insufficient position from shadow
+                // find insufficient position from asset
+            // find extra position from asset
+                // find insufficient position from shadow
+                // find insufficient position from asset
+
+            // find extra position from shadow
+  
+
+
+        // while (insufficient_deposited_sum != 0) {
+        //     let insufficient_key = vector::borrow<string::String>(&insufficient_deposited_key, i-1);
+        //     let insufficient_value = vector::pop_back<u64>(&mut insufficient_deposited_value);
+
+        //     let extra_key = vector::borrow<string::String>(&insufficient_deposited_key, i-1);
+        //     let extra_value = vector::pop_back<u64>(&mut extra_deposited_value);
+
+        //     if (extra_value >= insufficient_deposited_sum) {
+        //         // rebalance from extra_value to insufficient_value
+        //         // TODO: find insufficient shadow
+        //         // TODO: find insufficient asset
+        //         // done
+        //         return true
+        //     };
+
+        //     if (extra_value >= insufficient_value) {
+        //         // rebalance from extra_value to insufficient_value
+        //         let required_value = insufficient_value;
+        //         // 1. shadow
+        //         let insufficient_shadow_balance = simple_map::borrow<string::String,Balance<Shadow>>(&mut shadow_position_ref.balance, insufficient_key);
+        //         // let extra_shadow_balance = simple_map::borrow<string::String,Balance<Shadow>>(balance_ref, extra_key);
+        //         let shadow_deposited_value = price_oracle::volume(extra_key, insufficient_shadow_balance.deposited);
+        //         if (shadow_deposited_value >= required_value) {
+        //             // enough with the shadow
+        //             let required_amount = price_oracle::amount(insufficient_key, required_value);
+        //             add_balance<Shadow>(shadow_position_ref, *insufficient_key, required_amount);
+        //             sub_balance<Shadow>(shadow_position_ref, *extra_key, required_amount);
+        //             // TODO: change the balance on pool
+        //             return true
+        //         } else {
+        //             // not enough only with the shadow
+        //             // table::upsert<string::String,Balance<Shadow>>(&shadow_position_ref.balance, *insufficient_key, 0);
+        //             // TODO: change the balance on pool
+        //         }
+        //         // 2. asset
+        //         // TODO: change the balance on pool
+        //     } else {
+        //         // TODO: rebalance with all extra_value
+        //         i = i - 1;
+        //     };
+        // };
+        true
+    }
+
+    fun add_balance<P>(position_ref: &mut Position<P>, name: string::String, required_value: u64) {
+        let required_amount = price_oracle::amount(&name, required_value);
+        let balance = simple_map::borrow_mut<string::String,Balance<P>>(&mut position_ref.balance, &name);
+        balance.deposited = balance.deposited + required_amount;
+    }
+
+    fun sub_balance<P>(position_ref: &mut Position<P>, name: string::String, required_value: u64) {
+        let required_amount = price_oracle::amount(&name, required_value);
+        let balance = simple_map::borrow_mut<string::String,Balance<P>>(&mut position_ref.balance, &name);
+        balance.deposited = balance.deposited + required_amount;
     }
 
     fun safe_positions(account_addr: address): vector<string::String> acquires Account, Position {
@@ -218,8 +261,8 @@ module leizd::position {
         if (vector::contains<string::String>(&account_ref.types, &name)) {
             let asset_position_ref = borrow_global<Position<Asset>>(account_ref.addr);
             let shadow_position_ref = borrow_global<Position<Shadow>>(account_ref.addr);
-            let asset_balance = table::borrow<string::String,Balance<Asset>>(&asset_position_ref.balance, name);
-            let shadow_balance = table::borrow<string::String,Balance<Shadow>>(&shadow_position_ref.balance, name);
+            let asset_balance = simple_map::borrow<string::String,Balance<Asset>>(&asset_position_ref.balance, &name);
+            let shadow_balance = simple_map::borrow<string::String,Balance<Shadow>>(&shadow_position_ref.balance, &name);
             let user_ltv = 
                 (price_oracle::volume(&name, asset_balance.borrowed) 
                     + price_oracle::volume(&name, shadow_balance.borrowed)) 
@@ -236,8 +279,8 @@ module leizd::position {
         if (vector::contains<string::String>(&account_ref.types, &name)) {
             let asset_position_ref = borrow_global<Position<Asset>>(account_ref.addr);
             let shadow_position_ref = borrow_global<Position<Shadow>>(account_ref.addr);
-            let asset_balance = table::borrow<string::String,Balance<Asset>>(&asset_position_ref.balance, name);
-            let shadow_balance = table::borrow<string::String,Balance<Shadow>>(&shadow_position_ref.balance, name);
+            let asset_balance = simple_map::borrow<string::String,Balance<Asset>>(&asset_position_ref.balance, &name);
+            let shadow_balance = simple_map::borrow<string::String,Balance<Shadow>>(&shadow_position_ref.balance, &name);
             (price_oracle::volume(&name, asset_balance.deposited) + price_oracle::volume(&name, shadow_balance.deposited)) 
         } else {
             0
@@ -248,8 +291,8 @@ module leizd::position {
         if (vector::contains<string::String>(&account_ref.types, &name)) {
             let asset_position_ref = borrow_global<Position<Asset>>(account_ref.addr);
             let shadow_position_ref = borrow_global<Position<Shadow>>(account_ref.addr);
-            let asset_balance = table::borrow<string::String,Balance<Asset>>(&asset_position_ref.balance, name);
-            let shadow_balance = table::borrow<string::String,Balance<Shadow>>(&shadow_position_ref.balance, name);
+            let asset_balance = simple_map::borrow<string::String,Balance<Asset>>(&asset_position_ref.balance, &name);
+            let shadow_balance = simple_map::borrow<string::String,Balance<Shadow>>(&shadow_position_ref.balance, &name);
             (price_oracle::volume(&name, asset_balance.borrowed) + price_oracle::volume(&name, shadow_balance.borrowed)) 
         } else {
             0
@@ -269,7 +312,7 @@ module leizd::position {
         let name = type_info::type_name<C>();
         let position = borrow_global_mut<Position<P>>(account_ref.addr);
         if (vector::contains<string::String>(&account_ref.types, &name)) {
-            let balance = table::borrow_mut<string::String,Balance<P>>(&mut position.balance, name);
+            let balance = simple_map::borrow_mut<string::String,Balance<P>>(&mut position.balance, &name);
             if (is_deposit && is_increase) {
                 balance.deposited = balance.deposited + amount;
             } else if (is_deposit && !is_increase) {
@@ -296,22 +339,22 @@ module leizd::position {
         vector::push_back<string::String>(&mut account_ref.types, name);
         let position = borrow_global_mut<Position<P>>(account_ref.addr);
         if (is_deposit) {
-            table::add<string::String,Balance<P>>(&mut position.balance, name, Balance { deposited: amount, borrowed: 0 });
+            simple_map::add<string::String,Balance<P>>(&mut position.balance, name, Balance { deposited: amount, borrowed: 0 });
             if (is_type_shadow<P>()) {
                 let asset_position = borrow_global_mut<Position<Asset>>(account_ref.addr);
-                table::add<string::String,Balance<Asset>>(&mut asset_position.balance, name, Balance { deposited: 0, borrowed: 0 });
+                simple_map::add<string::String,Balance<Asset>>(&mut asset_position.balance, name, Balance { deposited: 0, borrowed: 0 });
             } else {
                 let shadow_position = borrow_global_mut<Position<Shadow>>(account_ref.addr);
-                table::add<string::String,Balance<Shadow>>(&mut shadow_position.balance, name, Balance { deposited: 0, borrowed: 0 });
+                simple_map::add<string::String,Balance<Shadow>>(&mut shadow_position.balance, name, Balance { deposited: 0, borrowed: 0 });
             };
         } else {
-            table::add<string::String,Balance<P>>(&mut position.balance, name, Balance { deposited: 0, borrowed: amount });
+            simple_map::add<string::String,Balance<P>>(&mut position.balance, name, Balance { deposited: 0, borrowed: amount });
             if (is_type_shadow<P>()) {
                 let asset_position = borrow_global_mut<Position<Asset>>(account_ref.addr);
-                table::add<string::String,Balance<Asset>>(&mut asset_position.balance, name, Balance { deposited: 0, borrowed: 0 });
+                simple_map::add<string::String,Balance<Asset>>(&mut asset_position.balance, name, Balance { deposited: 0, borrowed: 0 });
             } else {
                 let shadow_position = borrow_global_mut<Position<Shadow>>(account_ref.addr);
-                table::add<string::String,Balance<Shadow>>(&mut shadow_position.balance, name, Balance { deposited: 0, borrowed: 0 });
+                simple_map::add<string::String,Balance<Shadow>>(&mut shadow_position.balance, name, Balance { deposited: 0, borrowed: 0 });
             };
         };
     }
@@ -359,7 +402,7 @@ module leizd::position {
         assert!(vector::contains<string::String>(&account_ref.types, &type_info::type_name<WETH>()), 0);
         assert!(vector::length<string::String>(&account_ref.types) == 1, 0);
         let position_ref = borrow_global_mut<Position<Asset>>(account1_addr);
-        let balance = table::borrow_mut<string::String,Balance<Asset>>(&mut position_ref.balance, type_info::type_name<WETH>());
+        let balance = simple_map::borrow_mut<string::String,Balance<Asset>>(&mut position_ref.balance, &type_info::type_name<WETH>());
         assert!(balance.deposited == 10000, 0);
         assert!(balance.borrowed == 0, 0);
     }
@@ -389,12 +432,12 @@ module leizd::position {
         assert!(vector::length<string::String>(&account1_ref.types) == 2, 0);
         let asset_ref = borrow_global<Position<Asset>>(account1_addr);
         let shadow_ref = borrow_global<Position<Shadow>>(account1_addr);
-        let weth_asset = table::borrow<string::String,Balance<Asset>>(&asset_ref.balance, type_info::type_name<WETH>());
-        let weth_shadow = table::borrow<string::String,Balance<Shadow>>(&shadow_ref.balance, type_info::type_name<WETH>());
+        let weth_asset = simple_map::borrow<string::String,Balance<Asset>>(&asset_ref.balance, &type_info::type_name<WETH>());
+        let weth_shadow = simple_map::borrow<string::String,Balance<Shadow>>(&shadow_ref.balance, &type_info::type_name<WETH>());
         assert!(weth_asset.deposited == 10000, 0);
         assert!(weth_shadow.borrowed == 8000, 0);
-        let uni_asset = table::borrow<string::String,Balance<Asset>>(&asset_ref.balance, type_info::type_name<UNI>());
-        let uni_shadow = table::borrow<string::String,Balance<Shadow>>(&shadow_ref.balance, type_info::type_name<UNI>());
+        let uni_asset = simple_map::borrow<string::String,Balance<Asset>>(&asset_ref.balance, &type_info::type_name<UNI>());
+        let uni_shadow = simple_map::borrow<string::String,Balance<Shadow>>(&shadow_ref.balance, &type_info::type_name<UNI>());
         assert!(uni_shadow.deposited == 8000, 0);
         assert!(uni_asset.borrowed == 4000, 0);
 
@@ -429,12 +472,12 @@ module leizd::position {
         assert!(vector::length<string::String>(&account1_ref.types) == 2, 0);
         let asset_ref = borrow_global<Position<Asset>>(account1_addr);
         let shadow_ref = borrow_global<Position<Shadow>>(account1_addr);
-        let weth_asset = table::borrow<string::String,Balance<Asset>>(&asset_ref.balance, type_info::type_name<WETH>());
-        let weth_shadow = table::borrow<string::String,Balance<Shadow>>(&shadow_ref.balance, type_info::type_name<WETH>());
+        let weth_asset = simple_map::borrow<string::String,Balance<Asset>>(&asset_ref.balance, &type_info::type_name<WETH>());
+        let weth_shadow = simple_map::borrow<string::String,Balance<Shadow>>(&shadow_ref.balance, &type_info::type_name<WETH>());
         assert!(weth_asset.deposited == 9600, 0);
         assert!(weth_shadow.borrowed == 8000, 0);
-        let uni_asset = table::borrow<string::String,Balance<Asset>>(&asset_ref.balance, type_info::type_name<UNI>());
-        let uni_shadow = table::borrow<string::String,Balance<Shadow>>(&shadow_ref.balance, type_info::type_name<UNI>());
+        let uni_asset = simple_map::borrow<string::String,Balance<Asset>>(&asset_ref.balance, &type_info::type_name<UNI>());
+        let uni_shadow = simple_map::borrow<string::String,Balance<Shadow>>(&shadow_ref.balance, &type_info::type_name<UNI>());
         assert!(uni_shadow.deposited == 8000, 0);
         assert!(uni_asset.borrowed == 2000, 0);
 
