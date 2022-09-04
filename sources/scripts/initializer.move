@@ -22,4 +22,41 @@ module leizd::initializer {
         collateral_only::register<C>(account);
         debt::register<C>(account);
     }
+
+    #[test_only]
+    use std::signer;
+    #[test_only]
+    use aptos_framework::account;
+    #[test_only]
+    struct TestCoin {}
+    #[test(owner = @leizd)]
+    fun test_initialize(owner: &signer) {
+        account::create_account_for_test(signer::address_of(owner));
+        initialize(owner);
+    }
+    #[test(owner = @leizd)]
+    #[expected_failure]
+    fun test_initialize_twice(owner: &signer) {
+        account::create_account_for_test(signer::address_of(owner));
+        initialize(owner);
+        initialize(owner);
+    }
+    #[test(account = @0x111)]
+    #[expected_failure]
+    fun test_initialize_with_not_owner(account: &signer) {
+        account::create_account_for_test(signer::address_of(account));
+        initialize(account);
+    }
+    #[test(account = @0x111)]
+    fun test_register(account: &signer) {
+        account::create_account_for_test(signer::address_of(account));
+        register<TestCoin>(account);
+    }
+    #[test(account = @0x111)]
+    #[expected_failure]
+    fun test_register_twice(account: &signer) {
+        account::create_account_for_test(signer::address_of(account));
+        register<TestCoin>(account);
+        register<TestCoin>(account);
+    }
 }
