@@ -32,7 +32,8 @@ module leizd::pool {
     friend leizd::system_administrator;
 
     const E_IS_ALREADY_EXISTED: u64 = 1;
-    const E_DEX_DOES_NOT_HAVE_LIQUIDITY: u64 = 2;
+    const E_IS_NOT_EXISTED: u64 = 2;
+    const E_DEX_DOES_NOT_HAVE_LIQUIDITY: u64 = 3;
 
     /// Asset Pool where users can deposit and borrow.
     /// Each asset is separately deposited into a pool.
@@ -136,6 +137,7 @@ module leizd::pool {
 
     public fun is_available<C>(): bool acquires Pool {
         let system_is_active = system_status::status();
+        assert!(is_pool_initialized<C>(), E_IS_NOT_EXISTED);
         let pool_ref = borrow_global<Pool<C>>(@leizd);
         system_is_active && pool_ref.is_active 
     }
@@ -743,8 +745,6 @@ module leizd::pool {
     use leizd::usdz;
     #[test_only]
     use leizd::initializer;
-    #[test_only]
-    use leizd::system_administrator;
 
     #[test(owner=@leizd)]
     public entry fun test_init_pool(owner: &signer) acquires Pool {
@@ -764,7 +764,6 @@ module leizd::pool {
         assert!(is_available<WETH>(), 0);
         assert!(is_pool_initialized<WETH>(), 0);
     }
-
     #[test(owner=@leizd)]
     #[expected_failure(abort_code = 1)]
     public entry fun test_init_pool_twice(owner: &signer) {
@@ -796,7 +795,7 @@ module leizd::pool {
     }
 
     #[test(owner=@leizd,account1=@0x111,aptos_framework=@aptos_framework)]
-    #[expected_failure]
+    #[expected_failure(abort_code = 2)]
     public entry fun test_deposit_dummy_weth(owner: &signer, account1: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
         timestamp::set_time_has_started_for_testing(aptos_framework);
         let owner_addr = signer::address_of(owner);
