@@ -744,14 +744,33 @@ module leizd::pool {
     #[test_only]
     use leizd::initializer;
 
-    #[test(owner=@leizd,account1=@0x111)]
-    #[expected_failure]
+    #[test(owner=@leizd)]
+    public entry fun test_init_pool(owner: &signer) acquires Pool {
+        // Prerequisite
+        let owner_address = signer::address_of(owner);
+        account::create_account_for_test(owner_address);
+        test_coin::init_weth(owner);
+        initializer::initialize(owner);
+
+        init_pool<WETH>(owner);
+
+        assert!(exists<Pool<WETH>>(owner_address), 0);
+        let pool = borrow_global<Pool<WETH>>(owner_address);
+        assert!(pool.is_active, 0);
+        assert!(coin::value<WETH>(&pool.asset) == 0, 0);
+        assert!(coin::value<USDZ>(&pool.shadow) == 0, 0);
+    }
+
+    #[test(owner=@leizd)]
+    #[expected_failure(abort_code = 1)]
     public entry fun test_init_pool_twice(owner: &signer) {
+        // Prerequisite
         account::create_account_for_test(signer::address_of(owner));
         test_coin::init_weth(owner);
         initializer::initialize(owner);
-        initializer::register<WETH>(owner);
-        initializer::register<WETH>(owner);
+
+        init_pool<WETH>(owner);
+        init_pool<WETH>(owner);
     }
 
     #[test(owner=@leizd,account1=@0x111,aptos_framework=@aptos_framework)]
