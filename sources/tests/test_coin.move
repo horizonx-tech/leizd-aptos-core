@@ -2,9 +2,9 @@
 module leizd::test_coin {
 
     struct USDC {}
+    struct USDT {}
     struct WETH {}
     struct UNI {}
-    struct USDT {}
 
     use aptos_framework::coin;
     use aptos_framework::managed_coin;

@@ -736,13 +736,15 @@ module leizd::pool {
     #[test_only]
     use aptos_framework::managed_coin;
     #[test_only]
-    use leizd::test_coin::{Self,WETH,UNI};
+    use leizd::test_coin::{Self,USDC,USDT,WETH,UNI};
     #[test_only]
     use leizd::dummy;
     #[test_only]
     use leizd::usdz;
     #[test_only]
     use leizd::initializer;
+    #[test_only]
+    use leizd::system_administrator;
 
     #[test(owner=@leizd)]
     public entry fun test_init_pool(owner: &signer) acquires Pool {
@@ -759,6 +761,8 @@ module leizd::pool {
         assert!(pool.is_active, 0);
         assert!(coin::value<WETH>(&pool.asset) == 0, 0);
         assert!(coin::value<USDZ>(&pool.shadow) == 0, 0);
+        assert!(is_available<WETH>(), 0);
+        assert!(is_pool_initialized<WETH>(), 0);
     }
 
     #[test(owner=@leizd)]
@@ -771,6 +775,24 @@ module leizd::pool {
 
         init_pool<WETH>(owner);
         init_pool<WETH>(owner);
+    }
+
+    #[test(owner=@leizd)]
+    public entry fun test_is_pool_initialized(owner: &signer) {
+        // Prerequisite
+        let owner_address = signer::address_of(owner);
+        account::create_account_for_test(owner_address);
+        initializer::initialize(owner);
+        //// init coin & pool
+        test_coin::init_weth(owner);
+        init_pool<WETH>(owner);
+        test_coin::init_usdc(owner);
+        init_pool<USDC>(owner);
+        test_coin::init_usdt(owner);
+        
+        assert!(is_pool_initialized<WETH>(), 0);
+        assert!(is_pool_initialized<USDC>(), 0);
+        assert!(!is_pool_initialized<USDT>(), 0);
     }
 
     #[test(owner=@leizd,account1=@0x111,aptos_framework=@aptos_framework)]
