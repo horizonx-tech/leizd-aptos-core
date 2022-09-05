@@ -475,7 +475,8 @@ module leizd::pool {
         accrue_interest<C,Asset>(storage_ref);
 
         let entry_fee = repository::entry_fee();
-        let fee = amount * entry_fee / constant::e18_u64();
+        let precision_of_fee = repository::precision();
+        let fee = amount * entry_fee / precision_of_fee; // TODO: rounded up
         collect_asset_fee<C>(pool_ref, fee);
 
         let deposited = coin::extract(&mut pool_ref.asset, amount);
@@ -496,7 +497,8 @@ module leizd::pool {
         accrue_interest<C,Shadow>(storage_ref);
 
         let entry_fee = repository::entry_fee();
-        let fee = amount * entry_fee / constant::e18_u64();
+        let precision_of_fee = repository::precision();
+        let fee = amount * entry_fee / precision_of_fee; // TODO: rounded up
         collect_shadow_fee<C>(pool_ref, fee);
 
         if (storage_ref.total_deposits - storage_ref.total_conly_deposits < (amount as u128)) {
@@ -1169,6 +1171,7 @@ module leizd::pool {
         assert!(event::counter<WithdrawEvent>(&event_handle.withdraw_event) == 4, 0);
     }
 
+    // for borrow
     #[test(owner=@leizd,account1=@0x111,account2=@0x222,aptos_framework=@aptos_framework)]
     public entry fun test_borrow_uni(owner: &signer, account1: &signer, account2: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
@@ -1187,6 +1190,7 @@ module leizd::pool {
 
         managed_coin::mint<UNI>(owner, account1_addr, 1000000);
         usdz::mint_for_test(account1_addr, 1000000);
+
         managed_coin::mint<WETH>(owner, account2_addr, 1000000);
 
         // Lender: 
@@ -1200,6 +1204,8 @@ module leizd::pool {
         // borrow  USDZ
         deposit<WETH>(account2, 600000, false, false);
         borrow<WETH>(account2, 300000, true);
+        assert!(coin::balance<WETH>(account2_addr) == 400000, 0);
+        assert!(coin::balance<USDZ>(account2_addr) == 300000, 0);
 
         // Borrower:
         // deposit USDZ for UNI
@@ -1208,9 +1214,18 @@ module leizd::pool {
         borrow<UNI>(account2, 100000, false);
         assert!(coin::balance<UNI>(account2_addr) == 100000, 0);
         assert!(coin::balance<USDZ>(account2_addr) == 100000, 0);
-        // debug::print(&debt::balance_of<UNI,Asset>(account2_addr));
-        assert!(debt::balance_of<UNI,Asset>(account2_addr) == 100000, 0); // TODO: 0.5% fee
+
+        // check about fee
+        assert!(repository::entry_fee() == repository::default_entry_fee(), 0);
+        assert!(debt::balance_of<WETH,Shadow>(account2_addr) == 301500, 0);
+        assert!(debt::balance_of<UNI,Asset>(account2_addr) == 100500, 0);
+        assert!(treasury::balance_of_shadow<WETH>() == 1500, 0);
+        assert!(treasury::balance_of_asset<UNI>() == 500, 0);
     }
+    // #[test(owner=@leizd,lender=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
+    // public entry fun test_borrow_(owner: &signer, lender: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+    //     setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+    // }
 
     #[test(owner=@leizd,account1=@0x111,account2=@0x222,aptos_framework=@aptos_framework)]
     public entry fun test_repay_uni(owner: &signer, account1: &signer, account2: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {

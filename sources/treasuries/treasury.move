@@ -44,4 +44,15 @@ module leizd::treasury {
         let deposited = coin::extract(&mut treasury_ref.shadow, amount);
         coin::deposit<USDZ>(signer::address_of(owner), deposited);
     }
+
+    #[test_only]
+    public(friend) fun balance_of_asset<C>(): u64 acquires Treasury {
+        let treasury_ref = borrow_global_mut<Treasury<C>>(@leizd);
+        coin::value<C>(&treasury_ref.asset)
+    }
+    #[test_only]
+    public(friend) fun balance_of_shadow<C>(): u64 acquires Treasury {
+        let treasury_ref = borrow_global_mut<Treasury<C>>(@leizd);
+        coin::value<USDZ>(&treasury_ref.shadow)
+    }
 }

@@ -170,7 +170,14 @@ module leizd::repository {
     use aptos_framework::managed_coin;
     #[test_only]
     use leizd::test_coin::{Self,WETH};
-
+    #[test_only]
+    public fun default_entry_fee(): u64 {
+        DEFAULT_ENTRY_FEE
+    }
+    #[test_only]
+    public fun default_share_fee(): u64 {
+        DEFAULT_SHARE_FEE
+    }
     #[test(owner = @leizd)]
     public entry fun test_initialize(owner: signer) acquires ProtocolFees, RepositoryEventHandle {
         let owner_addr = signer::address_of(&owner);
