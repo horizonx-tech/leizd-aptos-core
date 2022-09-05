@@ -759,6 +759,8 @@ module leizd::pool {
         pool_ref.is_active = active;
     }
 
+    // #[test_only]
+    // use aptos_std::debug;
     #[test_only]
     use aptos_framework::managed_coin;
     #[test_only]
@@ -1235,6 +1237,7 @@ module leizd::pool {
     //     setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
     // }
 
+    // for repay
     #[test(owner=@leizd,account1=@0x111,account2=@0x222,aptos_framework=@aptos_framework)]
     public entry fun test_repay_uni(owner: &signer, account1: &signer, account2: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
@@ -1272,12 +1275,25 @@ module leizd::pool {
         // borrow UNI
         deposit<UNI>(account2, 200000, false, true);
         borrow<UNI>(account2, 100000, false);
+
+        // Check status before repay
+        assert!(repository::entry_fee() == repository::default_entry_fee(), 0);
+        assert!(debt::balance_of<WETH,Shadow>(account2_addr) == 301500, 0);
+        assert!(debt::balance_of<UNI,Asset>(account2_addr) == 100500, 0);
         
         // Borrower:
         // repay UNI
         repay<UNI>(account2, 100000, false);
         assert!(coin::balance<UNI>(account2_addr) == 0, 0);
         assert!(coin::balance<USDZ>(account2_addr) == 100000, 0);
-        assert!(debt::balance_of<UNI,Asset>(account2_addr) == 0, 0); // TODO: 0.5% entry fee + 0.0% interest
+        assert!(debt::balance_of<UNI,Asset>(account2_addr) == 500, 0); // TODO: 0.5% entry fee + 0.0% interest
+
+        // Borrower:
+        // repay USDZ
+
+        // withdraw<UNI>(account2, 200000, false, true); // TODO: error in position#update_position (EKEY_ALREADY_EXISTS)
+        // repay<WETH>(account2, 300000, true);
+        // assert!(coin::balance<USDZ>(account2_addr) == 0, 0);
+        // assert!(debt::balance_of<WETH,Shadow>(account2_addr) == 1500, 0);
     }
 }
