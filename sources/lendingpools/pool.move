@@ -374,7 +374,7 @@ module leizd::pool {
                 storage_ref.total_conly_deposits,
                 collateral_only::supply<C,P>()
             );
-            storage_ref.total_conly_deposits = storage_ref.total_deposits + amount128;
+            storage_ref.total_conly_deposits = storage_ref.total_conly_deposits + amount128;
             collateral_only::mint<C,P>(depositor_addr, (collateral_share as u64)); 
         } else {
             let collateral_share = math128::to_share(
@@ -438,9 +438,17 @@ module leizd::pool {
         let withdrawn_amount;
         if (amount128 == constant::u128_max()) {
             burned_share = collateral_balance<C,P>(depositor_addr, is_collateral_only);
-            withdrawn_amount = math128::to_amount((burned_share as u128), storage_ref.total_deposits, collateral_supply<C,P>(is_collateral_only));
+            if (is_collateral_only) {
+                withdrawn_amount = math128::to_amount((burned_share as u128), storage_ref.total_conly_deposits, collateral_supply<C,P>(is_collateral_only));
+            } else {
+                withdrawn_amount = math128::to_amount((burned_share as u128), storage_ref.total_deposits, collateral_supply<C,P>(is_collateral_only));
+            };
         } else {
-            burned_share = (math128::to_share_roundup(amount128, storage_ref.total_deposits, collateral_supply<C,P>(is_collateral_only)) as u64);
+            if (is_collateral_only) {
+                burned_share = (math128::to_share_roundup(amount128, storage_ref.total_conly_deposits, collateral_supply<C,P>(is_collateral_only)) as u64);
+            } else {
+                burned_share = (math128::to_share_roundup(amount128, storage_ref.total_deposits, collateral_supply<C,P>(is_collateral_only)) as u64);
+            };
             withdrawn_amount = amount128;
         };
 
@@ -982,11 +990,11 @@ module leizd::pool {
 
         assert!(coin::balance<WETH>(account_addr) == 7, 0);
         assert!(coin::balance<USDZ>(account_addr) == 3, 0);
-        // TODO: after fixing to calcurate total_conly_deposits, total_deposits
-        // assert!(total_deposits<WETH,Asset>() == 1, 0);
-        // assert!(total_conly_deposits<WETH,Asset>() == 3, 0);
-        // assert!(total_deposits<WETH,Shadow>() == 3, 0);
-        // assert!(total_conly_deposits<WETH,Shadow>() == 7, 0);
+        assert!(total_deposits<WETH,Asset>() == 1, 0);
+        assert!(total_conly_deposits<WETH,Asset>() == 2, 0);
+        assert!(total_deposits<WETH,Shadow>() == 3, 0);
+        assert!(total_conly_deposits<WETH,Shadow>() == 4, 0);
+        // TODO: after fixing to calcurate liquidity (& total_conly_deposits, total_deposits?)
         // assert!(liquidity<WETH,Asset>() == 1, 0);
         // assert!(liquidity<WETH,Shadow>() == 3, 0);
         assert!(collateral::balance_of<WETH, Asset>(account_addr) == 1, 0);
@@ -1066,9 +1074,8 @@ module leizd::pool {
         withdraw<WETH>(account, 600000, true, false);
 
         assert!(coin::balance<WETH>(account_addr) == 900000, 0);
-        // TODO: after fixing to calcurate total_conly_deposits, total_deposits
-        // assert!(total_deposits<WETH,Asset>() == 100000, 0);
-        // assert!(total_conly_deposits<WETH,Asset>() == 100000, 0);
+        assert!(total_deposits<WETH,Asset>() == 0, 0);
+        assert!(total_conly_deposits<WETH,Asset>() == 100000, 0);
         assert!(collateral::balance_of<WETH, Asset>(account_addr) == 0, 0);
         assert!(collateral_only::balance_of<WETH, Asset>(account_addr) == 100000, 0);
     }
@@ -1088,9 +1095,7 @@ module leizd::pool {
 
         assert!(coin::balance<WETH>(account_addr) == 0, 0);
         assert!(coin::balance<USDZ>(account_addr) == 900000, 0);
-        assert!(total_deposits<WETH,Asset>() == 0, 0);
         assert!(total_deposits<WETH,Shadow>() == 100000, 0);
-        assert!(total_conly_deposits<WETH,Asset>() == 0, 0);
         assert!(total_conly_deposits<WETH,Shadow>() == 0, 0);
         assert!(collateral::balance_of<WETH, Shadow>(account_addr) == 100000, 0);
         assert!(collateral_only::balance_of<WETH, Shadow>(account_addr) == 0, 0);
@@ -1111,11 +1116,10 @@ module leizd::pool {
 
         assert!(coin::balance<WETH>(account_addr) == 0, 0);
         assert!(coin::balance<USDZ>(account_addr) == 900000, 0);
-        // TODO: after fixing to calcurate total_conly_deposits, total_deposits
-        // assert!(total_deposits<WETH,Asset>() == 0, 0);
-        // assert!(total_deposits<WETH,Shadow>() == 100000, 0);
-        // assert!(total_conly_deposits<WETH,Asset>() == 0, 0);
-        // assert!(total_conly_deposits<WETH,Shadow>() == 0, 0);
+        assert!(total_deposits<WETH,Asset>() == 0, 0);
+        assert!(total_deposits<WETH,Shadow>() == 0, 0);
+        assert!(total_conly_deposits<WETH,Asset>() == 0, 0);
+        assert!(total_conly_deposits<WETH,Shadow>() == 100000, 0);
         assert!(collateral::balance_of<WETH, Shadow>(account_addr) == 0, 0);
         assert!(collateral_only::balance_of<WETH, Shadow>(account_addr) == 100000, 0);
     }
@@ -1133,28 +1137,29 @@ module leizd::pool {
         usdz::mint_for_test(account_addr, 20);
 
         deposit<WETH>(account, 10, false, false);
-        withdraw<WETH>(account, 1, false, false);
         deposit<WETH>(account, 10, true, false);
-        withdraw<WETH>(account, 2, true, false);
         deposit<WETH>(account, 10, false, true);
-        withdraw<WETH>(account, 3, false, true);
         deposit<WETH>(account, 10, true, true);
+
+        withdraw<WETH>(account, 1, false, false);
+        withdraw<WETH>(account, 2, true, false);
+        withdraw<WETH>(account, 3, false, true);
         withdraw<WETH>(account, 4, true, true);
 
         assert!(coin::balance<WETH>(account_addr) == 3, 0);
         assert!(coin::balance<USDZ>(account_addr) == 7, 0);
-        // TODO: after fixing to calcurate total_conly_deposits, total_deposits
-        // assert!(total_deposits<WETH,Asset>() == 1, 0);
-        // assert!(total_conly_deposits<WETH,Asset>() == 3, 0);
-        // assert!(total_deposits<WETH,Shadow>() == 3, 0);
-        // assert!(total_conly_deposits<WETH,Shadow>() == 7, 0);
+        assert!(total_deposits<WETH,Asset>() == 9, 0);
+        assert!(total_conly_deposits<WETH,Asset>() == 8, 0);
+        assert!(total_deposits<WETH,Shadow>() == 7, 0);
+        assert!(total_conly_deposits<WETH,Shadow>() == 6, 0);
+        // TODO: after fixing to calcurate liquidity (& total_conly_deposits, total_deposits?)
         // assert!(liquidity<WETH,Asset>() == 1, 0);
         // assert!(liquidity<WETH,Shadow>() == 3, 0);
 
         assert!(collateral::balance_of<WETH, Asset>(account_addr) == 9, 0);
-        // assert!(collateral_only::balance_of<WETH, Asset>(account_addr) == 8, 0); // FIX: expect 8 but actual 7 (including not collateral only)
+        assert!(collateral_only::balance_of<WETH, Asset>(account_addr) == 8, 0);
         assert!(collateral::balance_of<WETH, Shadow>(account_addr) == 7, 0);
-        // assert!(collateral_only::balance_of<WETH, Shadow>(account_addr) == 6, 0); // FIX: expect 6 but actual 4 (including not collateral only)
+        assert!(collateral_only::balance_of<WETH, Shadow>(account_addr) == 6, 0);
 
         let event_handle = borrow_global<PoolEventHandle<WETH>>(signer::address_of(owner));
         assert!(event::counter<WithdrawEvent>(&event_handle.withdraw_event) == 4, 0);
