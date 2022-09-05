@@ -943,19 +943,15 @@ module leizd::pool {
 
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
     public entry fun test_withdraw_weth(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
-        timestamp::set_time_has_started_for_testing(aptos_framework);
-        let owner_addr = signer::address_of(owner);
-        let account_addr = signer::address_of(account);
-        account::create_account_for_test(owner_addr);
-        account::create_account_for_test(account_addr);
-        test_coin::init_weth(owner);
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         price_oracle::initialize_oracle_for_test(owner);
-        initializer::initialize(owner);
+
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
         initializer::register<WETH>(account);
         managed_coin::mint<WETH>(owner, account_addr, 1000000);
         assert!(coin::balance<WETH>(account_addr) == 1000000, 0);
 
-        init_pool<WETH>(owner);
         deposit<WETH>(account, 800000, false, false);
 
         withdraw<WETH>(account, 800000, false, false);
@@ -965,14 +961,11 @@ module leizd::pool {
 
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
     public entry fun test_withdraw_shadow(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
-        timestamp::set_time_has_started_for_testing(aptos_framework);
-        let owner_addr = signer::address_of(owner);
-        let account_addr = signer::address_of(account);
-        account::create_account_for_test(owner_addr);
-        account::create_account_for_test(account_addr);
-        test_coin::init_weth(owner);
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         price_oracle::initialize_oracle_for_test(owner);
-        initializer::initialize(owner);
+
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
         initializer::register<WETH>(account);
         managed_coin::mint<WETH>(owner, account_addr, 1000000);
         assert!(coin::balance<WETH>(account_addr) == 1000000, 0);
@@ -980,7 +973,6 @@ module leizd::pool {
         usdz::mint_for_test(account_addr, 1000000);
         assert!(coin::balance<USDZ>(account_addr) == 1000000, 0);
 
-        init_pool<WETH>(owner);
         deposit<WETH>(account, 800000, false, true);
 
         withdraw<WETH>(account, 800000, false, true);
@@ -991,29 +983,23 @@ module leizd::pool {
 
     #[test(owner=@leizd,account1=@0x111,account2=@0x222,aptos_framework=@aptos_framework)]
     public entry fun test_borrow_uni(owner: &signer, account1: &signer, account2: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
-        timestamp::set_time_has_started_for_testing(aptos_framework);
-        let owner_addr = signer::address_of(owner);
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        price_oracle::initialize_oracle_for_test(owner);
+
         let account1_addr = signer::address_of(account1);
         let account2_addr = signer::address_of(account2);
-        account::create_account_for_test(owner_addr);
         account::create_account_for_test(account1_addr);
         account::create_account_for_test(account2_addr);
-        test_coin::init_weth(owner);
-        test_coin::init_uni(owner);
-        price_oracle::initialize_oracle_for_test(owner);
-        initializer::initialize(owner);
-        initializer::register<UNI>(account1);
-        managed_coin::mint<UNI>(owner, account1_addr, 1000000);
-        initializer::register<USDZ>(account1);
         initializer::register<WETH>(account1);
-        usdz::mint_for_test(account1_addr, 1000000);
+        initializer::register<UNI>(account1);
+        initializer::register<USDZ>(account1);
         initializer::register<WETH>(account2);
-        managed_coin::mint<WETH>(owner, account2_addr, 1000000);
         initializer::register<UNI>(account2);
         initializer::register<USDZ>(account2);
 
-        init_pool<WETH>(owner);
-        init_pool<UNI>(owner);
+        managed_coin::mint<UNI>(owner, account1_addr, 1000000);
+        usdz::mint_for_test(account1_addr, 1000000);
+        managed_coin::mint<WETH>(owner, account2_addr, 1000000);
 
         // Lender: 
         // deposit USDZ for WETH
@@ -1040,29 +1026,23 @@ module leizd::pool {
 
     #[test(owner=@leizd,account1=@0x111,account2=@0x222,aptos_framework=@aptos_framework)]
     public entry fun test_repay_uni(owner: &signer, account1: &signer, account2: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
-        timestamp::set_time_has_started_for_testing(aptos_framework);
-        let owner_addr = signer::address_of(owner);
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        price_oracle::initialize_oracle_for_test(owner);
+
         let account1_addr = signer::address_of(account1);
         let account2_addr = signer::address_of(account2);
-        account::create_account_for_test(owner_addr);
         account::create_account_for_test(account1_addr);
         account::create_account_for_test(account2_addr);
-        test_coin::init_weth(owner);
-        test_coin::init_uni(owner);
-        price_oracle::initialize_oracle_for_test(owner);
-        initializer::initialize(owner);
-        initializer::register<UNI>(account1);
-        managed_coin::mint<UNI>(owner, account1_addr, 1000000);
-        initializer::register<USDZ>(account1);
         initializer::register<WETH>(account1);
-        usdz::mint_for_test(account1_addr, 1000000);
+        initializer::register<UNI>(account1);
+        initializer::register<USDZ>(account1);
         initializer::register<WETH>(account2);
-        managed_coin::mint<WETH>(owner, account2_addr, 1000000);
         initializer::register<UNI>(account2);
         initializer::register<USDZ>(account2);
 
-        init_pool<WETH>(owner);
-        init_pool<UNI>(owner);
+        usdz::mint_for_test(account1_addr, 1000000);
+        managed_coin::mint<UNI>(owner, account1_addr, 1000000);
+        managed_coin::mint<WETH>(owner, account2_addr, 1000000);
 
         // Lender: 
         // deposit USDZ for WETH
