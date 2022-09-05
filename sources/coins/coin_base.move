@@ -98,4 +98,15 @@ module leizd::coin_base {
         assert!(supply<Dummy>() == 50, 0);
         assert!(balance_of<Dummy>(account_address) == 50, 0);
     }
+    #[test(account = @0x111)]
+    #[expected_failure(abort_code = 1)]
+    fun test_initialize_with_not_owner(account: &signer) {
+        account::create_account_for_test(signer::address_of(account));
+        initialize<Dummy>(
+            account,
+            string::utf8(b"Dummy"),
+            string::utf8(b"DUMMY"),
+            18
+        );
+    }
 }
