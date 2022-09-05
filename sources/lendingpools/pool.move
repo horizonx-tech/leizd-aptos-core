@@ -467,7 +467,7 @@ module leizd::pool {
         receiver_addr: address,
         amount: u64
     ) acquires Pool, Storage {
-        assert!(liquidity<C,Asset>() >= (amount as u128), 0);
+        assert!(liquidity<C>(false) >= (amount as u128), 0);
 
         let pool_ref = borrow_global_mut<Pool<C>>(@leizd);
         let storage_ref = borrow_global_mut<Storage<C,Asset>>(@leizd);
@@ -717,9 +717,15 @@ module leizd::pool {
         }
     }
 
-    public entry fun liquidity<C,P>(): u128 acquires Storage {
-        let storage_ref = borrow_global<Storage<C,P>>(@leizd);
-        storage_ref.total_deposits - storage_ref.total_conly_deposits
+    public entry fun liquidity<C>(is_shadow: bool): u128 acquires Storage, Pool {
+        let pool_ref = borrow_global_mut<Pool<C>>(@leizd);
+        if (is_shadow) {
+            let storage_ref = borrow_global<Storage<C,Shadow>>(@leizd);
+            (coin::value(&pool_ref.shadow) as u128) - storage_ref.total_conly_deposits
+        } else {
+            let storage_ref = borrow_global<Storage<C,Asset>>(@leizd);
+            (coin::value(&pool_ref.asset) as u128) - storage_ref.total_conly_deposits
+        }
     }
 
     public entry fun total_deposits<C,P>(): u128 acquires Storage {
@@ -994,9 +1000,8 @@ module leizd::pool {
         assert!(total_conly_deposits<WETH,Asset>() == 2, 0);
         assert!(total_deposits<WETH,Shadow>() == 3, 0);
         assert!(total_conly_deposits<WETH,Shadow>() == 4, 0);
-        // TODO: after fixing to calcurate liquidity (& total_conly_deposits, total_deposits?)
-        // assert!(liquidity<WETH,Asset>() == 1, 0);
-        // assert!(liquidity<WETH,Shadow>() == 3, 0);
+        assert!(liquidity<WETH>(false) == 1, 0);
+        assert!(liquidity<WETH>(true) == 3, 0);
         assert!(collateral::balance_of<WETH, Asset>(account_addr) == 1, 0);
         assert!(collateral_only::balance_of<WETH, Asset>(account_addr) == 2, 0);
         assert!(collateral::balance_of<WETH, Shadow>(account_addr) == 3, 0);
@@ -1152,9 +1157,8 @@ module leizd::pool {
         assert!(total_conly_deposits<WETH,Asset>() == 8, 0);
         assert!(total_deposits<WETH,Shadow>() == 7, 0);
         assert!(total_conly_deposits<WETH,Shadow>() == 6, 0);
-        // TODO: after fixing to calcurate liquidity (& total_conly_deposits, total_deposits?)
-        // assert!(liquidity<WETH,Asset>() == 1, 0);
-        // assert!(liquidity<WETH,Shadow>() == 3, 0);
+        assert!(liquidity<WETH>(false) == 9, 0);
+        assert!(liquidity<WETH>(true) == 7, 0);
 
         assert!(collateral::balance_of<WETH, Asset>(account_addr) == 9, 0);
         assert!(collateral_only::balance_of<WETH, Asset>(account_addr) == 8, 0);
