@@ -318,6 +318,7 @@ module leizd::position {
             } else if (is_deposit && !is_increase) {
                 balance.deposited = balance.deposited - amount;
                 if (balance.deposited == 0) {
+                    // FIXME: consider both deposited and borrowed & remove key in vector & position in map
                     let (_, index) = vector::index_of<string::String>(&account_ref.types, &name);
                     vector::remove<string::String>(&mut account_ref.types, index);
                 }
@@ -326,6 +327,7 @@ module leizd::position {
             } else {
                 balance.borrowed = balance.borrowed - amount;
                 if (balance.borrowed == 0) {
+                    // FIXME: consider both deposited and borrowed & remove key in vector & position in map
                     let (_, index) = vector::index_of<string::String>(&account_ref.types, &name);
                     vector::remove<string::String>(&mut account_ref.types, index);
                 }
@@ -484,6 +486,52 @@ module leizd::position {
         // if WETH = $1 && UNI = $1
         assert!(utilization_of(account1_ref, type_info::type_name<WETH>()) == 833333333, 0);
         assert!(utilization_of(account1_ref, type_info::type_name<UNI>()) == 250000000, 0);
+    }
+
+    #[test(owner=@leizd,account1=@0x111,aptos_framework=@aptos_framework)]
+    public entry fun test_close_positions(owner: &signer, account1: &signer) acquires Account, Position {
+        let owner_addr = signer::address_of(owner);
+        let account1_addr = signer::address_of(account1);
+        account::create_account_for_test(owner_addr);
+        account::create_account_for_test(account1_addr);
+        test_initializer::register<WETH>(account1);
+        test_initializer::register<UNI>(account1);
+        test_coin::init_weth(owner);
+        test_coin::init_uni(owner);
+        price_oracle::initialize_oracle_for_test(owner);
+
+        initialize_if_necessary(account1);
+        take_deposit_position<WETH,Asset>(account1_addr, 100);
+        assert!(vector::contains<string::String>(
+            &borrow_global<Account>(account1_addr).types,
+            &type_info::type_name<WETH>(),
+        ), 0);
+        cancel_deposit_position<WETH,Asset>(account1_addr, 100);
+        assert!(!vector::contains<string::String>(
+            &borrow_global<Account>(account1_addr).types,
+            &type_info::type_name<WETH>(),
+        ), 0);
+        assert!(simple_map::contains_key<string::String,Balance<Asset>>(
+            &borrow_global<Position<Asset>>(account1_addr).balance,
+            &type_info::type_name<WETH>(),
+        ), 0);
+
+        take_borrow_position<UNI,Asset>(account1_addr, 200);
+        assert!(vector::contains<string::String>(
+            &borrow_global<Account>(account1_addr).types,
+            &type_info::type_name<UNI>(),
+        ), 0);
+        cancel_borrow_position<UNI,Asset>(account1_addr, 200);
+        assert!(!vector::contains<string::String>(
+            &borrow_global<Account>(account1_addr).types,
+            &type_info::type_name<UNI>(),
+        ), 0);
+        assert!(simple_map::contains_key<string::String,Balance<Asset>>(
+            &borrow_global<Position<Asset>>(account1_addr).balance,
+            &type_info::type_name<UNI>(),
+        ), 0);
+        take_deposit_position<UNI,Asset>(account1_addr, 200); // TODO: fail because removed key in vector but remain position (duplicated keys in map)
+        // cancel_deposit_position<UNI,Asset>(account1_addr, 200);
     }
 
     #[test(owner=@leizd,account1=@0x111,aptos_framework=@aptos_framework)]
