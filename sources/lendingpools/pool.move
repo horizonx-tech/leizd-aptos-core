@@ -474,9 +474,7 @@ module leizd::pool {
 
         accrue_interest<C,Asset>(storage_ref);
 
-        let entry_fee = repository::entry_fee();
-        let precision_of_fee = repository::precision();
-        let fee = amount * entry_fee / precision_of_fee; // TODO: rounded up
+        let fee = calculate_entry_fee(amount);
         collect_asset_fee<C>(pool_ref, fee);
 
         let deposited = coin::extract(&mut pool_ref.asset, amount);
@@ -496,9 +494,7 @@ module leizd::pool {
 
         accrue_interest<C,Shadow>(storage_ref);
 
-        let entry_fee = repository::entry_fee();
-        let precision_of_fee = repository::precision();
-        let fee = amount * entry_fee / precision_of_fee; // TODO: rounded up
+        let fee = calculate_entry_fee(amount);
         collect_shadow_fee<C>(pool_ref, fee);
 
         if (storage_ref.total_deposits - storage_ref.total_conly_deposits < (amount as u128)) {
@@ -717,6 +713,18 @@ module leizd::pool {
         } else {
             collateral::supply<C,P>()
         }
+    }
+
+    fun calculate_entry_fee(value: u64): u64 {
+        value * repository::entry_fee() / repository::precision() // TODO: rounded up
+    }
+
+    fun calculate_share_fee(value: u64): u64 {
+        value * repository::share_fee() / repository::precision() // TODO: rounded up
+    }
+
+    fun calculate_liquidation_fee(value: u64): u64 {
+        value * repository::liquidation_fee() / repository::precision() // TODO: rounded up
     }
 
     public entry fun liquidity<C>(is_shadow: bool): u128 acquires Storage, Pool {
