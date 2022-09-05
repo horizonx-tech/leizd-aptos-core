@@ -32,11 +32,20 @@ module leizd::market {
         pool::deposit_for<C,P>(account, addr, amount, is_collateral_only);
     }
 
-    public entry fun borrow<C,P>() {
+    public entry fun borrow<C,P>(account: &signer, amount: u64) {
         assert_pool_type<P>();
 
-    
+        let addr = signer::address_of(account);
+        account_position::borrow<C,P>(addr, amount);
+        pool::borrow_for<C,P>(account, addr, addr, amount);
     }
+
+    // TODO
+    // public entry fun borrow_shadow_with_rebalance(account: &signer, amount: u64) {
+    //     let addr = signer::address_of(account);
+    //     let positions = account_position::borrow<C,P>(addr, amount);
+    //     pool::borrow_for<C,P>(account, addr, amount, is_collateral_only);
+    // }
 
     fun assert_pool_type<P>() {
         assert!(pool_type::is_type_asset<P>() || pool_type::is_type_shadow<P>(), 0);
