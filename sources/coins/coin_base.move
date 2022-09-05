@@ -66,4 +66,36 @@ module leizd::coin_base {
             0
         }
     }
+
+    #[test_only]
+    use aptos_framework::account;
+    #[test_only]
+    struct Dummy {}
+    #[test(owner = @leizd, account = @0x111)]
+    fun test_end_to_end(owner: &signer, account: &signer) acquires Capabilities {
+        let owner_address = signer::address_of(owner);
+        let account_address = signer::address_of(account);
+        account::create_account_for_test(owner_address);
+        account::create_account_for_test(account_address);
+        initialize<Dummy>(
+            owner,
+            string::utf8(b"Dummy"),
+            string::utf8(b"DUMMY"),
+            18
+        );
+        assert!(exists<Capabilities<Dummy>>(owner_address), 0);
+
+        register<Dummy>(account);
+        
+        assert!(supply<Dummy>() == 0, 0);
+        assert!(balance_of<Dummy>(account_address) == 0, 0);
+
+        mint<Dummy>(account_address, 100);
+        assert!(supply<Dummy>() == 100, 0);
+        assert!(balance_of<Dummy>(account_address) == 100, 0);
+
+        burn<Dummy>(account, 50);
+        assert!(supply<Dummy>() == 50, 0);
+        assert!(balance_of<Dummy>(account_address) == 50, 0);
+    }
 }
