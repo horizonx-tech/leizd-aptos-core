@@ -52,6 +52,14 @@ module leizd::market {
         pool::borrow_for<C,P>(account, addr, addr, amount);
     }
 
+    public entry fun repay<C,P>(account: &signer, amount: u64) {
+        assert_pool_type<P>();
+
+        let addr = signer::address_of(account);
+        account_position::repay<C,P>(addr, amount);
+        pool::repay<C,P>(account, amount);
+    }
+
     // TODO
     // public entry fun borrow_shadow_with_rebalance(account: &signer, amount: u64) {
     //     let addr = signer::address_of(account);

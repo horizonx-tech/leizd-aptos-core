@@ -70,6 +70,15 @@ module leizd::account_position {
         };
     }
 
+    public(friend) fun repay<C,P>(addr: address, amount: u64) acquires Account, Position {
+        let account_ref = borrow_global_mut<Account>(addr);
+        if (pool_type::is_type_asset<P>()) {
+            update_position<C,AssetToShadow>(account_ref, amount, false, false);
+        } else {
+            update_position<C,ShadowToAsset>(account_ref, amount, false, false);
+        };
+    }
+
     fun update_position<C,P>(
         account_ref: &mut Account,
         amount: u64,
