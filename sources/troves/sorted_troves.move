@@ -1,5 +1,4 @@
 module leizd::sorted_trove {
-    use leizd::permission;
     use std::signer;
     use leizd::constant;
     use aptos_std::simple_map;
@@ -19,8 +18,16 @@ module leizd::sorted_trove {
     }
 
     public entry fun initialize(owner: &signer) {
-        permission::assert_owner(signer::address_of(owner));
-        move_to(owner, Data{head: @0x0, tail: @0x0, max_size: constant::u64_max(), size: 0, nodes: simple_map::create<address,Node>()});
+        initialize_internal(owner, constant::u64_max());
+    }
+
+    fun initialize_internal(owner: &signer, max_size: u64) {
+        assert!(!initialized(signer::address_of(owner)), 0);
+        move_to(owner, Data{head: @0x0, tail: @0x0, max_size: max_size, size: 0, nodes: simple_map::create<address,Node>()});
+    }    
+
+    fun initialized(account: address):bool {
+        exists<Data>(account)
     }
 
     public(friend) fun insert(id: address, prev_id: address, next_id: address) acquires Data, Node {
@@ -98,6 +105,12 @@ module leizd::sorted_trove {
             data.tail = @0x0;
         };
         simple_map::remove<address, Node>(&mut data.nodes, &id);
+    }
+
+    #[test(owner=@leizd,account1=@0x111)]
+    fun test_insert(owner: signer, account1: address) acquires Data, Node {
+        initialize(&owner);
+        insert(account1, @0x0, @0x0);
     }
 
 }
