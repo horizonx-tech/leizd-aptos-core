@@ -24,4 +24,8 @@ module leizd::position_type {
             )
         )
     }
+
+    public fun assert_position_type<P>() {
+        assert!(is_asset_to_shadow<P>() || is_shadow_to_asset<P>(), 0);
+    }
 }

@@ -25,4 +25,7 @@ module leizd::pool_type {
         )
     }
 
+    public fun assert_pool_type<P>() {
+        assert!(is_type_asset<P>() || is_type_shadow<P>(), 0);
+    }
 }

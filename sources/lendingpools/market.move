@@ -25,7 +25,7 @@ module leizd::market {
         amount: u64,
         is_collateral_only: bool,
     ) {
-        assert_pool_type<P>();
+        pool_type::assert_pool_type<P>();
 
         let addr = signer::address_of(account);
         account_position::deposit<C,P>(addr, amount);
@@ -37,7 +37,7 @@ module leizd::market {
         amount: u64,
         is_collateral_only: bool
     ) {
-        assert_pool_type<P>();
+        pool_type::assert_pool_type<P>();
 
         let addr = signer::address_of(account);
         account_position::withdraw<C,P>(addr, amount);
@@ -45,7 +45,7 @@ module leizd::market {
     }
 
     public entry fun borrow<C,P>(account: &signer, amount: u64) {
-        assert_pool_type<P>();
+        pool_type::assert_pool_type<P>();
 
         let addr = signer::address_of(account);
         account_position::borrow<C,P>(addr, amount);
@@ -53,7 +53,7 @@ module leizd::market {
     }
 
     public entry fun repay<C,P>(account: &signer, amount: u64) {
-        assert_pool_type<P>();
+        pool_type::assert_pool_type<P>();
 
         let addr = signer::address_of(account);
         account_position::repay<C,P>(addr, amount);
@@ -66,8 +66,4 @@ module leizd::market {
     //     let positions = account_position::borrow<C,P>(addr, amount);
     //     pool::borrow_for<C,P>(account, addr, amount, is_collateral_only);
     // }
-
-    fun assert_pool_type<P>() {
-        assert!(pool_type::is_type_asset<P>() || pool_type::is_type_shadow<P>(), 0);
-    }
 }
