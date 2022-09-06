@@ -52,6 +52,15 @@ module leizd::account_position {
         };
     }
 
+    public(friend) fun withdraw<C,P>(addr: address, amount: u64) acquires Account, Position {
+        let account_ref = borrow_global_mut<Account>(addr);
+        if (pool_type::is_type_asset<P>()) {
+            update_position<C,AssetToShadow>(account_ref, amount, true, false);
+        } else {
+            update_position<C,ShadowToAsset>(account_ref, amount, true, false);
+        };
+    }
+
     public(friend) fun borrow<C,P>(addr: address, amount: u64) acquires Account, Position {
         let account_ref = borrow_global_mut<Account>(addr);
         if (pool_type::is_type_asset<P>()) {

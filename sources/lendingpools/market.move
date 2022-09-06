@@ -32,6 +32,18 @@ module leizd::market {
         pool::deposit_for<C,P>(account, addr, amount, is_collateral_only);
     }
 
+    public entry fun withdraw<C,P>(
+        account: &signer,
+        amount: u64,
+        is_collateral_only: bool
+    ) {
+        assert_pool_type<P>();
+
+        let addr = signer::address_of(account);
+        account_position::withdraw<C,P>(addr, amount);
+        pool::withdraw_for<C,P>(account, addr, amount, is_collateral_only);
+    }
+
     public entry fun borrow<C,P>(account: &signer, amount: u64) {
         assert_pool_type<P>();
 
