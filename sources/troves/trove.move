@@ -10,11 +10,25 @@ module leizd::trove {
     use aptos_framework::account;
     //use leizd::price_oracle;
 
-    struct Trove<phantom C> has key {
+    struct Trove<phantom C> has key, store {
         coin: coin::Coin<C>
     }
 
+    struct SortedTroves<phantom C> has key, store {
+        troves: vector<Trove<C>>
+    }
+
     struct SupportedCoin<phantom C> has key {}
+
+    struct RedeemInput has drop {
+        amount: u64,
+        firstRedemptionHint: address,
+        uppterPartialRedemptionHint: address,
+        lowerPartialRedemptionHint: address,
+        partialRedemptionHIntNICR: u64,
+        maxIterations: u64,
+        maxFeePercentage: u64,
+    }
 
     struct OpenTroveEvent has store, drop {
         caller: address,
@@ -52,12 +66,28 @@ module leizd::trove {
             repay_event: account::new_event_handle<RepayEvent>(owner),
         })
     }
+    
 
     public entry fun open_trove<C>(account: &signer, amount: u64) acquires Trove, TroveEventHandle {
         open_trove_internal<C>(account, amount, borrowable_usdz<C>(amount));
     }
 
-    fun  validate_open_trove<C>() {
+    public entry fun redeem<C>(input: RedeemInput) {
+        requireMaxFeePercentage(input);
+        requireAfterBootstrapPeriod();
+        rquireTCRoverMCR(0);
+        requireAmountGreaterThanZero(0);
+        requireUSDZBalanceCoversRedemption();
+
+    }
+
+    fun requireMaxFeePercentage(_input: RedeemInput){}
+    fun requireAfterBootstrapPeriod(){}
+    fun rquireTCRoverMCR(_price: u64) {}
+    fun requireAmountGreaterThanZero(_amount:u64){}
+    fun requireUSDZBalanceCoversRedemption(){}
+
+    fun validate_open_trove<C>() {
         validate_internal<C>()
     }
 
@@ -217,7 +247,7 @@ module leizd::trove {
         assert!(coin::balance<USDC>(account1_addr) == 10000, 0);
         let trove = borrow_global<Trove<USDC>>(account1_addr);
         assert!(coin::value(&trove.coin) == 0, 0);
-    }
+    }    
 
     #[test(owner=@leizd,account1=@0x111,aptos_framework=@aptos_framework)]
     fun test_repay(owner: signer, account1: signer) acquires Trove, TroveEventHandle {
