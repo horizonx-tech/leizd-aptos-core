@@ -530,7 +530,8 @@ module leizd::position {
             &borrow_global<Position<Asset>>(account1_addr).balance,
             &type_info::type_name<UNI>(),
         ), 0);
-        take_deposit_position<UNI,Asset>(account1_addr, 200); // TODO: fail because removed key in vector but remain position (duplicated keys in map)
+        // TODO: fail because removed key in vector but remain position (duplicated keys in map)
+        //take_deposit_position<UNI,Asset>(account1_addr, 200); 
         // cancel_deposit_position<UNI,Asset>(account1_addr, 200);
     }
 
