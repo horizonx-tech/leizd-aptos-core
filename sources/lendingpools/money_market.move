@@ -14,6 +14,11 @@ module leizd::money_market {
     use leizd::pool_type::{Self,Shadow};
     use leizd::account_position;
 
+    public entry fun list_new_coin<C>(owner: &signer) {
+        asset_pool::init_pool<C>(owner);
+        shadow_pool::init_pool<C>(owner);
+    }
+
     /// Deposits an asset or a shadow to the pool.
     /// If a user wants to protect the asset, it's possible that it can be used only for the collateral.
     /// C is a pool type and a user should select which pool to use.
@@ -33,8 +38,7 @@ module leizd::money_market {
         } else {
             shadow_pool::deposit_for<C>(account, amount, is_collateral_only);
         };
-        account_position::deposit<C,P>(addr, amount);
-        
+        account_position::deposit<C,P>(account, amount, is_collateral_only);
     }
 
     public entry fun withdraw<C,P>(
@@ -51,7 +55,7 @@ module leizd::money_market {
         } else {
             amount = shadow_pool::withdraw_for<C>(account, addr, amount, is_collateral_only, 0);
         };
-        account_position::withdraw<C,P>(addr, amount);
+        account_position::withdraw<C,P>(addr, amount, is_collateral_only);
     }
 
     public entry fun borrow<C,P>(account: &signer, amount: u64) {
@@ -73,9 +77,9 @@ module leizd::money_market {
         let addr = signer::address_of(account);
         let is_shadow = pool_type::is_type_shadow<P>();
         if (is_shadow) {
-            shadow_pool::repay<C>(account, amount);
+            amount = shadow_pool::repay<C>(account, amount);
         } else {
-            asset_pool::repay<C>(account, amount);
+            amount = asset_pool::repay<C>(account, amount);
         };
         account_position::repay<C,P>(addr, amount);
     }
@@ -84,9 +88,9 @@ module leizd::money_market {
     public entry fun rebalance_shadow<C1,C2>(account: &signer, amount: u64, is_collateral_only: bool) {
         let addr = signer::address_of(account);
         shadow_pool::withdraw_for<C1>(account, addr, amount, is_collateral_only, 0);
-        account_position::withdraw<C1,Shadow>(addr, amount);
+        account_position::withdraw<C1,Shadow>(addr, amount, is_collateral_only);
         shadow_pool::deposit_for<C2>(account, amount, is_collateral_only);
-        account_position::deposit<C2,Shadow>(addr, amount);
+        account_position::deposit<C2,Shadow>(account, amount, is_collateral_only);
     }
 
     // TODO

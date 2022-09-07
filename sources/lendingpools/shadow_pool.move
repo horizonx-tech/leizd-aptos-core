@@ -27,7 +27,7 @@ module leizd::shadow_pool {
         borrowed: simple_map::SimpleMap<String,u64>,
     }
 
-    public entry fun init_pool<C>(owner: &signer) {
+    public(friend) fun init_pool<C>(owner: &signer) {
         permission::assert_owner(signer::address_of(owner));
         stability_pool::init_pool<C>(owner);
         move_to(owner, Pool {

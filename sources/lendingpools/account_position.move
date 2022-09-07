@@ -27,14 +27,28 @@ module leizd::account_position {
     struct Position<phantom P> has key {
         coins: vector<String>, // e.g. 0x1::module_name::WBTC
         deposited: simple_map::SimpleMap<String,u64>,
+        conly_deposited: simple_map::SimpleMap<String,u64>,
         borrowed: simple_map::SimpleMap<String,u64>,
     }
 
+    // TODO: delete
     struct ChangedPosition<phantom P> {
         addr: address,
         is_deposit: bool, // deposit or borrow
         is_increase: bool, // withdraw or repay
         amount: u64,
+    }
+
+    public fun deposited_asset<C>(addr: address): u64 acquires Position {
+        let key = generate_key<C>();
+        let position_ref = borrow_global<Position<AssetToShadow>>(addr);
+        *simple_map::borrow<String,u64>(&position_ref.deposited, &key)
+    }
+
+    public fun conly_deposited_asset<C>(addr: address): u64 acquires Position {
+        let key = generate_key<C>();
+        let position_ref = borrow_global<Position<AssetToShadow>>(addr);
+        *simple_map::borrow<String,u64>(&position_ref.conly_deposited, &key)
     }
 
     public fun borrowed_shadow<C>(addr: address): u64 acquires Position {
@@ -45,7 +59,7 @@ module leizd::account_position {
 
     // TODO: event
 
-    public(friend) fun initialize_if_necessary(account: &signer) {
+    fun initialize_if_necessary(account: &signer) {
         if (!exists<Account>(signer::address_of(account))) {
             move_to(account, Account {
                 addr: signer::address_of(account),
@@ -54,49 +68,56 @@ module leizd::account_position {
             move_to(account, Position<AssetToShadow> {
                 coins: vector::empty<String>(),
                 deposited: simple_map::create<String,u64>(),
+                conly_deposited: simple_map::create<String,u64>(),
                 borrowed: simple_map::create<String,u64>(),
             });
             move_to(account, Position<ShadowToAsset> {
                 coins: vector::empty<String>(),
                 deposited: simple_map::create<String,u64>(),
+                conly_deposited: simple_map::create<String,u64>(),
                 borrowed: simple_map::create<String,u64>(),
             });
         }
     }
 
-    public(friend) fun deposit<C,P>(addr: address, amount: u64) acquires Account, Position {
-        let account_ref = borrow_global_mut<Account>(addr);
+    public(friend) fun deposit<C,P>(account: &signer, amount: u64, is_collateral_only: bool) acquires Account, Position {
+        deposit_internal<C,P>(account, amount, is_collateral_only);
+    }
+
+    fun deposit_internal<C,P>(account: &signer, amount: u64, is_collateral_only: bool) acquires Account, Position {
+        initialize_if_necessary(account);
+        let account_ref = borrow_global_mut<Account>(signer::address_of(account));
         if (pool_type::is_type_asset<P>()) {
-            update_position<C,AssetToShadow>(account_ref, amount, true, true);
+            update_position<C,AssetToShadow>(account_ref, amount, true, true, is_collateral_only);
         } else {
-            update_position<C,ShadowToAsset>(account_ref, amount, true, true);
+            update_position<C,ShadowToAsset>(account_ref, amount, true, true, is_collateral_only);
         };
     }
 
-    public(friend) fun withdraw<C,P>(addr: address, amount: u64) acquires Account, Position {
+    public(friend) fun withdraw<C,P>(addr: address, amount: u64, is_collateral_only: bool) acquires Account, Position {
         let account_ref = borrow_global_mut<Account>(addr);
         if (pool_type::is_type_asset<P>()) {
-            update_position<C,AssetToShadow>(account_ref, amount, true, false);
+            update_position<C,AssetToShadow>(account_ref, amount, true, false, is_collateral_only);
         } else {
-            update_position<C,ShadowToAsset>(account_ref, amount, true, false);
+            update_position<C,ShadowToAsset>(account_ref, amount, true, false, is_collateral_only);
         };
     }
 
     public(friend) fun borrow<C,P>(addr: address, amount: u64) acquires Account, Position {
         let account_ref = borrow_global_mut<Account>(addr);
         if (pool_type::is_type_asset<P>()) {
-            update_position<C,AssetToShadow>(account_ref, amount, false, true);
+            update_position<C,AssetToShadow>(account_ref, amount, false, true, false);
         } else {
-            update_position<C,ShadowToAsset>(account_ref, amount, false, true);
+            update_position<C,ShadowToAsset>(account_ref, amount, false, true, false);
         };
     }
 
     public(friend) fun repay<C,P>(addr: address, amount: u64) acquires Account, Position {
         let account_ref = borrow_global_mut<Account>(addr);
         if (pool_type::is_type_asset<P>()) {
-            update_position<C,AssetToShadow>(account_ref, amount, false, false);
+            update_position<C,AssetToShadow>(account_ref, amount, false, false, false);
         } else {
-            update_position<C,ShadowToAsset>(account_ref, amount, false, false);
+            update_position<C,ShadowToAsset>(account_ref, amount, false, false, false);
         };
     }
 
@@ -222,6 +243,7 @@ module leizd::account_position {
         amount: u64,
         is_deposit: bool,
         is_increase: bool,
+        is_collateral_only: bool,
     ) acquires Position {
         let key = generate_key<C>();
         let position_ref = borrow_global_mut<Position<P>>(account_ref.addr);
@@ -231,10 +253,18 @@ module leizd::account_position {
                 // Deposit 
                 let deposited = simple_map::borrow_mut<String,u64>(&mut position_ref.deposited, &key);
                 *deposited = *deposited + amount;
+                if (is_collateral_only) {
+                    let conly_deposited = simple_map::borrow_mut<String,u64>(&mut position_ref.conly_deposited, &key);
+                    *conly_deposited = *conly_deposited + amount;
+                }
             } else if (is_deposit && !is_increase) {
                 // Withdraw
                 let deposited = simple_map::borrow_mut<String,u64>(&mut position_ref.deposited, &key);
                 *deposited = *deposited - amount;
+                if (is_collateral_only) {
+                    let conly_deposited = simple_map::borrow_mut<String,u64>(&mut position_ref.conly_deposited, &key);
+                    *conly_deposited = *conly_deposited - amount;
+                }
                 // FIXME: consider both deposited and borrowed & remove key in vector & position in map
             } else if (!is_deposit && is_increase) {
                 // Borrow
@@ -247,17 +277,19 @@ module leizd::account_position {
                 // FIXME: consider both deposited and borrowed & remove key in vector & position in map
             }
         } else {
-            new_position<P>(account_ref.addr, amount, is_deposit, key);
+            new_position<P>(account_ref.addr, amount, is_deposit, is_collateral_only, key);
         };
     }
 
-    fun new_position<P>(addr: address, amount: u64, is_deposit: bool, key: String) acquires Position {
+    fun new_position<P>(addr: address, amount: u64, is_deposit: bool, is_collateral_only: bool, key: String) acquires Position {
         assert!(is_deposit, 0); // FIXME: should be deleted
         let position_ref = borrow_global_mut<Position<P>>(addr);
         vector::push_back<String>(&mut position_ref.coins, key);
 
+        let conly_amount = if (is_collateral_only) amount else 0;
         // TODO: should be key -> Balance?
         simple_map::add<String,u64>(&mut position_ref.deposited, key, amount);
+        simple_map::add<String,u64>(&mut position_ref.conly_deposited, key, conly_amount);
         simple_map::add<String,u64>(&mut position_ref.borrowed, key, 0);
     }
 
@@ -282,5 +314,41 @@ module leizd::account_position {
     fun generate_key<C>(): String {
         let coin_type = type_info::type_name<C>();
         coin_type
+    }
+
+    #[test_only]
+    use aptos_framework::managed_coin;
+    #[test_only]
+    use leizd::test_coin::{Self,WETH};
+    #[test_only]
+    use leizd::initializer;
+    #[test_only]
+    use leizd::pool_type::{Asset};
+    #[test_only]
+    use aptos_framework::timestamp;
+    #[test_only]
+    use aptos_framework::account;
+
+    // for deposit
+    #[test_only]
+    fun setup_for_test_to_initialize_coins(owner: &signer, aptos_framework: &signer) {
+        timestamp::set_time_has_started_for_testing(aptos_framework);
+        let owner_addr = signer::address_of(owner);
+        account::create_account_for_test(owner_addr);
+        initializer::initialize(owner);
+        test_coin::init_weth(owner);
+    }
+
+    #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
+    public entry fun test_deposit_weth(owner: &signer, account: &signer, aptos_framework: &signer) acquires Account, Position {
+        setup_for_test_to_initialize_coins(owner, aptos_framework);
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+        initializer::register<WETH>(account);
+        managed_coin::mint<WETH>(owner, account_addr, 1000000);
+
+        deposit_internal<WETH,Asset>(account, 800000, false);
+        assert!(deposited_asset<WETH>(account_addr) == 800000, 0);
+        assert!(conly_deposited_asset<WETH>(account_addr) == 0, 0);
     }
 }

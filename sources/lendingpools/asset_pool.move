@@ -7,23 +7,18 @@
 /// # Liquidate
 /// # Rebalance
 module leizd::asset_pool {
-    // use std::string::{String};
+
     use std::signer;
     use aptos_std::event;
     use aptos_framework::account;
     use aptos_framework::coin;
     use aptos_framework::timestamp;
-    // use aptos_std::simple_map;
-    // use leizd::collateral;
-    // use leizd::collateral_only;
-    // use leizd::debt;
     use leizd::repository;
     use leizd::pool_type::{Asset};
     use leizd::permission;
     use leizd::treasury;
     use leizd::interest_rate;
     use leizd::system_status;
-    // use leizd::usdz::{USDZ};
     use leizd::constant;
     use leizd::dex_facade;
     use leizd::account_position;
@@ -103,26 +98,24 @@ module leizd::asset_pool {
     /// Initializes a pool with the coin the owner specifies.
     /// The caller is only owner and creates not only a pool but also other resources
     /// such as a treasury for the coin, an interest rate model, and coins of collaterals and debts.
-    public entry fun init_pool<C>(owner: &signer) {
+    public(friend) fun init_pool<C>(owner: &signer) {
+        init_pool_internal<C>(owner);
+    }
+
+    fun init_pool_internal<C>(owner: &signer) {
         permission::assert_owner(signer::address_of(owner));
         assert!(!is_pool_initialized<C>(), E_IS_ALREADY_EXISTED);
         assert!(dex_facade::has_liquidity<C>(), E_DEX_DOES_NOT_HAVE_LIQUIDITY);
 
-        // collateral::initialize<C>(owner);
-        // collateral_only::initialize<C>(owner);
-        // debt::initialize<C>(owner);
         treasury::initialize<C>(owner);
         repository::new_asset<C>(owner);
         interest_rate::initialize<C>(owner);
-        // stability_pool::init_pool<C>(owner);
         
         move_to(owner, Pool<C> {
             asset: coin::zero<C>(),
-            // shadow: coin::zero<USDZ>(),
             is_active: true
         });
         move_to(owner, default_storage<C,Asset>());
-        // move_to(owner, default_storage<C,Shadow>());
         move_to(owner, PoolEventHandle<C> {
             deposit_event: account::new_event_handle<DepositEvent>(owner),
             withdraw_event: account::new_event_handle<WithdrawEvent>(owner),
@@ -151,6 +144,37 @@ module leizd::asset_pool {
         );
     }
 
+    fun deposit_for_internal<C>(
+        account: &signer,
+        depositor_addr: address,
+        amount: u64,
+        is_collateral_only: bool,
+    ) acquires Pool, Storage, PoolEventHandle {
+        assert!(is_available<C>(), 0);
+
+        let storage_ref = borrow_global_mut<Storage<C>>(@leizd);
+        let pool_ref = borrow_global_mut<Pool<C>>(@leizd);
+
+        accrue_interest<C,Asset>(storage_ref);
+
+        coin::merge(&mut pool_ref.asset, coin::withdraw<C>(account, amount));
+        if (is_collateral_only) {
+            storage_ref.total_conly_deposited = storage_ref.total_conly_deposited + (amount as u128);
+        } else {
+            storage_ref.total_deposited = storage_ref.total_deposited + (amount as u128);
+        };
+        event::emit_event<DepositEvent>(
+            &mut borrow_global_mut<PoolEventHandle<C>>(@leizd).deposit_event,
+            DepositEvent {
+                caller: signer::address_of(account),
+                depositor: depositor_addr,
+                amount,
+                is_collateral_only,
+                is_shadow: false,
+            },
+        );
+    }
+
     /// Withdraws an asset or a shadow from the pool.
     public(friend) fun withdraw_for<C>(
         depositor: &signer,
@@ -166,6 +190,29 @@ module leizd::asset_pool {
         )
     }
 
+    fun withdraw_for_internal<C>(
+        depositor: &signer,
+        receiver_addr: address,
+        amount: u64,
+        is_collateral_only: bool
+    ): u64 acquires Pool, Storage, PoolEventHandle {
+        assert!(is_available<C>(), 0);
+
+        amount = withdraw_asset<C>(depositor, receiver_addr, amount, is_collateral_only, 0);
+        event::emit_event<WithdrawEvent>(
+            &mut borrow_global_mut<PoolEventHandle<C>>(@leizd).withdraw_event,
+            WithdrawEvent {
+                caller: signer::address_of(depositor),
+                depositor: signer::address_of(depositor),
+                receiver: receiver_addr,
+                amount,
+                is_collateral_only,
+                is_shadow: false
+            },
+        );
+        amount
+    }
+
     /// Borrows an asset or a shadow from the pool.
     public(friend) fun borrow_for<C,P>(
         account: &signer,
@@ -176,12 +223,63 @@ module leizd::asset_pool {
         borrow_for_internal<C,P>(account, borrower_addr, receiver_addr, amount);
     }
 
+    fun borrow_for_internal<C,P>(
+        account: &signer,
+        borrower_addr: address,
+        receiver_addr: address,
+        amount: u64,
+    ) acquires Pool, Storage, PoolEventHandle {
+        assert!(is_available<C>(), 0);
+
+        borrow_asset<C>(borrower_addr, receiver_addr, amount);
+        event::emit_event<BorrowEvent>(
+            &mut borrow_global_mut<PoolEventHandle<C>>(@leizd).borrow_event,
+            BorrowEvent {
+                caller: signer::address_of(account),
+                borrower: borrower_addr,
+                receiver: receiver_addr,
+                amount,
+                is_shadow: false
+            },
+        );
+    }
+
     /// Repays an asset or a shadow for the borrowed position.
     public entry fun repay<C>(
         account: &signer,
         amount: u64,
-    ) acquires Pool, Storage, PoolEventHandle {
-        repay_internal<C>(account, amount);
+    ): u64 acquires Pool, Storage, PoolEventHandle {
+        repay_internal<C>(account, amount)
+    }
+
+
+    fun repay_internal<C>(
+        account: &signer,
+        amount: u64,
+    ): u64 acquires Pool, Storage, PoolEventHandle {
+        assert!(is_available<C>(), 0);
+
+        let account_addr = signer::address_of(account);
+        let pool_ref = borrow_global_mut<Pool<C>>(@leizd);
+        let storage_ref = borrow_global_mut<Storage<C>>(@leizd);
+
+        accrue_interest<C,Asset>(storage_ref);
+
+        let debt_amount = account_position::borrowed_shadow<C>(account_addr);
+        let repaid_amount = if (amount >= debt_amount) debt_amount else amount;
+        storage_ref.total_borrowed = storage_ref.total_borrowed - (repaid_amount as u128);
+        let withdrawn = coin::withdraw<C>(account, repaid_amount);
+        coin::merge(&mut pool_ref.asset, withdrawn);
+
+        event::emit_event<RepayEvent>(
+            &mut borrow_global_mut<PoolEventHandle<C>>(@leizd).repay_event,
+            RepayEvent {
+                caller: signer::address_of(account),
+                amount,
+                is_shadow: false
+            },
+        );
+        repaid_amount
     }
 
     // public entry fun liquidate<C>(
@@ -209,123 +307,9 @@ module leizd::asset_pool {
     //     )
     // }
 
-    fun deposit_for_internal<C>(
-        account: &signer,
-        depositor_addr: address,
-        amount: u64,
-        is_collateral_only: bool,
-    ) acquires Pool, Storage, PoolEventHandle {
-        assert!(is_available<C>(), 0);
 
-        // let is_shadow = pool_type::is_type_shadow<P>();
-        // if (is_shadow) {
-        //     deposit_shadow<C>(account, depositor_addr, amount, is_collateral_only);
-        // } else {
-        //     deposit_asset<C>(account, depositor_addr, amount, is_collateral_only);
-        // };
-        // deposit_asset<C>(account, depositor_addr, amount, is_collateral_only);
-        let storage_ref = borrow_global_mut<Storage<C>>(@leizd);
-        let pool_ref = borrow_global_mut<Pool<C>>(@leizd);
 
-        accrue_interest<C,Asset>(storage_ref);
 
-        coin::merge(&mut pool_ref.asset, coin::withdraw<C>(account, amount));
-        if (is_collateral_only) {
-            storage_ref.total_conly_deposited = storage_ref.total_conly_deposited + (amount as u128);
-        } else {
-            storage_ref.total_deposited = storage_ref.total_deposited + (amount as u128);
-        };
-        event::emit_event<DepositEvent>(
-            &mut borrow_global_mut<PoolEventHandle<C>>(@leizd).deposit_event,
-            DepositEvent {
-                caller: signer::address_of(account),
-                depositor: depositor_addr,
-                amount,
-                is_collateral_only,
-                is_shadow: false,
-            },
-        );
-    }
-
-    fun withdraw_for_internal<C>(
-        depositor: &signer,
-        receiver_addr: address,
-        amount: u64,
-        is_collateral_only: bool
-    ): u64 acquires Pool, Storage, PoolEventHandle {
-        assert!(is_available<C>(), 0);
-
-        // let is_shadow = pool_type::is_type_shadow<P>();
-        // if (is_shadow) {
-        //     withdraw_shadow<C>(depositor, receiver_addr, amount, is_collateral_only, 0);
-        // } else {
-        //     withdraw_asset<C>(depositor, receiver_addr, amount, is_collateral_only, 0);
-        // };
-        amount = withdraw_asset<C>(depositor, receiver_addr, amount, is_collateral_only, 0);
-        event::emit_event<WithdrawEvent>(
-            &mut borrow_global_mut<PoolEventHandle<C>>(@leizd).withdraw_event,
-            WithdrawEvent {
-                caller: signer::address_of(depositor),
-                depositor: signer::address_of(depositor),
-                receiver: receiver_addr,
-                amount,
-                is_collateral_only,
-                is_shadow: false
-            },
-        );
-        amount
-    }
-
-    fun borrow_for_internal<C,P>(
-        account: &signer,
-        borrower_addr: address,
-        receiver_addr: address,
-        amount: u64,
-    ) acquires Pool, Storage, PoolEventHandle {
-        assert!(is_available<C>(), 0);
-        // position::initialize_if_necessary(account);
-
-        // let is_shadow = pool_type::is_type_shadow<P>();
-        // if (is_shadow) {
-        //     borrow_shadow<C>(borrower_addr, receiver_addr, amount);
-        // } else {
-        //     borrow_asset<C>(borrower_addr, receiver_addr, amount);
-        // };
-        borrow_asset<C>(borrower_addr, receiver_addr, amount);
-        event::emit_event<BorrowEvent>(
-            &mut borrow_global_mut<PoolEventHandle<C>>(@leizd).borrow_event,
-            BorrowEvent {
-                caller: signer::address_of(account),
-                borrower: borrower_addr,
-                receiver: receiver_addr,
-                amount,
-                is_shadow: false
-            },
-        );
-    }
-
-    fun repay_internal<C>(
-        account: &signer,
-        amount: u64,
-    ) acquires Pool, Storage, PoolEventHandle {
-        assert!(is_available<C>(), 0);
-
-        // let is_shadow = pool_type::is_type_shadow<P>();
-        // if (is_shadow) {
-        //     repay_shadow<C>(account, amount);
-        // } else {
-        //     repay_asset<C>(account, amount);
-        // };
-        repay_asset<C>(account, amount);
-        event::emit_event<RepayEvent>(
-            &mut borrow_global_mut<PoolEventHandle<C>>(@leizd).repay_event,
-            RepayEvent {
-                caller: signer::address_of(account),
-                amount,
-                is_shadow: false
-            },
-        );
-    }
 
     // fun deposit_asset<C>(
     //     account: &signer,
@@ -545,27 +529,27 @@ module leizd::asset_pool {
     //     coin::deposit(receiver_addr, borrowed);
     // }
 
-    fun repay_asset<C>(
-        account: &signer,
-        amount: u64
-    ) acquires Pool, Storage {
-        let account_addr = signer::address_of(account);
-        let pool_ref = borrow_global_mut<Pool<C>>(@leizd);
-        let storage_ref = borrow_global_mut<Storage<C>>(@leizd);
+    // fun repay_asset<C>(
+    //     account: &signer,
+    //     amount: u64
+    // ) acquires Pool, Storage {
+    //     let account_addr = signer::address_of(account);
+    //     let pool_ref = borrow_global_mut<Pool<C>>(@leizd);
+    //     let storage_ref = borrow_global_mut<Storage<C>>(@leizd);
 
-        accrue_interest<C,Asset>(storage_ref);
+    //     accrue_interest<C,Asset>(storage_ref);
 
-        // let (repaid_amount, repaid_share) = calc_debt_amount_and_share<C,Asset>(account_addr, storage_ref.total_borrowed, amount);
-        let debt_amount = account_position::borrowed_shadow<C>(account_addr);
-        let repaid_amount = if (amount >= debt_amount) debt_amount else amount;
+    //     // let (repaid_amount, repaid_share) = calc_debt_amount_and_share<C,Asset>(account_addr, storage_ref.total_borrowed, amount);
+    //     let debt_amount = account_position::borrowed_shadow<C>(account_addr);
+    //     let repaid_amount = if (amount >= debt_amount) debt_amount else amount;
 
-        let withdrawn = coin::withdraw<C>(account, repaid_amount);
-        coin::merge(&mut pool_ref.asset, withdrawn);
+    //     let withdrawn = coin::withdraw<C>(account, repaid_amount);
+    //     coin::merge(&mut pool_ref.asset, withdrawn);
 
-        storage_ref.total_borrowed = storage_ref.total_borrowed - (repaid_amount as u128);
-        // debt::burn<C,Asset>(account, repaid_share);
-        // position::cancel_borrow_position<C,Asset>(signer::address_of(account), amount);
-    }
+    //     storage_ref.total_borrowed = storage_ref.total_borrowed - (repaid_amount as u128);
+    //     // debt::burn<C,Asset>(account, repaid_share);
+    //     // position::cancel_borrow_position<C,Asset>(signer::address_of(account), amount);
+    // }
 
     // fun repay_shadow<C>(
     //     account: &signer,
@@ -775,8 +759,8 @@ module leizd::asset_pool {
 
     // #[test_only]
     // use aptos_std::debug;
-    // #[test_only]
-    // use aptos_framework::managed_coin;
+    #[test_only]
+    use aptos_framework::managed_coin;
     #[test_only]
     use leizd::test_coin::{Self,USDC,USDT,WETH,UNI};
     // #[test_only]
@@ -849,25 +833,23 @@ module leizd::asset_pool {
         init_pool<WETH>(owner);
         init_pool<UNI>(owner);
     }
-    // #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
-    // public entry fun test_deposit_weth(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
-    //     setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
-    //     let account_addr = signer::address_of(account);
-    //     account::create_account_for_test(account_addr);
-    //     initializer::register<WETH>(account);
-    //     managed_coin::mint<WETH>(owner, account_addr, 1000000);
-    //     assert!(coin::balance<WETH>(account_addr) == 1000000, 0);
+    #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
+    public entry fun test_deposit_weth(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+        initializer::register<WETH>(account);
+        managed_coin::mint<WETH>(owner, account_addr, 1000000);
+        assert!(coin::balance<WETH>(account_addr) == 1000000, 0);
 
-    //     deposit_for_internal<WETH,Asset>(account, account_addr, 800000, false);
-    //     assert!(coin::balance<WETH>(account_addr) == 200000, 0);
-    //     assert!(total_deposited<WETH,Asset>() == 800000, 0);
-    //     assert!(total_conly_deposited<WETH,Asset>() == 0, 0);
-    //     assert!(collateral::balance_of<WETH, Asset>(account_addr) == 800000, 0);
-    //     assert!(collateral_only::balance_of<WETH, Asset>(account_addr) == 0, 0);
+        deposit_for_internal<WETH>(account, account_addr, 800000, false);
+        assert!(coin::balance<WETH>(account_addr) == 200000, 0);
+        assert!(total_deposited<WETH,Asset>() == 800000, 0);
+        assert!(total_conly_deposited<WETH,Asset>() == 0, 0);
 
-    //     let event_handle = borrow_global<PoolEventHandle<WETH>>(signer::address_of(owner));
-    //     assert!(event::counter<DepositEvent>(&event_handle.deposit_event) == 1, 0);
-    // }
+        let event_handle = borrow_global<PoolEventHandle<WETH>>(signer::address_of(owner));
+        assert!(event::counter<DepositEvent>(&event_handle.deposit_event) == 1, 0);
+    }
     // #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
     // public entry fun test_deposit_with_same_as_holding_amount(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
     //     setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
