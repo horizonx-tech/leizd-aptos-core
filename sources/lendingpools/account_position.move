@@ -11,7 +11,7 @@ module leizd::account_position {
     use leizd::repository;
     use leizd::usdz::{USDZ};
 
-    friend leizd::market;
+    friend leizd::money_market;
 
     const ENO_SAFE_POSITION: u64 = 0;
     const ENO_UNSAFE_POSITION: u64 = 1;
@@ -103,72 +103,72 @@ module leizd::account_position {
         // recovery by left shadows
         let results = vector::empty<ChangedPosition<ShadowToAsset>>();
 
-        // insufficient shadow
-        let length_unsafe_s2a_keys = vector::length<String>(&unsafe_s2a_keys);
-        // let insufficient_shadow_keys = vector::empty<String>();
-        let insufficient_shadow_amounts = vector::empty<u64>();
-        let insufficient_shadow_volume_sum = 0;
-        let i = 0;
-        while (i < length_unsafe_s2a_keys) {
-            let coin_i = vector::borrow<String>(&unsafe_s2a_keys, i);
-            let borrowed_i = borrowed_volume<ShadowToAsset>(addr, *coin_i);
+        // // insufficient shadow
+        // let length_unsafe_s2a_keys = vector::length<String>(&unsafe_s2a_keys);
+        // // let insufficient_shadow_keys = vector::empty<String>();
+        // let insufficient_shadow_amounts = vector::empty<u64>();
+        // let insufficient_shadow_volume_sum = 0;
+        // let i = 0;
+        // while (i < length_unsafe_s2a_keys) {
+        //     let coin_i = vector::borrow<String>(&unsafe_s2a_keys, i);
+        //     let borrowed_i = borrowed_volume<ShadowToAsset>(addr, *coin_i);
 
-            i = i + 1;
-        };
+        //     i = i + 1;
+        // };
         
 
-        // extra shadow        
-        let length_safe_s2a_keys = vector::length<String>(&safe_s2a_keys);
-        // let extra_shadow_keys = vector::empty<String>();
-        let extra_shadow_amounts = vector::empty<u64>();
-        let extra_shadow_volume_sum = 0;
-        let i = 0;
-        while (i < length_safe_s2a_keys) {
-            let coin_i = vector::borrow<String>(&safe_s2a_keys, i);
-            let borrowed_i = borrowed_volume<ShadowToAsset>(addr, *coin_i);
-            let deposited_i = deposited_volume<ShadowToAsset>(addr, *coin_i);
-            let required_deposit = borrowed_i * repository::precision() / repository::lt_of_shadow();
-            let extra = deposited_i - required_deposit;
-            // vector::push_back<String>(&mut extra_shadow_keys, *coin_i);
-            vector::push_back<u64>(&mut extra_shadow_amounts, extra);
-            extra_shadow_volume_sum = extra_shadow_volume_sum + extra;
-            i = i + 1;
-        };
+        // // extra shadow        
+        // let length_safe_s2a_keys = vector::length<String>(&safe_s2a_keys);
+        // // let extra_shadow_keys = vector::empty<String>();
+        // let extra_shadow_amounts = vector::empty<u64>();
+        // let extra_shadow_volume_sum = 0;
+        // let i = 0;
+        // while (i < length_safe_s2a_keys) {
+        //     let coin_i = vector::borrow<String>(&safe_s2a_keys, i);
+        //     let borrowed_i = borrowed_volume<ShadowToAsset>(addr, *coin_i);
+        //     let deposited_i = deposited_volume<ShadowToAsset>(addr, *coin_i);
+        //     let required_deposit = borrowed_i * repository::precision() / repository::lt_of_shadow();
+        //     let extra = deposited_i - required_deposit;
+        //     // vector::push_back<String>(&mut extra_shadow_keys, *coin_i);
+        //     vector::push_back<u64>(&mut extra_shadow_amounts, extra);
+        //     extra_shadow_volume_sum = extra_shadow_volume_sum + extra;
+        //     i = i + 1;
+        // };
 
-        let i = 0;
-        while (i < length_unsafe_s2a_keys) {
-            let insufficient_key = vector::borrow<String>(&unsafe_s2a_keys, i);
-            let insufficient_amount = vector::borrow<u64>(&insufficient_shadow_amounts, i);
-            let j = 0;
-            while (j < length_safe_s2a_keys) {
-                let extra_key = vector::borrow<String>(&safe_s2a_keys, j);
-                let extra_amount = vector::borrow<u64>(&extra_shadow_amounts, j);
-                if (*extra_amount > *insufficient_amount) {
-                    let transfer_amount = *insufficient_amount;
-                    // withdraw
-                    vector::push_back<ChangedPosition<ShadowToAsset>>(&mut results, ChangedPosition<ShadowToAsset> {
-                        addr: addr,
-                        is_deposit: true,
-                        is_increase: false,
-                        amount: transfer_amount
-                    });
-                    // deposit
-                    vector::push_back<ChangedPosition<ShadowToAsset>>(&mut results, ChangedPosition<ShadowToAsset> {
-                        addr: addr,
-                        is_deposit: true,
-                        is_increase: false,
-                        amount: transfer_amount
-                    });
-                    // TODO
-                } else {
-                    let transfer_amount = extra_amount;
-                    // TODO
-                };
+        // let i = 0;
+        // while (i < length_unsafe_s2a_keys) {
+        //     let insufficient_key = vector::borrow<String>(&unsafe_s2a_keys, i);
+        //     let insufficient_amount = vector::borrow<u64>(&insufficient_shadow_amounts, i);
+        //     let j = 0;
+        //     while (j < length_safe_s2a_keys) {
+        //         let extra_key = vector::borrow<String>(&safe_s2a_keys, j);
+        //         let extra_amount = vector::borrow<u64>(&extra_shadow_amounts, j);
+        //         if (*extra_amount > *insufficient_amount) {
+        //             let transfer_amount = *insufficient_amount;
+        //             // withdraw
+        //             vector::push_back<ChangedPosition<ShadowToAsset>>(&mut results, ChangedPosition<ShadowToAsset> {
+        //                 addr: addr,
+        //                 is_deposit: true,
+        //                 is_increase: false,
+        //                 amount: transfer_amount
+        //             });
+        //             // deposit
+        //             vector::push_back<ChangedPosition<ShadowToAsset>>(&mut results, ChangedPosition<ShadowToAsset> {
+        //                 addr: addr,
+        //                 is_deposit: true,
+        //                 is_increase: false,
+        //                 amount: transfer_amount
+        //             });
+        //             // TODO
+        //         } else {
+        //             let transfer_amount = extra_amount;
+        //             // TODO
+        //         };
 
-                j = j + 1;
-            };
-            i = i + 1;
-        };
+        //         j = j + 1;
+        //     };
+        //     i = i + 1;
+        // };
         results
     }
 
