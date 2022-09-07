@@ -16,7 +16,7 @@ module leizd::money_market {
 
     public entry fun list_new_coin<C>(owner: &signer) {
         asset_pool::init_pool<C>(owner);
-        shadow_pool::init_pool<C>(owner);
+        shadow_pool::init_pool(owner);
     }
 
     /// Deposits an asset or a shadow to the pool.

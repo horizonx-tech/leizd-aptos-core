@@ -24,12 +24,16 @@ module leizd::shadow_pool {
         total_conly_deposited: u128,
         total_borrowed: u128,
         deposited: simple_map::SimpleMap<String,u64>,
+        conly_deposited: simple_map::SimpleMap<String,u64>,
         borrowed: simple_map::SimpleMap<String,u64>,
     }
 
-    public(friend) fun init_pool<C>(owner: &signer) {
+    public(friend) fun init_pool(owner: &signer) {
+        init_pool_internal(owner);
+    }
+
+    fun init_pool_internal(owner: &signer) {
         permission::assert_owner(signer::address_of(owner));
-        stability_pool::init_pool<C>(owner);
         move_to(owner, Pool {
             shadow: coin::zero<USDZ>(),
         });
@@ -41,6 +45,15 @@ module leizd::shadow_pool {
         amount: u64,
         is_collateral_only: bool
     ) acquires Pool, Storage {
+        deposit_for_internal<C>(account, amount, is_collateral_only);
+    }
+
+    fun deposit_for_internal<C>(
+        account: &signer, 
+        amount: u64,
+        is_collateral_only: bool
+    ) acquires Pool, Storage {
+        // TODO: for
         // TODO: assert!(is_available<C>(), 0);
 
         let storage_ref = borrow_global_mut<Storage>(@leizd);
@@ -48,11 +61,24 @@ module leizd::shadow_pool {
 
         // TODO: accrue_interest<C,Shadow>(storage_ref);
 
+        let key = generate_coin_key<C>();
         coin::merge(&mut pool_ref.shadow, coin::withdraw<USDZ>(account, amount));
         if (is_collateral_only) {
             storage_ref.total_conly_deposited = storage_ref.total_conly_deposited + (amount as u128);
+            if (simple_map::contains_key<String,u64>(&storage_ref.conly_deposited, &key)) {
+                let conly_deposited = simple_map::borrow_mut<String,u64>(&mut storage_ref.conly_deposited, &key);
+                *conly_deposited = *conly_deposited + amount;
+            } else {
+                simple_map::add<String,u64>(&mut storage_ref.conly_deposited, key, amount);
+            }
         } else {
             storage_ref.total_deposited = storage_ref.total_deposited + (amount as u128);
+            if (simple_map::contains_key<String,u64>(&storage_ref.deposited, &key)) {
+                let deposited = simple_map::borrow_mut<String,u64>(&mut storage_ref.deposited, &key);
+                *deposited = *deposited + amount;
+            } else {
+                simple_map::add<String,u64>(&mut storage_ref.deposited, key, amount);
+            }
         };
     }
 
@@ -179,6 +205,7 @@ module leizd::shadow_pool {
             total_conly_deposited: 0,
             total_borrowed: 0,
             deposited: simple_map::create<String,u64>(),
+            conly_deposited: simple_map::create<String,u64>(),
             borrowed: simple_map::create<String,u64>(),
         }
     }
@@ -212,8 +239,86 @@ module leizd::shadow_pool {
         value * repository::entry_fee() / repository::precision() // TODO: rounded up
     }
 
+    public entry fun total_deposited<C,P>(): u128 acquires Storage {
+        borrow_global<Storage>(@leizd).total_deposited
+    }
+
+    public entry fun total_conly_deposited<C,P>(): u128 acquires Storage {
+        borrow_global<Storage>(@leizd).total_conly_deposited
+    }
+
+    public entry fun total_borrowed<C,P>(): u128 acquires Storage {
+        borrow_global<Storage>(@leizd).total_borrowed
+    }
+
+    public entry fun deposited<C>(): u64 acquires Storage {
+        let key = generate_coin_key<C>();
+        let deposited = borrow_global<Storage>(@leizd).deposited;
+        if (simple_map::contains_key<String,u64>(&deposited, &key)) {
+            *simple_map::borrow<String,u64>(&deposited, &key)
+        } else {
+            0
+        }
+    }
+
+    public entry fun conly_deposited<C>(): u64 acquires Storage {
+        let key = generate_coin_key<C>();
+        let conly_deposited = borrow_global<Storage>(@leizd).conly_deposited;
+        if (simple_map::contains_key<String,u64>(&conly_deposited, &key)) {
+            *simple_map::borrow<String,u64>(&conly_deposited, &key)
+        } else {
+            0
+        }
+    }
+
     fun generate_coin_key<C>(): String {
         let coin_type = type_info::type_name<C>();
         coin_type
+    }
+
+    #[test_only]
+    use aptos_framework::managed_coin;
+    #[test_only]
+    use leizd::test_coin::{Self,WETH};
+    #[test_only]
+    use leizd::usdz;
+    #[test_only]
+    use leizd::initializer;
+    #[test_only]
+    use aptos_framework::account;
+    #[test_only]
+    use aptos_framework::timestamp;
+
+    #[test_only]
+    fun setup_for_test_to_initialize_coins_and_pools(owner: &signer, aptos_framework: &signer) {
+        timestamp::set_time_has_started_for_testing(aptos_framework);
+        let owner_addr = signer::address_of(owner);
+        account::create_account_for_test(owner_addr);
+        initializer::initialize(owner);
+        test_coin::init_usdc(owner);
+        test_coin::init_usdt(owner);
+        test_coin::init_weth(owner);
+        test_coin::init_uni(owner);
+        init_pool_internal(owner);
+    }
+    #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
+    public entry fun test_deposit_shadow(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+        initializer::register<WETH>(account);
+        initializer::register<USDZ>(account);
+
+        managed_coin::mint<WETH>(owner, account_addr, 1000000);
+        assert!(coin::balance<WETH>(account_addr) == 1000000, 0);
+        usdz::mint_for_test(account_addr, 1000000);
+        assert!(coin::balance<USDZ>(account_addr) == 1000000, 0);
+
+        deposit_for_internal<WETH>(account, 800000, false);
+        assert!(coin::balance<WETH>(account_addr) == 1000000, 0);
+        assert!(coin::balance<USDZ>(account_addr) == 200000, 0);
+        assert!(deposited<WETH>() == 800000, 0);
+        assert!(conly_deposited<WETH>() == 0, 0);
     }
 }

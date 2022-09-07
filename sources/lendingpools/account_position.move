@@ -42,13 +42,41 @@ module leizd::account_position {
     public fun deposited_asset<C>(addr: address): u64 acquires Position {
         let key = generate_key<C>();
         let position_ref = borrow_global<Position<AssetToShadow>>(addr);
-        *simple_map::borrow<String,u64>(&position_ref.deposited, &key)
+        if (simple_map::contains_key<String,u64>(&position_ref.deposited, &key)) {
+            *simple_map::borrow<String,u64>(&position_ref.deposited, &key)
+        } else {
+            0
+        }
     }
 
     public fun conly_deposited_asset<C>(addr: address): u64 acquires Position {
         let key = generate_key<C>();
         let position_ref = borrow_global<Position<AssetToShadow>>(addr);
-        *simple_map::borrow<String,u64>(&position_ref.conly_deposited, &key)
+         if (simple_map::contains_key<String,u64>(&position_ref.conly_deposited, &key)) {
+            *simple_map::borrow<String,u64>(&position_ref.conly_deposited, &key)
+        } else {
+            0
+        }
+    }
+
+    public fun deposited_shadow<C>(addr: address): u64 acquires Position {
+        let key = generate_key<C>();
+        let position_ref = borrow_global<Position<ShadowToAsset>>(addr);
+        if (simple_map::contains_key<String,u64>(&position_ref.deposited, &key)) {
+            *simple_map::borrow<String,u64>(&position_ref.deposited, &key)
+        } else {
+            0
+        }
+    }
+
+    public fun conly_deposited_shadow<C>(addr: address): u64 acquires Position {
+        let key = generate_key<C>();
+        let position_ref = borrow_global<Position<ShadowToAsset>>(addr);
+        if (simple_map::contains_key<String,u64>(&position_ref.conly_deposited, &key)) {
+            *simple_map::borrow<String,u64>(&position_ref.conly_deposited, &key)
+        } else {
+            0
+        }
     }
 
     public fun borrowed_shadow<C>(addr: address): u64 acquires Position {
@@ -323,11 +351,13 @@ module leizd::account_position {
     #[test_only]
     use leizd::initializer;
     #[test_only]
-    use leizd::pool_type::{Asset};
+    use leizd::pool_type::{Asset,Shadow};
     #[test_only]
     use aptos_framework::timestamp;
     #[test_only]
     use aptos_framework::account;
+    #[test_only]
+    use leizd::usdz;
 
     // for deposit
     #[test_only]
@@ -350,5 +380,52 @@ module leizd::account_position {
         deposit_internal<WETH,Asset>(account, 800000, false);
         assert!(deposited_asset<WETH>(account_addr) == 800000, 0);
         assert!(conly_deposited_asset<WETH>(account_addr) == 0, 0);
+    }
+    #[test(owner=@leizd,account1=@0x111,account2=@0x222,aptos_framework=@aptos_framework)]
+    public entry fun test_deposit_weth_by_two(owner: &signer, account1: &signer, account2: &signer, aptos_framework: &signer) acquires Account, Position {
+        setup_for_test_to_initialize_coins(owner, aptos_framework);
+        let account1_addr = signer::address_of(account1);
+        let account2_addr = signer::address_of(account2);
+        account::create_account_for_test(account1_addr);
+        account::create_account_for_test(account2_addr);
+        initializer::register<WETH>(account1);
+        initializer::register<WETH>(account2);
+        managed_coin::mint<WETH>(owner, account1_addr, 1000000);
+        managed_coin::mint<WETH>(owner, account2_addr, 1000000);
+
+        deposit_internal<WETH,Asset>(account1, 800000, false);
+        deposit_internal<WETH,Asset>(account2, 200000, false);
+        assert!(deposited_asset<WETH>(account1_addr) == 800000, 0);
+        assert!(deposited_asset<WETH>(account2_addr) == 200000, 0);
+    }
+    #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
+    public entry fun test_deposit_weth_for_only_collateral(owner: &signer, account: &signer, aptos_framework: &signer) acquires Account, Position {
+        setup_for_test_to_initialize_coins(owner, aptos_framework);
+
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+        initializer::register<WETH>(account);
+        managed_coin::mint<WETH>(owner, account_addr, 1000000);
+
+        deposit_internal<WETH,Asset>(account, 800000, true);
+        assert!(deposited_asset<WETH>(account_addr) == 800000, 0);
+        assert!(conly_deposited_asset<WETH>(account_addr) == 800000, 0);
+    }
+    #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
+    public entry fun test_deposit_shadow(owner: &signer, account: &signer, aptos_framework: &signer) acquires Account, Position {
+        setup_for_test_to_initialize_coins(owner, aptos_framework);
+
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+        initializer::register<WETH>(account);
+        initializer::register<USDZ>(account);
+        managed_coin::mint<WETH>(owner, account_addr, 1000000);
+        usdz::mint_for_test(account_addr, 1000000);
+
+        deposit_internal<WETH,Shadow>(account, 800000, false);
+        assert!(deposited_asset<WETH>(account_addr) == 0, 0);
+        assert!(conly_deposited_asset<WETH>(account_addr) == 0, 0);
+        assert!(deposited_shadow<WETH>(account_addr) == 800000, 0);
+        assert!(conly_deposited_shadow<WETH>(account_addr) == 0, 0);
     }
 }
