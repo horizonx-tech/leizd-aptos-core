@@ -71,6 +71,9 @@ module leizd::money_market {
         account_position::borrow<C,P>(addr, amount);
     }
 
+    // Borrow from the best pool
+    
+
     public entry fun repay<C,P>(account: &signer, amount: u64) {
         pool_type::assert_pool_type<P>();
 
@@ -86,8 +89,11 @@ module leizd::money_market {
 
     /// Rebalance shadow coin from C1 Pool to C2 Pool.
     public entry fun rebalance_shadow<C1,C2>(addr: address, is_collateral_only: bool) {
-        let amount = account_position::rebalance_amount<C1,C2>(addr, is_collateral_only);
-        shadow_pool::rebalance_shadow<C1,C2>(addr, amount, is_collateral_only);
-        account_position::rebalance_shadow<C1,C2>(addr, amount, is_collateral_only);
+        let amount = account_position::rebalance_shadow<C1,C2>(addr, is_collateral_only);
+        shadow_pool::rebalance_shadow<C1,C2>(amount, is_collateral_only);
     }
+
+    // Borrow And Rebalance
+
+    // Liquidation
 }

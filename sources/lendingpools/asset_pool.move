@@ -38,6 +38,8 @@ module leizd::asset_pool {
         is_active: bool,
     }
 
+    // TODO: vector<Pool>
+
     /// The total deposit amount and total borrowed amount can be updated
     /// in this struct. The collateral only asset is separately managed
     /// to calculate the borrowable amount in the pool.

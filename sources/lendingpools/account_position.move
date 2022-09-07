@@ -137,38 +137,33 @@ module leizd::account_position {
     }
 
     public(friend) fun borrow<C,P>(addr: address, amount: u64) acquires Account, Position {
+        borrow_internal<C,P>(addr, amount);
+    }
+
+    fun borrow_internal<C,P>(addr: address, amount: u64) acquires Account, Position {
         let account_ref = borrow_global_mut<Account>(addr);
         if (pool_type::is_type_asset<P>()) {
-            update_position<C,AssetToShadow>(account_ref.addr, amount, false, true, false);
-        } else {
             update_position<C,ShadowToAsset>(account_ref.addr, amount, false, true, false);
+        } else {
+            update_position<C,AssetToShadow>(account_ref.addr, amount, false, true, false);
         };
     }
 
     public(friend) fun repay<C,P>(addr: address, amount: u64) acquires Account, Position {
         let account_ref = borrow_global_mut<Account>(addr);
         if (pool_type::is_type_asset<P>()) {
-            update_position<C,AssetToShadow>(account_ref.addr, amount, false, false, false);
-        } else {
             update_position<C,ShadowToAsset>(account_ref.addr, amount, false, false, false);
+        } else {
+            update_position<C,AssetToShadow>(account_ref.addr, amount, false, false, false);
         };
     }
 
-    public(friend) fun rebalance_shadow<C1,C2>(addr: address, amount: u64, is_collateral_only: bool) acquires Account, Position {
-        rebalance_shadow_internal<C1,C2>(addr, amount, is_collateral_only);
+    public(friend) fun rebalance_shadow<C1,C2>(addr: address, is_collateral_only: bool): u64 acquires Position {
+        rebalance_shadow_internal<C1,C2>(addr, is_collateral_only)
     }
 
-    fun rebalance_shadow_internal<C1,C2>(addr: address, amount: u64, is_collateral_only: bool) acquires Account, Position {
-        let account_ref = borrow_global_mut<Account>(addr);
-        update_position<C1,ShadowToAsset>(account_ref.addr, amount, true, false, is_collateral_only);
-        update_position<C2,ShadowToAsset>(account_ref.addr, amount, true, true, is_collateral_only);
-    }
-
-    public(friend) fun rebalance_amount<C1,C2>(addr: address, is_collateral_only: bool): u64 acquires Position {
-        rebalance_amount_internal<C1,C2>(addr, is_collateral_only)
-    }
-
-    fun rebalance_amount_internal<C1,C2>(addr: address, is_collateral_only: bool): u64 acquires Position {
+    fun rebalance_shadow_internal<C1,C2>(addr: address, is_collateral_only: bool): u64 acquires Position {
+        // assert!(extra >= insufficient, 0);
         let key1 = generate_key<C1>();
         let key2 = generate_key<C2>();
 
@@ -274,7 +269,8 @@ module leizd::account_position {
     }
 
     fun new_position<P>(addr: address, amount: u64, is_deposit: bool, is_collateral_only: bool, key: String) acquires Position {
-        assert!(is_deposit, 0); // FIXME: should be deleted
+        // assert!(is_deposit, 0); // FIXME: should be deleted
+        is_deposit;
         let position_ref = borrow_global_mut<Position<P>>(addr);
         vector::push_back<String>(&mut position_ref.coins, key);
 
@@ -311,7 +307,7 @@ module leizd::account_position {
     #[test_only]
     use aptos_framework::managed_coin;
     #[test_only]
-    use leizd::test_coin::{Self,WETH};
+    use leizd::test_coin::{Self,WETH,UNI};
     #[test_only]
     use leizd::initializer;
     #[test_only]
@@ -421,5 +417,28 @@ module leizd::account_position {
         deposit_internal<WETH,Asset>(account, 700000, false);
         withdraw_internal<WETH,Asset>(account_addr, 600000, false);
         assert!(deposited_asset<WETH>(account_addr) == 100000, 0);
+    }
+
+    // rebalance shadow
+    #[test(owner=@leizd,account1=@0x111,aptos_framework=@aptos_framework)]
+    public entry fun test_rebalance_shadow(owner: &signer, account1: &signer, aptos_framework: &signer) acquires Account, Position {
+        setup_for_test_to_initialize_coins(owner, aptos_framework);
+        price_oracle::initialize_oracle_for_test(owner);
+
+        let account1_addr = signer::address_of(account1);
+        account::create_account_for_test(account1_addr);
+        initializer::register<WETH>(account1);
+        initializer::register<UNI>(account1);
+        initializer::register<USDZ>(account1);
+        managed_coin::mint<WETH>(owner, account1_addr, 1000000);
+        usdz::mint_for_test(account1_addr, 1000000);
+
+        deposit_internal<WETH,Shadow>(account1, 100000, false);
+        borrow_internal<WETH,Asset>(account1_addr, 50000);
+        deposit_internal<UNI,Shadow>(account1, 100000, false);
+        borrow_internal<UNI,Asset>(account1_addr, 110000);
+        rebalance_shadow_internal<WETH,UNI>(account1_addr, false);
+        assert!(deposited_shadow<WETH>(account1_addr) == 90000, 0);
+        assert!(deposited_shadow<UNI>(account1_addr) == 110000, 0);
     }
 }

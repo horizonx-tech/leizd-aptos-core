@@ -63,8 +63,8 @@ module leizd::repository {
         let ltv = table::new<string::String,u64>();
         let lt = table::new<string::String,u64>();
         let usdz_name = type_info::type_name<USDZ>();
-        table::add<string::String,u64>(&mut ltv, usdz_name, PRECISION / SHADOW_LTV);
-        table::add<string::String,u64>(&mut lt, usdz_name, PRECISION / SHADOW_LT);
+        table::add<string::String,u64>(&mut ltv, usdz_name, SHADOW_LTV);
+        table::add<string::String,u64>(&mut lt, usdz_name, SHADOW_LT);
         move_to(owner, Config {
             ltv: ltv,
             lt: lt,

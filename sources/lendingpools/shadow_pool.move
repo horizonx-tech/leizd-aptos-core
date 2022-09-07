@@ -83,7 +83,7 @@ module leizd::shadow_pool {
         };
     }
 
-    public(friend) fun rebalance_shadow<C1,C2>(addr: address, amount: u64, is_collateral_only: bool) acquires Storage {
+    public(friend) fun rebalance_shadow<C1,C2>(amount: u64, is_collateral_only: bool) acquires Storage {
         let key1 = generate_coin_key<C1>();
         let key2 = generate_coin_key<C2>();
         let storage_ref = borrow_global_mut<Storage>(@leizd);
