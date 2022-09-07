@@ -5,17 +5,14 @@
 /// # Borrow
 /// # Repay
 /// # Liquidate
+/// # Rebalance
 module leizd::money_market {
 
     use std::signer;
-    // use std::string;
-    // use aptos_framework::comparator;
-    // use aptos_framework::type_info;
     use leizd::pool;
     use leizd::shadow_pool;
-    use leizd::pool_type;
+    use leizd::pool_type::{Self,Shadow};
     use leizd::account_position;
-    // use leizd::pool_type::{Shadow};
 
     /// Deposits an asset or a shadow to the pool.
     /// If a user wants to protect the asset, it's possible that it can be used only for the collateral.
@@ -75,11 +72,14 @@ module leizd::money_market {
         // TODO
     }
 
-    // Rebalance shadow coin from C1 Pool to C2 Pool.
-    // public entry fun rebalance_shadow<C1,C2>(account: &signer, amount: u64, is_collateral_only: bool) {
-    //     pool::withdraw_for<C1,Shadow>(account, signer::address_of(account), amount, is_collateral_only);
-    //     pool::deposit_for<C2,Shadow>(account, signer::address_of(account), amount, is_collateral_only);
-    // }
+    /// Rebalance shadow coin from C1 Pool to C2 Pool.
+    public entry fun rebalance_shadow<C1,C2>(account: &signer, amount: u64, is_collateral_only: bool) {
+        let addr = signer::address_of(account);
+        shadow_pool::withdraw_for<C1>(account, addr, amount, is_collateral_only, 0);
+        account_position::withdraw<C1,Shadow>(addr, amount);
+        shadow_pool::deposit_for<C2>(account, amount, is_collateral_only);
+        account_position::deposit<C2,Shadow>(addr, amount);
+    }
 
     // TODO
     // public entry fun borrow_shadow_with_rebalance(account: &signer, amount: u64) {
