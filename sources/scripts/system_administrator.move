@@ -2,17 +2,17 @@ module leizd::system_administrator {
 
     use std::signer;
     use leizd::permission;
-    use leizd::pool;
+    use leizd::asset_pool;
     use leizd::system_status;
 
     public entry fun pause_pool<C>(owner: &signer) {
         permission::assert_owner(signer::address_of(owner));
-        pool::update_status<C>(false);
+        asset_pool::update_status<C>(false);
     }
 
     public entry fun resume_pool<C>(owner: &signer) {
         permission::assert_owner(signer::address_of(owner));
-        pool::update_status<C>(true);
+        asset_pool::update_status<C>(true);
     }
 
     public entry fun pause_protocol(owner: &signer) {
@@ -37,13 +37,13 @@ module leizd::system_administrator {
         account::create_account_for_test(owner_address);
         test_coin::init_weth(owner);
         repository::initialize(owner);
-        pool::init_pool<WETH>(owner);
+        asset_pool::init_pool<WETH>(owner);
         system_status::initialize(owner);
-        assert!(pool::is_available<WETH>(), 0);
+        assert!(asset_pool::is_available<WETH>(), 0);
         pause_pool<WETH>(owner);
-        assert!(!pool::is_available<WETH>(), 0);
+        assert!(!asset_pool::is_available<WETH>(), 0);
         resume_pool<WETH>(owner);
-        assert!(pool::is_available<WETH>(), 0);
+        assert!(asset_pool::is_available<WETH>(), 0);
     }
     #[test(account = @0x111)]
     #[expected_failure(abort_code = 1)]

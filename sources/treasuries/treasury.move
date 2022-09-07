@@ -5,7 +5,8 @@ module leizd::treasury {
     use leizd::usdz::{USDZ};
     use leizd::permission;
 
-    friend leizd::pool;
+    friend leizd::asset_pool;
+    friend leizd::shadow_pool;
 
     struct Treasury<phantom C> has key {
         asset: coin::Coin<C>,

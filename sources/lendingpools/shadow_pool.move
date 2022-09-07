@@ -8,6 +8,7 @@ module leizd::shadow_pool {
     use leizd::usdz::{USDZ};
     use leizd::permission;
     use leizd::constant;
+    use leizd::treasury;
 
     friend leizd::money_market;
 
@@ -56,7 +57,7 @@ module leizd::shadow_pool {
         let storage_ref = borrow_global_mut<Storage>(@leizd);
 
         // TODO: accrue_interest<C,Shadow>(storage_ref);
-        // collect_shadow_fee<C>(pool_ref, liquidation_fee);
+        collect_shadow_fee<C>(pool_ref, liquidation_fee);
 
         let amount_to_transfer = amount - liquidation_fee;
         coin::deposit<USDZ>(reciever_addr, coin::extract(&mut pool_ref.shadow, amount_to_transfer));
@@ -89,6 +90,11 @@ module leizd::shadow_pool {
             deposited: simple_map::create<String,u64>(),
             borrowed: simple_map::create<String,u64>(),
         }
+    }
+
+    fun collect_shadow_fee<C>(pool_ref: &mut Pool, liquidation_fee: u64) {
+        let fee_extracted = coin::extract(&mut pool_ref.shadow, liquidation_fee);
+        treasury::collect_shadow_fee<C>(fee_extracted);
     }
 
     fun generate_coin_key<C>(): String {

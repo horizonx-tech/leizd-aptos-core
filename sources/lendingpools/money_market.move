@@ -9,7 +9,7 @@
 module leizd::money_market {
 
     use std::signer;
-    use leizd::pool;
+    use leizd::asset_pool;
     use leizd::shadow_pool;
     use leizd::pool_type::{Self,Shadow};
     use leizd::account_position;
@@ -29,7 +29,7 @@ module leizd::money_market {
         let addr = signer::address_of(account);
         let is_shadow = pool_type::is_type_shadow<P>();
         if (is_shadow) {
-            pool::deposit_for<C>(account, addr, amount, is_collateral_only);
+            asset_pool::deposit_for<C>(account, addr, amount, is_collateral_only);
         } else {
             shadow_pool::deposit_for<C>(account, amount, is_collateral_only);
         };
@@ -47,7 +47,7 @@ module leizd::money_market {
         let addr = signer::address_of(account);
         let is_shadow = pool_type::is_type_shadow<P>();
         if (is_shadow) {
-            amount = pool::withdraw_for<C>(account, addr, amount, is_collateral_only);
+            amount = asset_pool::withdraw_for<C>(account, addr, amount, is_collateral_only);
         } else {
             amount = shadow_pool::withdraw_for<C>(account, addr, amount, is_collateral_only, 0);
         };
@@ -59,7 +59,7 @@ module leizd::money_market {
 
         let addr = signer::address_of(account);
         account_position::borrow<C,P>(addr, amount);
-        pool::borrow_for<C,P>(account, addr, addr, amount);
+        asset_pool::borrow_for<C,P>(account, addr, addr, amount);
         // TODO
     }
 
@@ -68,7 +68,7 @@ module leizd::money_market {
 
         let addr = signer::address_of(account);
         account_position::repay<C,P>(addr, amount);
-        pool::repay<C,P>(account, amount);
+        asset_pool::repay<C,P>(account, amount);
         // TODO
     }
 

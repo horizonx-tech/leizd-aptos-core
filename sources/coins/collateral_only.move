@@ -4,7 +4,7 @@ module leizd::collateral_only {
     use leizd::pool_type::{Asset,Shadow};
     use leizd::coin_base;
 
-    friend leizd::pool;
+    friend leizd::asset_pool;
 
     const E_NOT_INITIALIZED: u64 = 1;
 
