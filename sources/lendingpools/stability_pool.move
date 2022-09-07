@@ -9,7 +9,7 @@ module leizd::stability_pool {
     use leizd::stb_usdz;
     use leizd::permission;
 
-    friend leizd::asset_pool;
+    friend leizd::shadow_pool;
 
     const PRECISION: u64 = 1000000000;
     const STABILITY_FEE: u64 = 1000000000 * 5 / 1000; // 0.5%

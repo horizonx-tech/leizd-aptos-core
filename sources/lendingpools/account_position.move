@@ -37,6 +37,12 @@ module leizd::account_position {
         amount: u64,
     }
 
+    public fun borrowed_shadow<C>(addr: address): u64 acquires Position {
+        let key = generate_key<C>();
+        let position_ref = borrow_global<Position<AssetToShadow>>(addr);
+        *simple_map::borrow<String,u64>(&position_ref.borrowed, &key)
+    }
+
     // TODO: event
 
     public(friend) fun initialize_if_necessary(account: &signer) {

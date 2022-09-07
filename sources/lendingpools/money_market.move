@@ -58,18 +58,26 @@ module leizd::money_market {
         pool_type::assert_pool_type<P>();
 
         let addr = signer::address_of(account);
+        let is_shadow = pool_type::is_type_shadow<P>();
+        if (is_shadow) {
+            shadow_pool::borrow_for<C>(addr, addr, amount);
+        } else {
+            asset_pool::borrow_for<C,P>(account, addr, addr, amount);
+        };
         account_position::borrow<C,P>(addr, amount);
-        asset_pool::borrow_for<C,P>(account, addr, addr, amount);
-        // TODO
     }
 
     public entry fun repay<C,P>(account: &signer, amount: u64) {
         pool_type::assert_pool_type<P>();
 
         let addr = signer::address_of(account);
+        let is_shadow = pool_type::is_type_shadow<P>();
+        if (is_shadow) {
+            shadow_pool::repay<C>(account, amount);
+        } else {
+            asset_pool::repay<C>(account, amount);
+        };
         account_position::repay<C,P>(addr, amount);
-        asset_pool::repay<C,P>(account, amount);
-        // TODO
     }
 
     /// Rebalance shadow coin from C1 Pool to C2 Pool.
