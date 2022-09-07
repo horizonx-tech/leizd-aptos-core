@@ -26,6 +26,7 @@ module leizd::account_position {
     /// P: The position type - AssetToShadow or ShadowToAsset.
     struct Position<phantom P> has key {
         coins: vector<String>, // e.g. 0x1::module_name::WBTC
+        // TODO: protected_coins
         deposited: simple_map::SimpleMap<String,u64>,
         conly_deposited: simple_map::SimpleMap<String,u64>,
         borrowed: simple_map::SimpleMap<String,u64>,
@@ -116,115 +117,78 @@ module leizd::account_position {
         initialize_if_necessary(account);
         let account_ref = borrow_global_mut<Account>(signer::address_of(account));
         if (pool_type::is_type_asset<P>()) {
-            update_position<C,AssetToShadow>(account_ref, amount, true, true, is_collateral_only);
+            update_position<C,AssetToShadow>(account_ref.addr, amount, true, true, is_collateral_only);
         } else {
-            update_position<C,ShadowToAsset>(account_ref, amount, true, true, is_collateral_only);
+            update_position<C,ShadowToAsset>(account_ref.addr, amount, true, true, is_collateral_only);
         };
     }
 
     public(friend) fun withdraw<C,P>(addr: address, amount: u64, is_collateral_only: bool) acquires Account, Position {
+        withdraw_internal<C,P>(addr, amount, is_collateral_only);
+    }
+
+    fun withdraw_internal<C,P>(addr: address, amount: u64, is_collateral_only: bool) acquires Account, Position {
         let account_ref = borrow_global_mut<Account>(addr);
         if (pool_type::is_type_asset<P>()) {
-            update_position<C,AssetToShadow>(account_ref, amount, true, false, is_collateral_only);
+            update_position<C,AssetToShadow>(account_ref.addr, amount, true, false, is_collateral_only);
         } else {
-            update_position<C,ShadowToAsset>(account_ref, amount, true, false, is_collateral_only);
+            update_position<C,ShadowToAsset>(account_ref.addr, amount, true, false, is_collateral_only);
         };
     }
 
     public(friend) fun borrow<C,P>(addr: address, amount: u64) acquires Account, Position {
         let account_ref = borrow_global_mut<Account>(addr);
         if (pool_type::is_type_asset<P>()) {
-            update_position<C,AssetToShadow>(account_ref, amount, false, true, false);
+            update_position<C,AssetToShadow>(account_ref.addr, amount, false, true, false);
         } else {
-            update_position<C,ShadowToAsset>(account_ref, amount, false, true, false);
+            update_position<C,ShadowToAsset>(account_ref.addr, amount, false, true, false);
         };
     }
 
     public(friend) fun repay<C,P>(addr: address, amount: u64) acquires Account, Position {
         let account_ref = borrow_global_mut<Account>(addr);
         if (pool_type::is_type_asset<P>()) {
-            update_position<C,AssetToShadow>(account_ref, amount, false, false, false);
+            update_position<C,AssetToShadow>(account_ref.addr, amount, false, false, false);
         } else {
-            update_position<C,ShadowToAsset>(account_ref, amount, false, false, false);
+            update_position<C,ShadowToAsset>(account_ref.addr, amount, false, false, false);
         };
     }
 
-    public(friend) fun recovery_shadow(addr: address): vector<ChangedPosition<ShadowToAsset>> acquires Position {
-        // let (safe_a2s_keys, unsafe_a2s_keys) = classify_positions<AssetToShadow>(addr);
-        let (safe_s2a_keys, unsafe_s2a_keys) = classify_positions<ShadowToAsset>(addr);
-        assert!(vector::length<String>(&unsafe_s2a_keys) != 0, ENO_UNSAFE_POSITION);
-        assert!(vector::length<String>(&safe_s2a_keys) != 0, ENO_SAFE_POSITION);
-        
-        // recovery by left shadows
-        let results = vector::empty<ChangedPosition<ShadowToAsset>>();
+    public(friend) fun rebalance_shadow<C1,C2>(addr: address, amount: u64, is_collateral_only: bool) acquires Account, Position {
+        rebalance_shadow_internal<C1,C2>(addr, amount, is_collateral_only);
+    }
 
-        // // insufficient shadow
-        // let length_unsafe_s2a_keys = vector::length<String>(&unsafe_s2a_keys);
-        // // let insufficient_shadow_keys = vector::empty<String>();
-        // let insufficient_shadow_amounts = vector::empty<u64>();
-        // let insufficient_shadow_volume_sum = 0;
-        // let i = 0;
-        // while (i < length_unsafe_s2a_keys) {
-        //     let coin_i = vector::borrow<String>(&unsafe_s2a_keys, i);
-        //     let borrowed_i = borrowed_volume<ShadowToAsset>(addr, *coin_i);
+    fun rebalance_shadow_internal<C1,C2>(addr: address, amount: u64, is_collateral_only: bool) acquires Account, Position {
+        let account_ref = borrow_global_mut<Account>(addr);
+        update_position<C1,ShadowToAsset>(account_ref.addr, amount, true, false, is_collateral_only);
+        update_position<C2,ShadowToAsset>(account_ref.addr, amount, true, true, is_collateral_only);
+    }
 
-        //     i = i + 1;
-        // };
-        
+    public(friend) fun rebalance_amount<C1,C2>(addr: address, is_collateral_only: bool): u64 acquires Position {
+        rebalance_amount_internal<C1,C2>(addr, is_collateral_only)
+    }
 
-        // // extra shadow        
-        // let length_safe_s2a_keys = vector::length<String>(&safe_s2a_keys);
-        // // let extra_shadow_keys = vector::empty<String>();
-        // let extra_shadow_amounts = vector::empty<u64>();
-        // let extra_shadow_volume_sum = 0;
-        // let i = 0;
-        // while (i < length_safe_s2a_keys) {
-        //     let coin_i = vector::borrow<String>(&safe_s2a_keys, i);
-        //     let borrowed_i = borrowed_volume<ShadowToAsset>(addr, *coin_i);
-        //     let deposited_i = deposited_volume<ShadowToAsset>(addr, *coin_i);
-        //     let required_deposit = borrowed_i * repository::precision() / repository::lt_of_shadow();
-        //     let extra = deposited_i - required_deposit;
-        //     // vector::push_back<String>(&mut extra_shadow_keys, *coin_i);
-        //     vector::push_back<u64>(&mut extra_shadow_amounts, extra);
-        //     extra_shadow_volume_sum = extra_shadow_volume_sum + extra;
-        //     i = i + 1;
-        // };
+    fun rebalance_amount_internal<C1,C2>(addr: address, is_collateral_only: bool): u64 acquires Position {
+        let key1 = generate_key<C1>();
+        let key2 = generate_key<C2>();
 
-        // let i = 0;
-        // while (i < length_unsafe_s2a_keys) {
-        //     let insufficient_key = vector::borrow<String>(&unsafe_s2a_keys, i);
-        //     let insufficient_amount = vector::borrow<u64>(&insufficient_shadow_amounts, i);
-        //     let j = 0;
-        //     while (j < length_safe_s2a_keys) {
-        //         let extra_key = vector::borrow<String>(&safe_s2a_keys, j);
-        //         let extra_amount = vector::borrow<u64>(&extra_shadow_amounts, j);
-        //         if (*extra_amount > *insufficient_amount) {
-        //             let transfer_amount = *insufficient_amount;
-        //             // withdraw
-        //             vector::push_back<ChangedPosition<ShadowToAsset>>(&mut results, ChangedPosition<ShadowToAsset> {
-        //                 addr: addr,
-        //                 is_deposit: true,
-        //                 is_increase: false,
-        //                 amount: transfer_amount
-        //             });
-        //             // deposit
-        //             vector::push_back<ChangedPosition<ShadowToAsset>>(&mut results, ChangedPosition<ShadowToAsset> {
-        //                 addr: addr,
-        //                 is_deposit: true,
-        //                 is_increase: false,
-        //                 amount: transfer_amount
-        //             });
-        //             // TODO
-        //         } else {
-        //             let transfer_amount = extra_amount;
-        //             // TODO
-        //         };
+        // extra in key1
+        let borrowed = borrowed_volume<ShadowToAsset>(addr, key1);
+        let deposited = deposited_volume<ShadowToAsset>(addr, key1);
+        let required_deposit = borrowed * repository::precision() / repository::lt_of_shadow();
+        let extra = deposited - required_deposit;
 
-        //         j = j + 1;
-        //     };
-        //     i = i + 1;
-        // };
-        results
+        // insufficient in key2
+        let borrowed = borrowed_volume<ShadowToAsset>(addr, key2);
+        let deposited = deposited_volume<ShadowToAsset>(addr, key2);
+        let required_deposit = borrowed * repository::precision() / repository::lt_of_shadow();
+        let insufficient = required_deposit - deposited;
+
+        assert!(extra >= insufficient, 0);
+        update_position<C1,ShadowToAsset>(addr, insufficient, true, false, is_collateral_only);
+        update_position<C2,ShadowToAsset>(addr, insufficient, true, true, is_collateral_only);
+
+        insufficient
     }
 
     fun deposited_volume<P>(addr: address, key: String): u64 acquires Position {
@@ -267,14 +231,14 @@ module leizd::account_position {
     }
 
     fun update_position<C,P>(
-        account_ref: &mut Account,
+        addr: address,
         amount: u64,
         is_deposit: bool,
         is_increase: bool,
         is_collateral_only: bool,
     ) acquires Position {
         let key = generate_key<C>();
-        let position_ref = borrow_global_mut<Position<P>>(account_ref.addr);
+        let position_ref = borrow_global_mut<Position<P>>(addr);
 
         if (vector::contains<String>(&position_ref.coins, &key)) {
             if (is_deposit && is_increase) {
@@ -305,7 +269,7 @@ module leizd::account_position {
                 // FIXME: consider both deposited and borrowed & remove key in vector & position in map
             }
         } else {
-            new_position<P>(account_ref.addr, amount, is_deposit, is_collateral_only, key);
+            new_position<P>(addr, amount, is_deposit, is_collateral_only, key);
         };
     }
 
@@ -427,5 +391,35 @@ module leizd::account_position {
         assert!(conly_deposited_asset<WETH>(account_addr) == 0, 0);
         assert!(deposited_shadow<WETH>(account_addr) == 800000, 0);
         assert!(conly_deposited_shadow<WETH>(account_addr) == 0, 0);
+    }
+    #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
+    public entry fun test_deposit_shadow_for_only_collateral(owner: &signer, account: &signer, aptos_framework: &signer) acquires Account, Position {
+        setup_for_test_to_initialize_coins(owner, aptos_framework);
+
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+        initializer::register<WETH>(account);
+        initializer::register<USDZ>(account);
+
+        usdz::mint_for_test(account_addr, 1000000);
+
+        deposit_internal<WETH,Shadow>(account, 800000, true);
+        assert!(deposited_shadow<WETH>(account_addr) == 800000, 0);
+        assert!(conly_deposited_shadow<WETH>(account_addr) == 800000, 0);
+    }
+
+    // for withdraw
+    #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
+    public entry fun test_withdraw_weth(owner: &signer, account: &signer, aptos_framework: &signer) acquires Account, Position {
+        setup_for_test_to_initialize_coins(owner, aptos_framework);
+
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+        initializer::register<WETH>(account);
+        managed_coin::mint<WETH>(owner, account_addr, 1000000);
+
+        deposit_internal<WETH,Asset>(account, 700000, false);
+        withdraw_internal<WETH,Asset>(account_addr, 600000, false);
+        assert!(deposited_asset<WETH>(account_addr) == 100000, 0);
     }
 }

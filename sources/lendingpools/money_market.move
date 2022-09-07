@@ -11,7 +11,7 @@ module leizd::money_market {
     use std::signer;
     use leizd::asset_pool;
     use leizd::shadow_pool;
-    use leizd::pool_type::{Self,Shadow};
+    use leizd::pool_type;
     use leizd::account_position;
 
     public entry fun list_new_coin<C>(owner: &signer) {
@@ -51,9 +51,9 @@ module leizd::money_market {
         let addr = signer::address_of(account);
         let is_shadow = pool_type::is_type_shadow<P>();
         if (is_shadow) {
-            amount = asset_pool::withdraw_for<C>(account, addr, amount, is_collateral_only);
+            amount = asset_pool::withdraw_for<C>(addr, amount, is_collateral_only);
         } else {
-            amount = shadow_pool::withdraw_for<C>(account, addr, amount, is_collateral_only, 0);
+            amount = shadow_pool::withdraw_for<C>(addr, amount, is_collateral_only, 0);
         };
         account_position::withdraw<C,P>(addr, amount, is_collateral_only);
     }
@@ -85,18 +85,9 @@ module leizd::money_market {
     }
 
     /// Rebalance shadow coin from C1 Pool to C2 Pool.
-    public entry fun rebalance_shadow<C1,C2>(account: &signer, amount: u64, is_collateral_only: bool) {
-        let addr = signer::address_of(account);
-        shadow_pool::withdraw_for<C1>(account, addr, amount, is_collateral_only, 0);
-        account_position::withdraw<C1,Shadow>(addr, amount, is_collateral_only);
-        shadow_pool::deposit_for<C2>(account, amount, is_collateral_only);
-        account_position::deposit<C2,Shadow>(account, amount, is_collateral_only);
+    public entry fun rebalance_shadow<C1,C2>(addr: address, is_collateral_only: bool) {
+        let amount = account_position::rebalance_amount<C1,C2>(addr, is_collateral_only);
+        shadow_pool::rebalance_shadow<C1,C2>(addr, amount, is_collateral_only);
+        account_position::rebalance_shadow<C1,C2>(addr, amount, is_collateral_only);
     }
-
-    // TODO
-    // public entry fun borrow_shadow_with_rebalance(account: &signer, amount: u64) {
-    //     let addr = signer::address_of(account);
-    //     let positions = account_position::borrow<C,P>(addr, amount);
-    //     pool::borrow_for<C,P>(account, addr, amount, is_collateral_only);
-    // }
 }

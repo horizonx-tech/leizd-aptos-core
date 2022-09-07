@@ -20,11 +20,11 @@ module leizd::shadow_pool {
     }
 
     struct Storage has key {
-        total_deposited: u128,
-        total_conly_deposited: u128,
+        total_deposited: u128, // borrowable + collateral only
+        total_conly_deposited: u128, // collateral only
         total_borrowed: u128,
-        deposited: simple_map::SimpleMap<String,u64>,
-        conly_deposited: simple_map::SimpleMap<String,u64>,
+        deposited: simple_map::SimpleMap<String,u64>, // borrowable + collateral only
+        conly_deposited: simple_map::SimpleMap<String,u64>, // collateral only
         borrowed: simple_map::SimpleMap<String,u64>,
     }
 
@@ -63,6 +63,15 @@ module leizd::shadow_pool {
 
         let key = generate_coin_key<C>();
         coin::merge(&mut pool_ref.shadow, coin::withdraw<USDZ>(account, amount));
+
+        storage_ref.total_deposited = storage_ref.total_deposited + (amount as u128);
+        if (simple_map::contains_key<String,u64>(&storage_ref.deposited, &key)) {
+            let deposited = simple_map::borrow_mut<String,u64>(&mut storage_ref.deposited, &key);
+            *deposited = *deposited + amount;
+        } else {
+            simple_map::add<String,u64>(&mut storage_ref.deposited, key, amount);
+        };
+
         if (is_collateral_only) {
             storage_ref.total_conly_deposited = storage_ref.total_conly_deposited + (amount as u128);
             if (simple_map::contains_key<String,u64>(&storage_ref.conly_deposited, &key)) {
@@ -71,19 +80,30 @@ module leizd::shadow_pool {
             } else {
                 simple_map::add<String,u64>(&mut storage_ref.conly_deposited, key, amount);
             }
-        } else {
-            storage_ref.total_deposited = storage_ref.total_deposited + (amount as u128);
-            if (simple_map::contains_key<String,u64>(&storage_ref.deposited, &key)) {
-                let deposited = simple_map::borrow_mut<String,u64>(&mut storage_ref.deposited, &key);
-                *deposited = *deposited + amount;
-            } else {
-                simple_map::add<String,u64>(&mut storage_ref.deposited, key, amount);
-            }
+        };
+    }
+
+    public(friend) fun rebalance_shadow<C1,C2>(addr: address, amount: u64, is_collateral_only: bool) acquires Storage {
+        let key1 = generate_coin_key<C1>();
+        let key2 = generate_coin_key<C2>();
+        let storage_ref = borrow_global_mut<Storage>(@leizd);
+        assert!(simple_map::contains_key<String,u64>(&storage_ref.deposited, &key1), 0);
+        assert!(simple_map::contains_key<String,u64>(&storage_ref.deposited, &key2), 0);
+
+        let deposited = simple_map::borrow_mut<String,u64>(&mut storage_ref.deposited, &key1);
+        *deposited = *deposited - amount;
+        let deposited = simple_map::borrow_mut<String,u64>(&mut storage_ref.deposited, &key2);
+        *deposited = *deposited + amount;
+
+        if (is_collateral_only) {
+            let conly_deposited = simple_map::borrow_mut<String,u64>(&mut storage_ref.conly_deposited, &key1);
+            *conly_deposited = *conly_deposited - amount;
+            let conly_deposited = simple_map::borrow_mut<String,u64>(&mut storage_ref.conly_deposited, &key2);
+            *conly_deposited = *conly_deposited + amount;
         };
     }
 
     public(friend) fun withdraw_for<C>(
-        account: &signer,
         reciever_addr: address,
         amount: u64,
         is_collateral_only: bool,
@@ -99,7 +119,6 @@ module leizd::shadow_pool {
 
         let amount_to_transfer = amount - liquidation_fee;
         coin::deposit<USDZ>(reciever_addr, coin::extract(&mut pool_ref.shadow, amount_to_transfer));
-        signer::address_of(account); // TODO: remove
         let withdrawn_amount;
         if (amount == constant::u64_max()) {
             if (is_collateral_only) {
@@ -111,10 +130,9 @@ module leizd::shadow_pool {
             withdrawn_amount = (amount as u128);
         };
 
+        storage_ref.total_deposited = storage_ref.total_deposited - (withdrawn_amount as u128);
         if (is_collateral_only) {
             storage_ref.total_conly_deposited = storage_ref.total_conly_deposited - (withdrawn_amount as u128);
-        } else {
-            storage_ref.total_deposited = storage_ref.total_deposited - (withdrawn_amount as u128);
         };
         // TODO: assert!(is_shadow_solvent<C>(signer::address_of(depositor)),0);
 
@@ -320,5 +338,21 @@ module leizd::shadow_pool {
         assert!(coin::balance<USDZ>(account_addr) == 200000, 0);
         assert!(deposited<WETH>() == 800000, 0);
         assert!(conly_deposited<WETH>() == 0, 0);
+    }
+    #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
+    public entry fun test_deposit_shadow_for_only_collateral(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+        initializer::register<WETH>(account);
+        initializer::register<USDZ>(account);
+
+        usdz::mint_for_test(account_addr, 1000000);
+
+        deposit_for_internal<WETH>(account, 800000, true);
+        assert!(coin::balance<USDZ>(account_addr) == 200000, 0);
+        assert!(deposited<WETH>() == 800000, 0);
+        assert!(conly_deposited<WETH>() == 800000, 0);
     }
 }
