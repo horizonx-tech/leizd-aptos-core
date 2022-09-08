@@ -2,7 +2,12 @@ module leizd::trove_manager {
     use std::signer;
     use leizd::sorted_trove;
     use leizd::trove;
+    use leizd::permission;
 
+    public fun initialize(owner: &signer) {
+        permission::assert_owner(signer::address_of(owner));
+        trove::initialize(owner)
+    }
 
     public entry fun open_trove<C>(account: &signer, amount: u64)  {
         trove::open_trove<C>(account, amount);

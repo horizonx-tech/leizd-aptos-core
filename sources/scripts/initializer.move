@@ -6,13 +6,13 @@ module leizd::initializer {
     use leizd::collateral;
     use leizd::collateral_only;
     use leizd::debt;
-    use leizd::trove;
+    use leizd::trove_manager;
     use leizd::stability_pool;
 
     public entry fun initialize(owner: &signer) {
         system_status::initialize(owner);
         repository::initialize(owner);
-        trove::initialize(owner);
+        trove_manager::initialize(owner);
         stability_pool::initialize(owner);
     }
 

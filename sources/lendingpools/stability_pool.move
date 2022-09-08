@@ -300,7 +300,7 @@ module leizd::stability_pool {
     #[test_only]
     use leizd::test_initializer;
     #[test_only]
-    use leizd::trove;
+    use leizd::trove_manager;
 
     #[test(owner=@leizd,account1=@0x111,account2=@0x222,aptos_framework=@aptos_framework)]
     public entry fun test_deposit_to_stability_pool(owner: &signer, account1: &signer) acquires StabilityPool, StabilityPoolEventHandle {
@@ -310,7 +310,7 @@ module leizd::stability_pool {
         account::create_account_for_test(account1_addr);
 
         test_coin::init_weth(owner);
-        trove::initialize(owner);
+        trove_manager::initialize(owner);
         test_initializer::register<WETH>(account1);
         managed_coin::mint<WETH>(owner, account1_addr, 1000000);
         test_initializer::register<USDZ>(account1);
@@ -334,7 +334,7 @@ module leizd::stability_pool {
         account::create_account_for_test(account1_addr);
 
         test_coin::init_weth(owner);
-        trove::initialize(owner);
+        trove_manager::initialize(owner);
         test_initializer::register<WETH>(account1);
         managed_coin::mint<WETH>(owner, account1_addr, 1000000);
         test_initializer::register<USDZ>(account1);
@@ -363,7 +363,7 @@ module leizd::stability_pool {
         account::create_account_for_test(account2_addr);
 
         test_coin::init_weth(owner);
-        trove::initialize(owner);
+        trove_manager::initialize(owner);
         test_initializer::register<WETH>(account1);
         managed_coin::mint<WETH>(owner, account1_addr, 1000000);
         test_initializer::register<USDZ>(account1);
@@ -386,7 +386,7 @@ module leizd::stability_pool {
         account::create_account_for_test(account2_addr);
 
         test_coin::init_weth(owner);
-        trove::initialize(owner);
+        trove_manager::initialize(owner);
         test_initializer::register<WETH>(account1);
         managed_coin::mint<WETH>(owner, account1_addr, 1000000);
         test_initializer::register<WETH>(account2);
@@ -417,7 +417,7 @@ module leizd::stability_pool {
         account::create_account_for_test(account2_addr);
 
         test_coin::init_weth(owner);
-        trove::initialize(owner);
+        trove_manager::initialize(owner);
         test_initializer::register<WETH>(account1);
         managed_coin::mint<WETH>(owner, account1_addr, 1000000);
         test_initializer::register<WETH>(account2);
