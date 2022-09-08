@@ -179,9 +179,14 @@ module leizd::account_position {
     }
 
     fun rebalance_shadow_internal<C1,C2>(addr: address, is_collateral_only: bool): u64 acquires Position {
-        // assert!(extra >= insufficient, 0);
         let key1 = generate_key<C1>();
         let key2 = generate_key<C2>();
+
+        let position_ref = borrow_global<Position<ShadowToAsset>>(addr);
+        assert!(vector::contains<String>(&position_ref.coins, &key1), ENOT_EXISTED);
+        assert!(vector::contains<String>(&position_ref.coins, &key2), ENOT_EXISTED);
+        assert!(!simple_map::contains_key<String,bool>(&position_ref.protected_coins, &key1), EALREADY_PROTECTED);
+        assert!(!simple_map::contains_key<String,bool>(&position_ref.protected_coins, &key2), EALREADY_PROTECTED);
 
         // extra in key1
         let borrowed = borrowed_volume<ShadowToAsset>(addr, key1);
@@ -209,6 +214,13 @@ module leizd::account_position {
     fun borrow_and_rebalance_internal<C1,C2>(addr: address, is_collateral_only: bool): u64 acquires Position {
         let key1 = generate_key<C1>();
         let key2 = generate_key<C2>();
+
+        let position1_ref = borrow_global<Position<AssetToShadow>>(addr);
+        let position2_ref = borrow_global<Position<ShadowToAsset>>(addr);
+        assert!(vector::contains<String>(&position1_ref.coins, &key1), ENOT_EXISTED);
+        assert!(vector::contains<String>(&position2_ref.coins, &key2), ENOT_EXISTED);
+        assert!(!simple_map::contains_key<String,bool>(&position1_ref.protected_coins, &key1), EALREADY_PROTECTED);
+        assert!(!simple_map::contains_key<String,bool>(&position2_ref.protected_coins, &key2), EALREADY_PROTECTED);
 
         // extra in key1
         let borrowed = borrowed_volume<AssetToShadow>(addr, key1);
