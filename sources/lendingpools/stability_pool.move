@@ -9,7 +9,8 @@ module leizd::stability_pool {
     use leizd::stb_usdz;
     use leizd::permission;
 
-    friend leizd::pool;
+    friend leizd::asset_pool;
+    friend leizd::shadow_pool;
 
     const PRECISION: u64 = 1000000000;
     const STABILITY_FEE: u64 = 1000000000 * 5 / 1000; // 0.5%
@@ -298,8 +299,6 @@ module leizd::stability_pool {
     #[test_only]
     use leizd::usdz;
     #[test_only]
-    use leizd::test_initializer;
-    #[test_only]
     use leizd::trove;
 
     #[test(owner=@leizd,account1=@0x111,account2=@0x222,aptos_framework=@aptos_framework)]
@@ -311,9 +310,9 @@ module leizd::stability_pool {
 
         test_coin::init_weth(owner);
         trove::initialize(owner);
-        test_initializer::register<WETH>(account1);
+        managed_coin::register<WETH>(account1);
         managed_coin::mint<WETH>(owner, account1_addr, 1000000);
-        test_initializer::register<USDZ>(account1);
+        managed_coin::register<USDZ>(account1);
         usdz::mint_for_test(account1_addr, 1000000);
 
         initialize(owner); // stability pool
@@ -335,9 +334,9 @@ module leizd::stability_pool {
 
         test_coin::init_weth(owner);
         trove::initialize(owner);
-        test_initializer::register<WETH>(account1);
+        managed_coin::register<WETH>(account1);
         managed_coin::mint<WETH>(owner, account1_addr, 1000000);
-        test_initializer::register<USDZ>(account1);
+        managed_coin::register<USDZ>(account1);
         usdz::mint_for_test(account1_addr, 1000000);
 
         initialize(owner); // stability pool
@@ -364,9 +363,9 @@ module leizd::stability_pool {
 
         test_coin::init_weth(owner);
         trove::initialize(owner);
-        test_initializer::register<WETH>(account1);
+        managed_coin::register<WETH>(account1);
         managed_coin::mint<WETH>(owner, account1_addr, 1000000);
-        test_initializer::register<USDZ>(account1);
+        managed_coin::register<USDZ>(account1);
         usdz::mint_for_test(account1_addr, 1000000);
 
         initialize(owner); // stability pool
@@ -387,12 +386,12 @@ module leizd::stability_pool {
 
         test_coin::init_weth(owner);
         trove::initialize(owner);
-        test_initializer::register<WETH>(account1);
+        managed_coin::register<WETH>(account1);
         managed_coin::mint<WETH>(owner, account1_addr, 1000000);
-        test_initializer::register<WETH>(account2);
-        test_initializer::register<USDZ>(account1);
+        managed_coin::register<WETH>(account2);
+        managed_coin::register<USDZ>(account1);
         usdz::mint_for_test(account1_addr, 1000000);
-        test_initializer::register<USDZ>(account2);
+        managed_coin::register<USDZ>(account2);
 
         initialize(owner); // stability pool
         init_pool<WETH>(owner);
@@ -418,12 +417,12 @@ module leizd::stability_pool {
 
         test_coin::init_weth(owner);
         trove::initialize(owner);
-        test_initializer::register<WETH>(account1);
+        managed_coin::register<WETH>(account1);
         managed_coin::mint<WETH>(owner, account1_addr, 1000000);
-        test_initializer::register<WETH>(account2);
-        test_initializer::register<USDZ>(account1);
+        managed_coin::register<WETH>(account2);
+        managed_coin::register<USDZ>(account1);
         usdz::mint_for_test(account1_addr, 1000000);
-        test_initializer::register<USDZ>(account2);
+        managed_coin::register<USDZ>(account2);
 
         initialize(owner); // stability pool
         init_pool<WETH>(owner);

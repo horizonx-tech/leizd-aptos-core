@@ -5,9 +5,6 @@ module leizd::coin_base {
     use aptos_framework::coin;
     use leizd::permission;
 
-    friend leizd::collateral;
-    friend leizd::collateral_only;
-    friend leizd::debt;
     friend leizd::usdz;
     friend leizd::stb_usdz;
     
