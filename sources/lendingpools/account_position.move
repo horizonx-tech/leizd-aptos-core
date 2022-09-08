@@ -161,11 +161,13 @@ module leizd::account_position {
         borrow_internal<C,P>(addr, amount);
     }
 
-    fun borrow_internal<C,P>(addr: address, amount: u64) acquires Position {
+    fun borrow_internal<C,P>(borrower_addr: address, amount: u64) acquires Position {
         if (pool_type::is_type_asset<P>()) {
-            update_position<C,ShadowToAsset>(addr, amount, false, true, false);
+            update_position<C,ShadowToAsset>(borrower_addr, amount, false, true, false);
+            assert!(is_safe<C,ShadowToAsset>(borrower_addr), 0);
         } else {
-            update_position<C,AssetToShadow>(addr, amount, false, true, false);
+            update_position<C,AssetToShadow>(borrower_addr, amount, false, true, false);
+            assert!(is_safe<C,AssetToShadow>(borrower_addr), 0);
         };
     }
 
@@ -263,25 +265,6 @@ module leizd::account_position {
             0
         }
     }
-
-    // fun classify_positions<P>(addr: address): (vector<String>,vector<String>) acquires Position {
-    //     let position_ref = borrow_global<Position<P>>(addr);
-    //     let position_length = vector::length<String>(&position_ref.coins);
-    //     let i = 0;
-
-    //     let safe = vector::empty<String>();
-    //     let unsafe = vector::empty<String>();
-
-    //     while (i < position_length) {
-    //         let target = vector::borrow<String>(&position_ref.coins, i);
-    //         if (is_safe<P>(position_ref, *target)) {
-    //             vector::push_back<String>(&mut safe, *target);
-    //         } else {
-    //             vector::push_back<String>(&mut unsafe, *target);
-    //         };
-    //     };
-    //     (safe,unsafe)
-    // }
 
     fun update_position<C,P>(
         addr: address,
@@ -393,6 +376,14 @@ module leizd::account_position {
         test_coin::init_weth(owner);
         risk_factor::new_asset<WETH>(owner);
         risk_factor::new_asset<UNI>(owner);
+    }
+    #[test_only]
+    fun borrow_for_test<C,P>(borrower_addr: address, amount: u64) acquires Position {
+        if (pool_type::is_type_asset<P>()) {
+            update_position<C,ShadowToAsset>(borrower_addr, amount, false, true, false);
+        } else {
+            update_position<C,AssetToShadow>(borrower_addr, amount, false, true, false);
+        };
     }
 
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
@@ -517,9 +508,11 @@ module leizd::account_position {
         deposit_internal<WETH,Shadow>(account1, account1_addr, 100000, false);
         borrow_internal<WETH,Asset>(account1_addr, 50000);
         deposit_internal<UNI,Shadow>(account1, account1_addr, 100000, false);
-        borrow_internal<UNI,Asset>(account1_addr, 110000);
+        borrow_internal<UNI,Asset>(account1_addr, 90000);
+        borrow_for_test<UNI,Asset>(account1_addr, 20000);
         assert!(deposited_shadow<WETH>(account1_addr) == 100000, 0);
         assert!(deposited_shadow<UNI>(account1_addr) == 100000, 0);
+        assert!(borrowed_asset<UNI>(account1_addr) == 110000, 0);
 
         rebalance_shadow_internal<WETH,UNI>(account1_addr, false);
         assert!(deposited_shadow<WETH>(account1_addr) == 90000, 0);
@@ -541,7 +534,8 @@ module leizd::account_position {
         deposit_internal<WETH,Asset>(account1, account1_addr, 100000, false);
         borrow_internal<WETH,Shadow>(account1_addr, 50000);
         deposit_internal<UNI,Shadow>(account1, account1_addr, 100000, false);
-        borrow_internal<UNI,Asset>(account1_addr, 110000);
+        borrow_internal<UNI,Asset>(account1_addr, 90000);
+        borrow_for_test<UNI,Asset>(account1_addr, 20000);
         assert!(deposited_asset<WETH>(account1_addr) == 100000, 0);
         assert!(borrowed_shadow<WETH>(account1_addr) == 50000, 0);
         assert!(deposited_shadow<UNI>(account1_addr) == 100000, 0);

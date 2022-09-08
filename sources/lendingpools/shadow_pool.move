@@ -224,7 +224,7 @@ module leizd::shadow_pool {
         event::emit_event<WithdrawEvent>(
             &mut borrow_global_mut<PoolEventHandle>(@leizd).withdraw_event,
             WithdrawEvent {
-                caller: reciever_addr,
+                caller: depositor_addr,
                 depositor: depositor_addr,
                 receiver: reciever_addr,
                 amount,
@@ -239,10 +239,9 @@ module leizd::shadow_pool {
         borrower_addr: address,
         receiver_addr: address,
         amount: u64
-    ) acquires Pool, Storage {
+    ) acquires Pool, Storage, PoolEventHandle {
         assert!(pool_status::is_available<C>(), 0);
         
-        borrower_addr; // TODO
         let pool_ref = borrow_global_mut<Pool>(@leizd);
         let storage_ref = borrow_global_mut<Storage>(@leizd);
 
@@ -269,9 +268,17 @@ module leizd::shadow_pool {
         } else {
             simple_map::add<String,u64>(&mut storage_ref.borrowed, key, amount);
         };
-        // TODO: assert!(is_shadow_solvent<C>(borrower_addr),0);
-
-        // TODO: event
+        
+        event::emit_event<BorrowEvent>(
+            &mut borrow_global_mut<PoolEventHandle>(@leizd).borrow_event,
+            BorrowEvent {
+                caller: borrower_addr,
+                borrower: borrower_addr,
+                receiver: receiver_addr,
+                amount,
+                is_shadow: false
+            },
+        );
     }
 
     public(friend) fun repay<C>(

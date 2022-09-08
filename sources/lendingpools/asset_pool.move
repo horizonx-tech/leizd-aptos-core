@@ -230,7 +230,7 @@ module leizd::asset_pool {
         event::emit_event<WithdrawEvent>(
             &mut borrow_global_mut<PoolEventHandle<C>>(@leizd).withdraw_event,
             WithdrawEvent {
-                caller: reciever_addr,
+                caller: deopsitor_addr,
                 depositor: deopsitor_addr,
                 receiver: reciever_addr,
                 amount,
@@ -243,23 +243,20 @@ module leizd::asset_pool {
 
     /// Borrows an asset or a shadow from the pool.
     public(friend) fun borrow_for<C,P>(
-        account: &signer,
         borrower_addr: address,
         receiver_addr: address,
         amount: u64,
     ) acquires Pool, Storage, PoolEventHandle {
-        borrow_for_internal<C,P>(account, borrower_addr, receiver_addr, amount);
+        borrow_for_internal<C,P>(borrower_addr, receiver_addr, amount);
     }
 
     fun borrow_for_internal<C,P>(
-        account: &signer,
         borrower_addr: address,
         receiver_addr: address,
         amount: u64,
     ) acquires Pool, Storage, PoolEventHandle {
         assert!(pool_status::is_available<C>(), 0);
 
-        // borrow_asset<C>(borrower_addr, receiver_addr, amount);
         let pool_ref = borrow_global_mut<Pool<C>>(@leizd);
         let storage_ref = borrow_global_mut<Storage<C>>(@leizd);
 
@@ -271,11 +268,11 @@ module leizd::asset_pool {
         let deposited = coin::extract(&mut pool_ref.asset, amount);
         coin::deposit<C>(receiver_addr, deposited);
         storage_ref.total_borrowed = storage_ref.total_borrowed + (amount as u128) + (fee as u128);
-        // TODO: assert!(is_asset_solvent<C>(borrower_addr),0);
+        
         event::emit_event<BorrowEvent>(
             &mut borrow_global_mut<PoolEventHandle<C>>(@leizd).borrow_event,
             BorrowEvent {
-                caller: signer::address_of(account),
+                caller: borrower_addr,
                 borrower: borrower_addr,
                 receiver: receiver_addr,
                 amount,
