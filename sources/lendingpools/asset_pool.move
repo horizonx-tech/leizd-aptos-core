@@ -79,6 +79,7 @@ module leizd::asset_pool {
     
     struct RepayEvent has store, drop {
         caller: address,
+        repayer: address,
         amount: u64,
         is_shadow: bool,
     }
@@ -311,7 +312,8 @@ module leizd::asset_pool {
         event::emit_event<RepayEvent>(
             &mut borrow_global_mut<PoolEventHandle<C>>(@leizd).repay_event,
             RepayEvent {
-                caller: signer::address_of(account),
+                caller: account_addr,
+                repayer: account_addr,
                 amount,
                 is_shadow: false
             },
@@ -347,29 +349,6 @@ module leizd::asset_pool {
     public fun is_pool_initialized<C>(): bool {
         exists<Pool<C>>(@leizd)
     }
-
-    // public entry fun is_asset_solvent<C>(account_addr: address): bool {
-    //     is_solvent<C,Asset,Shadow>(account_addr)
-    // }
-
-    // public entry fun is_shadow_solvent<C>(account_addr: address): bool {
-    //     is_solvent<C,Shadow,Asset>(account_addr)
-    // }
-
-    // fun is_solvent<COIN,COL,DEBT>(account_addr: address): bool {
-    //     let user_ltv = user_ltv<COIN,COL,DEBT>(account_addr);
-    //     user_ltv <= risk_factor::lt<COIN>() / constant::e18_u64()
-    // }
-
-    // public fun user_ltv<COIN,COL,DEBT>(account_addr: address): u64 {
-    //     let collateral = collateral::balance_of<COIN,COL>(account_addr) + collateral_only::balance_of<COIN,COL>(account_addr);
-    //     let collateral_value = collateral * price_oracle::price<COIN>();
-    //     let debt = debt::balance_of<COIN,DEBT>(account_addr);
-    //     let debt_value = debt * price_oracle::price<COIN>();
-
-    //     let user_ltv = if (debt_value == 0) 0 else collateral_value / debt_value;
-    //     user_ltv
-    // }
 
     /// This function is called on every user action.
     fun accrue_interest<C,P>(storage_ref: &mut Storage<C>) {

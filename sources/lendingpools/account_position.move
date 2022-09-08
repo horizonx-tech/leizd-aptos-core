@@ -289,11 +289,18 @@ module leizd::account_position {
                 // Withdraw
                 let balance_ref = simple_map::borrow_mut<String,Balance>(&mut position_ref.balance, &key);
                 balance_ref.deposited = balance_ref.deposited - amount;
+                if (balance_ref.deposited == 0) {
+                    let (_, i) = vector::index_of<String>(&position_ref.coins, &key);
+                    vector::remove<String>(&mut position_ref.coins, i);
+                };
                 if (is_collateral_only) {
                     let balance_ref = simple_map::borrow_mut<String,Balance>(&mut position_ref.balance, &key);
                     balance_ref.conly_deposited = balance_ref.conly_deposited - amount;
+                    if (balance_ref.conly_deposited == 0) {
+                        let (_, i) = vector::index_of<String>(&position_ref.coins, &key);
+                        vector::remove<String>(&mut position_ref.coins, i);
+                    };
                 }
-                // FIXME: consider both deposited and borrowed & remove key in vector & position in map
             } else if (!is_deposit && is_increase) {
                 // Borrow
                 let balance_ref = simple_map::borrow_mut<String,Balance>(&mut position_ref.balance, &key);
@@ -302,7 +309,10 @@ module leizd::account_position {
                 // Repay
                 let balance_ref = simple_map::borrow_mut<String,Balance>(&mut position_ref.balance, &key);
                 balance_ref.borrowed = balance_ref.borrowed - amount;
-                // FIXME: consider both deposited and borrowed & remove key in vector & position in map
+                if (balance_ref.borrowed == 0) {
+                    let (_, i) = vector::index_of<String>(&position_ref.coins, &key);
+                    vector::remove<String>(&mut position_ref.coins, i);
+                };
             }
         } else {
             new_position<P>(addr, amount, is_deposit, is_collateral_only, key);

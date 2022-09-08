@@ -59,6 +59,7 @@ module leizd::shadow_pool {
     
     struct RepayEvent has store, drop {
         caller: address,
+        repayer: address,
         amount: u64,
         is_shadow: bool,
     }
@@ -284,7 +285,7 @@ module leizd::shadow_pool {
     public(friend) fun repay<C>(
         account: &signer,
         amount: u64
-    ): u64 acquires Pool, Storage {
+    ): u64 acquires Pool, Storage, PoolEventHandle {
         assert!(pool_status::is_available<C>(), 0);
 
         let account_addr = signer::address_of(account);
@@ -301,7 +302,15 @@ module leizd::shadow_pool {
 
         storage_ref.total_borrowed = storage_ref.total_borrowed - (repaid_amount as u128);
 
-        // TODO: event
+        event::emit_event<RepayEvent>(
+            &mut borrow_global_mut<PoolEventHandle>(@leizd).repay_event,
+            RepayEvent {
+                caller: account_addr,
+                repayer: account_addr,
+                amount,
+                is_shadow: false
+            },
+        );
         repaid_amount
     }
 

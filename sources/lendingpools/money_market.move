@@ -95,14 +95,14 @@ module leizd::money_market {
     public entry fun repay<C,P>(account: &signer, amount: u64) {
         pool_type::assert_pool_type<P>();
 
-        let addr = signer::address_of(account);
+        let repayer = signer::address_of(account);
         let is_shadow = pool_type::is_type_shadow<P>();
         if (is_shadow) {
             amount = shadow_pool::repay<C>(account, amount);
         } else {
             amount = asset_pool::repay<C>(account, amount);
         };
-        account_position::repay<C,P>(addr, amount);
+        account_position::repay<C,P>(repayer, amount);
     }
 
     /// Rebalance shadow coin from C1 Pool to C2 Pool.
