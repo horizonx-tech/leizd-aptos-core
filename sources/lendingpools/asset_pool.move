@@ -180,11 +180,13 @@ module leizd::asset_pool {
 
     /// Withdraws an asset or a shadow from the pool.
     public(friend) fun withdraw_for<C>(
+        deopsitor_addr: address,
         receiver_addr: address,
         amount: u64,
         is_collateral_only: bool
     ): u64 acquires Pool, Storage, PoolEventHandle {
         withdraw_for_internal<C>(
+            deopsitor_addr,
             receiver_addr,
             amount,
             is_collateral_only,
@@ -193,6 +195,7 @@ module leizd::asset_pool {
     }
 
     fun withdraw_for_internal<C>(
+        deopsitor_addr: address,
         reciever_addr: address,
         amount: u64,
         is_collateral_only: bool,
@@ -224,13 +227,11 @@ module leizd::asset_pool {
             storage_ref.total_conly_deposited = storage_ref.total_conly_deposited - (withdrawn_amount as u128);
         };
 
-        // TODO: assert!(is_asset_solvent<C>(signer::address_of(depositor)),0);
-        
         event::emit_event<WithdrawEvent>(
             &mut borrow_global_mut<PoolEventHandle<C>>(@leizd).withdraw_event,
             WithdrawEvent {
                 caller: reciever_addr,
-                depositor: reciever_addr,
+                depositor: deopsitor_addr,
                 receiver: reciever_addr,
                 amount,
                 is_collateral_only,
@@ -686,7 +687,7 @@ module leizd::asset_pool {
         assert!(coin::balance<WETH>(account_addr) == 1000000, 0);
 
         deposit_for_internal<WETH>(account, account_addr, 700000, false);
-        withdraw_for_internal<WETH>(account_addr, 600000, false, 0);
+        withdraw_for_internal<WETH>(account_addr, account_addr, 600000, false, 0);
 
         assert!(coin::balance<WETH>(account_addr) == 900000, 0);
         assert!(total_deposited<WETH,Asset>() == 100000, 0);
@@ -705,7 +706,7 @@ module leizd::asset_pool {
         managed_coin::mint<WETH>(owner, account_addr, 100);
 
         deposit_for_internal<WETH>(account, account_addr, 30, false);
-        withdraw_for_internal<WETH>(account_addr, 30, false, 0);
+        withdraw_for_internal<WETH>(account_addr, account_addr, 30, false, 0);
 
         assert!(coin::balance<WETH>(account_addr) == 100, 0);
         // assert!(collateral::balance_of<WETH, Asset>(account_addr) == 0, 0);

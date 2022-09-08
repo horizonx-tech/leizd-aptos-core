@@ -143,15 +143,17 @@ module leizd::account_position {
         };
     }
 
-    public(friend) fun withdraw<C,P>(addr: address, amount: u64, is_collateral_only: bool) acquires Position {
-        withdraw_internal<C,P>(addr, amount, is_collateral_only);
+    public(friend) fun withdraw<C,P>(depositor_addr: address, amount: u64, is_collateral_only: bool) acquires Position {
+        withdraw_internal<C,P>(depositor_addr, amount, is_collateral_only);
     }
 
-    fun withdraw_internal<C,P>(addr: address, amount: u64, is_collateral_only: bool) acquires Position {
+    fun withdraw_internal<C,P>(depositor_addr: address, amount: u64, is_collateral_only: bool) acquires Position {
         if (pool_type::is_type_asset<P>()) {
-            update_position<C,AssetToShadow>(addr, amount, true, false, is_collateral_only);
+            update_position<C,AssetToShadow>(depositor_addr, amount, true, false, is_collateral_only);
+            assert!(is_safe<C,AssetToShadow>(depositor_addr), 0);
         } else {
-            update_position<C,ShadowToAsset>(addr, amount, true, false, is_collateral_only);
+            update_position<C,ShadowToAsset>(depositor_addr, amount, true, false, is_collateral_only);
+            assert!(is_safe<C,ShadowToAsset>(depositor_addr), 0);
         };
     }
 
@@ -262,24 +264,24 @@ module leizd::account_position {
         }
     }
 
-    fun classify_positions<P>(addr: address): (vector<String>,vector<String>) acquires Position {
-        let position_ref = borrow_global<Position<P>>(addr);
-        let position_length = vector::length<String>(&position_ref.coins);
-        let i = 0;
+    // fun classify_positions<P>(addr: address): (vector<String>,vector<String>) acquires Position {
+    //     let position_ref = borrow_global<Position<P>>(addr);
+    //     let position_length = vector::length<String>(&position_ref.coins);
+    //     let i = 0;
 
-        let safe = vector::empty<String>();
-        let unsafe = vector::empty<String>();
+    //     let safe = vector::empty<String>();
+    //     let unsafe = vector::empty<String>();
 
-        while (i < position_length) {
-            let target = vector::borrow<String>(&position_ref.coins, i);
-            if (is_safe<P>(position_ref, *target)) {
-                vector::push_back<String>(&mut safe, *target);
-            } else {
-                vector::push_back<String>(&mut unsafe, *target);
-            };
-        };
-        (safe,unsafe)
-    }
+    //     while (i < position_length) {
+    //         let target = vector::borrow<String>(&position_ref.coins, i);
+    //         if (is_safe<P>(position_ref, *target)) {
+    //             vector::push_back<String>(&mut safe, *target);
+    //         } else {
+    //             vector::push_back<String>(&mut unsafe, *target);
+    //         };
+    //     };
+    //     (safe,unsafe)
+    // }
 
     fun update_position<C,P>(
         addr: address,
@@ -338,19 +340,24 @@ module leizd::account_position {
         });
     }
 
-    fun is_safe<P>(position_ref: &Position<P>, key: String): bool {
+    fun is_safe<C,P>(addr: address): bool acquires Position {
+        let key = generate_key<C>();
+        let position_ref = borrow_global<Position<P>>(addr);
         if (position_type::is_asset_to_shadow<P>()) {
             utilization_of<P>(position_ref, key) < risk_factor::lt_of(key)
         } else {
-            utilization_of<P>(position_ref, key) < risk_factor::lt_of(type_info::type_name<USDZ>())
+            utilization_of<P>(position_ref, key) < risk_factor::lt_of_shadow()
         }
     }
 
     fun utilization_of<P>(position_ref: &Position<P>, key: String): u64 {
         if (vector::contains<String>(&position_ref.coins, &key)) {
             let deposited = simple_map::borrow<String,Balance>(&position_ref.balance, &key).deposited;
+            if (deposited == 0) { 
+                return 0 
+            };
             let borrowed = simple_map::borrow<String,Balance>(&position_ref.balance, &key).borrowed;
-            price_oracle::volume(&key, borrowed) / price_oracle::volume(&key, deposited)
+            price_oracle::volume(&key, borrowed) * risk_factor::precision() / price_oracle::volume(&key, deposited)
         } else {
             0
         }
@@ -467,6 +474,7 @@ module leizd::account_position {
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
     public entry fun test_withdraw_weth(owner: &signer, account: &signer, aptos_framework: &signer) acquires Position {
         setup_for_test_to_initialize_coins(owner, aptos_framework);
+        price_oracle::initialize_oracle_for_test(owner);
 
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);

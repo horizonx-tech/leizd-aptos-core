@@ -51,16 +51,25 @@ module leizd::money_market {
         amount: u64,
         is_collateral_only: bool
     ) {
+        withdraw_for<C,P>(account, signer::address_of(account), amount, is_collateral_only);
+    }
+
+    public entry fun withdraw_for<C,P>(
+        account: &signer,
+        receiver_addr: address,
+        amount: u64,
+        is_collateral_only: bool
+    ) {
         pool_type::assert_pool_type<P>();
 
-        let addr = signer::address_of(account);
+        let depositor_addr = signer::address_of(account);
         let is_shadow = pool_type::is_type_shadow<P>();
         if (is_shadow) {
-            amount = asset_pool::withdraw_for<C>(addr, amount, is_collateral_only);
+            amount = asset_pool::withdraw_for<C>(depositor_addr, receiver_addr, amount, is_collateral_only);
         } else {
-            amount = shadow_pool::withdraw_for<C>(addr, amount, is_collateral_only, 0);
+            amount = shadow_pool::withdraw_for<C>(depositor_addr, receiver_addr, amount, is_collateral_only, 0);
         };
-        account_position::withdraw<C,P>(addr, amount, is_collateral_only);
+        account_position::withdraw<C,P>(depositor_addr, amount, is_collateral_only);
     }
 
     public entry fun borrow<C,P>(account: &signer, amount: u64) {
