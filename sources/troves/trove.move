@@ -9,6 +9,7 @@ module leizd::trove {
     use leizd::permission;
     use aptos_framework::account;
     //use leizd::price_oracle;
+    friend leizd::trove_manager;
 
     struct Trove<phantom C> has key, store {
         coin: coin::Coin<C>
@@ -52,12 +53,13 @@ module leizd::trove {
         repay_event: event::EventHandle<RepayEvent>,
     }
     
-    public entry fun initialize(owner: &signer) {
+    public(friend) fun initialize(owner: &signer) {
         permission::assert_owner(signer::address_of(owner));
         usdz::initialize(owner);
+        //sorted_trove::initialize(owner);
     }
 
-    public entry fun add_supported_coin<C>(owner: &signer) {
+    public(friend) entry fun add_supported_coin<C>(owner: &signer) {
         permission::assert_owner(signer::address_of(owner));
         move_to(owner, SupportedCoin<C> {});
         move_to(owner, TroveEventHandle<C> {
@@ -66,13 +68,18 @@ module leizd::trove {
             repay_event: account::new_event_handle<RepayEvent>(owner),
         })
     }
+
+    public fun trove_amount<C>(account: address): u64 acquires Trove {
+        let trove = borrow_global<Trove<C>>(account);
+        coin::value<C>(&trove.coin)
+    }
     
 
-    public entry fun open_trove<C>(account: &signer, amount: u64) acquires Trove, TroveEventHandle {
+    public(friend) entry fun open_trove<C>(account: &signer, amount: u64) acquires Trove, TroveEventHandle {
         open_trove_internal<C>(account, amount, borrowable_usdz<C>(amount));
     }
 
-    public entry fun redeem<C>(input: RedeemInput) {
+    public(friend) entry fun redeem<C>(input: RedeemInput) {
         requireMaxFeePercentage(input);
         requireAfterBootstrapPeriod();
         rquireTCRoverMCR(0);
@@ -107,11 +114,11 @@ module leizd::trove {
         exists<SupportedCoin<C>>(@leizd)
     }
 
-    public entry fun close_trove<C>(account: &signer) acquires Trove, TroveEventHandle {
+    public(friend) entry fun close_trove<C>(account: &signer) acquires Trove, TroveEventHandle {
         close_trove_internal<C>(account);
     }
 
-    public entry fun repay<C>(account: &signer, collateral_amount: u64) acquires Trove, TroveEventHandle {
+    public(friend) entry fun repay<C>(account: &signer, collateral_amount: u64) acquires Trove, TroveEventHandle {
         repay_internal<C>(account, collateral_amount);
     }
 
@@ -124,22 +131,22 @@ module leizd::trove {
         (price * amount) * (math64::pow(10, decimals_usdz) / (math64::pow(10, decimals)))
     }
 
-
     fun open_trove_internal<C>(account: &signer, collateral_amount: u64, amount: u64) acquires Trove, TroveEventHandle {
-        validate_open_trove<C>();
-        let initialized = exists<Trove<C>>(signer::address_of(account));
+        let account_addr = signer::address_of(account);
+        //validate_open_trove<C>(account_addr);
+        let initialized = exists<Trove<C>>(account_addr);
         if (!initialized) {
             move_to(account, Trove<C> {
                     coin: coin::zero<C>(),
             });
         };
-        let trove = borrow_global_mut<Trove<C>>(signer::address_of(account));
+        let trove = borrow_global_mut<Trove<C>>(account_addr);
         coin::merge(&mut trove.coin, coin::withdraw<C>(account, collateral_amount));        
         usdz::mint(account, amount);
         event::emit_event<OpenTroveEvent>(
             &mut borrow_global_mut<TroveEventHandle<C>>(@leizd).open_trove_event,
             OpenTroveEvent {
-                caller: signer::address_of(account),
+                caller: account_addr,
                 amount,
                 collateral_amount
             },
