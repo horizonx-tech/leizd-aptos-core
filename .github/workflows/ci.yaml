@@ -14,7 +14,7 @@ jobs:
         shell: bash
 
     steps:
-      - name: Checkout risk_factor
+      - name: Checkout repository
         uses: actions/checkout@v2
 
       - name: Get Aptos
