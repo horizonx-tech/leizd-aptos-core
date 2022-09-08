@@ -195,176 +195,172 @@ module leizd::sorted_trove {
         (node.prev_id, node.next_id)
     }
 
+    #[test_only]
+    use leizd::test_coin::{Self,USDC};
 
-   // #[test(owner=@leizd)]
-   // #[expected_failure(abort_code = 1)]
-   // fun test_node_capacity<C>(owner: signer) acquires Data {
-   //     initialize_internal<C>(&owner, 0);
-   //     insert<C>(@0x1, @0x0, @0x0);
-   // }
-//
-   // #[test(owner=@leizd)]
-   // fun test_insert(owner: signer) acquires Data {
-   //     initialize<C>(&owner);
-   //     // insert 1 elem
-   //     let account1 = @0x1;
-   //     insert(account1, @0x0, @0x0);
-   //     let data = borrow_global<Data>(@leizd);
-   //     assert!(data.size == 1, 0);
-   //     assert!(data.head == account1, 0);
-   //     assert!(data.tail == account1, 0);
-   //     let node = simple_map::borrow(&data.nodes, &account1);
-   //     assert!(node.next_id == @0x0, 0);
-   //     assert!(node.prev_id == @0x0, 0);
-   //     
-   //     // insert more elem after account1
-   //     let account2 = @0x2;
-   //     insert(account2, account1, @0x0);
-   //     let data = borrow_global<Data>(@leizd);
-   //     assert!(&data.size == &2, 0);
-   //     assert!(&data.head == &account1, 0);
-   //     assert!(&data.tail == &account2, 0);
-   //     let node = simple_map::borrow(&data.nodes, &account2);
-   //     assert!(node.next_id == @0x0, 0);
-   //     assert!(node.prev_id == account1, 0);
-//
-   //     // insert more elem between account1 and account2
-   //     let account3 = @0x3;
-   //     insert(account3, account1, account2);
-   //     let data = borrow_global<Data>(@leizd);
-   //     assert!(&data.size == &3, 0);
-   //     assert!(&data.head == &account1, 0);
-   //     assert!(&data.tail == &account2, 0);
-   //     let node = simple_map::borrow(&data.nodes, &account3);
-   //     assert!(node.next_id == account2, 0);
-   //     assert!(node.prev_id == account1, 0);
-   //     assert!(simple_map::borrow(&data.nodes, &account2).prev_id == account3, 0);
-   // }
-//
-   // #[test(owner=@leizd)]
-   // #[expected_failure(abort_code = 2)]
-   // fun test_remove_unknown_entry(owner: signer) acquires Data {
-   //     initialize(&owner);
-   //     let account1 = @0x1;
-   //     remove(account1)
-   // }
-//
-   // #[test(owner=@leizd)]
-   // fun test_remove_1_entry(owner: signer) acquires Data {
-   //     initialize(&owner);
-   //     let account1 = @0x1;
-   //     insert(account1, @0x0, @0x0);
-   //     // remove 1 of 1 element
-   //     remove(account1);
-   //     let data = borrow_global<Data>(@leizd);
-   //     assert!(&data.head == &@0x0, 0);
-   //     assert!(&data.tail == &@0x0, 0);
-   //     assert!(&data.size == &0, 0);
-   //     assert!(&data.nodes == &simple_map::create<address,Node>(), 0);
-   // }
-//
-   // #[test(owner=@leizd)]
-   // fun test_remove_head_of_2_entries(owner: signer) acquires Data {
-   //     initialize(&owner);
-   //     let account1 = @0x1;
-   //     let account2 = @0x2;
-   //     insert(account1, @0x0, @0x0);
-   //     insert(account2, account1, @0x0);
-   //     // remove 1 of 2 elements
-   //     remove(account1);
-   //     let data = borrow_global<Data>(@leizd);
-   //     assert!(&data.head == &account2, 0);
-   //     assert!(&data.tail == &account2, 0);
-   //     assert!(&data.size == &1, 0);
-   //     let node = simple_map::borrow<address, Node>(&data.nodes, &account2);
-   //     assert!(node.next_id == @0x0, 0);
-   //     assert!(node.prev_id == @0x0, 0);
-   // }
-//
-   // #[test(owner=@leizd)]
-   // fun test_remove_tail_of_2_entries(owner: signer) acquires Data {
-   //     initialize(&owner);
-   //     let account1 = @0x1;
-   //     let account2 = @0x2;
-   //     insert(account1, @0x0, @0x0);
-   //     insert(account2, account1, @0x0);
-   //     // remove 1 of 2 elements
-   //     remove(account2);
-   //     let data = borrow_global<Data>(@leizd);
-   //     assert!(&data.head == &account1, 0);
-   //     assert!(&data.tail == &account1, 0);
-   //     assert!(&data.size == &1, 0);
-   //     let node = simple_map::borrow<address, Node>(&data.nodes, &account1);
-   //     assert!(node.next_id == @0x0, 0);
-   //     assert!(node.prev_id == @0x0, 0);
-   // }
-   // 
-   // #[test(owner=@leizd)]
-   // fun test_remove_head_of_3_entries(owner: signer) acquires Data {
-   //     initialize(&owner);
-   //     let account1 = @0x1;
-   //     let account2 = @0x2;
-   //     let account3 = @0x3;
-   //     insert(account1, @0x0, @0x0);
-   //     insert(account2, account1, @0x0);
-   //     insert(account3, account2, @0x0);
-   //     // remove 1 of 3 elements
-   //     remove(account1);
-   //     let data = borrow_global<Data>(@leizd);
-   //     assert!(&data.head == &account2, 0);
-   //     assert!(&data.tail == &account3, 0);
-   //     assert!(&data.size == &2, 0);
-   //     let node_account2 = simple_map::borrow<address, Node>(&data.nodes, &account2);
-   //     assert!(node_account2.next_id == account3, 0);
-   //     assert!(node_account2.prev_id == @0x0, 0);
-   //     let node_account3 = simple_map::borrow<address, Node>(&data.nodes, &account3);
-   //     assert!(node_account3.next_id == @0x0, 0);
-   //     assert!(node_account3.prev_id == account2, 0);
-   // }
-//
-   // #[test(owner=@leizd)]
-   // fun test_remove_middle_of_3_entries(owner: signer) acquires Data {
-   //     initialize(&owner);
-   //     let account1 = @0x1;
-   //     let account2 = @0x2;
-   //     let account3 = @0x3;
-   //     insert(account1, @0x0, @0x0);
-   //     insert(account2, account1, @0x0);
-   //     insert(account3, account2, @0x0);
-   //     // remove 1 of 3 elements
-   //     remove(account2);
-   //     let data = borrow_global<Data>(@leizd);
-   //     assert!(&data.head == &account1, 0);
-   //     assert!(&data.tail == &account3, 0);
-   //     assert!(&data.size == &2, 0);
-   //     let node_account1 = simple_map::borrow<address, Node>(&data.nodes, &account1);
-   //     assert!(node_account1.next_id == account3, 0);
-   //     assert!(node_account1.prev_id == @0x0, 0);
-   //     let node_account3 = simple_map::borrow<address, Node>(&data.nodes, &account3);
-   //     assert!(node_account3.next_id == @0x0, 0);
-   //     assert!(node_account3.prev_id == account1, 0);
-   // }
-//
-   // #[test(owner=@leizd)]
-   // fun test_remove_tail_of_3_entries(owner: signer) acquires Data {
-   //     initialize(&owner);
-   //     let account1 = @0x1;
-   //     let account2 = @0x2;
-   //     let account3 = @0x3;
-   //     insert(account1, @0x0, @0x0);
-   //     insert(account2, account1, @0x0);
-   //     insert(account3, account2, @0x0);
-   //     // remove 1 of 3 elements
-   //     remove(account3);
-   //     let data = borrow_global<Data>(@leizd);
-   //     assert!(&data.head == &account1, 0);
-   //     assert!(&data.tail == &account2, 0);
-   //     assert!(&data.size == &2, 0);
-   //     let node_account1 = simple_map::borrow<address, Node>(&data.nodes, &account1);
-   //     assert!(node_account1.next_id == account2, 0);
-   //     assert!(node_account1.prev_id == @0x0, 0);
-   //     let node_account2 = simple_map::borrow<address, Node>(&data.nodes, &account2);
-   //     assert!(node_account2.next_id == @0x0, 0);
-   //     assert!(node_account2.prev_id == account1, 0);
-   // }
+    #[test_only]
+    fun set_up(owner: &signer) {
+        test_coin::init_usdc(owner);
+    }
+
+    #[test_only]
+    const ALICE :address = @0x1;
+    #[test_only]
+    const BOB: address = @0x2;
+    #[test_only]
+    const CAROL: address = @0x3;
+
+   #[test(owner=@leizd)]
+   #[expected_failure(abort_code = 1)]
+   fun test_node_capacity<C>(owner: signer) acquires Data {
+       initialize_internal<C>(&owner, 0);
+       insert<C>(ALICE, @0x0, @0x0);
+   }
+
+   #[test(owner=@leizd)]
+   fun test_insert<USDC>(owner: signer) acquires Data {
+       initialize<USDC>(&owner);
+       // insert 1 elem
+       insert<USDC>(ALICE, @0x0, @0x0);
+       let data = borrow_global<Data<USDC>>(@leizd);
+       assert!(data.size == 1, 0);
+       assert!(data.head == ALICE, 0);
+       assert!(data.tail == ALICE, 0);
+       let node = simple_map::borrow(&data.nodes, &ALICE);
+       assert!(node.next_id == @0x0, 0);
+       assert!(node.prev_id == @0x0, 0);
+       
+       // insert more elem after account1
+       insert<USDC>(BOB, ALICE, @0x0);
+       let data = borrow_global<Data<USDC>>(@leizd);
+       assert!(&data.size == &2, 0);
+       assert!(&data.head == &ALICE, 0);
+       assert!(&data.tail == &BOB, 0);
+       let node = simple_map::borrow(&data.nodes, &BOB);
+       assert!(node.next_id == @0x0, 0);
+       assert!(node.prev_id == ALICE, 0);
+
+       // insert more elem between account1 and account2
+       insert<USDC>(CAROL, ALICE, BOB);
+       let data = borrow_global<Data<USDC>>(@leizd);
+       assert!(&data.size == &3, 0);
+       assert!(&data.head == &ALICE, 0);
+       assert!(&data.tail == &BOB, 0);
+       let node = simple_map::borrow(&data.nodes, &CAROL);
+       assert!(node.next_id == BOB, 0);
+       assert!(node.prev_id == ALICE, 0);
+       assert!(simple_map::borrow(&data.nodes, &BOB).prev_id == CAROL, 0);
+   }
+
+   #[test(owner=@leizd)]
+   #[expected_failure(abort_code = 2)]
+   fun test_remove_unknown_entry(owner: signer) acquires Data {
+       initialize<USDC>(&owner);
+       remove<USDC>(ALICE)
+   }
+
+   #[test(owner=@leizd)]
+   fun test_remove_1_entry(owner: signer) acquires Data {
+       initialize<USDC>(&owner);
+       insert<USDC>(ALICE, @0x0, @0x0);
+       // remove 1 of 1 element
+       remove<USDC>(ALICE);
+       let data = borrow_global<Data<USDC>>(@leizd);
+       assert!(&data.head == &@0x0, 0);
+       assert!(&data.tail == &@0x0, 0);
+       assert!(&data.size == &0, 0);
+       assert!(&data.nodes == &simple_map::create<address,Node>(), 0);
+   }
+
+   #[test(owner=@leizd)]
+   fun test_remove_head_of_2_entries(owner: signer) acquires Data {
+       initialize<USDC>(&owner);
+       insert<USDC>(ALICE, @0x0, @0x0);
+       insert<USDC>(BOB, ALICE, @0x0);
+       // remove 1 of 2 elements
+       remove<USDC>(ALICE);
+       let data = borrow_global<Data<USDC>>(@leizd);
+       assert!(&data.head == &BOB, 0);
+       assert!(&data.tail == &BOB, 0);
+       assert!(&data.size == &1, 0);
+       let node = simple_map::borrow<address, Node>(&data.nodes, &BOB);
+       assert!(node.next_id == @0x0, 0);
+       assert!(node.prev_id == @0x0, 0);
+   }
+
+   #[test(owner=@leizd)]
+   fun test_remove_tail_of_2_entries(owner: signer) acquires Data {
+       initialize<USDC>(&owner);
+       insert<USDC>(ALICE, @0x0, @0x0);
+       insert<USDC>(BOB, ALICE, @0x0);
+       // remove 1 of 2 elements
+       remove<USDC>(BOB);
+       let data = borrow_global<Data<USDC>>(@leizd);
+       assert!(&data.head == &ALICE, 0);
+       assert!(&data.tail == &ALICE, 0);
+       assert!(&data.size == &1, 0);
+       let node = simple_map::borrow<address, Node>(&data.nodes, &ALICE);
+       assert!(node.next_id == @0x0, 0);
+       assert!(node.prev_id == @0x0, 0);
+   }
+   
+   #[test(owner=@leizd)]
+   fun test_remove_head_of_3_entries(owner: signer) acquires Data {
+       initialize<USDC>(&owner);
+       insert<USDC>(ALICE, @0x0, @0x0);
+       insert<USDC>(BOB, ALICE, @0x0);
+       insert<USDC>(CAROL, BOB, @0x0);
+       // remove 1 of 3 elements
+       remove<USDC>(ALICE);
+       let data = borrow_global<Data<USDC>>(@leizd);
+       assert!(&data.head == &BOB, 0);
+       assert!(&data.tail == &ALICE, 0);
+       assert!(&data.size == &2, 0);
+       let node_account2 = simple_map::borrow<address, Node>(&data.nodes, &BOB);
+       assert!(node_account2.next_id == CAROL, 0);
+       assert!(node_account2.prev_id == @0x0, 0);
+       let node_account3 = simple_map::borrow<address, Node>(&data.nodes, &CAROL);
+       assert!(node_account3.next_id == @0x0, 0);
+       assert!(node_account3.prev_id == BOB, 0);
+   }
+
+   #[test(owner=@leizd)]
+   fun test_remove_middle_of_3_entries(owner: signer) acquires Data {
+       initialize<USDC>(&owner);
+       insert<USDC>(ALICE, @0x0, @0x0);
+       insert<USDC>(BOB, ALICE, @0x0);
+       insert<USDC>(CAROL, BOB, @0x0);
+       // remove 1 of 3 elements
+       remove<USDC>(BOB);
+       let data = borrow_global<Data<USDC>>(@leizd);
+       assert!(&data.head == &ALICE, 0);
+       assert!(&data.tail == &CAROL, 0);
+       assert!(&data.size == &2, 0);
+       let node_account1 = simple_map::borrow<address, Node>(&data.nodes, &ALICE);
+       assert!(node_account1.next_id == CAROL, 0);
+       assert!(node_account1.prev_id == @0x0, 0);
+       let node_account3 = simple_map::borrow<address, Node>(&data.nodes, &CAROL);
+       assert!(node_account3.next_id == @0x0, 0);
+       assert!(node_account3.prev_id == ALICE, 0);
+   }
+
+   #[test(owner=@leizd)]
+   fun test_remove_tail_of_3_entries(owner: signer) acquires Data {
+       initialize<USDC>(&owner);
+       insert<USDC>(ALICE, @0x0, @0x0);
+       insert<USDC>(BOB, ALICE, @0x0);
+       insert<USDC>(CAROL, BOB, @0x0);
+       // remove 1 of 3 elements
+       remove<USDC>(CAROL);
+       let data = borrow_global<Data<USDC>>(@leizd);
+       assert!(&data.head == &ALICE, 0);
+       assert!(&data.tail == &BOB, 0);
+       assert!(&data.size == &2, 0);
+       let node_account1 = simple_map::borrow<address, Node>(&data.nodes, &ALICE);
+       assert!(node_account1.next_id == BOB, 0);
+       assert!(node_account1.prev_id == @0x0, 0);
+       let node_account2 = simple_map::borrow<address, Node>(&data.nodes, &BOB);
+       assert!(node_account2.next_id == @0x0, 0);
+       assert!(node_account2.prev_id == ALICE, 0);
+   }
 }
