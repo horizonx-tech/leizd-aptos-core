@@ -14,14 +14,10 @@ module leizd::money_market {
     use leizd::pool_type;
     use leizd::account_position;
 
-    public entry fun list_new_coin<C>(owner: &signer) {
-        asset_pool::init_pool<C>(owner);
-        shadow_pool::init_pool(owner);
-    }
-
     /// Deposits an asset or a shadow to the pool.
     /// If a user wants to protect the asset, it's possible that it can be used only for the collateral.
-    /// C is a pool type and a user should select which pool to use.
+    /// C is a coin type e.g. WETH / WBTC
+    /// P is a pool type and a user should select which pool to use: Asset or Shadow.
     /// e.g. Deposit USDZ for WETH Pool -> deposit<WETH,Asset>(x,x,x)
     /// e.g. Deposit WBTC for WBTC Pool -> deposit<WBTC,Shadow>(x,x,x)
     public entry fun deposit<C,P>(
@@ -29,18 +25,27 @@ module leizd::money_market {
         amount: u64,
         is_collateral_only: bool,
     ) {
+        deposit_for<C,P>(account, signer::address_of(account), amount, is_collateral_only);
+    }
+    
+    public entry fun deposit_for<C,P>(
+        account: &signer,
+        depositor_addr: address,
+        amount: u64,
+        is_collateral_only: bool,
+    ) {
         pool_type::assert_pool_type<P>();
 
-        let addr = signer::address_of(account);
         let is_shadow = pool_type::is_type_shadow<P>();
         if (is_shadow) {
-            asset_pool::deposit_for<C>(account, addr, amount, is_collateral_only);
+            asset_pool::deposit_for<C>(account, depositor_addr, amount, is_collateral_only);
         } else {
-            shadow_pool::deposit_for<C>(account, amount, is_collateral_only);
+            shadow_pool::deposit_for<C>(account, depositor_addr, amount, is_collateral_only);
         };
-        account_position::deposit<C,P>(account, amount, is_collateral_only);
+        account_position::deposit<C,P>(account, depositor_addr, amount, is_collateral_only);
     }
 
+    /// Withdraws an asset or a shadow from the pool.
     public entry fun withdraw<C,P>(
         account: &signer,
         amount: u64,

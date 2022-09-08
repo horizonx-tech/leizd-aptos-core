@@ -1,14 +1,15 @@
 module leizd::initializer {
 
     use aptos_framework::managed_coin;
-    use leizd::repository;
+    use leizd::risk_factor;
     use leizd::system_status;
     use leizd::trove;
     use leizd::stability_pool;
 
+    /// Called only once by the owner.
     public entry fun initialize(owner: &signer) {
         system_status::initialize(owner);
-        repository::initialize(owner);
+        risk_factor::initialize(owner);
         trove::initialize(owner);
         stability_pool::initialize(owner);
     }

@@ -1,4 +1,4 @@
-module leizd::repository {
+module leizd::risk_factor {
 
     use std::signer;
     use std::string;

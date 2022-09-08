@@ -1,11 +1,16 @@
 #[test_only]
 module leizd::test_initializer {
 
-    #[test_only]
-    use aptos_framework::managed_coin;
+    use leizd::risk_factor;
+    use leizd::system_status;
+    use leizd::trove;
+    use leizd::stability_pool;
 
-    // initializer.move (avoid the dependency cycle)
-    public fun register<C>(account: &signer) {
-        managed_coin::register<C>(account);
+    /// Called only once by the owner.
+    public entry fun initialize(owner: &signer) {
+        system_status::initialize(owner);
+        risk_factor::initialize(owner);
+        trove::initialize(owner);
+        stability_pool::initialize(owner);
     }
 }

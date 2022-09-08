@@ -8,7 +8,7 @@ module leizd::account_position {
     use leizd::pool_type;
     use leizd::position_type::{Self,AssetToShadow,ShadowToAsset};
     use leizd::price_oracle;
-    use leizd::repository;
+    use leizd::risk_factor;
     use leizd::usdz::{USDZ};
 
     friend leizd::money_market;
@@ -128,17 +128,18 @@ module leizd::account_position {
         simple_map::remove<String,bool>(&mut position_ref.protected_coins, &key);
     }
 
-    public(friend) fun deposit<C,P>(account: &signer, amount: u64, is_collateral_only: bool) acquires Position {
-        deposit_internal<C,P>(account, amount, is_collateral_only);
+    public(friend) fun deposit<C,P>(account: &signer, depositor_addr: address, amount: u64, is_collateral_only: bool) acquires Position {
+        deposit_internal<C,P>(account, depositor_addr, amount, is_collateral_only);
     }
 
-    fun deposit_internal<C,P>(account: &signer, amount: u64, is_collateral_only: bool) acquires Position {
+    fun deposit_internal<C,P>(account: &signer, depositor_addr: address, amount: u64, is_collateral_only: bool) acquires Position {
         initialize_if_necessary(account);
-        let addr = signer::address_of(account);
+        assert!(exists<Position<AssetToShadow>>(depositor_addr), 0);
+
         if (pool_type::is_type_asset<P>()) {
-            update_position<C,AssetToShadow>(addr, amount, true, true, is_collateral_only);
+            update_position<C,AssetToShadow>(depositor_addr, amount, true, true, is_collateral_only);
         } else {
-            update_position<C,ShadowToAsset>(addr, amount, true, true, is_collateral_only);
+            update_position<C,ShadowToAsset>(depositor_addr, amount, true, true, is_collateral_only);
         };
     }
 
@@ -191,13 +192,13 @@ module leizd::account_position {
         // extra in key1
         let borrowed = borrowed_volume<ShadowToAsset>(addr, key1);
         let deposited = deposited_volume<ShadowToAsset>(addr, key1);
-        let required_deposit = borrowed * repository::precision() / repository::lt_of_shadow();
+        let required_deposit = borrowed * risk_factor::precision() / risk_factor::lt_of_shadow();
         let extra = deposited - required_deposit;
 
         // insufficient in key2
         let borrowed = borrowed_volume<ShadowToAsset>(addr, key2);
         let deposited = deposited_volume<ShadowToAsset>(addr, key2);
-        let required_deposit = borrowed * repository::precision() / repository::lt_of_shadow();
+        let required_deposit = borrowed * risk_factor::precision() / risk_factor::lt_of_shadow();
         let insufficient = required_deposit - deposited;
 
         assert!(extra >= insufficient, 0);
@@ -225,13 +226,13 @@ module leizd::account_position {
         // extra in key1
         let borrowed = borrowed_volume<AssetToShadow>(addr, key1);
         let deposited = deposited_volume<AssetToShadow>(addr, key1);
-        let borrowable = deposited * repository::lt<C1>() / repository::precision();
+        let borrowable = deposited * risk_factor::lt<C1>() / risk_factor::precision();
         let extra_borrow = borrowable - borrowed;
 
         // insufficient in key2
         let borrowed = borrowed_volume<ShadowToAsset>(addr, key2);
         let deposited = deposited_volume<ShadowToAsset>(addr, key2);
-        let required_deposit = borrowed * repository::precision() / repository::lt_of_shadow();
+        let required_deposit = borrowed * risk_factor::precision() / risk_factor::lt_of_shadow();
         let insufficient = required_deposit - deposited;
 
         assert!(extra_borrow >= insufficient, 0);
@@ -339,9 +340,9 @@ module leizd::account_position {
 
     fun is_safe<P>(position_ref: &Position<P>, key: String): bool {
         if (position_type::is_asset_to_shadow<P>()) {
-            utilization_of<P>(position_ref, key) < repository::lt_of(key)
+            utilization_of<P>(position_ref, key) < risk_factor::lt_of(key)
         } else {
-            utilization_of<P>(position_ref, key) < repository::lt_of(type_info::type_name<USDZ>())
+            utilization_of<P>(position_ref, key) < risk_factor::lt_of(type_info::type_name<USDZ>())
         }
     }
 
@@ -383,8 +384,8 @@ module leizd::account_position {
         account::create_account_for_test(owner_addr);
         initializer::initialize(owner);
         test_coin::init_weth(owner);
-        repository::new_asset<WETH>(owner);
-        repository::new_asset<UNI>(owner);
+        risk_factor::new_asset<WETH>(owner);
+        risk_factor::new_asset<UNI>(owner);
     }
 
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
@@ -395,7 +396,7 @@ module leizd::account_position {
         initializer::register<WETH>(account);
         managed_coin::mint<WETH>(owner, account_addr, 1000000);
 
-        deposit_internal<WETH,Asset>(account, 800000, false);
+        deposit_internal<WETH,Asset>(account, account_addr, 800000, false);
         assert!(deposited_asset<WETH>(account_addr) == 800000, 0);
         assert!(conly_deposited_asset<WETH>(account_addr) == 0, 0);
     }
@@ -411,8 +412,8 @@ module leizd::account_position {
         managed_coin::mint<WETH>(owner, account1_addr, 1000000);
         managed_coin::mint<WETH>(owner, account2_addr, 1000000);
 
-        deposit_internal<WETH,Asset>(account1, 800000, false);
-        deposit_internal<WETH,Asset>(account2, 200000, false);
+        deposit_internal<WETH,Asset>(account1, account1_addr, 800000, false);
+        deposit_internal<WETH,Asset>(account2, account2_addr, 200000, false);
         assert!(deposited_asset<WETH>(account1_addr) == 800000, 0);
         assert!(deposited_asset<WETH>(account2_addr) == 200000, 0);
     }
@@ -425,7 +426,7 @@ module leizd::account_position {
         initializer::register<WETH>(account);
         managed_coin::mint<WETH>(owner, account_addr, 1000000);
 
-        deposit_internal<WETH,Asset>(account, 800000, true);
+        deposit_internal<WETH,Asset>(account, account_addr, 800000, true);
         assert!(deposited_asset<WETH>(account_addr) == 800000, 0);
         assert!(conly_deposited_asset<WETH>(account_addr) == 800000, 0);
     }
@@ -440,7 +441,7 @@ module leizd::account_position {
         managed_coin::mint<WETH>(owner, account_addr, 1000000);
         usdz::mint_for_test(account_addr, 1000000);
 
-        deposit_internal<WETH,Shadow>(account, 800000, false);
+        deposit_internal<WETH,Shadow>(account, account_addr, 800000, false);
         assert!(deposited_asset<WETH>(account_addr) == 0, 0);
         assert!(conly_deposited_asset<WETH>(account_addr) == 0, 0);
         assert!(deposited_shadow<WETH>(account_addr) == 800000, 0);
@@ -457,7 +458,7 @@ module leizd::account_position {
 
         usdz::mint_for_test(account_addr, 1000000);
 
-        deposit_internal<WETH,Shadow>(account, 800000, true);
+        deposit_internal<WETH,Shadow>(account, account_addr, 800000, true);
         assert!(deposited_shadow<WETH>(account_addr) == 800000, 0);
         assert!(conly_deposited_shadow<WETH>(account_addr) == 800000, 0);
     }
@@ -472,7 +473,7 @@ module leizd::account_position {
         initializer::register<WETH>(account);
         managed_coin::mint<WETH>(owner, account_addr, 1000000);
 
-        deposit_internal<WETH,Asset>(account, 700000, false);
+        deposit_internal<WETH,Asset>(account, account_addr, 700000, false);
         withdraw_internal<WETH,Asset>(account_addr, 600000, false);
         assert!(deposited_asset<WETH>(account_addr) == 100000, 0);
     }
@@ -486,7 +487,7 @@ module leizd::account_position {
         initializer::register<WETH>(account);
         managed_coin::mint<WETH>(owner, account_addr, 100);
 
-        deposit_internal<WETH,Asset>(account, 30, false);
+        deposit_internal<WETH,Asset>(account, account_addr, 30, false);
         withdraw_internal<WETH,Asset>(account_addr, 30, false);
         assert!(deposited_asset<WETH>(account_addr) == 0, 0);
     }
@@ -505,9 +506,9 @@ module leizd::account_position {
         managed_coin::mint<WETH>(owner, account1_addr, 1000000);
         usdz::mint_for_test(account1_addr, 1000000);
 
-        deposit_internal<WETH,Shadow>(account1, 100000, false);
+        deposit_internal<WETH,Shadow>(account1, account1_addr, 100000, false);
         borrow_internal<WETH,Asset>(account1_addr, 50000);
-        deposit_internal<UNI,Shadow>(account1, 100000, false);
+        deposit_internal<UNI,Shadow>(account1, account1_addr, 100000, false);
         borrow_internal<UNI,Asset>(account1_addr, 110000);
         assert!(deposited_shadow<WETH>(account1_addr) == 100000, 0);
         assert!(deposited_shadow<UNI>(account1_addr) == 100000, 0);
@@ -529,9 +530,9 @@ module leizd::account_position {
         managed_coin::mint<WETH>(owner, account1_addr, 1000000);
         usdz::mint_for_test(account1_addr, 1000000);
 
-        deposit_internal<WETH,Asset>(account1, 100000, false);
+        deposit_internal<WETH,Asset>(account1, account1_addr, 100000, false);
         borrow_internal<WETH,Shadow>(account1_addr, 50000);
-        deposit_internal<UNI,Shadow>(account1, 100000, false);
+        deposit_internal<UNI,Shadow>(account1, account1_addr, 100000, false);
         borrow_internal<UNI,Asset>(account1_addr, 110000);
         assert!(deposited_asset<WETH>(account1_addr) == 100000, 0);
         assert!(borrowed_shadow<WETH>(account1_addr) == 50000, 0);
