@@ -16,21 +16,27 @@ module leizd::account_position {
     const ENO_SAFE_POSITION: u64 = 0;
     const ENO_UNSAFE_POSITION: u64 = 1;
     const ENOT_ENOUGH_SHADOW: u64 = 2;
+    const ENOT_EXISTED: u64 = 3;
+    const EALREADY_PROTECTED: u64 = 4;
 
     /// P: The position type - AssetToShadow or ShadowToAsset.
     struct Position<phantom P> has key {
         coins: vector<String>, // e.g. 0x1::module_name::WBTC
-        // TODO: protected_coins
-        deposited: simple_map::SimpleMap<String,u64>,
-        conly_deposited: simple_map::SimpleMap<String,u64>,
-        borrowed: simple_map::SimpleMap<String,u64>,
+        protected_coins: simple_map::SimpleMap<String,bool>, // e.g. 0x1::module_name::WBTC - true
+        balance: simple_map::SimpleMap<String,Balance>,
+    }
+
+    struct Balance has store {
+        deposited: u64,
+        conly_deposited: u64,
+        borrowed: u64,
     }
 
     public fun deposited_asset<C>(addr: address): u64 acquires Position {
         let key = generate_key<C>();
         let position_ref = borrow_global<Position<AssetToShadow>>(addr);
-        if (simple_map::contains_key<String,u64>(&position_ref.deposited, &key)) {
-            *simple_map::borrow<String,u64>(&position_ref.deposited, &key)
+        if (simple_map::contains_key<String,Balance>(&position_ref.balance, &key)) {
+            simple_map::borrow<String,Balance>(&position_ref.balance, &key).deposited
         } else {
             0
         }
@@ -39,8 +45,8 @@ module leizd::account_position {
     public fun conly_deposited_asset<C>(addr: address): u64 acquires Position {
         let key = generate_key<C>();
         let position_ref = borrow_global<Position<AssetToShadow>>(addr);
-         if (simple_map::contains_key<String,u64>(&position_ref.conly_deposited, &key)) {
-            *simple_map::borrow<String,u64>(&position_ref.conly_deposited, &key)
+        if (simple_map::contains_key<String,Balance>(&position_ref.balance, &key)) {
+            simple_map::borrow<String,Balance>(&position_ref.balance, &key).conly_deposited
         } else {
             0
         }
@@ -49,15 +55,19 @@ module leizd::account_position {
     public fun borrowed_asset<C>(addr: address): u64 acquires Position {
         let key = generate_key<C>();
         let position_ref = borrow_global<Position<ShadowToAsset>>(addr);
-        *simple_map::borrow<String,u64>(&position_ref.borrowed, &key)
+        if (simple_map::contains_key<String,Balance>(&position_ref.balance, &key)) {
+            simple_map::borrow<String,Balance>(&position_ref.balance, &key).borrowed
+        } else {
+            0
+        }
     }
 
 
     public fun deposited_shadow<C>(addr: address): u64 acquires Position {
         let key = generate_key<C>();
         let position_ref = borrow_global<Position<ShadowToAsset>>(addr);
-        if (simple_map::contains_key<String,u64>(&position_ref.deposited, &key)) {
-            *simple_map::borrow<String,u64>(&position_ref.deposited, &key)
+        if (simple_map::contains_key<String,Balance>(&position_ref.balance, &key)) {
+            simple_map::borrow<String,Balance>(&position_ref.balance, &key).deposited
         } else {
             0
         }
@@ -66,8 +76,8 @@ module leizd::account_position {
     public fun conly_deposited_shadow<C>(addr: address): u64 acquires Position {
         let key = generate_key<C>();
         let position_ref = borrow_global<Position<ShadowToAsset>>(addr);
-        if (simple_map::contains_key<String,u64>(&position_ref.conly_deposited, &key)) {
-            *simple_map::borrow<String,u64>(&position_ref.conly_deposited, &key)
+        if (simple_map::contains_key<String,Balance>(&position_ref.balance, &key)) {
+            simple_map::borrow<String,Balance>(&position_ref.balance, &key).conly_deposited
         } else {
             0
         }
@@ -76,7 +86,11 @@ module leizd::account_position {
     public fun borrowed_shadow<C>(addr: address): u64 acquires Position {
         let key = generate_key<C>();
         let position_ref = borrow_global<Position<AssetToShadow>>(addr);
-        *simple_map::borrow<String,u64>(&position_ref.borrowed, &key)
+        if (simple_map::contains_key<String,Balance>(&position_ref.balance, &key)) {
+            simple_map::borrow<String,Balance>(&position_ref.balance, &key).borrowed
+        } else {
+            0
+        }
     }
 
     // TODO: event
@@ -85,17 +99,33 @@ module leizd::account_position {
         if (!exists<Position<AssetToShadow>>(signer::address_of(account))) {
             move_to(account, Position<AssetToShadow> {
                 coins: vector::empty<String>(),
-                deposited: simple_map::create<String,u64>(),
-                conly_deposited: simple_map::create<String,u64>(),
-                borrowed: simple_map::create<String,u64>(),
+                protected_coins: simple_map::create<String,bool>(),
+                balance: simple_map::create<String,Balance>(),
             });
             move_to(account, Position<ShadowToAsset> {
                 coins: vector::empty<String>(),
-                deposited: simple_map::create<String,u64>(),
-                conly_deposited: simple_map::create<String,u64>(),
-                borrowed: simple_map::create<String,u64>(),
+                protected_coins: simple_map::create<String,bool>(),
+                balance: simple_map::create<String,Balance>(),
             });
         }
+    }
+
+    public(friend) fun protect_coin<C>(account: &signer) acquires Position {
+        let key = generate_key<C>();
+        let position_ref = borrow_global_mut<Position<AssetToShadow>>(signer::address_of(account));
+        assert!(vector::contains<String>(&position_ref.coins, &key), ENOT_EXISTED);
+        assert!(!simple_map::contains_key<String,bool>(&position_ref.protected_coins, &key), EALREADY_PROTECTED);
+
+        simple_map::add<String,bool>(&mut position_ref.protected_coins, key, true);
+    }
+
+    public(friend) fun unprotect_coin<C>(account: &signer) acquires Position {
+        let key = generate_key<C>();
+        let position_ref = borrow_global_mut<Position<AssetToShadow>>(signer::address_of(account));
+        assert!(vector::contains<String>(&position_ref.coins, &key), ENOT_EXISTED);
+        assert!(simple_map::contains_key<String,bool>(&position_ref.protected_coins, &key), EALREADY_PROTECTED);
+
+        simple_map::remove<String,bool>(&mut position_ref.protected_coins, &key);
     }
 
     public(friend) fun deposit<C,P>(account: &signer, amount: u64, is_collateral_only: bool) acquires Position {
@@ -202,8 +232,8 @@ module leizd::account_position {
     fun deposited_volume<P>(addr: address, key: String): u64 acquires Position {
         let position_ref = borrow_global_mut<Position<P>>(addr);
         if (vector::contains<String>(&position_ref.coins, &key)) {
-            let deposited = simple_map::borrow<String,u64>(&position_ref.deposited, &key);
-            price_oracle::volume(&key, *deposited)
+            let deposited = simple_map::borrow<String,Balance>(&position_ref.balance, &key).deposited;
+            price_oracle::volume(&key, deposited)
         } else {
             0
         }
@@ -212,8 +242,8 @@ module leizd::account_position {
     fun borrowed_volume<P>(addr: address, key: String): u64 acquires Position {
         let position_ref = borrow_global_mut<Position<P>>(addr);
         if (vector::contains<String>(&position_ref.coins, &key)) {
-            let borrowed = simple_map::borrow<String,u64>(&position_ref.borrowed, &key);
-            price_oracle::volume(&key, *borrowed)
+            let borrowed = simple_map::borrow<String,Balance>(&position_ref.balance, &key).borrowed;
+            price_oracle::volume(&key, borrowed)
         } else {
             0
         }
@@ -251,29 +281,29 @@ module leizd::account_position {
         if (vector::contains<String>(&position_ref.coins, &key)) {
             if (is_deposit && is_increase) {
                 // Deposit 
-                let deposited = simple_map::borrow_mut<String,u64>(&mut position_ref.deposited, &key);
-                *deposited = *deposited + amount;
+                let balance_ref = simple_map::borrow_mut<String,Balance>(&mut position_ref.balance, &key);
+                balance_ref.deposited = balance_ref.deposited + amount;
                 if (is_collateral_only) {
-                    let conly_deposited = simple_map::borrow_mut<String,u64>(&mut position_ref.conly_deposited, &key);
-                    *conly_deposited = *conly_deposited + amount;
+                    let balance_ref = simple_map::borrow_mut<String,Balance>(&mut position_ref.balance, &key);
+                    balance_ref.conly_deposited = balance_ref.conly_deposited + amount;
                 }
             } else if (is_deposit && !is_increase) {
                 // Withdraw
-                let deposited = simple_map::borrow_mut<String,u64>(&mut position_ref.deposited, &key);
-                *deposited = *deposited - amount;
+                let balance_ref = simple_map::borrow_mut<String,Balance>(&mut position_ref.balance, &key);
+                balance_ref.deposited = balance_ref.deposited - amount;
                 if (is_collateral_only) {
-                    let conly_deposited = simple_map::borrow_mut<String,u64>(&mut position_ref.conly_deposited, &key);
-                    *conly_deposited = *conly_deposited - amount;
+                    let balance_ref = simple_map::borrow_mut<String,Balance>(&mut position_ref.balance, &key);
+                    balance_ref.conly_deposited = balance_ref.conly_deposited - amount;
                 }
                 // FIXME: consider both deposited and borrowed & remove key in vector & position in map
             } else if (!is_deposit && is_increase) {
                 // Borrow
-                let borrowed = simple_map::borrow_mut<String,u64>(&mut position_ref.borrowed, &key);
-                *borrowed = *borrowed + amount;
+                let balance_ref = simple_map::borrow_mut<String,Balance>(&mut position_ref.balance, &key);
+                balance_ref.borrowed = balance_ref.borrowed + amount;
             } else {
                 // Repay
-                let borrowed = simple_map::borrow_mut<String,u64>(&mut position_ref.borrowed, &key);
-                *borrowed = *borrowed - amount;
+                let balance_ref = simple_map::borrow_mut<String,Balance>(&mut position_ref.balance, &key);
+                balance_ref.borrowed = balance_ref.borrowed - amount;
                 // FIXME: consider both deposited and borrowed & remove key in vector & position in map
             }
         } else {
@@ -282,16 +312,17 @@ module leizd::account_position {
     }
 
     fun new_position<P>(addr: address, amount: u64, is_deposit: bool, is_collateral_only: bool, key: String) acquires Position {
-        // assert!(is_deposit, 0); // FIXME: should be deleted
+        assert!(is_deposit, 0);
         is_deposit;
         let position_ref = borrow_global_mut<Position<P>>(addr);
         vector::push_back<String>(&mut position_ref.coins, key);
 
         let conly_amount = if (is_collateral_only) amount else 0;
-        // TODO: should be key -> Balance?
-        simple_map::add<String,u64>(&mut position_ref.deposited, key, amount);
-        simple_map::add<String,u64>(&mut position_ref.conly_deposited, key, conly_amount);
-        simple_map::add<String,u64>(&mut position_ref.borrowed, key, 0);
+        simple_map::add<String,Balance>(&mut position_ref.balance, key, Balance {
+            deposited: amount,
+            conly_deposited: conly_amount,
+            borrowed: 0,
+        });
     }
 
     fun is_safe<P>(position_ref: &Position<P>, key: String): bool {
@@ -304,9 +335,9 @@ module leizd::account_position {
 
     fun utilization_of<P>(position_ref: &Position<P>, key: String): u64 {
         if (vector::contains<String>(&position_ref.coins, &key)) {
-            let deposited = simple_map::borrow<String,u64>(&position_ref.deposited, &key);
-            let borrowed = simple_map::borrow<String,u64>(&position_ref.borrowed, &key);
-            price_oracle::volume(&key, *borrowed) / price_oracle::volume(&key, *deposited)
+            let deposited = simple_map::borrow<String,Balance>(&position_ref.balance, &key).deposited;
+            let borrowed = simple_map::borrow<String,Balance>(&position_ref.balance, &key).borrowed;
+            price_oracle::volume(&key, borrowed) / price_oracle::volume(&key, deposited)
         } else {
             0
         }
