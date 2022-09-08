@@ -6,6 +6,7 @@ module leizd::shadow_pool {
     use aptos_std::event;
     use aptos_framework::coin;
     use aptos_framework::type_info;
+    use aptos_framework::account;
     use leizd::usdz::{USDZ};
     use leizd::permission;
     use leizd::constant;
@@ -382,8 +383,6 @@ module leizd::shadow_pool {
     use leizd::usdz;
     #[test_only]
     use leizd::initializer;
-    #[test_only]
-    use aptos_framework::account;
     #[test_only]
     use aptos_framework::timestamp;
     #[test_only]
