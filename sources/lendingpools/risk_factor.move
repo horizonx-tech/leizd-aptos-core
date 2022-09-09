@@ -1,4 +1,4 @@
-module leizd::repository {
+module leizd::risk_factor {
 
     use std::signer;
     use std::string;
@@ -15,6 +15,8 @@ module leizd::repository {
     const DEFAULT_LIQUIDATION_FEE: u64 = 1000000000 / 1000 * 5; // 0.5%
     const DEFAULT_LTV: u64 = 1000000000 / 100 * 50; // 50%
     const DEFAULT_THRESHOLD: u64 = 1000000000 / 100 * 70 ; // 70%
+    const SHADOW_LTV: u64 = 1000000000 / 100 * 100; // 100%
+    const SHADOW_LT: u64 = 1000000000 / 100 * 100; // 100%
 
     const E_INVALID_THRESHOLD: u64 = 1;
     const E_INVALID_LTV: u64 = 2;
@@ -61,8 +63,8 @@ module leizd::repository {
         let ltv = table::new<string::String,u64>();
         let lt = table::new<string::String,u64>();
         let usdz_name = type_info::type_name<USDZ>();
-        table::add<string::String,u64>(&mut ltv, usdz_name, PRECISION / 100 * 90);
-        table::add<string::String,u64>(&mut lt, usdz_name, PRECISION / 100 * 95);
+        table::add<string::String,u64>(&mut ltv, usdz_name, SHADOW_LTV);
+        table::add<string::String,u64>(&mut lt, usdz_name, SHADOW_LT);
         move_to(owner, Config {
             ltv: ltv,
             lt: lt,
@@ -160,6 +162,11 @@ module leizd::repository {
     public fun lt_of(name: string::String): u64 acquires Config {
         let config = borrow_global<Config>(@leizd);
         *table::borrow<string::String,u64>(&config.lt, name)
+    } 
+
+    public fun lt_of_shadow(): u64 acquires Config {
+        let config = borrow_global<Config>(@leizd);
+        *table::borrow<string::String,u64>(&config.lt, type_info::type_name<USDZ>())
     } 
 
     public entry fun precision(): u64 {
