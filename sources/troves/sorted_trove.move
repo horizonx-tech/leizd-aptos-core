@@ -1,5 +1,4 @@
 module leizd::sorted_trove {
-    use std::signer;
     use leizd::constant;
     use aptos_std::simple_map;
     use leizd::trove;
@@ -25,12 +24,23 @@ module leizd::sorted_trove {
         borrow_global<Data<C>>(@leizd).head
     }
 
-    public entry fun initialize<C>(owner: &signer) {
+    public fun tail<C>(): address acquires Data {
+        borrow_global<Data<C>>(@leizd).tail
+    }
+
+    public fun max_size<C>(): u64 acquires Data {
+        borrow_global<Data<C>>(@leizd).max_size
+    }
+
+    public fun size<C>(): u64 acquires Data {
+        borrow_global<Data<C>>(@leizd).size
+    }
+
+    public(friend) entry fun initialize<C>(owner: &signer) {
         initialize_internal<C>(owner, constant::u64_max());
     }
 
     fun initialize_internal<C>(owner: &signer, max_size: u64) {
-        assert!(!initialized<C>(signer::address_of(owner)), 0);
         move_to(owner, Data<C>{head: @0x0, tail: @0x0, max_size: max_size, size: 0, nodes: simple_map::create<address,Node>()});
     }
 
@@ -111,26 +121,25 @@ module leizd::sorted_trove {
     }
 
     // returns valid prev_id and next_id to be inserted between.
-    fun find_valid_insert_position<C>(prev_id: address, next_id: address, amount: u64, data: &mut Data<C>): (address, address) {
-        let ret_prev_id = prev_id;
-        let ret_next_id = next_id;
-        if (prev_id == @0x0) {
+    fun find_valid_insert_position<C>(_prev_id: address, _next_id: address, amount: u64, data: &mut Data<C>): (address, address) {
+        let (prev_id, next_id) = (_prev_id, _next_id);
+        if (prev_id != @0x0) {
             if (!contains_<C>(prev_id, data.nodes) || amount > trove::trove_amount<C>(prev_id)) {
-                ret_prev_id = @0x0;
+                prev_id = @0x0;
             }
         };
-        if (next_id == @0x0) {
+        if (next_id != @0x0) {
             if (!contains_<C>(next_id, data.nodes) || amount > trove::trove_amount<C>(next_id)) {
-                ret_next_id = @0x0;
+                next_id = @0x0;
             }
         };
-        if (ret_prev_id == @0x0 && ret_next_id == @0x0) {
+        if (prev_id == @0x0 && next_id == @0x0) {
             // No hint - descend list starting from head
             return descend_list(amount, data.head, data)
-        } else if (ret_prev_id == @0x0) {
+        } else if (prev_id == @0x0) {
             // No `prevId` for hint - ascend list starting from `nextId`
             return ascend_list(amount, next_id, data)
-        } else if (ret_next_id == @0x0) {
+        } else if (next_id == @0x0) {
             // No `nextId` for hint - descend list starting from `prevId`
             return descend_list(amount, prev_id, data)
         };
@@ -169,23 +178,19 @@ module leizd::sorted_trove {
         assert!(contains<C>(id), E_NODE_NOT_FOUND);
         let data = borrow_global_mut<Data<C>>(@leizd);
         let (prev_id, next_id) = prev_next_id_of(id, data);
-        if (!is_insert_position_valid<C>(prev_id, next_id, trove::trove_amount<C>(id), data)) {
-            (prev_id, next_id) = find_valid_insert_position<C>(prev_id, next_id, trove::trove_amount<C>(id), data)
-        };
         if (data.size > 1) {
-            let node = simple_map::borrow<address, Node>(&data.nodes, &id);
             // List contains more than a single node
             if (id == data.head) {
                 // The removed node is the head
                 // Set head to next node
-                data.head = node.next_id;
+                data.head = next_id;
                 let head = simple_map::borrow_mut<address, Node>(&mut data.nodes, &data.head);
                 // Set prev pointer of new head to null
                 head.prev_id = @0x0;
             } else if (id == data.tail) {
                 // The removed node is the tail
                 // Set tail to previous node
-                data.tail = node.prev_id;
+                data.tail = prev_id;
                 let tail = simple_map::borrow_mut<address, Node>(&mut data.nodes, &data.tail);
                 // Set next pointer of new tail to null
                 tail.next_id = @0x0;
@@ -215,170 +220,89 @@ module leizd::sorted_trove {
 
     #[test_only]
     use leizd::test_coin::{Self,USDC};
+    #[test_only]
+    use leizd::usdz;
+    #[test_only]
+    use aptos_framework::account;
+    #[test_only]
+    use aptos_framework::managed_coin;
+    #[test_only]
+    use std::option;
+    #[test_only]
+    use std::signer;
+
 
     #[test_only]
-    fun set_up(owner: &signer) {
-        test_coin::init_usdc(owner);
+    fun node<C>(account: address): option::Option<Node> acquires Data {
+        let data = borrow_global_mut<Data<C>>(@leizd);
+        let node = simple_map::borrow_mut<address, Node>(&mut data.nodes, &account);
+        option::some<Node>(*node)
     }
 
     #[test_only]
-    const ALICE :address = @0x1;
-    #[test_only]
-    const BOB: address = @0x2;
-    #[test_only]
-    const CAROL: address = @0x3;
+    public fun node_next<C>(account:address): address acquires Data {
+        let node = node<C>(account);
+        option::borrow_with_default<Node>(&node, &Node{next_id: @0x0, prev_id: @0x0}).next_id
+    }
 
-   //#[test(owner=@leizd)]
-   //#[expected_failure(abort_code = 1)]
-   //fun test_node_capacity<C>(owner: signer) acquires Data {
-   //    initialize_internal<C>(&owner, 0);
-   //    insert<C>(ALICE, @0x0, @0x0);
-   //}
+    #[test_only]
+    public fun node_prev<C>(account:address): address acquires Data {
+        let node = node<C>(account);
+        option::borrow_with_default<Node>(&node, &Node{next_id: @0x0, prev_id: @0x0}).prev_id
+    }
 
-   //#[test(owner=@leizd)]
-   //fun test_insert<USDC>(owner: signer) acquires Data {
-   //    initialize<USDC>(&owner);
-   //    // insert 1 elem
-   //    insert<USDC>(ALICE, @0x0, @0x0);
-   //    let data = borrow_global<Data<USDC>>(@leizd);
-   //    assert!(data.size == 1, 0);
-   //    assert!(data.head == ALICE, 0);
-   //    assert!(data.tail == ALICE, 0);
-   //    let node = simple_map::borrow(&data.nodes, &ALICE);
-   //    assert!(node.next_id == @0x0, 0);
-   //    assert!(node.prev_id == @0x0, 0);
-   //    
-   //    // insert more elem after account1
-   //    insert<USDC>(BOB, ALICE, @0x0);
-   //    let data = borrow_global<Data<USDC>>(@leizd);
-   //    assert!(&data.size == &2, 0);
-   //    assert!(&data.head == &ALICE, 0);
-   //    assert!(&data.tail == &BOB, 0);
-   //    let node = simple_map::borrow(&data.nodes, &BOB);
-   //    assert!(node.next_id == @0x0, 0);
-   //    assert!(node.prev_id == ALICE, 0);
-//
-   //    // insert more elem between account1 and account2
-   //    insert<USDC>(CAROL, ALICE, BOB);
-   //    let data = borrow_global<Data<USDC>>(@leizd);
-   //    assert!(&data.size == &3, 0);
-   //    assert!(&data.head == &ALICE, 0);
-   //    assert!(&data.tail == &BOB, 0);
-   //    let node = simple_map::borrow(&data.nodes, &CAROL);
-   //    assert!(node.next_id == BOB, 0);
-   //    assert!(node.prev_id == ALICE, 0);
-   //    assert!(simple_map::borrow(&data.nodes, &BOB).prev_id == CAROL, 0);
-   //}
+
+    #[test_only]
+    fun set_up(owner: &signer) {
+        let owner_addr = signer::address_of(owner);
+        account::create_account_for_test(owner_addr);
+        test_coin::init_usdc(owner);
+        initialize<USDC>(owner);
+    }
+
+    #[test_only]
+    fun alice(owner: &signer): address {
+        create_user(owner, @0x1)
+    }
+
+    #[test_only]
+    fun bob(owner: &signer): address {
+        create_user(owner, @0x2)
+    }
+
+    #[test_only]
+    fun carol(owner: &signer): address {
+        create_user(owner, @0x3)
+    }
+
+    #[test_only]
+    fun users(owner: &signer):(address, address, address) {
+        (alice(owner), bob(owner), carol(owner))
+    }
+
+    #[test_only]
+    fun create_user(owner: &signer, account: address): address {
+        let sig = account::create_account_for_test(account);
+        managed_coin::register<USDC>(&sig);
+        managed_coin::register<usdz::USDZ>(&sig);
+        managed_coin::mint<USDC>(owner, account, 100000000);
+        account
+    }
+
+    #[test(owner=@leizd)]
+    #[expected_failure(abort_code = 1)]
+    fun test_node_capacity(owner: &signer) acquires Data {
+        let owner_addr = signer::address_of(owner);
+        account::create_account_for_test(owner_addr);
+        test_coin::init_usdc(owner);
+        initialize_internal<USDC>(owner, 0);
+        insert<USDC>(alice(owner));
+    }
 
    #[test(owner=@leizd)]
    #[expected_failure(abort_code = 2)]
-   fun test_remove_unknown_entry(owner: signer) acquires Data {
-       initialize<USDC>(&owner);
-       remove<USDC>(ALICE)
+   fun test_remove_unknown_entry(owner: &signer) acquires Data {
+        set_up(owner);
+        remove<USDC>(alice(owner));
    }
-
-   #[test(owner=@leizd)]
-   fun test_remove_1_entry(owner: signer) acquires Data {
-       initialize<USDC>(&owner);
-       insert<USDC>(ALICE);
-       // remove 1 of 1 element
-       remove<USDC>(ALICE);
-       let data = borrow_global<Data<USDC>>(@leizd);
-       assert!(&data.head == &@0x0, 0);
-       assert!(&data.tail == &@0x0, 0);
-       assert!(&data.size == &0, 0);
-       assert!(&data.nodes == &simple_map::create<address,Node>(), 0);
-   }
-
-   #[test(owner=@leizd)]
-   fun test_remove_head_of_2_entries(owner: signer) acquires Data {
-       initialize<USDC>(&owner);
-       insert<USDC>(ALICE);
-       insert<USDC>(BOB);
-       // remove 1 of 2 elements
-       remove<USDC>(ALICE);
-       let data = borrow_global<Data<USDC>>(@leizd);
-       assert!(&data.head == &BOB, 0);
-       assert!(&data.tail == &BOB, 0);
-       assert!(&data.size == &1, 0);
-       let node = simple_map::borrow<address, Node>(&data.nodes, &BOB);
-       assert!(node.next_id == @0x0, 0);
-       assert!(node.prev_id == @0x0, 0);
-   }
-
-   #[test(owner=@leizd)]
-   fun test_remove_tail_of_2_entries(owner: signer) acquires Data {
-       initialize<USDC>(&owner);
-       insert<USDC>(ALICE);
-       insert<USDC>(BOB);
-       // remove 1 of 2 elements
-       remove<USDC>(BOB);
-       let data = borrow_global<Data<USDC>>(@leizd);
-       assert!(&data.head == &ALICE, 0);
-       assert!(&data.tail == &ALICE, 0);
-       assert!(&data.size == &1, 0);
-       let node = simple_map::borrow<address, Node>(&data.nodes, &ALICE);
-       assert!(node.next_id == @0x0, 0);
-       assert!(node.prev_id == @0x0, 0);
-   }
-   
-   //#[test(owner=@leizd)]
-   //fun test_remove_head_of_3_entries(owner: signer) acquires Data {
-   //    initialize<USDC>(&owner);
-   //    insert<USDC>(ALICE, @0x0, @0x0);
-   //    insert<USDC>(BOB, ALICE, @0x0);
-   //    insert<USDC>(CAROL, BOB, @0x0);
-   //    // remove 1 of 3 elements
-   //    remove<USDC>(ALICE);
-   //    let data = borrow_global<Data<USDC>>(@leizd);
-   //    assert!(&data.head == &BOB, 0);
-   //    assert!(&data.tail == &ALICE, 0);
-   //    assert!(&data.size == &2, 0);
-   //    let node_account2 = simple_map::borrow<address, Node>(&data.nodes, &BOB);
-   //    assert!(node_account2.next_id == CAROL, 0);
-   //    assert!(node_account2.prev_id == @0x0, 0);
-   //    let node_account3 = simple_map::borrow<address, Node>(&data.nodes, &CAROL);
-   //    assert!(node_account3.next_id == @0x0, 0);
-   //    assert!(node_account3.prev_id == BOB, 0);
-   //}
-
-   //#[test(owner=@leizd)]
-   //fun test_remove_middle_of_3_entries(owner: signer) acquires Data {
-   //    initialize<USDC>(&owner);
-   //    insert<USDC>(ALICE, @0x0, @0x0);
-   //    insert<USDC>(BOB, ALICE, @0x0);
-   //    insert<USDC>(CAROL, BOB, @0x0);
-   //    // remove 1 of 3 elements
-   //    remove<USDC>(BOB);
-   //    let data = borrow_global<Data<USDC>>(@leizd);
-   //    assert!(&data.head == &ALICE, 0);
-   //    assert!(&data.tail == &CAROL, 0);
-   //    assert!(&data.size == &2, 0);
-   //    let node_account1 = simple_map::borrow<address, Node>(&data.nodes, &ALICE);
-   //    assert!(node_account1.next_id == CAROL, 0);
-   //    assert!(node_account1.prev_id == @0x0, 0);
-   //    let node_account3 = simple_map::borrow<address, Node>(&data.nodes, &CAROL);
-   //    assert!(node_account3.next_id == @0x0, 0);
-   //    assert!(node_account3.prev_id == ALICE, 0);
-   //}
-//
-   //#[test(owner=@leizd)]
-   //fun test_remove_tail_of_3_entries(owner: signer) acquires Data {
-   //    initialize<USDC>(&owner);
-   //    insert<USDC>(ALICE, @0x0, @0x0);
-   //    insert<USDC>(BOB, ALICE, @0x0);
-   //    insert<USDC>(CAROL, BOB, @0x0);
-   //    // remove 1 of 3 elements
-   //    remove<USDC>(CAROL);
-   //    let data = borrow_global<Data<USDC>>(@leizd);
-   //    assert!(&data.head == &ALICE, 0);
-   //    assert!(&data.tail == &BOB, 0);
-   //    assert!(&data.size == &2, 0);
-   //    let node_account1 = simple_map::borrow<address, Node>(&data.nodes, &ALICE);
-   //    assert!(node_account1.next_id == BOB, 0);
-   //    assert!(node_account1.prev_id == @0x0, 0);
-   //    let node_account2 = simple_map::borrow<address, Node>(&data.nodes, &BOB);
-   //    assert!(node_account2.next_id == @0x0, 0);
-   //    assert!(node_account2.prev_id == ALICE, 0);
-   //}
 }
