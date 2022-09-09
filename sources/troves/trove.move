@@ -5,10 +5,8 @@ module leizd::trove {
     use aptos_framework::coin;
     use leizd::usdz;
     use leizd::math64;
-    //use aptos_std::event;
     use leizd::permission;
     use aptos_framework::account;
-    //use leizd::price_oracle;
     friend leizd::trove_manager;
 
     struct Trove<phantom C> has key, store {
