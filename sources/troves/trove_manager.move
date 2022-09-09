@@ -254,7 +254,9 @@ module leizd::trove_manager {
         assert!(trove_size() == 1, 0);
         let carol_trove_remains = 10000 - (5100 - (100 + 1000));
         assert!(trove::trove_amount<USDC>(signer::address_of(&carol)) == carol_trove_remains, 0);
-   } 
-   
-
+        assert!(trove_head() == signer::address_of(&carol), 0);
+        assert!(trove_tail() == signer::address_of(&carol), 0);
+        assert!(node_next(&carol) == @0x0, 0);
+        assert!(node_prev(&carol) == @0x0, 0);
+   }
 }
