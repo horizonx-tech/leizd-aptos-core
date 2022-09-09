@@ -42,13 +42,13 @@ module leizd::trove {
     }
 
     fun initialize_internal(owner: &signer) {
-        permission::assert_owner(signer::address_of(owner));
         usdz::initialize(owner);
     }
 
     public(friend) entry fun add_supported_coin<C>(owner: &signer) {
         add_supported_coin_internal<C>(owner);
     }
+
 
     fun add_supported_coin_internal<C>(owner: &signer) {
         permission::assert_owner(signer::address_of(owner));
@@ -118,7 +118,6 @@ module leizd::trove {
     public(friend) entry fun repay<C>(account: &signer, collateral_amount: u64) acquires Trove, TroveEventHandle {
         repay_internal<C>(account, collateral_amount);
     }
-
 
     public entry fun borrowable_usdz<C>(amount:u64):u64 {
         //let price = price_oracle::price<C>();
