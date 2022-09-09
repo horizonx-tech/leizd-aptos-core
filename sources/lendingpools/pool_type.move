@@ -28,4 +28,16 @@ module leizd::pool_type {
     public fun assert_pool_type<P>() {
         assert!(is_type_asset<P>() || is_type_shadow<P>(), 0);
     }
+
+    #[test_only]
+    struct DummyPoolType {}
+    #[test]
+    fun test_is_type_xxx() {
+        assert!(is_type_asset<Asset>(), 0);
+        assert!(!is_type_asset<Shadow>(), 0);
+        assert!(!is_type_asset<DummyPoolType>(), 0);
+        assert!(is_type_asset<Asset>(), 0);
+        assert!(!is_type_asset<Shadow>(), 0);
+        assert!(!is_type_asset<DummyPoolType>(), 0);
+    }
 }
