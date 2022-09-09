@@ -39,13 +39,13 @@ module leizd::coin_base {
 
     public(friend) fun mint<C>(minter_addr: address, amount: u64) acquires Capabilities {
         assert!(coin::is_account_registered<C>(minter_addr), 0);
-        let caps = borrow_global<Capabilities<C>>(@leizd);
+        let caps = borrow_global<Capabilities<C>>(permission::owner_address());
         let coin_minted = coin::mint(amount, &caps.mint_cap);
         coin::deposit(minter_addr, coin_minted);
     }
 
     public(friend) fun burn<C>(account: &signer, amount: u64) acquires Capabilities {
-        let caps = borrow_global<Capabilities<C>>(@leizd);
+        let caps = borrow_global<Capabilities<C>>(permission::owner_address());
         
         let coin_burned = coin::withdraw<C>(account, amount);
         coin::burn(coin_burned, &caps.burn_cap);

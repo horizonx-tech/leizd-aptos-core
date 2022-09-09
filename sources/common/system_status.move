@@ -15,12 +15,12 @@ module leizd::system_status {
     }
 
     public(friend) fun update_status(active: bool) acquires SystemStatus {
-        let status_ref = borrow_global_mut<SystemStatus>(@leizd);
+        let status_ref = borrow_global_mut<SystemStatus>(permission::owner_address());
         status_ref.is_active = active;
     }
 
     public fun status(): bool acquires SystemStatus {
-        borrow_global<SystemStatus>(@leizd).is_active
+        borrow_global<SystemStatus>(permission::owner_address()).is_active
     }
 
     #[test(owner = @leizd)]

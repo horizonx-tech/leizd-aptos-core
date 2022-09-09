@@ -108,7 +108,7 @@ module leizd::trove {
     }
 
     fun is_coin_supported<C>(): bool {
-        exists<SupportedCoin<C>>(@leizd)
+        exists<SupportedCoin<C>>(permission::owner_address())
     }
 
     public(friend) entry fun close_trove<C>(account: &signer) acquires Trove, TroveEventHandle {
@@ -140,7 +140,7 @@ module leizd::trove {
         coin::merge(&mut trove.coin, coin::withdraw<C>(account, collateral_amount));        
         usdz::mint(account, amount);
         event::emit_event<OpenTroveEvent>(
-            &mut borrow_global_mut<TroveEventHandle<C>>(@leizd).open_trove_event,
+            &mut borrow_global_mut<TroveEventHandle<C>>(permission::owner_address()).open_trove_event,
             OpenTroveEvent {
                 caller: account_addr,
                 amount,
@@ -155,7 +155,7 @@ module leizd::trove {
         let balance = coin::value(&trove.coin);
         repay_internal<C>(account, balance);
         event::emit_event<CloseTroveEvent>(
-            &mut borrow_global_mut<TroveEventHandle<C>>(@leizd).close_trove_event,
+            &mut borrow_global_mut<TroveEventHandle<C>>(permission::owner_address()).close_trove_event,
             CloseTroveEvent {
                 caller: signer::address_of(account),
             },
@@ -169,7 +169,7 @@ module leizd::trove {
         usdz::burn(account, amount);
         coin::deposit<C>(signer::address_of(account), coin::extract(&mut trove.coin, collateral_amount));
         event::emit_event<RepayEvent>(
-            &mut borrow_global_mut<TroveEventHandle<C>>(@leizd).repay_event,
+            &mut borrow_global_mut<TroveEventHandle<C>>(permission::owner_address()).repay_event,
             RepayEvent {
                 caller: signer::address_of(account),
                 amount,

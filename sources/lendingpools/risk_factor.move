@@ -83,28 +83,31 @@ module leizd::risk_factor {
     }
 
     public entry fun new_asset<C>(owner: &signer) acquires Config {
-        permission::assert_owner(signer::address_of(owner));
+        let owner_address = signer::address_of(owner);
+        permission::assert_owner(owner_address);
 
-        let config_ref = borrow_global_mut<Config>(@leizd);
+        let config_ref = borrow_global_mut<Config>(owner_address);
         let name = type_info::type_name<C>();
         table::upsert<string::String,u64>(&mut config_ref.ltv, name, DEFAULT_LTV);
         table::upsert<string::String,u64>(&mut config_ref.lt, name, DEFAULT_THRESHOLD);
     }
 
     public entry fun update_protocol_fees(owner: &signer, fees: ProtocolFees) acquires ProtocolFees, RepositoryEventHandle {
-        permission::assert_owner(signer::address_of(owner));
+        let owner_address = signer::address_of(owner);
+        permission::assert_owner(owner_address);
+
         assert!(fees.entry_fee < PRECISION, E_INVALID_ENTRY_FEE);
         assert!(fees.share_fee < PRECISION, E_INVALID_SHARE_FEE);
         assert!(fees.liquidation_fee < PRECISION, E_INVALID_LIQUIDATION_FEE);
 
-        let _fees = borrow_global_mut<ProtocolFees>(@leizd);
+        let _fees = borrow_global_mut<ProtocolFees>(owner_address);
         _fees.entry_fee = fees.entry_fee;
         _fees.share_fee = fees.share_fee;
         _fees.liquidation_fee = fees.liquidation_fee;
         event::emit_event<UpdateProtocolFeesEvent>(
-            &mut borrow_global_mut<RepositoryEventHandle>(@leizd).update_protocol_fees_event,
+            &mut borrow_global_mut<RepositoryEventHandle>(owner_address).update_protocol_fees_event,
             UpdateProtocolFeesEvent {
-                caller: signer::address_of(owner),
+                caller: owner_address,
                 entry_fee: fees.entry_fee,
                 share_fee: fees.share_fee,
                 liquidation_fee: fees.liquidation_fee,
@@ -114,17 +117,18 @@ module leizd::risk_factor {
 
     public entry fun update_config<T>(owner: &signer, new_ltv: u64, new_lt: u64) acquires Config, RepositoryAssetEventHandle {
         permission::assert_owner(signer::address_of(owner));
+        let owner_address = signer::address_of(owner);
 
-        let _config = borrow_global_mut<Config>(@leizd);
+        let _config = borrow_global_mut<Config>(owner_address);
         let name = type_info::type_name<T>();
         assert_liquidation_threashold(new_ltv, new_lt);
 
         table::upsert<string::String,u64>(&mut _config.ltv, name, new_ltv);
         table::upsert<string::String,u64>(&mut _config.lt, name, new_lt);
         event::emit_event<UpdateConfigEvent>(
-            &mut borrow_global_mut<RepositoryAssetEventHandle>(@leizd).update_config_event,
+            &mut borrow_global_mut<RepositoryAssetEventHandle>(owner_address).update_config_event,
             UpdateConfigEvent {
-                caller: signer::address_of(owner),
+                caller: owner_address,
                 ltv: new_ltv,
                 lt: new_lt,
             }
@@ -137,20 +141,20 @@ module leizd::risk_factor {
     }
 
     public fun entry_fee(): u64 acquires ProtocolFees {
-        borrow_global<ProtocolFees>(@leizd).entry_fee
+        borrow_global<ProtocolFees>(permission::owner_address()).entry_fee
     }
 
     public fun share_fee(): u64 acquires ProtocolFees {
-        borrow_global<ProtocolFees>(@leizd).share_fee
+        borrow_global<ProtocolFees>(permission::owner_address()).share_fee
     }
 
     public fun liquidation_fee(): u64 acquires ProtocolFees {
-        borrow_global<ProtocolFees>(@leizd).liquidation_fee
+        borrow_global<ProtocolFees>(permission::owner_address()).liquidation_fee
     }
 
     public fun ltv<C>(): u64 acquires Config {
         let name = type_info::type_name<C>();
-        let config = borrow_global<Config>(@leizd);
+        let config = borrow_global<Config>(permission::owner_address());
         *table::borrow<string::String,u64>(&config.ltv, name)
     }
 
@@ -160,12 +164,12 @@ module leizd::risk_factor {
     }
 
     public fun lt_of(name: string::String): u64 acquires Config {
-        let config = borrow_global<Config>(@leizd);
+        let config = borrow_global<Config>(permission::owner_address());
         *table::borrow<string::String,u64>(&config.lt, name)
     } 
 
     public fun lt_of_shadow(): u64 acquires Config {
-        let config = borrow_global<Config>(@leizd);
+        let config = borrow_global<Config>(permission::owner_address());
         *table::borrow<string::String,u64>(&config.lt, type_info::type_name<USDZ>())
     } 
 
@@ -223,7 +227,7 @@ module leizd::risk_factor {
             liquidation_fee: PRECISION / 1000 * 6, // 0.6%,
         };
         update_protocol_fees(&owner, new_protocol_fees);
-        let fees = borrow_global<ProtocolFees>(@leizd);
+        let fees = borrow_global<ProtocolFees>(permission::owner_address());
         assert!(fees.entry_fee == PRECISION / 1000 * 8, 0);
         assert!(fees.share_fee == PRECISION / 1000 * 7, 0);
         assert!(fees.liquidation_fee == PRECISION / 1000 * 6, 0);
@@ -265,7 +269,7 @@ module leizd::risk_factor {
 
         let name = type_info::type_name<TestAsset>();
         update_config<TestAsset>(owner, PRECISION / 100 * 70, PRECISION / 100 * 90);
-        let config = borrow_global<Config>(@leizd);
+        let config = borrow_global<Config>(permission::owner_address());
         let new_ltv = table::borrow<string::String,u64>(&config.ltv, name);
         let new_lt = table::borrow<string::String,u64>(&config.lt, name);
         assert!(*new_ltv == PRECISION / 100 * 70, 0);

@@ -1,4 +1,5 @@
 module leizd::interest_rate {
+
     use std::signer;
     use aptos_std::event;
     use aptos_framework::account;
@@ -89,7 +90,7 @@ module leizd::interest_rate {
     }
 
     public fun config<C>(): Config<C> acquires Config {
-        *borrow_global<Config<C>>(@leizd)
+        *borrow_global<Config<C>>(permission::owner_address())
     }
 
     fun assert_config<C>(config: Config<C>) {
@@ -101,10 +102,11 @@ module leizd::interest_rate {
     }
 
     public fun set_config<C>(owner: &signer, config: Config<C>) acquires Config, InterestRateEventHandle {
-        permission::assert_owner(signer::address_of(owner));
+        let owner_address = signer::address_of(owner);
+        permission::assert_owner(owner_address);
         assert_config(config);
 
-        let config_ref = borrow_global_mut<Config<C>>(@leizd);
+        let config_ref = borrow_global_mut<Config<C>>(owner_address);
         config_ref.uopt = config.uopt;
         config_ref.ucrit = config.ucrit;
         config_ref.ulow = config.ulow;
@@ -116,9 +118,9 @@ module leizd::interest_rate {
         config_ref.ri = config.ri;
         config_ref.tcrit = config.tcrit;
         event::emit_event<SetConfigEvent>(
-            &mut borrow_global_mut<InterestRateEventHandle<C>>(@leizd).set_config_event,
+            &mut borrow_global_mut<InterestRateEventHandle<C>>(owner_address).set_config_event,
             SetConfigEvent {
-                caller: signer::address_of(owner),
+                caller: owner_address,
                 uopt: config.uopt,
                 ucrit: config.ucrit,
                 ulow: config.ulow,
@@ -139,7 +141,7 @@ module leizd::interest_rate {
         last_updated: u64,
         now: u64
     ): u128 acquires Config {
-        let config_ref = borrow_global_mut<Config<C>>(@leizd);
+        let config_ref = borrow_global_mut<Config<C>>(permission::owner_address());
         let (rcomp,_,_,_,_) = calc_compound_interest_rate<C>(config_ref, total_deposits, total_borrows, last_updated, now);
         rcomp
     }

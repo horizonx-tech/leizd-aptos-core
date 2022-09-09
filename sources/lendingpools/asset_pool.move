@@ -157,8 +157,9 @@ module leizd::asset_pool {
     ) acquires Pool, Storage, PoolEventHandle {
         assert!(pool_status::is_available<C>(), 0);
 
-        let storage_ref = borrow_global_mut<Storage<C>>(@leizd);
-        let pool_ref = borrow_global_mut<Pool<C>>(@leizd);
+        let owner_address = permission::owner_address();
+        let storage_ref = borrow_global_mut<Storage<C>>(owner_address);
+        let pool_ref = borrow_global_mut<Pool<C>>(owner_address);
 
         accrue_interest<C,Asset>(storage_ref);
 
@@ -168,7 +169,7 @@ module leizd::asset_pool {
             storage_ref.total_conly_deposited = storage_ref.total_conly_deposited + (amount as u128);
         };
         event::emit_event<DepositEvent>(
-            &mut borrow_global_mut<PoolEventHandle<C>>(@leizd).deposit_event,
+            &mut borrow_global_mut<PoolEventHandle<C>>(owner_address).deposit_event,
             DepositEvent {
                 caller: signer::address_of(account),
                 depositor: depositor_addr,
@@ -204,8 +205,9 @@ module leizd::asset_pool {
     ): u64 acquires Pool, Storage, PoolEventHandle {
         assert!(pool_status::is_available<C>(), 0);
 
-        let pool_ref = borrow_global_mut<Pool<C>>(@leizd);
-        let storage_ref = borrow_global_mut<Storage<C>>(@leizd);
+        let owner_address = permission::owner_address();
+        let pool_ref = borrow_global_mut<Pool<C>>(owner_address);
+        let storage_ref = borrow_global_mut<Storage<C>>(owner_address);
 
         accrue_interest<C,Asset>(storage_ref);
         collect_asset_fee<C>(pool_ref, liquidation_fee);
@@ -229,7 +231,7 @@ module leizd::asset_pool {
         };
 
         event::emit_event<WithdrawEvent>(
-            &mut borrow_global_mut<PoolEventHandle<C>>(@leizd).withdraw_event,
+            &mut borrow_global_mut<PoolEventHandle<C>>(owner_address).withdraw_event,
             WithdrawEvent {
                 caller: deopsitor_addr,
                 depositor: deopsitor_addr,
@@ -258,8 +260,9 @@ module leizd::asset_pool {
     ) acquires Pool, Storage, PoolEventHandle {
         assert!(pool_status::is_available<C>(), 0);
 
-        let pool_ref = borrow_global_mut<Pool<C>>(@leizd);
-        let storage_ref = borrow_global_mut<Storage<C>>(@leizd);
+        let owner_address = permission::owner_address();
+        let pool_ref = borrow_global_mut<Pool<C>>(owner_address);
+        let storage_ref = borrow_global_mut<Storage<C>>(owner_address);
 
         accrue_interest<C,Asset>(storage_ref);
 
@@ -271,7 +274,7 @@ module leizd::asset_pool {
         storage_ref.total_borrowed = storage_ref.total_borrowed + (amount as u128) + (fee as u128);
         
         event::emit_event<BorrowEvent>(
-            &mut borrow_global_mut<PoolEventHandle<C>>(@leizd).borrow_event,
+            &mut borrow_global_mut<PoolEventHandle<C>>(owner_address).borrow_event,
             BorrowEvent {
                 caller: borrower_addr,
                 borrower: borrower_addr,
@@ -297,12 +300,13 @@ module leizd::asset_pool {
     ): u64 acquires Pool, Storage, PoolEventHandle {
         assert!(pool_status::is_available<C>(), 0);
 
-        let account_addr = signer::address_of(account);
-        let pool_ref = borrow_global_mut<Pool<C>>(@leizd);
-        let storage_ref = borrow_global_mut<Storage<C>>(@leizd);
+        let owner_address = permission::owner_address();
+        let pool_ref = borrow_global_mut<Pool<C>>(owner_address);
+        let storage_ref = borrow_global_mut<Storage<C>>(owner_address);
 
         accrue_interest<C,Asset>(storage_ref);
 
+        let account_addr = signer::address_of(account);
         let debt_amount = account_position::borrowed_shadow<C>(account_addr);
         let repaid_amount = if (amount >= debt_amount) debt_amount else amount;
         storage_ref.total_borrowed = storage_ref.total_borrowed - (repaid_amount as u128);
@@ -310,7 +314,7 @@ module leizd::asset_pool {
         coin::merge(&mut pool_ref.asset, withdrawn);
 
         event::emit_event<RepayEvent>(
-            &mut borrow_global_mut<PoolEventHandle<C>>(@leizd).repay_event,
+            &mut borrow_global_mut<PoolEventHandle<C>>(owner_address).repay_event,
             RepayEvent {
                 caller: account_addr,
                 repayer: account_addr,
@@ -337,7 +341,7 @@ module leizd::asset_pool {
     //         withdraw_asset<C>(account, target_addr, constant::u64_max(), false, liquidation_fee);
     //     };
     //     event::emit_event<LiquidateEvent>(
-    //         &mut borrow_global_mut<PoolEventHandle<C>>(@leizd).liquidate_event,
+    //         &mut borrow_global_mut<PoolEventHandle<C>>(permission::owner_address()).liquidate_event,
     //         LiquidateEvent {
     //             caller: signer::address_of(account),
     //             target: target_addr,
@@ -347,7 +351,7 @@ module leizd::asset_pool {
     // }
 
     public fun is_pool_initialized<C>(): bool {
-        exists<Pool<C>>(@leizd)
+        exists<Pool<C>>(permission::owner_address())
     }
 
     /// This function is called on every user action.
@@ -410,25 +414,26 @@ module leizd::asset_pool {
     }
 
     public entry fun liquidity<C>(): u128 acquires Storage, Pool {
-        let pool_ref = borrow_global_mut<Pool<C>>(@leizd);
-        let storage_ref = borrow_global<Storage<C>>(@leizd);
+        let owner_address = permission::owner_address();
+        let pool_ref = borrow_global_mut<Pool<C>>(owner_address);
+        let storage_ref = borrow_global<Storage<C>>(owner_address);
         (coin::value(&pool_ref.asset) as u128) - storage_ref.total_conly_deposited
     }
 
     public entry fun total_deposited<C>(): u128 acquires Storage {
-        borrow_global<Storage<C>>(@leizd).total_deposited
+        borrow_global<Storage<C>>(permission::owner_address()).total_deposited
     }
 
     public entry fun total_conly_deposited<C>(): u128 acquires Storage {
-        borrow_global<Storage<C>>(@leizd).total_conly_deposited
+        borrow_global<Storage<C>>(permission::owner_address()).total_conly_deposited
     }
 
     public entry fun total_borrowed<C>(): u128 acquires Storage {
-        borrow_global<Storage<C>>(@leizd).total_borrowed
+        borrow_global<Storage<C>>(permission::owner_address()).total_borrowed
     }
 
     public entry fun last_updated<C>(): u64 acquires Storage {
-        borrow_global<Storage<C>>(@leizd).last_updated
+        borrow_global<Storage<C>>(permission::owner_address()).last_updated
     }
 
     // #[test_only]
