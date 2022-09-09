@@ -1,6 +1,5 @@
 module leizd::pool_type {
 
-    use std::string;
     use aptos_framework::comparator;
     use aptos_framework::type_info;
 
@@ -10,8 +9,8 @@ module leizd::pool_type {
     public fun is_type_asset<P>():bool {
         comparator::is_equal(
             &comparator::compare(
-                &type_info::type_name<P>(),
-                &string::utf8(b"0x123456789abcdef::pool_type::Asset"),
+                &type_info::type_of<P>(),
+                &type_info::type_of<Asset>(),
             )
         )
     }
@@ -19,8 +18,8 @@ module leizd::pool_type {
     public fun is_type_shadow<P>():bool {
         comparator::is_equal(
             &comparator::compare(
-                &type_info::type_name<P>(),
-                &string::utf8(b"0x123456789abcdef::pool_type::Shadow"),
+                &type_info::type_of<P>(),
+                &type_info::type_of<Shadow>(),
             )
         )
     }
@@ -39,5 +38,15 @@ module leizd::pool_type {
         assert!(is_type_asset<Asset>(), 0);
         assert!(!is_type_asset<Shadow>(), 0);
         assert!(!is_type_asset<DummyPoolType>(), 0);
+    }
+    #[test]
+    fun test_assert_pool_type() {
+        assert_pool_type<Asset>();
+        assert_pool_type<Shadow>();
+    }
+    #[test]
+    #[expected_failure(abort_code = 0)]
+    fun test_assert_pool_type_withnot_pool_type() {
+        assert_pool_type<DummyPoolType>();
     }
 }
