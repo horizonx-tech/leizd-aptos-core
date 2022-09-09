@@ -439,8 +439,8 @@ module leizd::asset_pool {
     use leizd::test_coin::{Self,USDC,USDT,WETH,UNI};
     #[test_only]
     use leizd::dummy;
-    // #[test_only]
-    // use leizd::usdz;
+    #[test_only]
+    use leizd::usdz::{USDZ};
     #[test_only]
     use leizd::test_initializer;
     #[test_only]
@@ -688,84 +688,38 @@ module leizd::asset_pool {
         // assert!(collateral::balance_of<WETH, Asset>(account_addr) == 0, 0);
         assert!(total_deposited<WETH,Asset>() == 0, 0);
     }
-    // #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
-    // #[expected_failure(abort_code = 65542)]
-    // public entry fun test_withdraw_with_more_than_deposited_amount(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
-    //     setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
-    //     price_oracle::initialize_oracle_for_test(owner);
+    #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
+    #[expected_failure(abort_code = 65542)]
+    public entry fun test_withdraw_with_more_than_deposited_amount(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        price_oracle::initialize_oracle_for_test(owner);
 
-    //     let account_addr = signer::address_of(account);
-    //     account::create_account_for_test(account_addr);
-    //     managed_coin::register<WETH>(account);
-    //     managed_coin::mint<WETH>(owner, account_addr, 100);
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+        managed_coin::register<WETH>(account);
+        managed_coin::mint<WETH>(owner, account_addr, 100);
 
-    //     deposit_for_internal<WETH,Asset>(account, account_addr, 50, false);
-    //     withdraw_for_internal<WETH,Asset>(account, account_addr, 51, false);
-    // }
-    // #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
-    // public entry fun test_withdraw_for_only_collateral(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
-    //     setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
-    //     price_oracle::initialize_oracle_for_test(owner);
+        deposit_for_internal<WETH>(account, account_addr, 50, false);
+        withdraw_for_internal<WETH>(account_addr, account_addr, 51, false, 0);
+    }
+    #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
+    public entry fun test_withdraw_for_only_collateral(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        price_oracle::initialize_oracle_for_test(owner);
 
-    //     let account_addr = signer::address_of(account);
-    //     account::create_account_for_test(account_addr);
-    //     managed_coin::register<WETH>(account);
-    //     managed_coin::register<USDZ>(account);
-    //     managed_coin::mint<WETH>(owner, account_addr, 1000000);
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+        managed_coin::register<WETH>(account);
+        managed_coin::register<USDZ>(account);
+        managed_coin::mint<WETH>(owner, account_addr, 1000000);
 
-    //     deposit_for_internal<WETH,Asset>(account, account_addr, 700000, true);
-    //     withdraw_for_internal<WETH,Asset>(account, account_addr, 600000, true);
+        deposit_for_internal<WETH>(account, account_addr, 700000, true);
+        withdraw_for_internal<WETH>(account_addr, account_addr, 600000, true, 0);
 
-    //     assert!(coin::balance<WETH>(account_addr) == 900000, 0);
-    //     assert!(total_deposited<WETH,Asset>() == 0, 0);
-    //     assert!(total_conly_deposited<WETH,Asset>() == 100000, 0);
-    //     assert!(collateral::balance_of<WETH, Asset>(account_addr) == 0, 0);
-    //     assert!(collateral_only::balance_of<WETH, Asset>(account_addr) == 100000, 0);
-    // }
-    // #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
-    // public entry fun test_withdraw_shadow(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
-    //     setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
-    //     price_oracle::initialize_oracle_for_test(owner);
-
-    //     let account_addr = signer::address_of(account);
-    //     account::create_account_for_test(account_addr);
-    //     managed_coin::register<WETH>(account);
-    //     managed_coin::register<USDZ>(account);
-    //     usdz::mint_for_test(account_addr, 1000000);
-
-    //     deposit_for_internal<WETH,Shadow>(account, account_addr, 700000, false);
-    //     withdraw_for_internal<WETH,Shadow>(account, account_addr, 600000, false);
-
-    //     assert!(coin::balance<WETH>(account_addr) == 0, 0);
-    //     assert!(coin::balance<USDZ>(account_addr) == 900000, 0);
-    //     assert!(total_deposited<WETH,Shadow>() == 100000, 0);
-    //     assert!(total_conly_deposited<WETH,Shadow>() == 0, 0);
-    //     assert!(collateral::balance_of<WETH, Shadow>(account_addr) == 100000, 0);
-    //     assert!(collateral_only::balance_of<WETH, Shadow>(account_addr) == 0, 0);
-    // }
-    // #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
-    // public entry fun test_withdraw_shadow_for_only_collateral(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
-    //     setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
-    //     price_oracle::initialize_oracle_for_test(owner);
-
-    //     let account_addr = signer::address_of(account);
-    //     account::create_account_for_test(account_addr);
-    //     managed_coin::register<WETH>(account);
-    //     managed_coin::register<USDZ>(account);
-    //     usdz::mint_for_test(account_addr, 1000000);
-
-    //     deposit_for_internal<WETH,Shadow>(account, account_addr, 700000, true);
-    //     withdraw_for_internal<WETH,Shadow>(account, account_addr, 600000, true);
-
-    //     assert!(coin::balance<WETH>(account_addr) == 0, 0);
-    //     assert!(coin::balance<USDZ>(account_addr) == 900000, 0);
-    //     assert!(total_deposited<WETH,Asset>() == 0, 0);
-    //     assert!(total_deposited<WETH,Shadow>() == 0, 0);
-    //     assert!(total_conly_deposited<WETH,Asset>() == 0, 0);
-    //     assert!(total_conly_deposited<WETH,Shadow>() == 100000, 0);
-    //     assert!(collateral::balance_of<WETH, Shadow>(account_addr) == 0, 0);
-    //     assert!(collateral_only::balance_of<WETH, Shadow>(account_addr) == 100000, 0);
-    // }
+        assert!(coin::balance<WETH>(account_addr) == 900000, 0);
+        assert!(total_deposited<WETH,Asset>() == 100000, 0);
+        assert!(total_conly_deposited<WETH,Asset>() == 100000, 0);
+    }
     // #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
     // public entry fun test_withdraw_with_all_patterns(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
     //     setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);

@@ -196,6 +196,22 @@ module leizd::shadow_pool {
         is_collateral_only: bool,
         liquidation_fee: u64
     ): u64 acquires Pool, Storage, PoolEventHandle {
+        withdraw_for_internal<C>(
+            depositor_addr,
+            reciever_addr,
+            amount,
+            is_collateral_only,
+            liquidation_fee
+        )
+    }
+
+    fun withdraw_for_internal<C>(
+        depositor_addr: address,
+        reciever_addr: address,
+        amount: u64,
+        is_collateral_only: bool,
+        liquidation_fee: u64
+    ): u64 acquires Pool, Storage, PoolEventHandle {
         assert!(pool_status::is_available<C>(), 0);
 
         let pool_ref = borrow_global_mut<Pool>(@leizd);
@@ -218,8 +234,16 @@ module leizd::shadow_pool {
         };
 
         storage_ref.total_deposited = storage_ref.total_deposited - (withdrawn_amount as u128);
+        let key = generate_coin_key<C>();
+        assert!(simple_map::contains_key<String,u64>(&storage_ref.deposited, &key), 0);
+        let deposited = simple_map::borrow_mut<String,u64>(&mut storage_ref.deposited, &key);
+        *deposited = *deposited - amount;
+
         if (is_collateral_only) {
             storage_ref.total_conly_deposited = storage_ref.total_conly_deposited - (withdrawn_amount as u128);
+            assert!(simple_map::contains_key<String,u64>(&storage_ref.conly_deposited, &key),0);
+            let conly_deposited = simple_map::borrow_mut<String,u64>(&mut storage_ref.conly_deposited, &key);
+            *conly_deposited = *conly_deposited - amount;
         };
 
         event::emit_event<WithdrawEvent>(
@@ -413,7 +437,8 @@ module leizd::shadow_pool {
     use aptos_framework::timestamp;
     #[test_only]
     use leizd::asset_pool;
-
+    #[test_only]
+    use leizd::price_oracle;
     #[test_only]
     fun setup_for_test_to_initialize_coins_and_pools(owner: &signer, aptos_framework: &signer) {
         timestamp::set_time_has_started_for_testing(aptos_framework);
@@ -506,5 +531,43 @@ module leizd::shadow_pool {
         borrow_and_rebalance<WETH,UNI>(10000, false);
         assert!(borrowed<WETH>() == 60000, 0);
         assert!(deposited<UNI>() == 110000, 0);
+    }
+    #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
+    public entry fun test_withdraw_shadow(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        price_oracle::initialize_oracle_for_test(owner);
+
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+        managed_coin::register<WETH>(account);
+        managed_coin::register<USDZ>(account);
+        usdz::mint_for_test(account_addr, 1000000);
+
+        deposit_for_internal<WETH>(account, account_addr, 700000, false);
+        withdraw_for_internal<WETH>(account_addr, account_addr, 600000, false, 0);
+
+        assert!(coin::balance<WETH>(account_addr) == 0, 0);
+        assert!(coin::balance<USDZ>(account_addr) == 900000, 0);
+        assert!(deposited<WETH>() == 100000, 0);
+        assert!(conly_deposited<WETH>() == 0, 0);
+    }
+    #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
+    public entry fun test_withdraw_shadow_for_only_collateral(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        price_oracle::initialize_oracle_for_test(owner);
+
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+        managed_coin::register<WETH>(account);
+        managed_coin::register<USDZ>(account);
+        usdz::mint_for_test(account_addr, 1000000);
+
+        deposit_for_internal<WETH>(account, account_addr, 700000, true);
+        withdraw_for_internal<WETH>(account_addr, account_addr, 600000, true, 0);
+
+        assert!(coin::balance<WETH>(account_addr) == 0, 0);
+        assert!(coin::balance<USDZ>(account_addr) == 900000, 0);
+        assert!(deposited<WETH>() == 100000, 0);
+        assert!(conly_deposited<WETH>() == 100000, 0);
     }
 }
