@@ -25,28 +25,28 @@ module leizd::system_administrator {
         system_status::update_status(true);
     }
 
-    // #[test_only]
-    // use aptos_framework::account;
-    // #[test_only]
-    // use leizd::risk_factor;
-    // #[test_only]
-    // use leizd::asset_pool;
     #[test_only]
-    use leizd::test_coin::{WETH};
-    // #[test(owner = @leizd)]
-    // fun test_operate_pool(owner: &signer) {
-    //     let owner_address = signer::address_of(owner);
-    //     account::create_account_for_test(owner_address);
-    //     test_coin::init_weth(owner);
-    //     risk_factor::initialize(owner);
-    //     // asset_pool::init_pool<WETH>(owner);
-    //     system_status::initialize(owner);
-    //     assert!(pool_status::is_available<WETH>(), 0);
-    //     pause_pool<WETH>(owner);
-    //     assert!(!pool_status::is_available<WETH>(), 0);
-    //     resume_pool<WETH>(owner);
-    //     assert!(pool_status::is_available<WETH>(), 0);
-    // }
+    use aptos_framework::account;
+    #[test_only]
+    use leizd::risk_factor;
+    #[test_only]
+    use leizd::asset_pool;
+    #[test_only]
+    use leizd::test_coin::{Self, WETH};
+    #[test(owner = @leizd)]
+    fun test_operate_pool(owner: &signer) {
+        let owner_address = signer::address_of(owner);
+        account::create_account_for_test(owner_address);
+        test_coin::init_weth(owner);
+        risk_factor::initialize(owner);
+        asset_pool::init_pool<WETH>(owner);
+        system_status::initialize(owner);
+        assert!(pool_status::is_available<WETH>(), 0);
+        pause_pool<WETH>(owner);
+        assert!(!pool_status::is_available<WETH>(), 0);
+        resume_pool<WETH>(owner);
+        assert!(pool_status::is_available<WETH>(), 0);
+    }
     #[test(account = @0x111)]
     #[expected_failure(abort_code = 1)]
     fun test_operate_pool_to_pause_without_owner(account: &signer) {
