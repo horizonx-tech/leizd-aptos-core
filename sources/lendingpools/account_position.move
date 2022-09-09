@@ -556,4 +556,55 @@ module leizd::account_position {
         assert!(borrowed_shadow<WETH>(account1_addr) == 60000, 0);
         assert!(deposited_shadow<UNI>(account1_addr) == 110000, 0);
     }
+    #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
+    public entry fun test_withdraw_for_only_collateral(owner: &signer, account: &signer, aptos_framework: &signer) acquires Position {
+        setup_for_test_to_initialize_coins(owner, aptos_framework);
+        price_oracle::initialize_oracle_for_test(owner);
+
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+        managed_coin::register<WETH>(account);
+        managed_coin::register<USDZ>(account);
+        managed_coin::mint<WETH>(owner, account_addr, 1000000);
+
+        deposit_internal<WETH,Asset>(account, account_addr, 700000, true);
+        withdraw_internal<WETH,Asset>(account_addr, 600000, true);
+
+        assert!(deposited_asset<WETH>(account_addr) == 100000, 0);
+        assert!(conly_deposited_asset<WETH>(account_addr) == 100000, 0);
+    }
+    #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
+    public entry fun test_withdraw_shadow(owner: &signer, account: &signer, aptos_framework: &signer) acquires Position {
+        setup_for_test_to_initialize_coins(owner, aptos_framework);
+        price_oracle::initialize_oracle_for_test(owner);
+
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+        managed_coin::register<WETH>(account);
+        managed_coin::register<USDZ>(account);
+        usdz::mint_for_test(account_addr, 1000000);
+
+        deposit_internal<WETH,Shadow>(account, account_addr, 700000, false);
+        withdraw_internal<WETH,Shadow>(account_addr, 600000, false);
+
+        assert!(deposited_shadow<WETH>(account_addr) == 100000, 0);
+        assert!(conly_deposited_shadow<WETH>(account_addr) == 0, 0);
+    }
+    #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
+    public entry fun test_withdraw_shadow_for_only_collateral(owner: &signer, account: &signer, aptos_framework: &signer) acquires Position {
+        setup_for_test_to_initialize_coins(owner, aptos_framework);
+        price_oracle::initialize_oracle_for_test(owner);
+
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+        managed_coin::register<WETH>(account);
+        managed_coin::register<USDZ>(account);
+        usdz::mint_for_test(account_addr, 1000000);
+
+        deposit_internal<WETH,Shadow>(account, account_addr, 700000, true);
+        withdraw_internal<WETH,Shadow>(account_addr, 600000, true);
+
+        assert!(deposited_shadow<WETH>(account_addr) == 100000, 0);
+        assert!(conly_deposited_shadow<WETH>(account_addr) == 100000, 0);
+    }
 }
