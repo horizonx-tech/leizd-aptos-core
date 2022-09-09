@@ -84,7 +84,7 @@ module leizd::money_market {
         if (is_shadow) {
             shadow_pool::borrow_for<C>(borrower_addr, receiver_addr, amount);
         } else {
-            asset_pool::borrow_for<C,P>(borrower_addr, receiver_addr, amount);
+            asset_pool::borrow_for<C>(borrower_addr, receiver_addr, amount);
         };
         account_position::borrow<C,P>(borrower_addr, amount);
     }
