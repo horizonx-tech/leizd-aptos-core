@@ -169,6 +169,8 @@ module leizd::shadow_pool {
             let conly_deposited = simple_map::borrow_mut<String,u64>(&mut storage_ref.conly_deposited, &key2);
             *conly_deposited = *conly_deposited + amount;
         };
+
+        // TODO: event
     }
 
     public(friend) fun borrow_and_rebalance<C1,C2>(amount: u64, is_collateral_only: bool) acquires Storage {
@@ -187,6 +189,8 @@ module leizd::shadow_pool {
             let conly_deposited = simple_map::borrow_mut<String,u64>(&mut storage_ref.conly_deposited, &key2);
             *conly_deposited = *conly_deposited + amount;
         };
+
+        // TODO: event
     }
 
     public(friend) fun withdraw_for<C>(
@@ -483,6 +487,9 @@ module leizd::shadow_pool {
         assert!(conly_deposited<WETH>() == 0, 0);
         assert!(total_borrowed() == 0, 0);
         assert!(borrowed<WETH>() == 0, 0);
+
+        let event_handle = borrow_global<PoolEventHandle>(signer::address_of(owner));
+        assert!(event::counter<DepositEvent>(&event_handle.deposit_event) == 1, 0);
     }
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
     public entry fun test_deposit_shadow_for_only_collateral(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
@@ -530,6 +537,9 @@ module leizd::shadow_pool {
         assert!(conly_deposited<WETH>() == 0, 0);
         assert!(total_borrowed() == 0, 0);
         assert!(borrowed<WETH>() == 0, 0);
+
+        let event_handle = borrow_global<PoolEventHandle>(signer::address_of(owner));
+        assert!(event::counter<WithdrawEvent>(&event_handle.withdraw_event) == 1, 0);
     }
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
     public entry fun test_withdraw_shadow_for_only_collateral(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
@@ -588,6 +598,9 @@ module leizd::shadow_pool {
         // check about fee
         assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
         assert!(treasury::balance_of_shadow<UNI>() == 500, 0);
+
+        let event_handle = borrow_global<PoolEventHandle>(signer::address_of(owner));
+        assert!(event::counter<BorrowEvent>(&event_handle.borrow_event) == 1, 0);
     }
 
     // for repay
