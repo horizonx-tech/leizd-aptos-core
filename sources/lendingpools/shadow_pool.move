@@ -458,6 +458,8 @@ module leizd::shadow_pool {
         asset_pool::init_pool<WETH>(owner);
         asset_pool::init_pool<UNI>(owner);
     }
+
+    // for deposit
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
     public entry fun test_deposit_shadow(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
@@ -480,8 +482,6 @@ module leizd::shadow_pool {
         assert!(total_borrowed() == 0, 0);
         assert!(borrowed<WETH>() == 0, 0);
     }
-
-    // for deposit
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
     public entry fun test_deposit_shadow_for_only_collateral(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
