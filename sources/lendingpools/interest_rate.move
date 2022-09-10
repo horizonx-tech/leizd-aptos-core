@@ -9,6 +9,7 @@ module leizd::interest_rate {
     use leizd::i128;
 
     friend leizd::asset_pool;
+    friend leizd::shadow_pool;
 
     /// PRECISION is 9 decimal points used for integer calculations
     const PRECISION: u128 = 1000000000;
