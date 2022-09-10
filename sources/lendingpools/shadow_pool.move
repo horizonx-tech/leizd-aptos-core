@@ -430,6 +430,8 @@ module leizd::shadow_pool {
         coin_type
     }
 
+    // #[test_only]
+    // use aptos_std::debug;
     #[test_only]
     use aptos_framework::managed_coin;
     #[test_only]
@@ -552,6 +554,44 @@ module leizd::shadow_pool {
         assert!(total_borrowed() == 0, 0);
         assert!(borrowed<WETH>() == 0, 0);
     }
+
+    // for borrow
+    #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
+    public entry fun test_borrow(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+        // TODO: consider HF
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        price_oracle::initialize_oracle_for_test(owner);
+
+        let depositor_addr = signer::address_of(depositor);
+        let borrower_addr = signer::address_of(borrower);
+        account::create_account_for_test(depositor_addr);
+        account::create_account_for_test(borrower_addr);
+        managed_coin::register<USDZ>(depositor);
+        managed_coin::register<USDZ>(borrower);
+        usdz::mint_for_test(depositor_addr, 1000000);
+
+        // deposit
+        deposit_for_internal<UNI>(depositor, depositor_addr, 800000, false);
+
+        // borrow
+        borrow_for<UNI>(borrower_addr, borrower_addr, 100000);
+        assert!(coin::balance<USDZ>(borrower_addr) == 100000, 0);
+        assert!(total_deposited() == 800000, 0);
+        assert!(deposited<UNI>() == 800000, 0);
+        assert!(liquidity() == 800000, 0);
+        // TODO: liquidity for one asset
+        assert!(total_conly_deposited() == 0, 0);
+        assert!(conly_deposited<UNI>() == 0, 0);
+        assert!(total_borrowed() == 100500, 0);
+        assert!(borrowed<UNI>() == 100000, 0); // TODO: confirm
+
+        // check about fee
+        assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
+        assert!(treasury::balance_of_shadow<UNI>() == 500, 0);
+    }
+
+    // for repay
+    // public entry fun test_repay // TODO
 
     // rebalance shadow
     #[test(owner=@leizd,account1=@0x111,aptos_framework=@aptos_framework)]
