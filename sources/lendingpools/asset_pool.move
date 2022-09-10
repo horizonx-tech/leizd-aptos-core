@@ -852,63 +852,32 @@ module leizd::asset_pool {
         assert!(coin::balance<UNI>(borrower_addr) == 120, 0); // TODO: cannot borrow collateral_only
     }
 
-    // // for repay
-    // #[test(owner=@leizd,account1=@0x111,account2=@0x222,aptos_framework=@aptos_framework)]
-    // public entry fun test_repay_uni(owner: &signer, account1: &signer, account2: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+    // for repay
+    // #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
+    // public entry fun test_repay_uni(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+    //     // TODO: consider HF
     //     setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
     //     price_oracle::initialize_oracle_for_test(owner);
 
-    //     let account1_addr = signer::address_of(account1);
-    //     let account2_addr = signer::address_of(account2);
-    //     account::create_account_for_test(account1_addr);
-    //     account::create_account_for_test(account2_addr);
-    //     managed_coin::register<WETH>(account1);
-    //     managed_coin::register<UNI>(account1);
-    //     managed_coin::register<USDZ>(account1);
-    //     managed_coin::register<WETH>(account2);
-    //     managed_coin::register<UNI>(account2);
-    //     managed_coin::register<USDZ>(account2);
-
-    //     usdz::mint_for_test(account1_addr, 1000000);
-    //     managed_coin::mint<UNI>(owner, account1_addr, 1000000);
-    //     managed_coin::mint<WETH>(owner, account2_addr, 1000000);
-
-    //     // Lender: 
-    //     // deposit USDZ for WETH
-    //     // deposit UNI
-    //     deposit_for_internal<WETH,Shadow>(account1, account1_addr, 800000, false);
-    //     deposit_for_internal<UNI,Asset>(account1, account1_addr, 800000, false);
-
-    //     // Borrower:
-    //     // deposit WETH
-    //     // borrow  USDZ
-    //     deposit_for_internal<WETH,Asset>(account2, account2_addr, 600000, false);
-    //     borrow_for_internal<WETH,Shadow>(account2, account2_addr, account2_addr, 300000);
-
-    //     // Borrower:
-    //     // deposit USDZ for UNI
-    //     // borrow UNI
-    //     deposit_for_internal<UNI,Shadow>(account2, account2_addr, 200000, false);
-    //     borrow_for_internal<UNI,Asset>(account2, account2_addr, account2_addr, 100000);
+    //     let depositor_addr = signer::address_of(depositor);
+    //     let borrower_addr = signer::address_of(borrower);
+    //     account::create_account_for_test(depositor_addr);
+    //     account::create_account_for_test(borrower_addr);
+    //     managed_coin::register<UNI>(depositor);
+    //     managed_coin::register<UNI>(borrower);
+    //     managed_coin::mint<UNI>(owner, depositor_addr, 1000000);
 
     //     // Check status before repay
     //     assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
-    //     assert!(debt::balance_of<WETH,Shadow>(account2_addr) == 301500, 0);
-    //     assert!(debt::balance_of<UNI,Asset>(account2_addr) == 100500, 0);
+
+    //     deposit_for_internal<UNI>(depositor, depositor_addr, 1000000, false);
+    //     borrow_for_internal<UNI>(borrower_addr, borrower_addr, 900000);
         
-    //     // Borrower:
-    //     // repay UNI
-    //     repay_internal<UNI,Asset>(account2, 100000);
-    //     assert!(coin::balance<UNI>(account2_addr) == 0, 0);
-    //     assert!(coin::balance<USDZ>(account2_addr) == 100000, 0);
-    //     assert!(debt::balance_of<UNI,Asset>(account2_addr) == 500, 0); // TODO: 0.5% entry fee + 0.0% interest
-
-    //     // Borrower:
-    //     // repay USDZ
-
-    //     // withdraw<UNI>(account2, 200000, false, true); // TODO: error in position#update_position (EKEY_ALREADY_EXISTS)
-    //     // repay<WETH>(account2, 300000, true);
-    //     // assert!(coin::balance<USDZ>(account2_addr) == 0, 0);
-    //     // assert!(debt::balance_of<WETH,Shadow>(account2_addr) == 1500, 0);
+    //     debug::print(&coin::balance<UNI>(borrower_addr));
+    //     account_position::initialize_if_necessary_for_test(borrower);
+    //     let repaid_amount = repay_internal<UNI>(borrower, 900000);
+    //     debug::print(&repaid_amount);
+    //     debug::print(&coin::balance<UNI>(borrower_addr));
+    //     // assert!(coin::balance<UNI>(borrower_addr) == 0, 0);
     // }
 }
