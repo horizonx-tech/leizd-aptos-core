@@ -413,13 +413,13 @@ module leizd::asset_pool {
         value * risk_factor::liquidation_fee() / risk_factor::precision() // TODO: rounded up
     }
 
+    public entry fun total_deposited<C>(): u128 acquires Storage {
+        borrow_global<Storage<C>>(permission::owner_address()).total_deposited
+    }
+
     public entry fun liquidity<C>(): u128 acquires Storage {
         let storage_ref = borrow_global<Storage<C>>(permission::owner_address());
         storage_ref.total_deposited - storage_ref.total_conly_deposited
-    }
-
-    public entry fun total_deposited<C>(): u128 acquires Storage {
-        borrow_global<Storage<C>>(permission::owner_address()).total_deposited
     }
 
     public entry fun total_conly_deposited<C>(): u128 acquires Storage {
@@ -523,7 +523,9 @@ module leizd::asset_pool {
         deposit_for_internal<WETH>(account, account_addr, 800000, false);
         assert!(coin::balance<WETH>(account_addr) == 200000, 0);
         assert!(total_deposited<WETH>() == 800000, 0);
+        assert!(liquidity<WETH>() == 800000, 0);
         assert!(total_conly_deposited<WETH>() == 0, 0);
+        assert!(total_borrowed<WETH>() == 0, 0);
 
         let event_handle = borrow_global<PoolEventHandle<WETH>>(signer::address_of(owner));
         assert!(event::counter<DepositEvent>(&event_handle.deposit_event) == 1, 0);
@@ -617,7 +619,9 @@ module leizd::asset_pool {
         deposit_for_internal<WETH>(account, account_addr, 800000, true);
         assert!(coin::balance<WETH>(account_addr) == 200000, 0);
         assert!(total_deposited<WETH>() == 800000, 0);
+        assert!(liquidity<WETH>() == 0, 0);
         assert!(total_conly_deposited<WETH>() == 800000, 0);
+        assert!(total_borrowed<WETH>() == 0, 0);
     }
 
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
@@ -632,8 +636,9 @@ module leizd::asset_pool {
         deposit_for_internal<WETH>(account, account_addr, 2, true);
 
         assert!(total_deposited<WETH>() == 3, 0);
-        assert!(total_conly_deposited<WETH>() == 2, 0);
         assert!(liquidity<WETH>() == 1, 0);
+        assert!(total_conly_deposited<WETH>() == 2, 0);
+        assert!(total_borrowed<WETH>() == 0, 0);
 
         let event_handle = borrow_global<PoolEventHandle<WETH>>(signer::address_of(owner));
         assert!(event::counter<DepositEvent>(&event_handle.deposit_event) == 2, 0);
@@ -656,6 +661,9 @@ module leizd::asset_pool {
 
         assert!(coin::balance<WETH>(account_addr) == 900000, 0);
         assert!(total_deposited<WETH>() == 100000, 0);
+        assert!(liquidity<WETH>() == 100000, 0);
+        assert!(total_conly_deposited<WETH>() == 0, 0);
+        assert!(total_borrowed<WETH>() == 0, 0);
 
         let event_handle = borrow_global<PoolEventHandle<WETH>>(signer::address_of(owner));
         assert!(event::counter<WithdrawEvent>(&event_handle.withdraw_event) == 1, 0);
@@ -706,7 +714,9 @@ module leizd::asset_pool {
 
         assert!(coin::balance<WETH>(account_addr) == 900000, 0);
         assert!(total_deposited<WETH>() == 100000, 0);
+        assert!(liquidity<WETH>() == 0, 0);
         assert!(total_conly_deposited<WETH>() == 100000, 0);
+        assert!(total_borrowed<WETH>() == 0, 0);
     }
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
     public entry fun test_withdraw_with_all_patterns(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
@@ -726,8 +736,9 @@ module leizd::asset_pool {
 
         assert!(coin::balance<WETH>(account_addr) == 3, 0);
         assert!(total_deposited<WETH>() == 17, 0);
-        assert!(total_conly_deposited<WETH>() == 8, 0);
         assert!(liquidity<WETH>() == 9, 0);
+        assert!(total_conly_deposited<WETH>() == 8, 0);
+        assert!(total_borrowed<WETH>() == 0, 0);
 
         let event_handle = borrow_global<PoolEventHandle<WETH>>(signer::address_of(owner));
         assert!(event::counter<WithdrawEvent>(&event_handle.withdraw_event) == 2, 0);
@@ -755,6 +766,8 @@ module leizd::asset_pool {
         borrow_for_internal<UNI>(borrower_addr, borrower_addr, 100000);
         assert!(coin::balance<UNI>(borrower_addr) == 100000, 0);
         assert!(total_deposited<UNI>() == 800000, 0);
+        assert!(liquidity<UNI>() == 800000, 0);
+        assert!(total_conly_deposited<UNI>() == 0, 0);
         assert!(total_borrowed<UNI>() == 100500, 0); // 100000 + 500
 
         // check about fee
