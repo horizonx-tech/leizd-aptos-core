@@ -522,6 +522,7 @@ module leizd::account_position {
         borrow_for_test<UNI,Asset>(account1_addr, 20000);
         assert!(deposited_shadow<WETH>(account1_addr) == 100000, 0);
         assert!(deposited_shadow<UNI>(account1_addr) == 100000, 0);
+        assert!(borrowed_asset<WETH>(account1_addr) == 50000, 0);
         assert!(borrowed_asset<UNI>(account1_addr) == 110000, 0);
 
         rebalance_shadow_internal<WETH,UNI>(account1_addr, false);
