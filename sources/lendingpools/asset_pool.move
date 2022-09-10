@@ -734,37 +734,122 @@ module leizd::asset_pool {
     }
 
     // for borrow
-    #[test(owner=@leizd,account1=@0x111,account2=@0x222,aptos_framework=@aptos_framework)]
-    public entry fun test_borrow_uni(owner: &signer, account1: &signer, account2: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+    #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
+    public entry fun test_borrow_uni(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+        // TODO: consider HF
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         price_oracle::initialize_oracle_for_test(owner);
 
-        let account1_addr = signer::address_of(account1);
-        let account2_addr = signer::address_of(account2);
-        account::create_account_for_test(account1_addr);
-        account::create_account_for_test(account2_addr);
-        managed_coin::register<WETH>(account1);
-        managed_coin::register<UNI>(account1);
-        managed_coin::register<USDZ>(account1);
-        managed_coin::register<WETH>(account2);
-        managed_coin::register<UNI>(account2);
-        managed_coin::register<USDZ>(account2);
-
-        managed_coin::mint<UNI>(owner, account1_addr, 1000000);
-        managed_coin::mint<WETH>(owner, account2_addr, 1000000);
+        let depositor_addr = signer::address_of(depositor);
+        let borrower_addr = signer::address_of(borrower);
+        account::create_account_for_test(depositor_addr);
+        account::create_account_for_test(borrower_addr);
+        managed_coin::register<UNI>(depositor);
+        managed_coin::register<UNI>(borrower);
+        managed_coin::mint<UNI>(owner, depositor_addr, 1000000);
 
         // deposit UNI
-        deposit_for_internal<UNI>(account1, account1_addr, 800000, false);
+        deposit_for_internal<UNI>(depositor, depositor_addr, 800000, false);
 
         // borrow UNI
-        borrow_for_internal<UNI>(account2_addr, account2_addr, 100000);
-        assert!(coin::balance<UNI>(account2_addr) == 100000, 0);
+        borrow_for_internal<UNI>(borrower_addr, borrower_addr, 100000);
+        assert!(coin::balance<UNI>(borrower_addr) == 100000, 0);
         assert!(total_deposited<UNI>() == 800000, 0);
         assert!(total_borrowed<UNI>() == 100500, 0); // 100000 + 500
 
         // check about fee
         assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
         assert!(treasury::balance_of_asset<UNI>() == 500, 0);
+
+        let event_handle = borrow_global<PoolEventHandle<UNI>>(signer::address_of(owner));
+        assert!(event::counter<BorrowEvent>(&event_handle.borrow_event) == 1, 0);
+    }
+    #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
+    fun test_borrow_with_same_as_deposited_amount(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+        // TODO: consider HF
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        price_oracle::initialize_oracle_for_test(owner);
+
+        let depositor_addr = signer::address_of(depositor);
+        let borrower_addr = signer::address_of(borrower);
+        account::create_account_for_test(depositor_addr);
+        account::create_account_for_test(borrower_addr);
+        managed_coin::register<UNI>(depositor);
+        managed_coin::register<UNI>(borrower);
+        managed_coin::mint<UNI>(owner, depositor_addr, 100);
+
+        // deposit UNI
+        deposit_for_internal<UNI>(depositor, depositor_addr, 100, false);
+        // borrow UNI
+        borrow_for_internal<UNI>(borrower_addr, borrower_addr, 100);
+        assert!(coin::balance<UNI>(borrower_addr) == 100, 0);
+    }
+    #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
+    #[expected_failure(abort_code = 65542)]
+    fun test_borrow_with_more_than_deposited_amount(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+        // TODO: consider HF
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        price_oracle::initialize_oracle_for_test(owner);
+
+        let depositor_addr = signer::address_of(depositor);
+        let borrower_addr = signer::address_of(borrower);
+        account::create_account_for_test(depositor_addr);
+        account::create_account_for_test(borrower_addr);
+        managed_coin::register<UNI>(depositor);
+        managed_coin::register<UNI>(borrower);
+        managed_coin::mint<UNI>(owner, depositor_addr, 100);
+
+        // deposit UNI
+        deposit_for_internal<UNI>(depositor, depositor_addr, 100, false);
+        // borrow UNI
+        borrow_for_internal<UNI>(borrower_addr, borrower_addr, 101);
+    }
+    #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
+    fun test_borrow_more_than_once_sequentially(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+        // TODO: consider HF
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        price_oracle::initialize_oracle_for_test(owner);
+
+        let depositor_addr = signer::address_of(depositor);
+        let borrower_addr = signer::address_of(borrower);
+        account::create_account_for_test(depositor_addr);
+        account::create_account_for_test(borrower_addr);
+        managed_coin::register<UNI>(depositor);
+        managed_coin::register<UNI>(borrower);
+        managed_coin::mint<UNI>(owner, depositor_addr, 100);
+
+        // deposit UNI
+        deposit_for_internal<UNI>(depositor, depositor_addr, 100, false);
+        // borrow UNI
+        borrow_for_internal<UNI>(borrower_addr, borrower_addr, 10);
+        assert!(coin::balance<UNI>(borrower_addr) == 10, 0);
+        borrow_for_internal<UNI>(borrower_addr, borrower_addr, 20);
+        assert!(coin::balance<UNI>(borrower_addr) == 30, 0);
+        borrow_for_internal<UNI>(borrower_addr, borrower_addr, 30);
+        assert!(coin::balance<UNI>(borrower_addr) == 60, 0);
+        borrow_for_internal<UNI>(borrower_addr, borrower_addr, 40);
+        assert!(coin::balance<UNI>(borrower_addr) == 100, 0);
+    }
+    #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
+    fun test_borrow_to_not_borrow_collateral_only(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+        // TODO: consider HF
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        price_oracle::initialize_oracle_for_test(owner);
+
+        let depositor_addr = signer::address_of(depositor);
+        let borrower_addr = signer::address_of(borrower);
+        account::create_account_for_test(depositor_addr);
+        account::create_account_for_test(borrower_addr);
+        managed_coin::register<UNI>(depositor);
+        managed_coin::register<UNI>(borrower);
+        managed_coin::mint<UNI>(owner, depositor_addr, 150);
+
+        // deposit UNI
+        deposit_for_internal<UNI>(depositor, depositor_addr, 100, false);
+        deposit_for_internal<UNI>(depositor, depositor_addr, 50, true);
+        // borrow UNI
+        borrow_for_internal<UNI>(borrower_addr, borrower_addr, 120);
+        assert!(coin::balance<UNI>(borrower_addr) == 120, 0); // TODO: cannot borrow collateral_only
     }
 
     // // for repay
