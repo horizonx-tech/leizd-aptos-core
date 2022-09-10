@@ -8,6 +8,7 @@ module leizd::shadow_pool {
     use aptos_framework::coin;
     use aptos_framework::type_info;
     use aptos_framework::account;
+    use aptos_framework::timestamp;
     use leizd::usdz::{USDZ};
     use leizd::permission;
     use leizd::constant;
@@ -17,6 +18,7 @@ module leizd::shadow_pool {
     use leizd::account_position;
     use leizd::pool_status;
     use leizd::interest_rate;
+
 
     friend leizd::money_market;
 
@@ -495,8 +497,6 @@ module leizd::shadow_pool {
     use leizd::initializer;
     #[test_only]
     use leizd::system_administrator;
-    #[test_only]
-    use aptos_framework::timestamp;
     #[test_only]
     use leizd::asset_pool;
     #[test_only]
