@@ -82,7 +82,7 @@ module leizd::shadow_pool {
         liquidate_event: event::EventHandle<LiquidateEvent>,
     }
 
-    public(friend) fun init_pool(owner: &signer) {
+    public fun init_pool(owner: &signer) {
         init_pool_internal(owner);
     }
 
