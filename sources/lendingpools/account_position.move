@@ -1,5 +1,6 @@
 module leizd::account_position {
 
+    use std::error;
     use std::signer;
     use std::vector;
     use std::string::{String};
@@ -17,6 +18,7 @@ module leizd::account_position {
     const ENOT_ENOUGH_SHADOW: u64 = 2;
     const ENOT_EXISTED: u64 = 3;
     const EALREADY_PROTECTED: u64 = 4;
+    const EINSUFFICIENT_AMOUNT: u64 = 5;
 
     /// P: The position type - AssetToShadow or ShadowToAsset.
     struct Position<phantom P> has key {
@@ -287,6 +289,7 @@ module leizd::account_position {
             } else if (is_deposit && !is_increase) {
                 // Withdraw
                 let balance_ref = simple_map::borrow_mut<String,Balance>(&mut position_ref.balance, &key);
+                assert!(balance_ref.deposited >= amount, error::invalid_argument(EINSUFFICIENT_AMOUNT));
                 balance_ref.deposited = balance_ref.deposited - amount;
                 if (balance_ref.deposited == 0) {
                     let (_, i) = vector::index_of<String>(&position_ref.coins, &key);
@@ -374,14 +377,13 @@ module leizd::account_position {
     #[test_only]
     fun setup_for_test_to_initialize_coins(owner: &signer, aptos_framework: &signer) {
         timestamp::set_time_has_started_for_testing(aptos_framework);
-        let owner_addr = signer::address_of(owner);
-        account::create_account_for_test(owner_addr);
+        account::create_account_for_test(signer::address_of(owner));
         initializer::initialize(owner);
         risk_factor::new_asset<WETH>(owner);
         risk_factor::new_asset<UNI>(owner);
     }
     #[test_only]
-    fun borrow_for_test<C,P>(borrower_addr: address, amount: u64) acquires Position {
+    fun borrow_unsafe_for_test<C,P>(borrower_addr: address, amount: u64) acquires Position {
         if (pool_type::is_type_asset<P>()) {
             update_position<C,ShadowToAsset>(borrower_addr, amount, false, true, false);
         } else {
@@ -392,8 +394,8 @@ module leizd::account_position {
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
     public entry fun test_deposit_weth(owner: &signer, account: &signer, aptos_framework: &signer) acquires Position {
         setup_for_test_to_initialize_coins(owner, aptos_framework);
-        let account_addr = signer::address_of(account);
 
+        let account_addr = signer::address_of(account);
         deposit_internal<WETH,Asset>(account, account_addr, 800000, false);
         assert!(deposited_asset<WETH>(account_addr) == 800000, 0);
         assert!(conly_deposited_asset<WETH>(account_addr) == 0, 0);
@@ -401,9 +403,9 @@ module leizd::account_position {
     #[test(owner=@leizd,account1=@0x111,account2=@0x222,aptos_framework=@aptos_framework)]
     public entry fun test_deposit_weth_by_two(owner: &signer, account1: &signer, account2: &signer, aptos_framework: &signer) acquires Position {
         setup_for_test_to_initialize_coins(owner, aptos_framework);
+
         let account1_addr = signer::address_of(account1);
         let account2_addr = signer::address_of(account2);
-
         deposit_internal<WETH,Asset>(account1, account1_addr, 800000, false);
         deposit_internal<WETH,Asset>(account2, account2_addr, 200000, false);
         assert!(deposited_asset<WETH>(account1_addr) == 800000, 0);
@@ -412,8 +414,8 @@ module leizd::account_position {
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
     public entry fun test_deposit_weth_for_only_collateral(owner: &signer, account: &signer, aptos_framework: &signer) acquires Position {
         setup_for_test_to_initialize_coins(owner, aptos_framework);
-        let account_addr = signer::address_of(account);
 
+        let account_addr = signer::address_of(account);
         deposit_internal<WETH,Asset>(account, account_addr, 800000, true);
         assert!(deposited_asset<WETH>(account_addr) == 800000, 0);
         assert!(conly_deposited_asset<WETH>(account_addr) == 800000, 0);
@@ -421,32 +423,43 @@ module leizd::account_position {
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
     public entry fun test_deposit_shadow(owner: &signer, account: &signer, aptos_framework: &signer) acquires Position {
         setup_for_test_to_initialize_coins(owner, aptos_framework);
-        let account_addr = signer::address_of(account);
 
+        let account_addr = signer::address_of(account);
         deposit_internal<WETH,Shadow>(account, account_addr, 800000, false);
-        assert!(deposited_asset<WETH>(account_addr) == 0, 0);
-        assert!(conly_deposited_asset<WETH>(account_addr) == 0, 0);
         assert!(deposited_shadow<WETH>(account_addr) == 800000, 0);
         assert!(conly_deposited_shadow<WETH>(account_addr) == 0, 0);
     }
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
     public entry fun test_deposit_shadow_for_only_collateral(owner: &signer, account: &signer, aptos_framework: &signer) acquires Position {
         setup_for_test_to_initialize_coins(owner, aptos_framework);
-        let account_addr = signer::address_of(account);
-        account::create_account_for_test(account_addr);
 
+        let account_addr = signer::address_of(account);
         deposit_internal<WETH,Shadow>(account, account_addr, 800000, true);
         assert!(deposited_shadow<WETH>(account_addr) == 800000, 0);
         assert!(conly_deposited_shadow<WETH>(account_addr) == 800000, 0);
+    }
+    #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
+    public entry fun test_deposit_with_all_patterns(owner: &signer, account: &signer, aptos_framework: &signer) acquires Position {
+        setup_for_test_to_initialize_coins(owner, aptos_framework);
+
+        let account_addr = signer::address_of(account);
+        deposit_internal<WETH,Asset>(account, account_addr, 1, false);
+        deposit_internal<WETH,Asset>(account, account_addr, 2, true);
+        deposit_internal<WETH,Shadow>(account, account_addr, 10, false);
+        deposit_internal<WETH,Shadow>(account, account_addr, 20, true);
+        assert!(deposited_asset<WETH>(account_addr) == 3, 0);
+        assert!(conly_deposited_asset<WETH>(account_addr) == 2, 0);
+        assert!(deposited_shadow<WETH>(account_addr) == 30, 0);
+        assert!(conly_deposited_shadow<WETH>(account_addr) == 20, 0);
     }
 
     // for withdraw
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
     public entry fun test_withdraw_weth(owner: &signer, account: &signer, aptos_framework: &signer) acquires Position {
         setup_for_test_to_initialize_coins(owner, aptos_framework);
-        price_oracle::initialize_oracle_for_test(owner);
-        let account_addr = signer::address_of(account);
+        price_oracle::initialize_with_fixed_price_for_test(owner);
 
+        let account_addr = signer::address_of(account);
         deposit_internal<WETH,Asset>(account, account_addr, 700000, false);
         withdraw_internal<WETH,Asset>(account_addr, 600000, false);
         assert!(deposited_asset<WETH>(account_addr) == 100000, 0);
@@ -454,26 +467,54 @@ module leizd::account_position {
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
     public entry fun test_withdraw_with_same_as_deposited_amount(owner: &signer, account: &signer, aptos_framework: &signer) acquires Position {
         setup_for_test_to_initialize_coins(owner, aptos_framework);
-        price_oracle::initialize_oracle_for_test(owner);
+        price_oracle::initialize_with_fixed_price_for_test(owner);
 
         let account_addr = signer::address_of(account);
         deposit_internal<WETH,Asset>(account, account_addr, 30, false);
         withdraw_internal<WETH,Asset>(account_addr, 30, false);
         assert!(deposited_asset<WETH>(account_addr) == 0, 0);
     }
+    #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
+    #[expected_failure(abort_code = 65541)]
+    public entry fun test_withdraw_with_more_than_deposited_amount(owner: &signer, account: &signer, aptos_framework: &signer) acquires Position {
+        setup_for_test_to_initialize_coins(owner, aptos_framework);
+
+        let account_addr = signer::address_of(account);
+        deposit_internal<WETH,Asset>(account, account_addr, 30, false);
+        withdraw_internal<WETH,Asset>(account_addr, 31, false);
+    }
+    #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
+    public entry fun test_withdraw_with_all_patterns(owner: &signer, account: &signer, aptos_framework: &signer) acquires Position {
+        setup_for_test_to_initialize_coins(owner, aptos_framework);
+        price_oracle::initialize_with_fixed_price_for_test(owner);
+
+        let account_addr = signer::address_of(account);
+        deposit_internal<WETH,Asset>(account, account_addr, 100, false);
+        deposit_internal<WETH,Asset>(account, account_addr, 100, true);
+        deposit_internal<WETH,Shadow>(account, account_addr, 100, false);
+        deposit_internal<WETH,Shadow>(account, account_addr, 100, true);
+        withdraw_internal<WETH,Asset>(account_addr, 1, false);
+        withdraw_internal<WETH,Asset>(account_addr, 2, true);
+        withdraw_internal<WETH,Shadow>(account_addr, 10, false);
+        withdraw_internal<WETH,Shadow>(account_addr, 20, true);
+        assert!(deposited_asset<WETH>(account_addr) == 197, 0);
+        assert!(conly_deposited_asset<WETH>(account_addr) == 98, 0);
+        assert!(deposited_shadow<WETH>(account_addr) == 170, 0);
+        assert!(conly_deposited_shadow<WETH>(account_addr) == 80, 0);
+    }
 
     // rebalance shadow
     #[test(owner=@leizd,account1=@0x111,aptos_framework=@aptos_framework)]
     public entry fun test_rebalance_shadow(owner: &signer, account1: &signer, aptos_framework: &signer) acquires Position {
         setup_for_test_to_initialize_coins(owner, aptos_framework);
-        price_oracle::initialize_oracle_for_test(owner);
+        price_oracle::initialize_with_fixed_price_for_test(owner);
         let account1_addr = signer::address_of(account1);
 
         deposit_internal<WETH,Shadow>(account1, account1_addr, 100000, false);
         borrow_internal<WETH,Asset>(account1_addr, 50000);
         deposit_internal<UNI,Shadow>(account1, account1_addr, 100000, false);
         borrow_internal<UNI,Asset>(account1_addr, 90000);
-        borrow_for_test<UNI,Asset>(account1_addr, 20000);
+        borrow_unsafe_for_test<UNI,Asset>(account1_addr, 20000);
         assert!(deposited_shadow<WETH>(account1_addr) == 100000, 0);
         assert!(deposited_shadow<UNI>(account1_addr) == 100000, 0);
         assert!(borrowed_asset<WETH>(account1_addr) == 50000, 0);
@@ -486,14 +527,14 @@ module leizd::account_position {
     #[test(owner=@leizd,account1=@0x111,aptos_framework=@aptos_framework)]
     public entry fun test_borrow_and_rebalance(owner: &signer, account1: &signer, aptos_framework: &signer) acquires Position {
         setup_for_test_to_initialize_coins(owner, aptos_framework);
-        price_oracle::initialize_oracle_for_test(owner);
+        price_oracle::initialize_with_fixed_price_for_test(owner);
         let account1_addr = signer::address_of(account1);
 
         deposit_internal<WETH,Asset>(account1, account1_addr, 100000, false);
         borrow_internal<WETH,Shadow>(account1_addr, 50000);
         deposit_internal<UNI,Shadow>(account1, account1_addr, 100000, false);
         borrow_internal<UNI,Asset>(account1_addr, 90000);
-        borrow_for_test<UNI,Asset>(account1_addr, 20000);
+        borrow_unsafe_for_test<UNI,Asset>(account1_addr, 20000);
         assert!(deposited_asset<WETH>(account1_addr) == 100000, 0);
         assert!(borrowed_shadow<WETH>(account1_addr) == 50000, 0);
         assert!(deposited_shadow<UNI>(account1_addr) == 100000, 0);
@@ -507,7 +548,7 @@ module leizd::account_position {
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
     public entry fun test_withdraw_for_only_collateral(owner: &signer, account: &signer, aptos_framework: &signer) acquires Position {
         setup_for_test_to_initialize_coins(owner, aptos_framework);
-        price_oracle::initialize_oracle_for_test(owner);
+        price_oracle::initialize_with_fixed_price_for_test(owner);
         let account_addr = signer::address_of(account);
 
         deposit_internal<WETH,Asset>(account, account_addr, 700000, true);
@@ -519,7 +560,7 @@ module leizd::account_position {
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
     public entry fun test_withdraw_shadow(owner: &signer, account: &signer, aptos_framework: &signer) acquires Position {
         setup_for_test_to_initialize_coins(owner, aptos_framework);
-        price_oracle::initialize_oracle_for_test(owner);
+        price_oracle::initialize_with_fixed_price_for_test(owner);
         let account_addr = signer::address_of(account);
 
         deposit_internal<WETH,Shadow>(account, account_addr, 700000, false);
@@ -531,7 +572,7 @@ module leizd::account_position {
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
     public entry fun test_withdraw_shadow_for_only_collateral(owner: &signer, account: &signer, aptos_framework: &signer) acquires Position {
         setup_for_test_to_initialize_coins(owner, aptos_framework);
-        price_oracle::initialize_oracle_for_test(owner);
+        price_oracle::initialize_with_fixed_price_for_test(owner);
         let account_addr = signer::address_of(account);
 
         deposit_internal<WETH,Shadow>(account, account_addr, 700000, true);
