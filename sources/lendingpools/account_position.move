@@ -9,7 +9,6 @@ module leizd::account_position {
     use leizd::position_type::{Self,AssetToShadow,ShadowToAsset};
     use leizd::price_oracle;
     use leizd::risk_factor;
-    use leizd::usdz::{USDZ};
 
     friend leizd::money_market;
 
@@ -374,7 +373,7 @@ module leizd::account_position {
     #[test_only]
     use aptos_framework::account;
     #[test_only]
-    use leizd::usdz;
+    use leizd::usdz::{Self,USDZ};
 
     // for deposit
     #[test_only]
