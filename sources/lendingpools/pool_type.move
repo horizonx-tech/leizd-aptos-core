@@ -32,15 +32,15 @@ module leizd::pool_type {
     }
 
     #[test_only]
-    struct DummyPoolType {}
+    struct DummyType {}
     #[test]
     fun test_is_type_xxx() {
         assert!(is_type_asset<Asset>(), 0);
         assert!(!is_type_asset<Shadow>(), 0);
-        assert!(!is_type_asset<DummyPoolType>(), 0);
-        assert!(is_type_asset<Asset>(), 0);
-        assert!(!is_type_asset<Shadow>(), 0);
-        assert!(!is_type_asset<DummyPoolType>(), 0);
+        assert!(!is_type_asset<DummyType>(), 0);
+        assert!(!is_type_shadow<Asset>(), 0);
+        assert!(is_type_shadow<Shadow>(), 0);
+        assert!(!is_type_shadow<DummyType>(), 0);
     }
     #[test]
     fun test_assert_pool_type() {
@@ -50,6 +50,6 @@ module leizd::pool_type {
     #[test]
     #[expected_failure(abort_code = 65537)]
     fun test_assert_pool_type_withnot_pool_type() {
-        assert_pool_type<DummyPoolType>();
+        assert_pool_type<DummyType>();
     }
 }
