@@ -332,7 +332,7 @@ module leizd::account_position {
         if (
             balance_ref.deposited == 0
             && balance_ref.conly_deposited == 0
-            && balance_ref.borrowed == 0
+            && balance_ref.borrowed == 0 // NOTE: maybe actually only `deposited` needs to be checked.
         ) {
             simple_map::remove<String, Balance>(&mut position_ref.balance, &key);
             let (_, i) = vector::index_of<String>(&position_ref.coins, &key);
@@ -668,11 +668,11 @@ module leizd::account_position {
         deposit_internal<WETH,Shadow>(account, account_addr, 10000, false);
         borrow_internal<WETH,Asset>(account_addr, 9999);
         repay<WETH,Asset>(account_addr, 9999);
-        // let weth_key = generate_key<WETH>();
+        let weth_key = generate_key<WETH>();
         assert!(deposited_shadow<WETH>(account_addr) == 10000, 0);
-        // assert!(deposited_volume<ShadowToAsset>(account_addr, weth_key) == 10000, 0); // TODO
+        assert!(deposited_volume<ShadowToAsset>(account_addr, weth_key) == 10000, 0);
         assert!(borrowed_asset<WETH>(account_addr) == 0, 0);
-        // assert!(borrowed_volume<ShadowToAsset>(account_addr, weth_key) == 0, 0); // TODO
+        assert!(borrowed_volume<ShadowToAsset>(account_addr, weth_key) == 0, 0);
         //// calcurate
         assert!(utilization_of<ShadowToAsset>(borrow_global<Position<ShadowToAsset>>(account_addr), generate_key<WETH>()) == 0, 0);
     }
@@ -692,9 +692,9 @@ module leizd::account_position {
         borrow_internal<WETH,Shadow>(account_addr, 6999);
         repay<WETH,Shadow>(account_addr, 6999);
         assert!(deposited_asset<WETH>(account_addr) == 10000, 0);
-        // assert!(deposited_volume<AssetToShadow>(account_addr, weth_key) == 10000, 0); // TODO
+        assert!(deposited_volume<AssetToShadow>(account_addr, weth_key) == 10000, 0);
         assert!(borrowed_shadow<WETH>(account_addr) == 0, 0);
-        // assert!(borrowed_volume<AssetToShadow>(account_addr, weth_key) == 0, 0); // TODO
+        assert!(borrowed_volume<AssetToShadow>(account_addr, weth_key) == 0, 0);
         //// calcurate
         assert!(utilization_of<AssetToShadow>(borrow_global<Position<AssetToShadow>>(account_addr), weth_key) == 0, 0);
     }
