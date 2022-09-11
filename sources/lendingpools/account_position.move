@@ -723,6 +723,147 @@ module leizd::account_position {
         repay<WETH,Shadow>(account_addr, 7000);
     }
 
+    // mixture
+    //// check existence of resources
+    ////// withdraw all -> re-deposit (borrowable / asset)
+    #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
+    public entry fun test_check_existence_of_position_when_withdraw_asset(owner: &signer, account: &signer, aptos_framework: &signer) acquires Position {
+        setup_for_test_to_initialize_coins(owner, aptos_framework);
+        price_oracle::initialize_with_fixed_price_for_test(owner);
+        let coin_key = generate_key<WETH>();
+        let account_addr = signer::address_of(account);
+
+        // execute
+        deposit_internal<WETH,Asset>(account, account_addr, 10001, false);
+        withdraw_internal<WETH,Asset>(account_addr, 10000, false);
+        let pos_ref1 = borrow_global<Position<AssetToShadow>>(account_addr);
+        assert!(vector::contains<String>(&pos_ref1.coins, &coin_key), 0);
+        assert!(simple_map::contains_key<String,Balance>(&pos_ref1.balance, &coin_key), 0);
+
+        withdraw_internal<WETH,Asset>(account_addr, 1, false);
+        let pos_ref2 = borrow_global<Position<AssetToShadow>>(account_addr);
+        assert!(!vector::contains<String>(&pos_ref2.coins, &coin_key), 0);
+        assert!(!simple_map::contains_key<String,Balance>(&pos_ref2.balance, &coin_key), 0);
+
+        deposit_internal<WETH,Asset>(account, account_addr, 1, false);
+        let pos_ref3 = borrow_global<Position<AssetToShadow>>(account_addr);
+        assert!(vector::contains<String>(&pos_ref3.coins, &coin_key), 0);
+        assert!(simple_map::contains_key<String,Balance>(&pos_ref3.balance, &coin_key), 0);
+    }
+    ////// withdraw all -> re-deposit (collateral only / shadow)
+    #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
+    public entry fun test_check_existence_of_position_when_withdraw_shadow_collateral_only(owner: &signer, account: &signer, aptos_framework: &signer) acquires Position {
+        setup_for_test_to_initialize_coins(owner, aptos_framework);
+        price_oracle::initialize_with_fixed_price_for_test(owner);
+        let coin_key = generate_key<UNI>();
+        let account_addr = signer::address_of(account);
+
+        // execute
+        deposit_internal<UNI,Shadow>(account, account_addr, 10001, true);
+        withdraw_internal<UNI,Shadow>(account_addr, 10000, true);
+        let pos1_ref = borrow_global<Position<ShadowToAsset>>(account_addr);
+        assert!(vector::contains<String>(&pos1_ref.coins, &coin_key), 0);
+        assert!(simple_map::contains_key<String,Balance>(&pos1_ref.balance, &coin_key), 0);
+
+        withdraw_internal<UNI,Shadow>(account_addr, 1, true);
+        let pos2_ref = borrow_global<Position<ShadowToAsset>>(account_addr);
+        assert!(!vector::contains<String>(&pos2_ref.coins, &coin_key), 0);
+        assert!(!simple_map::contains_key<String,Balance>(&pos2_ref.balance, &coin_key), 0);
+
+        deposit_internal<UNI,Shadow>(account, account_addr, 1, true);
+        let pos3_ref = borrow_global<Position<ShadowToAsset>>(account_addr);
+        assert!(vector::contains<String>(&pos3_ref.coins, &coin_key), 0);
+        assert!(simple_map::contains_key<String,Balance>(&pos3_ref.balance, &coin_key), 0);
+    }
+    ////// repay all -> re-deposit (borrowable / asset)
+    #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
+    public entry fun test_check_existence_of_position_when_repay_asset(owner: &signer, account: &signer, aptos_framework: &signer) acquires Position {
+        setup_for_test_to_initialize_coins(owner, aptos_framework);
+        price_oracle::initialize_with_fixed_price_for_test(owner);
+        let coin_key = generate_key<UNI>();
+        let account_addr = signer::address_of(account);
+
+        // prepares (temp)
+        initialize_if_necessary(account);
+        new_position<AssetToShadow>(account_addr, 0, true, false, coin_key);
+
+        // execute
+        borrow_unsafe_for_test<UNI, Shadow>(account_addr, 10001);
+        repay<UNI,Shadow>(account_addr, 10000);
+        let pos_ref1 = borrow_global<Position<AssetToShadow>>(account_addr);
+        assert!(vector::contains<String>(&pos_ref1.coins, &coin_key), 0);
+        assert!(simple_map::contains_key<String,Balance>(&pos_ref1.balance, &coin_key), 0);
+
+        repay<UNI,Shadow>(account_addr, 1);
+        let pos_ref2 = borrow_global<Position<AssetToShadow>>(account_addr);
+        assert!(!vector::contains<String>(&pos_ref2.coins, &coin_key), 0);
+        assert!(!simple_map::contains_key<String,Balance>(&pos_ref2.balance, &coin_key), 0);
+
+        deposit_internal<UNI,Asset>(account, account_addr, 1, false);
+        let pos_ref3 = borrow_global<Position<AssetToShadow>>(account_addr);
+        assert!(vector::contains<String>(&pos_ref3.coins, &coin_key), 0);
+        assert!(simple_map::contains_key<String,Balance>(&pos_ref3.balance, &coin_key), 0);
+    }
+    ////// repay all -> re-deposit (collateral only / shadow)
+    #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
+    public entry fun test_check_existence_of_position_when_repay_shadow(owner: &signer, account: &signer, aptos_framework: &signer) acquires Position {
+        setup_for_test_to_initialize_coins(owner, aptos_framework);
+        price_oracle::initialize_with_fixed_price_for_test(owner);
+        let coin_key = generate_key<WETH>();
+        let account_addr = signer::address_of(account);
+
+        // prepares (temp)
+        initialize_if_necessary(account);
+        new_position<ShadowToAsset>(account_addr, 0, true, false, coin_key);
+
+        // execute
+        borrow_unsafe_for_test<WETH, Asset>(account_addr, 10001);
+        repay<WETH,Asset>(account_addr, 10000);
+        let pos1_ref = borrow_global<Position<ShadowToAsset>>(account_addr);
+        assert!(vector::contains<String>(&pos1_ref.coins, &coin_key), 0);
+        assert!(simple_map::contains_key<String,Balance>(&pos1_ref.balance, &coin_key), 0);
+
+        repay<WETH,Asset>(account_addr, 1);
+        let pos2_ref = borrow_global<Position<ShadowToAsset>>(account_addr);
+        assert!(!vector::contains<String>(&pos2_ref.coins, &coin_key), 0);
+        assert!(!simple_map::contains_key<String,Balance>(&pos2_ref.balance, &coin_key), 0);
+
+        deposit_internal<WETH,Shadow>(account, account_addr, 1, true);
+        let pos3_ref = borrow_global<Position<ShadowToAsset>>(account_addr);
+        assert!(vector::contains<String>(&pos3_ref.coins, &coin_key), 0);
+        assert!(simple_map::contains_key<String,Balance>(&pos3_ref.balance, &coin_key), 0);
+    }
+    //// multiple executions
+    #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
+    public entry fun test_deposit_and_withdraw_more_than_once_sequentially(owner: &signer, account: &signer, aptos_framework: &signer) acquires Position {
+        setup_for_test_to_initialize_coins(owner, aptos_framework);
+        price_oracle::initialize_with_fixed_price_for_test(owner);
+
+        // execute
+        let account_addr = signer::address_of(account);
+        deposit_internal<WETH,Asset>(account, account_addr, 10000, false);
+        withdraw_internal<WETH,Asset>(account_addr, 10000, false);
+        deposit_internal<WETH,Asset>(account, account_addr, 2000, false);
+        deposit_internal<WETH,Asset>(account, account_addr, 3000, false);
+        withdraw_internal<WETH,Asset>(account_addr, 1000, false);
+        withdraw_internal<WETH,Asset>(account_addr, 4000, false);
+    }
+    #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
+    public entry fun test_borrow_and_repay_more_than_once_sequentially(owner: &signer, account: &signer, aptos_framework: &signer) acquires Position {
+        setup_for_test_to_initialize_coins(owner, aptos_framework);
+        price_oracle::initialize_with_fixed_price_for_test(owner);
+
+        // execute
+        let account_addr = signer::address_of(account);
+        deposit_internal<WETH,Shadow>(account, account_addr, 10000, false);
+        borrow_internal<WETH,Asset>(account_addr, 5000);
+        repay<WETH,Asset>(account_addr, 5000);
+        borrow_internal<WETH,Asset>(account_addr, 2000);
+        borrow_internal<WETH,Asset>(account_addr, 3000);
+        repay<WETH,Asset>(account_addr, 1000);
+        repay<WETH,Asset>(account_addr, 4000);
+    }
+
     // rebalance shadow
     #[test(owner=@leizd,account1=@0x111,aptos_framework=@aptos_framework)]
     public entry fun test_rebalance_shadow(owner: &signer, account1: &signer, aptos_framework: &signer) acquires Position {
