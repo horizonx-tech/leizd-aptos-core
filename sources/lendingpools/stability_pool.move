@@ -1,5 +1,6 @@
 module leizd::stability_pool {
 
+    use std::error;
     use std::signer;
     use aptos_framework::coin;
     use aptos_framework::event;
@@ -15,7 +16,7 @@ module leizd::stability_pool {
     const PRECISION: u64 = 1000000000;
     const STABILITY_FEE: u64 = 1000000000 * 5 / 1000; // 0.5%
 
-    const E_IS_ALREADY_EXISTED: u64 = 1;
+    const EALREADY_INITIALIZED: u64 = 1;
 
     struct StabilityPool has key {
         left: coin::Coin<USDZ>,
@@ -73,7 +74,7 @@ module leizd::stability_pool {
 
     public entry fun initialize(owner: &signer) {
         permission::assert_owner(signer::address_of(owner));
-        assert!(!is_pool_initialized(), E_IS_ALREADY_EXISTED);
+        assert!(!is_pool_initialized(), error::invalid_state(EALREADY_INITIALIZED));
 
         stb_usdz::initialize(owner);
         move_to(owner, StabilityPool {
@@ -305,7 +306,31 @@ module leizd::stability_pool {
     use leizd::usdz;
     #[test_only]
     use leizd::trove_manager;
+    #[test(owner=@leizd)]
+    public entry fun test_initialize(owner: &signer) {
+        let owner_addr = signer::address_of(owner);
+        account::create_account_for_test(owner_addr);
+        trove_manager::initialize(owner);
 
+        initialize(owner);
+        assert!(exists<StabilityPool>(owner_addr), 0);
+        assert!(exists<DistributionConfig>(owner_addr), 0);
+    }
+    #[test(owner=@leizd)]
+    #[expected_failure(abort_code = 196609)]
+    public entry fun test_initialize_twice(owner: &signer) {
+        let owner_addr = signer::address_of(owner);
+        account::create_account_for_test(owner_addr);
+        trove_manager::initialize(owner);
+
+        initialize(owner);
+        initialize(owner);
+    }
+    #[test(account=@0x111)]
+    #[expected_failure(abort_code = 1)]
+    public entry fun test_initialize_without_owner(account: &signer) {
+        initialize(account);
+    }
     #[test(owner=@leizd,account1=@0x111,account2=@0x222,aptos_framework=@aptos_framework)]
     public entry fun test_deposit_to_stability_pool(owner: &signer, account1: &signer) acquires StabilityPool, StabilityPoolEventHandle {
         let owner_addr = signer::address_of(owner);
