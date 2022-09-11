@@ -540,15 +540,14 @@ module leizd::account_position {
 
         let account_addr = signer::address_of(account);
         deposit_internal<WETH,Asset>(account, account_addr, 10000, false);
-        // TODO
-        // borrow_internal<WETH,Shadow>(account_addr, 9999);
-        // assert!(deposited_asset<WETH>(account_addr) == 10000, 0);
-        // assert!(borrowed_shadow<WETH>(account_addr) == 9999, 0);
+        borrow_internal<WETH,Shadow>(account_addr, 6999);
+        assert!(deposited_asset<WETH>(account_addr) == 10000, 0);
+        assert!(borrowed_shadow<WETH>(account_addr) == 6999, 0);
 
-        // let weth_key = generate_key<WETH>();
-        // let utilization = utilization_of<AssetToShadow>(borrow_global<Position<AssetToShadow>>(account_addr), weth_key);
-        // let lt = risk_factor::lt_of(weth_key);
-        // assert!(lt - utilization == (10000 - 9999) * risk_factor::precision() / 10000, 0);
+        let weth_key = generate_key<WETH>();
+        let utilization = utilization_of<AssetToShadow>(borrow_global<Position<AssetToShadow>>(account_addr), weth_key);
+        let lt = risk_factor::lt_of(weth_key);
+        assert!(lt - utilization == (7000 - 6999) * risk_factor::precision() / 10000, 0);
     }
 
     // rebalance shadow
