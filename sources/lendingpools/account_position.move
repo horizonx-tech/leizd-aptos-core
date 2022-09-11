@@ -6,6 +6,7 @@ module leizd::account_position {
     use std::string::{String};
     use aptos_std::event;
     use aptos_std::simple_map;
+    use aptos_framework::account;
     use aptos_framework::type_info;
     use leizd::pool_type;
     use leizd::position_type::{Self,AssetToShadow,ShadowToAsset};
@@ -402,8 +403,6 @@ module leizd::account_position {
 
     // #[test_only]
     // use aptos_framework::debug;
-    #[test_only]
-    use aptos_framework::account;
     #[test_only]
     use aptos_framework::timestamp;
     #[test_only]
