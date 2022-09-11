@@ -100,7 +100,7 @@ module leizd::price_oracle {
         assert!(price_of(&type_info::type_name<test_coin::WETH>()) == 3, 0);
     }
     #[test_only]
-    public fun initialize_oracle_for_test(owner: &signer) acquires AggregatorStorage {
+    public fun initialize_with_fixed_price_for_test(owner: &signer) acquires AggregatorStorage {
         aggregator::new_test(owner, 1, 0, false);
         let owner_address = signer::address_of(owner);
         initialize(owner);
@@ -110,16 +110,16 @@ module leizd::price_oracle {
         add_aggregator<test_coin::USDT>(owner, owner_address);
     }
     #[test(leizd = @leizd)]
-    fun test_price_after_initialize_oracle_for_test(leizd: &signer) acquires AggregatorStorage {
-        initialize_oracle_for_test(leizd);
+    fun test_price_after_initialize_with_fixed_price_for_test(leizd: &signer) acquires AggregatorStorage {
+        initialize_with_fixed_price_for_test(leizd);
         assert!(price<test_coin::USDC>() == 1, 0);
         assert!(price<test_coin::WETH>() == 1, 0);
         assert!(price<test_coin::UNI>() == 1, 0);
         assert!(price<test_coin::USDT>() == 1, 0);
     }
     #[test(leizd = @leizd)]
-    fun test_price_of_after_initialize_oracle_for_test(leizd: &signer) acquires AggregatorStorage {
-        initialize_oracle_for_test(leizd);
+    fun test_price_of_after_initialize_with_fixed_price_for_test(leizd: &signer) acquires AggregatorStorage {
+        initialize_with_fixed_price_for_test(leizd);
         assert!(price_of(&type_info::type_name<test_coin::USDC>()) == 1, 0);
         assert!(price_of(&type_info::type_name<test_coin::WETH>()) == 1, 0);
         assert!(price_of(&type_info::type_name<test_coin::UNI>()) == 1, 0);

@@ -584,7 +584,7 @@ module leizd::shadow_pool {
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
     public entry fun test_withdraw_shadow(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
-        price_oracle::initialize_oracle_for_test(owner);
+        price_oracle::initialize_with_fixed_price_for_test(owner);
 
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -610,7 +610,7 @@ module leizd::shadow_pool {
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
     public entry fun test_withdraw_same_as_deposited_amount(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
-        price_oracle::initialize_oracle_for_test(owner);
+        price_oracle::initialize_with_fixed_price_for_test(owner);
 
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -634,7 +634,7 @@ module leizd::shadow_pool {
     #[expected_failure(abort_code = 65542)]
     public entry fun test_withdraw_with_more_than_deposited_amount(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
-        price_oracle::initialize_oracle_for_test(owner);
+        price_oracle::initialize_with_fixed_price_for_test(owner);
 
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -647,7 +647,7 @@ module leizd::shadow_pool {
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
     public entry fun test_withdraw_more_than_once_sequentially(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
-        price_oracle::initialize_oracle_for_test(owner);
+        price_oracle::initialize_with_fixed_price_for_test(owner);
 
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -672,7 +672,7 @@ module leizd::shadow_pool {
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
     public entry fun test_withdraw_shadow_for_only_collateral(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
-        price_oracle::initialize_oracle_for_test(owner);
+        price_oracle::initialize_with_fixed_price_for_test(owner);
 
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -698,7 +698,7 @@ module leizd::shadow_pool {
     public entry fun test_borrow(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
         // TODO: consider HF
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
-        price_oracle::initialize_oracle_for_test(owner);
+        price_oracle::initialize_with_fixed_price_for_test(owner);
 
         let depositor_addr = signer::address_of(depositor);
         let borrower_addr = signer::address_of(borrower);
@@ -734,7 +734,7 @@ module leizd::shadow_pool {
     public entry fun test_borrow_with_same_as_deposited_amount(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
         // TODO: consider HF
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
-        price_oracle::initialize_oracle_for_test(owner);
+        price_oracle::initialize_with_fixed_price_for_test(owner);
 
         let depositor_addr = signer::address_of(depositor);
         let borrower_addr = signer::address_of(borrower);
@@ -768,7 +768,7 @@ module leizd::shadow_pool {
     public entry fun test_borrow_with_more_than_deposited_amount(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
         // TODO: consider HF
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
-        price_oracle::initialize_oracle_for_test(owner);
+        price_oracle::initialize_with_fixed_price_for_test(owner);
 
         let depositor_addr = signer::address_of(depositor);
         let borrower_addr = signer::address_of(borrower);
