@@ -1,5 +1,6 @@
 module leizd::risk_factor {
 
+    use std::error;
     use std::signer;
     use std::string;
     use aptos_std::event;
@@ -18,11 +19,12 @@ module leizd::risk_factor {
     const SHADOW_LTV: u64 = 1000000000 / 100 * 100; // 100%
     const SHADOW_LT: u64 = 1000000000 / 100 * 100; // 100%
 
-    const E_INVALID_THRESHOLD: u64 = 1;
-    const E_INVALID_LTV: u64 = 2;
-    const E_INVALID_ENTRY_FEE: u64 = 3;
-    const E_INVALID_SHARE_FEE: u64 = 4;
-    const E_INVALID_LIQUIDATION_FEE: u64 = 5;
+    const E_ALREADY_ADDED_ASSET: u64 = 1;
+    const E_INVALID_THRESHOLD: u64 = 2;
+    const E_INVALID_LTV: u64 = 3;
+    const E_INVALID_ENTRY_FEE: u64 = 4;
+    const E_INVALID_SHARE_FEE: u64 = 5;
+    const E_INVALID_LIQUIDATION_FEE: u64 = 6;
 
     struct ProtocolFees has key, drop {
         entry_fee: u64, // One time protocol fee for opening a borrow position
@@ -35,6 +37,7 @@ module leizd::risk_factor {
         lt: table::Table<string::String,u64>, // Liquidation Threshold
     }
 
+    // Events
     struct UpdateProtocolFeesEvent has store, drop {
         caller: address,
         entry_fee: u64,
@@ -44,6 +47,7 @@ module leizd::risk_factor {
 
     struct UpdateConfigEvent has store, drop {
         caller: address,
+        key: string::String,
         ltv: u64,
         lt: u64,
     }
@@ -88,6 +92,7 @@ module leizd::risk_factor {
 
         let config_ref = borrow_global_mut<Config>(owner_address);
         let name = type_info::type_name<C>();
+        assert!(!table::contains<string::String, u64>(&config_ref.ltv, name), error::invalid_argument(E_ALREADY_ADDED_ASSET));
         table::upsert<string::String,u64>(&mut config_ref.ltv, name, DEFAULT_LTV);
         table::upsert<string::String,u64>(&mut config_ref.lt, name, DEFAULT_THRESHOLD);
     }
@@ -129,6 +134,7 @@ module leizd::risk_factor {
             &mut borrow_global_mut<RepositoryAssetEventHandle>(owner_address).update_config_event,
             UpdateConfigEvent {
                 caller: owner_address,
+                key: name,
                 ltv: new_ltv,
                 lt: new_lt,
             }
@@ -207,7 +213,6 @@ module leizd::risk_factor {
     public entry fun test_initialize_without_owner(account: signer) {
         initialize(&account);
     }
-
     #[test(owner=@leizd,account1=@0x111)]
     public entry fun test_update_protocol_fees(owner: signer, account1: signer) acquires Config, ProtocolFees, RepositoryEventHandle {
         let owner_addr = signer::address_of(&owner);
@@ -234,7 +239,6 @@ module leizd::risk_factor {
         let event_handle = borrow_global<RepositoryEventHandle>(owner_addr);
         assert!(event::counter(&event_handle.update_protocol_fees_event) == 1, 0);
     }
-
     #[test_only]
     struct TestAsset {}
     #[test(owner = @leizd)]
@@ -259,7 +263,15 @@ module leizd::risk_factor {
     public entry fun test_new_asset_without_owner(account: &signer) acquires Config {
         new_asset<TestAsset>(account);
     }
-
+    #[test(owner = @leizd)]
+    #[expected_failure(abort_code = 65537)]
+    public entry fun test_new_asset_twice(owner: &signer) acquires Config {
+        let owner_addr = signer::address_of(owner);
+        account::create_account_for_test(owner_addr);
+        initialize(owner);
+        new_asset<TestAsset>(owner);
+        new_asset<TestAsset>(owner);
+    }
     #[test(owner=@leizd)]
     public entry fun test_update_config(owner: &signer) acquires Config, RepositoryAssetEventHandle {
         let owner_addr = signer::address_of(owner);
@@ -274,6 +286,29 @@ module leizd::risk_factor {
         let new_lt = table::borrow<string::String,u64>(&config.lt, name);
         assert!(*new_ltv == PRECISION / 100 * 70, 0);
         assert!(*new_lt == PRECISION / 100 * 90, 0);
+        assert!(ltv<TestAsset>() == PRECISION / 100 * 70, 0);
+        assert!(lt<TestAsset>() == PRECISION / 100 * 90, 0);
+        assert!(lt_of(name) == PRECISION / 100 * 90, 0);
+        let event_handle = borrow_global<RepositoryAssetEventHandle>(owner_addr);
+        assert!(event::counter(&event_handle.update_config_event) == 1, 0);
+    }
+    #[test(owner=@leizd)]
+    public entry fun test_update_config_with_usdz(owner: &signer) acquires Config, RepositoryAssetEventHandle {
+        let owner_addr = signer::address_of(owner);
+        account::create_account_for_test(owner_addr);
+        initialize(owner);
+
+        update_config<USDZ>(owner, PRECISION / 100 * 20, PRECISION / 100 * 40);
+        let config = borrow_global<Config>(permission::owner_address());
+        let name = type_info::type_name<USDZ>();
+        let new_ltv = table::borrow<string::String,u64>(&config.ltv, name);
+        let new_lt = table::borrow<string::String,u64>(&config.lt, name);
+        assert!(*new_ltv == PRECISION / 100 * 20, 0);
+        assert!(*new_lt == PRECISION / 100 * 40, 0);
+        assert!(ltv<USDZ>() == PRECISION / 100 * 20, 0);
+        assert!(lt<USDZ>() == PRECISION / 100 * 40, 0);
+        assert!(lt_of(name) == PRECISION / 100 * 40, 0);
+        assert!(lt_of_shadow() == PRECISION / 100 * 40, 0);
         let event_handle = borrow_global<RepositoryAssetEventHandle>(owner_addr);
         assert!(event::counter(&event_handle.update_config_event) == 1, 0);
     }
