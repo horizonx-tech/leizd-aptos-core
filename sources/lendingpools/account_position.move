@@ -14,8 +14,8 @@ module leizd::account_position {
     friend leizd::money_market;
 
     const ENO_SAFE_POSITION: u64 = 0;
-    const ENO_UNSAFE_POSITION: u64 = 1;
-    const ENOT_ENOUGH_SHADOW: u64 = 2;
+    // const ENO_UNSAFE_POSITION: u64 = 1;
+    // const ENOT_ENOUGH_SHADOW: u64 = 2;
     const ENOT_EXISTED: u64 = 3;
     const EALREADY_PROTECTED: u64 = 4;
     const EINSUFFICIENT_AMOUNT: u64 = 5;
@@ -151,10 +151,10 @@ module leizd::account_position {
     fun withdraw_internal<C,P>(depositor_addr: address, amount: u64, is_collateral_only: bool) acquires Position {
         if (pool_type::is_type_asset<P>()) {
             update_position<C,AssetToShadow>(depositor_addr, amount, true, false, is_collateral_only);
-            assert!(is_safe<C,AssetToShadow>(depositor_addr), 0);
+            assert!(is_safe<C,AssetToShadow>(depositor_addr), error::invalid_state(ENO_SAFE_POSITION));
         } else {
             update_position<C,ShadowToAsset>(depositor_addr, amount, true, false, is_collateral_only);
-            assert!(is_safe<C,ShadowToAsset>(depositor_addr), 0);
+            assert!(is_safe<C,ShadowToAsset>(depositor_addr), error::invalid_state(ENO_SAFE_POSITION));
         };
     }
 
@@ -165,10 +165,10 @@ module leizd::account_position {
     fun borrow_internal<C,P>(borrower_addr: address, amount: u64) acquires Position {
         if (pool_type::is_type_asset<P>()) {
             update_position<C,ShadowToAsset>(borrower_addr, amount, false, true, false);
-            assert!(is_safe<C,ShadowToAsset>(borrower_addr), 0);
+            assert!(is_safe<C,ShadowToAsset>(borrower_addr), error::invalid_state(ENO_SAFE_POSITION));
         } else {
             update_position<C,AssetToShadow>(borrower_addr, amount, false, true, false);
-            assert!(is_safe<C,AssetToShadow>(borrower_addr), 0);
+            assert!(is_safe<C,AssetToShadow>(borrower_addr), error::invalid_state(ENO_SAFE_POSITION));
         };
     }
 
@@ -362,6 +362,8 @@ module leizd::account_position {
         coin_type
     }
 
+    // #[test_only]
+    // use aptos_framework::debug;
     #[test_only]
     use aptos_framework::account;
     #[test_only]
@@ -501,6 +503,52 @@ module leizd::account_position {
         assert!(conly_deposited_asset<WETH>(account_addr) == 98, 0);
         assert!(deposited_shadow<WETH>(account_addr) == 170, 0);
         assert!(conly_deposited_shadow<WETH>(account_addr) == 80, 0);
+    }
+
+    // for borrow
+    #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
+    public entry fun test_borrow_unsafe(owner: &signer, account: &signer, aptos_framework: &signer) acquires Position {
+        setup_for_test_to_initialize_coins(owner, aptos_framework);
+        price_oracle::initialize_with_fixed_price_for_test(owner);
+
+        let account_addr = signer::address_of(account);
+        deposit_internal<WETH,Shadow>(account, account_addr, 1, false); // for generating Position
+        borrow_unsafe_for_test<WETH,Asset>(account_addr, 10);
+        assert!(deposited_shadow<WETH>(account_addr) == 1, 0);
+        assert!(conly_deposited_shadow<WETH>(account_addr) == 0, 0);
+        assert!(borrowed_asset<WETH>(account_addr) == 10, 0);
+    }
+    #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
+    public entry fun test_borrow_asset(owner: &signer, account: &signer, aptos_framework: &signer) acquires Position {
+        setup_for_test_to_initialize_coins(owner, aptos_framework);
+        price_oracle::initialize_with_fixed_price_for_test(owner);
+
+        let account_addr = signer::address_of(account);
+        deposit_internal<WETH,Shadow>(account, account_addr, 10000, false);
+        borrow_internal<WETH,Asset>(account_addr, 9999);
+        assert!(deposited_shadow<WETH>(account_addr) == 10000, 0);
+        assert!(borrowed_asset<WETH>(account_addr) == 9999, 0);
+
+        let utilization = utilization_of<ShadowToAsset>(borrow_global<Position<ShadowToAsset>>(account_addr), generate_key<WETH>());
+        let lt = risk_factor::lt_of_shadow();
+        assert!(lt - utilization == (10000 - 9999) * risk_factor::precision() / 10000, 0);
+    }
+    #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
+    public entry fun test_borrow_shadow(owner: &signer, account: &signer, aptos_framework: &signer) acquires Position {
+        setup_for_test_to_initialize_coins(owner, aptos_framework);
+        price_oracle::initialize_with_fixed_price_for_test(owner);
+
+        let account_addr = signer::address_of(account);
+        deposit_internal<WETH,Asset>(account, account_addr, 10000, false);
+        // TODO
+        // borrow_internal<WETH,Shadow>(account_addr, 9999);
+        // assert!(deposited_asset<WETH>(account_addr) == 10000, 0);
+        // assert!(borrowed_shadow<WETH>(account_addr) == 9999, 0);
+
+        // let weth_key = generate_key<WETH>();
+        // let utilization = utilization_of<AssetToShadow>(borrow_global<Position<AssetToShadow>>(account_addr), weth_key);
+        // let lt = risk_factor::lt_of(weth_key);
+        // assert!(lt - utilization == (10000 - 9999) * risk_factor::precision() / 10000, 0);
     }
 
     // rebalance shadow
