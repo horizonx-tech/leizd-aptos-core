@@ -456,8 +456,6 @@ module leizd::shadow_pool {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
         initializer::initialize(owner);
-        test_coin::init_usdc(owner);
-        test_coin::init_usdt(owner);
         test_coin::init_weth(owner);
         test_coin::init_uni(owner);
         init_pool_internal(owner);
@@ -490,6 +488,60 @@ module leizd::shadow_pool {
 
         let event_handle = borrow_global<PoolEventHandle>(signer::address_of(owner));
         assert!(event::counter<DepositEvent>(&event_handle.deposit_event) == 1, 0);
+    }
+    #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
+    public entry fun test_deposit_with_same_as_holding_amount(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+        initializer::register<USDZ>(account);
+        usdz::mint_for_test(account_addr, 100);
+
+        deposit_for_internal<WETH>(account, account_addr, 100, false);
+        assert!(coin::balance<USDZ>(account_addr) == 0, 0);
+        assert!(total_deposited() == 100, 0);
+        assert!(deposited<WETH>() == 100, 0);
+        assert!(liquidity() == 100, 0);
+        // TODO: liquidity for one asset
+        assert!(total_conly_deposited() == 0, 0);
+        assert!(conly_deposited<WETH>() == 0, 0);
+        assert!(total_borrowed() == 0, 0);
+        assert!(borrowed<WETH>() == 0, 0);
+    }
+    #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
+    #[expected_failure(abort_code = 65542)]
+    public entry fun test_deposit_with_more_than_holding_amount(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+        initializer::register<USDZ>(account);
+        usdz::mint_for_test(account_addr, 100);
+
+        deposit_for_internal<WETH>(account, account_addr, 101, false);
+    }
+    #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
+    public entry fun test_deposit_more_than_once_sequentially(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+        initializer::register<USDZ>(account);
+        usdz::mint_for_test(account_addr, 100);
+
+        deposit_for_internal<WETH>(account, account_addr, 10, false);
+        deposit_for_internal<WETH>(account, account_addr, 20, false);
+        deposit_for_internal<WETH>(account, account_addr, 30, false);
+        assert!(coin::balance<USDZ>(account_addr) == 40, 0);
+        assert!(total_deposited() == 60, 0);
+        assert!(deposited<WETH>() == 60, 0);
+        assert!(liquidity() == 60, 0);
+        // TODO: liquidity for one asset
+        assert!(total_conly_deposited() == 0, 0);
+        assert!(conly_deposited<WETH>() == 0, 0);
+        assert!(total_borrowed() == 0, 0);
+        assert!(borrowed<WETH>() == 0, 0);
     }
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
     public entry fun test_deposit_shadow_for_only_collateral(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
@@ -540,6 +592,68 @@ module leizd::shadow_pool {
 
         let event_handle = borrow_global<PoolEventHandle>(signer::address_of(owner));
         assert!(event::counter<WithdrawEvent>(&event_handle.withdraw_event) == 1, 0);
+    }
+    #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
+    public entry fun test_withdraw_same_as_deposited_amount(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        price_oracle::initialize_oracle_for_test(owner);
+
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+        managed_coin::register<USDZ>(account);
+        usdz::mint_for_test(account_addr, 100);
+
+        deposit_for_internal<WETH>(account, account_addr, 100, false);
+        withdraw_for_internal<WETH>(account_addr, account_addr, 100, false, 0);
+
+        assert!(coin::balance<USDZ>(account_addr) == 100, 0);
+        assert!(total_deposited() == 0, 0);
+        assert!(deposited<WETH>() == 0, 0);
+        assert!(liquidity() == 0, 0);
+        // TODO: liquidity for one asset
+        assert!(total_conly_deposited() == 0, 0);
+        assert!(conly_deposited<WETH>() == 0, 0);
+        assert!(total_borrowed() == 0, 0);
+        assert!(borrowed<WETH>() == 0, 0);
+    }
+    #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
+    #[expected_failure(abort_code = 65542)]
+    public entry fun test_withdraw_with_more_than_deposited_amount(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        price_oracle::initialize_oracle_for_test(owner);
+
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+        managed_coin::register<USDZ>(account);
+        usdz::mint_for_test(account_addr, 100);
+
+        deposit_for_internal<WETH>(account, account_addr, 100, false);
+        withdraw_for_internal<WETH>(account_addr, account_addr, 101, false, 0);
+    }
+    #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
+    public entry fun test_withdraw_more_than_once_sequentially(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        price_oracle::initialize_oracle_for_test(owner);
+
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+        managed_coin::register<USDZ>(account);
+        usdz::mint_for_test(account_addr, 100);
+
+        deposit_for_internal<WETH>(account, account_addr, 100, false);
+        withdraw_for_internal<WETH>(account_addr, account_addr, 10, false, 0);
+        withdraw_for_internal<WETH>(account_addr, account_addr, 20, false, 0);
+        withdraw_for_internal<WETH>(account_addr, account_addr, 30, false, 0);
+
+        assert!(coin::balance<USDZ>(account_addr) == 60, 0);
+        assert!(total_deposited() == 40, 0);
+        assert!(deposited<WETH>() == 40, 0);
+        assert!(liquidity() == 40, 0);
+        // TODO: liquidity for one asset
+        assert!(total_conly_deposited() == 0, 0);
+        assert!(conly_deposited<WETH>() == 0, 0);
+        assert!(total_borrowed() == 0, 0);
+        assert!(borrowed<WETH>() == 0, 0);
     }
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
     public entry fun test_withdraw_shadow_for_only_collateral(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
@@ -601,6 +715,60 @@ module leizd::shadow_pool {
 
         let event_handle = borrow_global<PoolEventHandle>(signer::address_of(owner));
         assert!(event::counter<BorrowEvent>(&event_handle.borrow_event) == 1, 0);
+    }
+    #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
+    public entry fun test_borrow_with_same_as_deposited_amount(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+        // TODO: consider HF
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        price_oracle::initialize_oracle_for_test(owner);
+
+        let depositor_addr = signer::address_of(depositor);
+        let borrower_addr = signer::address_of(borrower);
+        account::create_account_for_test(depositor_addr);
+        account::create_account_for_test(borrower_addr);
+        managed_coin::register<USDZ>(depositor);
+        managed_coin::register<USDZ>(borrower);
+        usdz::mint_for_test(depositor_addr, 1005);
+
+        // deposit
+        deposit_for_internal<UNI>(depositor, depositor_addr, 1005, false);
+
+        // borrow
+        borrow_for<UNI>(borrower_addr, borrower_addr, 1000);
+        assert!(coin::balance<USDZ>(borrower_addr) == 1000, 0);
+        assert!(total_deposited() == 1005, 0);
+        assert!(deposited<UNI>() == 1005, 0);
+        assert!(liquidity() == 1005, 0);
+        // TODO: liquidity for one asset
+        assert!(total_conly_deposited() == 0, 0);
+        assert!(conly_deposited<UNI>() == 0, 0);
+        assert!(total_borrowed() == 1005, 0);
+        assert!(borrowed<UNI>() == 1000, 0); // TODO: confirm
+
+        // check about fee
+        assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
+        assert!(treasury::balance_of_shadow<UNI>() == 5, 0);
+    }
+    #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
+    #[expected_failure(abort_code = 65542)]
+    public entry fun test_borrow_with_more_than_deposited_amount(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+        // TODO: consider HF
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        price_oracle::initialize_oracle_for_test(owner);
+
+        let depositor_addr = signer::address_of(depositor);
+        let borrower_addr = signer::address_of(borrower);
+        account::create_account_for_test(depositor_addr);
+        account::create_account_for_test(borrower_addr);
+        managed_coin::register<USDZ>(depositor);
+        managed_coin::register<USDZ>(borrower);
+        usdz::mint_for_test(depositor_addr, 1005);
+
+        // deposit
+        deposit_for_internal<UNI>(depositor, depositor_addr, 1005, false);
+
+        // borrow
+        borrow_for<UNI>(borrower_addr, borrower_addr, 1001); // NOTE: consider fee
     }
 
     // for repay
