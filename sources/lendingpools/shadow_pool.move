@@ -1,5 +1,6 @@
 module leizd::shadow_pool {
 
+    use std::error;
     use std::signer;
     use std::string::{String};
     use aptos_std::simple_map;
@@ -17,6 +18,9 @@ module leizd::shadow_pool {
     use leizd::pool_status;
 
     friend leizd::money_market;
+
+    const E_NOT_AVAILABLE_STATUS: u64 = 4;
+    const E_AMOUNT_ARG_IS_ZERO: u64 = 5;
 
     struct Pool has key {
         shadow: coin::Coin<USDZ>
@@ -112,7 +116,7 @@ module leizd::shadow_pool {
         amount: u64,
         is_collateral_only: bool
     ) acquires Pool, Storage, PoolEventHandle {
-        assert!(pool_status::is_available<C>(), 0);
+        assert!(pool_status::is_available<C>(), error::invalid_state(E_NOT_AVAILABLE_STATUS));
 
         let storage_ref = borrow_global_mut<Storage>(@leizd);
         let pool_ref = borrow_global_mut<Pool>(@leizd);
@@ -216,7 +220,7 @@ module leizd::shadow_pool {
         is_collateral_only: bool,
         liquidation_fee: u64
     ): u64 acquires Pool, Storage, PoolEventHandle {
-        assert!(pool_status::is_available<C>(), 0);
+        assert!(pool_status::is_available<C>(), error::invalid_state(E_NOT_AVAILABLE_STATUS));
 
         let pool_ref = borrow_global_mut<Pool>(@leizd);
         let storage_ref = borrow_global_mut<Storage>(@leizd);
@@ -269,7 +273,7 @@ module leizd::shadow_pool {
         receiver_addr: address,
         amount: u64
     ) acquires Pool, Storage, PoolEventHandle {
-        assert!(pool_status::is_available<C>(), 0);
+        assert!(pool_status::is_available<C>(), error::invalid_state(E_NOT_AVAILABLE_STATUS));
         
         let pool_ref = borrow_global_mut<Pool>(@leizd);
         let storage_ref = borrow_global_mut<Storage>(@leizd);
@@ -314,7 +318,7 @@ module leizd::shadow_pool {
         account: &signer,
         amount: u64
     ): u64 acquires Pool, Storage, PoolEventHandle {
-        assert!(pool_status::is_available<C>(), 0);
+        assert!(pool_status::is_available<C>(), error::invalid_state(E_NOT_AVAILABLE_STATUS));
 
         let account_addr = signer::address_of(account);
         let storage_ref = borrow_global_mut<Storage>(@leizd);
@@ -444,6 +448,8 @@ module leizd::shadow_pool {
     use leizd::usdz;
     #[test_only]
     use leizd::initializer;
+    #[test_only]
+    use leizd::system_administrator;
     #[test_only]
     use aptos_framework::timestamp;
     #[test_only]
@@ -816,5 +822,65 @@ module leizd::shadow_pool {
         borrow_and_rebalance<WETH,UNI>(10000, false);
         assert!(borrowed<WETH>() == 60000, 0);
         assert!(deposited<UNI>() == 110000, 0);
+    }
+
+    // for common validations
+    //// `amount` arg
+    // #[test(owner=@leizd, aptos_framework=@aptos_framework)]
+    // #[expected_failure(abort_code = 65541)]
+    // public entry fun test_cannot_deposit_when_amount_is_zero(owner: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+    //     setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+    //     deposit_for_internal<WETH>(owner, signer::address_of(owner), 0, false);
+    // }
+    // #[test(owner=@leizd, aptos_framework=@aptos_framework)]
+    // #[expected_failure(abort_code = 65541)]
+    // public entry fun test_cannot_withdraw_when_amount_is_zero(owner: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+    //     setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+    //     let owner_address = signer::address_of(owner);
+    //     withdraw_for_internal<WETH>(owner_address, owner_address, 0, false, 0);
+    // }
+    // #[test(owner=@leizd, aptos_framework=@aptos_framework)]
+    // #[expected_failure(abort_code = 65541)]
+    // public entry fun test_cannot_borrow_when_amount_is_zero(owner: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+    //     setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+    //     let owner_address = signer::address_of(owner);
+    //     borrow_for_internal<WETH>(owner_address, owner_address, 0);
+    // }
+    // #[test(owner=@leizd, aptos_framework=@aptos_framework)]
+    // #[expected_failure(abort_code = 65541)]
+    // public entry fun test_cannot_repay_when_amount_is_zero(owner: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+    //     setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+    //     repay_internal<WETH>(owner, 0);
+    // }
+    //// control pool status
+    #[test(owner=@leizd, aptos_framework=@aptos_framework)]
+    #[expected_failure(abort_code = 196612)]
+    public entry fun test_cannot_deposit_when_not_available(owner: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        system_administrator::pause_pool<WETH>(owner);
+        deposit_for_internal<WETH>(owner, signer::address_of(owner), 0, false);
+    }
+    #[test(owner=@leizd, aptos_framework=@aptos_framework)]
+    #[expected_failure(abort_code = 196612)]
+    public entry fun test_cannot_withdraw_when_not_available(owner: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        system_administrator::pause_pool<WETH>(owner);
+        let owner_address = signer::address_of(owner);
+        withdraw_for_internal<WETH>(owner_address, owner_address, 0, false, 0);
+    }
+    #[test(owner=@leizd, aptos_framework=@aptos_framework)]
+    #[expected_failure(abort_code = 196612)]
+    public entry fun test_cannot_borrow_when_not_available(owner: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        system_administrator::pause_pool<WETH>(owner);
+        let owner_address = signer::address_of(owner);
+        borrow_for<WETH>(owner_address, owner_address, 0);
+    }
+    #[test(owner=@leizd, aptos_framework=@aptos_framework)]
+    #[expected_failure(abort_code = 196612)]
+    public entry fun test_cannot_repay_when_not_available(owner: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        system_administrator::pause_pool<WETH>(owner);
+        repay<WETH>(owner, 0);
     }
 }
