@@ -50,7 +50,7 @@ module leizd::stability_pool {
 
     struct WithdrawEvent has store, drop {
         caller: address,
-        depositor: address,
+        withdrawer: address,
         amount: u64
     }
 
@@ -149,7 +149,7 @@ module leizd::stability_pool {
             &mut borrow_global_mut<StabilityPoolEventHandle>(owner_address).withdraw_event,
             WithdrawEvent {
                 caller: signer::address_of(account),
-                depositor: signer::address_of(account),
+                withdrawer: signer::address_of(account),
                 amount
             }
         );
@@ -161,11 +161,11 @@ module leizd::stability_pool {
         //     move_to(account, UserDistribution { index: 0 });
         // };
         let borrowed = borrow_internal<C>(amount);
-        event::emit_event<WithdrawEvent>(
-            &mut borrow_global_mut<StabilityPoolEventHandle>(permission::owner_address()).withdraw_event,
-            WithdrawEvent {
+        event::emit_event<BorrowEvent>(
+            &mut borrow_global_mut<StabilityPoolEventHandle>(permission::owner_address()).borrow_event,
+            BorrowEvent {
                 caller: addr,
-                depositor: addr,
+                borrower: addr,
                 amount
             }
         );
@@ -457,6 +457,7 @@ module leizd::stability_pool {
         withdraw(account, 300001);
     }
 
+    // for borrow
     #[test(owner=@leizd,account1=@0x111,account2=@0x222)]
     public entry fun test_borrow_from_stability_pool(owner: &signer, account1: &signer, account2: &signer) acquires StabilityPool, Balance, StabilityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
@@ -473,15 +474,18 @@ module leizd::stability_pool {
         managed_coin::register<USDZ>(account2);
                 
         deposit(account1, 400000);
-        let borrowed = borrow_internal<WETH>(300000);
+        let borrowed = borrow<WETH>(account1_addr, 300000);
         coin::deposit(account2_addr, borrowed);
         assert!(left() == 100000, 0);
         assert!(total_deposited() == 400000, 0);
         assert!(total_borrowed<WETH>() == 301500, 0);
         assert!(usdz::balance_of(account2_addr) == 300000, 0);
         assert!(stb_usdz::balance_of(account1_addr) == 400000, 0);
+
+        assert!(event::counter<BorrowEvent>(&borrow_global<StabilityPoolEventHandle>(signer::address_of(owner)).borrow_event) == 1, 0);
     }
 
+    // for repay
     #[test(owner=@leizd,account1=@0x111,account2=@0x222)]
     public entry fun test_repay_to_stability_pool(owner: &signer, account1: &signer, account2: &signer) acquires StabilityPool, Balance, StabilityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
@@ -501,12 +505,14 @@ module leizd::stability_pool {
         let borrowed = borrow_internal<WETH>(300000);
         coin::deposit(account2_addr, borrowed);
         // let repayed = coin::withdraw<USDZ>(&account2, 200000);
-        repay_internal<WETH>(account2, 200000);
+        repay<WETH>(account2, 200000);
         assert!(left() == 298500, 0);
         assert!(collected_fee() == 1500, 0);
         assert!(total_deposited() == 400000, 0);
         assert!(total_borrowed<WETH>() == 101500, 0);
         assert!(usdz::balance_of(account2_addr) == 100000, 0);
         assert!(stb_usdz::balance_of(account1_addr) == 400000, 0);
+
+        assert!(event::counter<RepayEvent>(&borrow_global<StabilityPoolEventHandle>(signer::address_of(owner)).repay_event) == 1, 0);
     }
 }
