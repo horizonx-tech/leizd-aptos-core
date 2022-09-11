@@ -38,6 +38,10 @@ module leizd::usdz {
     }
 
     #[test_only]
+    public fun initialize_for_test(owner: &signer) {
+        initialize(owner);
+    }
+    #[test_only]
     public fun mint_for_test(account_addr: address, amount: u64) {
         mint_internal(account_addr, amount);
     }
