@@ -440,6 +440,8 @@ module leizd::account_position {
         deposit_internal<WETH,Asset>(account, account_addr, 800000, false);
         assert!(deposited_asset<WETH>(account_addr) == 800000, 0);
         assert!(conly_deposited_asset<WETH>(account_addr) == 0, 0);
+
+        assert!(event::counter<UpdatePositionEvent>(&borrow_global<AccountPositionEventHandle<AssetToShadow>>(account_addr).update_position_event) == 1, 0);
     }
     #[test(owner=@leizd,account1=@0x111,account2=@0x222,aptos_framework=@aptos_framework)]
     public entry fun test_deposit_weth_by_two(owner: &signer, account1: &signer, account2: &signer, aptos_framework: &signer) acquires Position, AccountPositionEventHandle {
@@ -498,6 +500,9 @@ module leizd::account_position {
         assert!(conly_deposited_asset<WETH>(account_addr) == 2, 0);
         assert!(deposited_shadow<WETH>(account_addr) == 30, 0);
         assert!(conly_deposited_shadow<WETH>(account_addr) == 20, 0);
+
+        assert!(event::counter<UpdatePositionEvent>(&borrow_global<AccountPositionEventHandle<AssetToShadow>>(account_addr).update_position_event) == 2, 0);
+        assert!(event::counter<UpdatePositionEvent>(&borrow_global<AccountPositionEventHandle<ShadowToAsset>>(account_addr).update_position_event) == 2, 0);
     }
 
     // for withdraw
@@ -511,6 +516,8 @@ module leizd::account_position {
         deposit_internal<WETH,Asset>(account, account_addr, 700000, false);
         withdraw_internal<WETH,Asset>(account_addr, 600000, false);
         assert!(deposited_asset<WETH>(account_addr) == 100000, 0);
+
+        assert!(event::counter<UpdatePositionEvent>(&borrow_global<AccountPositionEventHandle<AssetToShadow>>(account_addr).update_position_event) == 2, 0);
     }
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
     public entry fun test_withdraw_with_same_as_deposited_amount(owner: &signer, account: &signer, aptos_framework: &signer) acquires Position, AccountPositionEventHandle {
@@ -591,6 +598,9 @@ module leizd::account_position {
         assert!(conly_deposited_asset<WETH>(account_addr) == 98, 0);
         assert!(deposited_shadow<WETH>(account_addr) == 170, 0);
         assert!(conly_deposited_shadow<WETH>(account_addr) == 80, 0);
+
+        assert!(event::counter<UpdatePositionEvent>(&borrow_global<AccountPositionEventHandle<AssetToShadow>>(account_addr).update_position_event) == 4, 0);
+        assert!(event::counter<UpdatePositionEvent>(&borrow_global<AccountPositionEventHandle<ShadowToAsset>>(account_addr).update_position_event) == 4, 0);
     }
 
     // for borrow
@@ -606,6 +616,8 @@ module leizd::account_position {
         assert!(deposited_shadow<WETH>(account_addr) == 1, 0);
         assert!(conly_deposited_shadow<WETH>(account_addr) == 0, 0);
         assert!(borrowed_asset<WETH>(account_addr) == 10, 0);
+
+        assert!(event::counter<UpdatePositionEvent>(&borrow_global<AccountPositionEventHandle<ShadowToAsset>>(account_addr).update_position_event) == 2, 0);
     }
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
     public entry fun test_borrow_asset(owner: &signer, account: &signer, aptos_framework: &signer) acquires Position, AccountPositionEventHandle {
@@ -705,6 +717,8 @@ module leizd::account_position {
         assert!(deposited_shadow<WETH>(account_addr) == 1000, 0);
         assert!(conly_deposited_shadow<WETH>(account_addr) == 0, 0);
         assert!(borrowed_asset<WETH>(account_addr) == 250, 0);
+
+        assert!(event::counter<UpdatePositionEvent>(&borrow_global<AccountPositionEventHandle<ShadowToAsset>>(account_addr).update_position_event) == 3, 0);
     }
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
     public entry fun test_repay_asset(owner: &signer, account: &signer, aptos_framework: &signer) acquires Position, AccountPositionEventHandle {
@@ -908,6 +922,8 @@ module leizd::account_position {
         deposit_internal<WETH,Asset>(account, account_addr, 3000, false);
         withdraw_internal<WETH,Asset>(account_addr, 1000, false);
         withdraw_internal<WETH,Asset>(account_addr, 4000, false);
+
+        assert!(event::counter<UpdatePositionEvent>(&borrow_global<AccountPositionEventHandle<AssetToShadow>>(account_addr).update_position_event) == 6, 0);
     }
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
     public entry fun test_borrow_and_repay_more_than_once_sequentially(owner: &signer, account: &signer, aptos_framework: &signer) acquires Position, AccountPositionEventHandle {
@@ -924,6 +940,8 @@ module leizd::account_position {
         borrow_internal<WETH,Asset>(account_addr, 3000);
         repay<WETH,Asset>(account_addr, 1000);
         repay<WETH,Asset>(account_addr, 4000);
+
+        assert!(event::counter<UpdatePositionEvent>(&borrow_global<AccountPositionEventHandle<ShadowToAsset>>(account_addr).update_position_event) == 7, 0);
     }
 
     // rebalance shadow
@@ -947,6 +965,8 @@ module leizd::account_position {
         rebalance_shadow_internal<WETH,UNI>(account1_addr, false);
         assert!(deposited_shadow<WETH>(account1_addr) == 90000, 0);
         assert!(deposited_shadow<UNI>(account1_addr) == 110000, 0);
+
+        assert!(event::counter<UpdatePositionEvent>(&borrow_global<AccountPositionEventHandle<ShadowToAsset>>(account1_addr).update_position_event) == 7, 0);
     }
     #[test(owner=@leizd,account1=@0x111,aptos_framework=@aptos_framework)]
     public entry fun test_borrow_and_rebalance(owner: &signer, account1: &signer, aptos_framework: &signer) acquires Position, AccountPositionEventHandle {
@@ -969,5 +989,8 @@ module leizd::account_position {
         assert!(deposited_asset<WETH>(account1_addr) == 100000, 0);
         assert!(borrowed_shadow<WETH>(account1_addr) == 60000, 0);
         assert!(deposited_shadow<UNI>(account1_addr) == 110000, 0);
+
+        assert!(event::counter<UpdatePositionEvent>(&borrow_global<AccountPositionEventHandle<AssetToShadow>>(account1_addr).update_position_event) == 3, 0);
+        assert!(event::counter<UpdatePositionEvent>(&borrow_global<AccountPositionEventHandle<ShadowToAsset>>(account1_addr).update_position_event) == 4, 0);
     }
 }
