@@ -119,8 +119,9 @@ module leizd::shadow_pool {
         assert!(pool_status::is_available<C>(), error::invalid_state(E_NOT_AVAILABLE_STATUS));
         assert!(amount > 0, error::invalid_argument(E_AMOUNT_ARG_IS_ZERO));
 
-        let storage_ref = borrow_global_mut<Storage>(@leizd);
-        let pool_ref = borrow_global_mut<Pool>(@leizd);
+        let owner_address = permission::owner_address();
+        let storage_ref = borrow_global_mut<Storage>(owner_address);
+        let pool_ref = borrow_global_mut<Pool>(owner_address);
 
         // TODO: accrue_interest<C,Shadow>(storage_ref);
 
@@ -145,7 +146,7 @@ module leizd::shadow_pool {
             }
         };
         event::emit_event<DepositEvent>(
-            &mut borrow_global_mut<PoolEventHandle>(@leizd).deposit_event,
+            &mut borrow_global_mut<PoolEventHandle>(owner_address).deposit_event,
             DepositEvent {
                 caller: signer::address_of(account),
                 depositor: depositor_addr,
@@ -159,7 +160,7 @@ module leizd::shadow_pool {
     public(friend) fun rebalance_shadow<C1,C2>(amount: u64, is_collateral_only: bool) acquires Storage {
         let key1 = generate_coin_key<C1>();
         let key2 = generate_coin_key<C2>();
-        let storage_ref = borrow_global_mut<Storage>(@leizd);
+        let storage_ref = borrow_global_mut<Storage>(permission::owner_address());
         assert!(simple_map::contains_key<String,u64>(&storage_ref.deposited, &key1), 0);
         assert!(simple_map::contains_key<String,u64>(&storage_ref.deposited, &key2), 0);
 
@@ -181,7 +182,7 @@ module leizd::shadow_pool {
     public(friend) fun borrow_and_rebalance<C1,C2>(amount: u64, is_collateral_only: bool) acquires Storage {
         let key1 = generate_coin_key<C1>();
         let key2 = generate_coin_key<C2>();
-        let storage_ref = borrow_global_mut<Storage>(@leizd);
+        let storage_ref = borrow_global_mut<Storage>(permission::owner_address());
         assert!(simple_map::contains_key<String,u64>(&storage_ref.borrowed, &key1), 0);
         assert!(simple_map::contains_key<String,u64>(&storage_ref.deposited, &key2), 0);
 
@@ -224,8 +225,9 @@ module leizd::shadow_pool {
         assert!(pool_status::is_available<C>(), error::invalid_state(E_NOT_AVAILABLE_STATUS));
         assert!(amount > 0, error::invalid_argument(E_AMOUNT_ARG_IS_ZERO));
 
-        let pool_ref = borrow_global_mut<Pool>(@leizd);
-        let storage_ref = borrow_global_mut<Storage>(@leizd);
+        let owner_address = permission::owner_address();
+        let pool_ref = borrow_global_mut<Pool>(owner_address);
+        let storage_ref = borrow_global_mut<Storage>(owner_address);
 
         // TODO: accrue_interest<C,Shadow>(storage_ref);
         collect_shadow_fee<C>(pool_ref, liquidation_fee);
@@ -257,7 +259,7 @@ module leizd::shadow_pool {
         };
 
         event::emit_event<WithdrawEvent>(
-            &mut borrow_global_mut<PoolEventHandle>(@leizd).withdraw_event,
+            &mut borrow_global_mut<PoolEventHandle>(owner_address).withdraw_event,
             WithdrawEvent {
                 caller: depositor_addr,
                 depositor: depositor_addr,
@@ -277,9 +279,10 @@ module leizd::shadow_pool {
     ) acquires Pool, Storage, PoolEventHandle {
         assert!(pool_status::is_available<C>(), error::invalid_state(E_NOT_AVAILABLE_STATUS));
         assert!(amount > 0, error::invalid_argument(E_AMOUNT_ARG_IS_ZERO));
-        
-        let pool_ref = borrow_global_mut<Pool>(@leizd);
-        let storage_ref = borrow_global_mut<Storage>(@leizd);
+
+        let owner_address = permission::owner_address();
+        let pool_ref = borrow_global_mut<Pool>(owner_address);
+        let storage_ref = borrow_global_mut<Storage>(owner_address);
 
         // accrue_interest<C,Shadow>(storage_ref);
 
@@ -306,7 +309,7 @@ module leizd::shadow_pool {
         };
         
         event::emit_event<BorrowEvent>(
-            &mut borrow_global_mut<PoolEventHandle>(@leizd).borrow_event,
+            &mut borrow_global_mut<PoolEventHandle>(owner_address).borrow_event,
             BorrowEvent {
                 caller: borrower_addr,
                 borrower: borrower_addr,
@@ -324,12 +327,13 @@ module leizd::shadow_pool {
         assert!(pool_status::is_available<C>(), error::invalid_state(E_NOT_AVAILABLE_STATUS));
         assert!(amount > 0, error::invalid_argument(E_AMOUNT_ARG_IS_ZERO));
 
-        let account_addr = signer::address_of(account);
-        let storage_ref = borrow_global_mut<Storage>(@leizd);
-        let pool_ref = borrow_global_mut<Pool>(@leizd);
+        let owner_address = permission::owner_address();
+        let storage_ref = borrow_global_mut<Storage>(owner_address);
+        let pool_ref = borrow_global_mut<Pool>(owner_address);
 
         // TODO: accrue_interest<C,Shadow>(storage_ref);
 
+        let account_addr = signer::address_of(account);
         let debt_amount = account_position::borrowed_shadow<C>(account_addr);
         let repaid_amount = if (amount >= debt_amount) debt_amount else amount;
 
@@ -339,7 +343,7 @@ module leizd::shadow_pool {
         storage_ref.total_borrowed = storage_ref.total_borrowed - (repaid_amount as u128);
 
         event::emit_event<RepayEvent>(
-            &mut borrow_global_mut<PoolEventHandle>(@leizd).repay_event,
+            &mut borrow_global_mut<PoolEventHandle>(owner_address).repay_event,
             RepayEvent {
                 caller: account_addr,
                 repayer: account_addr,
@@ -391,7 +395,7 @@ module leizd::shadow_pool {
     }
 
     public entry fun total_deposited(): u128 acquires Storage {
-        borrow_global<Storage>(@leizd).total_deposited
+        borrow_global<Storage>(permission::owner_address()).total_deposited
     }
 
     public entry fun liquidity(): u128 acquires Storage {
@@ -400,16 +404,16 @@ module leizd::shadow_pool {
     }
 
     public entry fun total_conly_deposited(): u128 acquires Storage {
-        borrow_global<Storage>(@leizd).total_conly_deposited
+        borrow_global<Storage>(permission::owner_address()).total_conly_deposited
     }
 
     public entry fun total_borrowed(): u128 acquires Storage {
-        borrow_global<Storage>(@leizd).total_borrowed
+        borrow_global<Storage>(permission::owner_address()).total_borrowed
     }
 
     public entry fun deposited<C>(): u64 acquires Storage {
         let key = generate_coin_key<C>();
-        let deposited = borrow_global<Storage>(@leizd).deposited;
+        let deposited = borrow_global<Storage>(permission::owner_address()).deposited;
         if (simple_map::contains_key<String,u64>(&deposited, &key)) {
             *simple_map::borrow<String,u64>(&deposited, &key)
         } else {
@@ -419,7 +423,7 @@ module leizd::shadow_pool {
 
     public entry fun conly_deposited<C>(): u64 acquires Storage {
         let key = generate_coin_key<C>();
-        let conly_deposited = borrow_global<Storage>(@leizd).conly_deposited;
+        let conly_deposited = borrow_global<Storage>(permission::owner_address()).conly_deposited;
         if (simple_map::contains_key<String,u64>(&conly_deposited, &key)) {
             *simple_map::borrow<String,u64>(&conly_deposited, &key)
         } else {
@@ -429,7 +433,7 @@ module leizd::shadow_pool {
 
     public entry fun borrowed<C>(): u64 acquires Storage {
         let key = generate_coin_key<C>();
-        let borrowed = borrow_global<Storage>(@leizd).borrowed;
+        let borrowed = borrow_global<Storage>(permission::owner_address()).borrowed;
         if (simple_map::contains_key<String,u64>(&borrowed, &key)) {
             *simple_map::borrow<String,u64>(&borrowed, &key)
         } else {

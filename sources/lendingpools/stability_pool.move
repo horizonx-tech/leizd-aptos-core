@@ -95,7 +95,7 @@ module leizd::stability_pool {
     }
 
     public fun is_pool_initialized(): bool {
-        exists<StabilityPool>(@leizd)
+        exists<StabilityPool>(permission::owner_address())
     }
 
     public(friend) fun init_pool<C>(owner: &signer) {
@@ -113,7 +113,9 @@ module leizd::stability_pool {
                 deposited: 0,
             });
         };
-        let pool_ref = borrow_global_mut<StabilityPool>(@leizd);
+
+        let owner_address = permission::owner_address();
+        let pool_ref = borrow_global_mut<StabilityPool>(owner_address);
         
         coin::merge(&mut pool_ref.left, coin::withdraw<USDZ>(account, amount));
         pool_ref.total_deposited = pool_ref.total_deposited + (amount as u128);
@@ -122,7 +124,7 @@ module leizd::stability_pool {
         };
         stb_usdz::mint(signer::address_of(account), amount);
         event::emit_event<DepositEvent>(
-            &mut borrow_global_mut<StabilityPoolEventHandle>(@leizd).deposit_event,
+            &mut borrow_global_mut<StabilityPoolEventHandle>(owner_address).deposit_event,
             DepositEvent {
                 caller: signer::address_of(account),
                 depositor: signer::address_of(account),
@@ -132,13 +134,14 @@ module leizd::stability_pool {
     }
 
     public entry fun withdraw(account: &signer, amount: u64) acquires StabilityPool, StabilityPoolEventHandle {
-        let pool_ref = borrow_global_mut<StabilityPool>(@leizd);
+        let owner_address = permission::owner_address();
+        let pool_ref = borrow_global_mut<StabilityPool>(owner_address);
 
         coin::deposit(signer::address_of(account), coin::extract(&mut pool_ref.left, amount));
         pool_ref.total_deposited = pool_ref.total_deposited - (amount as u128);
         stb_usdz::burn(account, amount);
         event::emit_event<WithdrawEvent>(
-            &mut borrow_global_mut<StabilityPoolEventHandle>(@leizd).withdraw_event,
+            &mut borrow_global_mut<StabilityPoolEventHandle>(owner_address).withdraw_event,
             WithdrawEvent {
                 caller: signer::address_of(account),
                 depositor: signer::address_of(account),
@@ -154,7 +157,7 @@ module leizd::stability_pool {
         // };
         let borrowed = borrow_internal<C>(amount);
         event::emit_event<WithdrawEvent>(
-            &mut borrow_global_mut<StabilityPoolEventHandle>(@leizd).withdraw_event,
+            &mut borrow_global_mut<StabilityPoolEventHandle>(permission::owner_address()).withdraw_event,
             WithdrawEvent {
                 caller: addr,
                 depositor: addr,
@@ -169,8 +172,9 @@ module leizd::stability_pool {
     }
 
     fun borrow_internal<C>(amount: u64): coin::Coin<USDZ> acquires StabilityPool, Balance {
-        let pool_ref = borrow_global_mut<StabilityPool>(@leizd);
-        let balance_ref = borrow_global_mut<Balance<C>>(@leizd);
+        let owner_address = permission::owner_address();
+        let pool_ref = borrow_global_mut<StabilityPool>(owner_address);
+        let balance_ref = borrow_global_mut<Balance<C>>(owner_address);
         assert!(coin::value<USDZ>(&pool_ref.left) >= amount, 0);
 
         let fee = stability_fee_amount(amount);
@@ -182,7 +186,7 @@ module leizd::stability_pool {
     public(friend) entry fun repay<C>(account: &signer, amount: u64) acquires StabilityPool, Balance, StabilityPoolEventHandle {
         repay_internal<C>(account, amount);
         event::emit_event<RepayEvent>(
-            &mut borrow_global_mut<StabilityPoolEventHandle>(@leizd).repay_event,
+            &mut borrow_global_mut<StabilityPoolEventHandle>(permission::owner_address()).repay_event,
             RepayEvent {
                 caller: signer::address_of(account),
                 repayer: signer::address_of(account),
@@ -192,7 +196,7 @@ module leizd::stability_pool {
     }
 
     public entry fun claim_reward(account: &signer, amount: u64) acquires DistributionConfig, UserDistribution, StabilityPool {
-        let pool_ref = borrow_global_mut<StabilityPool>(@leizd);
+        let pool_ref = borrow_global_mut<StabilityPool>(permission::owner_address());
         let user_ref = borrow_global<UserDistribution>(signer::address_of(account));
         let unclaimed_reward = user_ref.unclaimed;
 
@@ -213,7 +217,7 @@ module leizd::stability_pool {
     }
 
     fun update_user_asset(addr: address, staked_by_user: u64, total_staked: u64): u64 acquires DistributionConfig, UserDistribution {
-        let config_ref = borrow_global_mut<DistributionConfig>(@leizd);
+        let config_ref = borrow_global_mut<DistributionConfig>(permission::owner_address());
         let user_ref = borrow_global_mut<UserDistribution>(addr);
         let accrued_reward = 0;
         let new_index = update_asset_state(config_ref, total_staked);
@@ -252,8 +256,9 @@ module leizd::stability_pool {
     }
 
     fun repay_internal<C>(account: &signer, amount: u64) acquires StabilityPool, Balance {
-        let pool_ref = borrow_global_mut<StabilityPool>(@leizd);
-        let balance_ref = borrow_global_mut<Balance<C>>(@leizd);
+        let owner_address = permission::owner_address();
+        let pool_ref = borrow_global_mut<StabilityPool>(owner_address);
+        let balance_ref = borrow_global_mut<Balance<C>>(owner_address);
 
         if (balance_ref.uncollected_fee > 0) {
             // collect as fees at first
@@ -276,20 +281,20 @@ module leizd::stability_pool {
     }
 
     public fun left(): u128 acquires StabilityPool {
-        (coin::value<USDZ>(&borrow_global<StabilityPool>(@leizd).left) as u128)
+        (coin::value<USDZ>(&borrow_global<StabilityPool>(permission::owner_address()).left) as u128)
     }
 
     public fun collected_fee(): u64 acquires StabilityPool {
-        coin::value<USDZ>(&borrow_global<StabilityPool>(@leizd).collected_fee)
+        coin::value<USDZ>(&borrow_global<StabilityPool>(permission::owner_address()).collected_fee)
     }
 
 
     public fun total_deposited(): u128 acquires StabilityPool {
-        borrow_global<StabilityPool>(@leizd).total_deposited
+        borrow_global<StabilityPool>(permission::owner_address()).total_deposited
     }
 
     public fun total_borrowed<C>(): u128 acquires Balance {
-        borrow_global<Balance<C>>(@leizd).total_borrowed
+        borrow_global<Balance<C>>(permission::owner_address()).total_borrowed
     }
 
     #[test_only]

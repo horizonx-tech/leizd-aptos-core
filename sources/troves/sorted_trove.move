@@ -1,8 +1,11 @@
 module leizd::sorted_trove {
-    use leizd::constant;
     use aptos_std::simple_map;
+    use leizd::constant;
+    use leizd::permission;
     use leizd::trove;
+
     friend leizd::trove_manager;
+
     const E_NODE_ALREADY_EXISTS: u64 = 0;
     const E_EXCEEDS_MAX_NODE_CAP: u64 = 1;
     const E_NODE_NOT_FOUND: u64 = 2;
@@ -21,19 +24,19 @@ module leizd::sorted_trove {
     }
 
     public fun head<C>(): address acquires Data {
-        borrow_global<Data<C>>(@leizd).head
+        borrow_global<Data<C>>(permission::owner_address()).head
     }
 
     public fun tail<C>(): address acquires Data {
-        borrow_global<Data<C>>(@leizd).tail
+        borrow_global<Data<C>>(permission::owner_address()).tail
     }
 
     public fun max_size<C>(): u64 acquires Data {
-        borrow_global<Data<C>>(@leizd).max_size
+        borrow_global<Data<C>>(permission::owner_address()).max_size
     }
 
     public fun size<C>(): u64 acquires Data {
-        borrow_global<Data<C>>(@leizd).size
+        borrow_global<Data<C>>(permission::owner_address()).size
     }
 
     public(friend) entry fun initialize<C>(owner: &signer) {
@@ -74,7 +77,7 @@ module leizd::sorted_trove {
 
     fun insert_internal<C>(id: address, prev_id: address, next_id: address) acquires Data {
         assert!(!contains<C>(id), E_NODE_ALREADY_EXISTS);
-        let data = borrow_global_mut<Data<C>>(@leizd);
+        let data = borrow_global_mut<Data<C>>(permission::owner_address());
         assert!(data.size < data.max_size, E_EXCEEDS_MAX_NODE_CAP);
         let new_node = Node{next_id: @0x0, prev_id: @0x0};
         if (prev_id == @0x0 && next_id == @0x0) {
@@ -103,7 +106,7 @@ module leizd::sorted_trove {
     }
 
     fun contains<C>(id: address): bool acquires Data {
-        simple_map::contains_key<address, Node>(&borrow_global<Data<C>>(@leizd).nodes, &id)
+        simple_map::contains_key<address, Node>(&borrow_global<Data<C>>(permission::owner_address()).nodes, &id)
     }
 
     public(friend) entry fun remove<C>(id: address) acquires Data {
@@ -116,7 +119,7 @@ module leizd::sorted_trove {
 
     public fun insert_position_of<C>(id: address):(address, address) acquires Data {
         let amount = trove::trove_amount<C>(id);
-        let (prev, next) = find_valid_insert_position(@0x0, @0x0, amount, borrow_global_mut<Data<C>>(@leizd));
+        let (prev, next) = find_valid_insert_position(@0x0, @0x0, amount, borrow_global_mut<Data<C>>(permission::owner_address()));
         (prev, next)
     }
 
@@ -176,7 +179,7 @@ module leizd::sorted_trove {
     // Remove a node from the list
     fun remove_internal<C>(id: address) acquires Data {
         assert!(contains<C>(id), E_NODE_NOT_FOUND);
-        let data = borrow_global_mut<Data<C>>(@leizd);
+        let data = borrow_global_mut<Data<C>>(permission::owner_address());
         let (prev_id, next_id) = prev_next_id_of(id, data);
         if (data.size > 1) {
             // List contains more than a single node
@@ -234,7 +237,7 @@ module leizd::sorted_trove {
 
     #[test_only]
     fun node<C>(account: address): option::Option<Node> acquires Data {
-        let data = borrow_global_mut<Data<C>>(@leizd);
+        let data = borrow_global_mut<Data<C>>(permission::owner_address());
         let node = simple_map::borrow_mut<address, Node>(&mut data.nodes, &account);
         option::some<Node>(*node)
     }

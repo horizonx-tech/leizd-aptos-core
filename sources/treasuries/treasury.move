@@ -31,19 +31,21 @@ module leizd::treasury {
     }
 
     public entry fun withdraw_asset_fee<C>(owner: &signer, amount: u64) acquires Treasury {
-        permission::assert_owner(signer::address_of(owner));
+        let owner_address = signer::address_of(owner);
+        permission::assert_owner(owner_address);
 
-        let treasury_ref = borrow_global_mut<Treasury<C>>(permission::owner_address());
+        let treasury_ref = borrow_global_mut<Treasury<C>>(owner_address);
         let deposited = coin::extract(&mut treasury_ref.asset, amount);
-        coin::deposit<C>(signer::address_of(owner), deposited);
+        coin::deposit<C>(owner_address, deposited);
     }
 
     public entry fun withdraw_shadow_fee<C>(owner: &signer, amount: u64) acquires Treasury {
-        permission::assert_owner(signer::address_of(owner));
+        let owner_address = signer::address_of(owner);
+        permission::assert_owner(owner_address);
 
-        let treasury_ref = borrow_global_mut<Treasury<C>>(permission::owner_address());
+        let treasury_ref = borrow_global_mut<Treasury<C>>(owner_address);
         let deposited = coin::extract(&mut treasury_ref.shadow, amount);
-        coin::deposit<USDZ>(signer::address_of(owner), deposited);
+        coin::deposit<USDZ>(owner_address, deposited);
     }
 
     #[test_only]
