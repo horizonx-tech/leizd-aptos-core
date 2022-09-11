@@ -28,7 +28,7 @@ module leizd::account_position {
         balance: simple_map::SimpleMap<String,Balance>,
     }
 
-    struct Balance has store {
+    struct Balance has store, drop {
         deposited: u64,
         conly_deposited: u64,
         borrowed: u64,
@@ -292,18 +292,11 @@ module leizd::account_position {
                 let balance_ref = simple_map::borrow_mut<String,Balance>(&mut position_ref.balance, &key);
                 assert!(balance_ref.deposited >= amount, error::invalid_argument(EOVER_DEPOSITED_AMOUNT));
                 balance_ref.deposited = balance_ref.deposited - amount;
-                if (balance_ref.deposited == 0) {
-                    let (_, i) = vector::index_of<String>(&position_ref.coins, &key);
-                    vector::remove<String>(&mut position_ref.coins, i);
-                };
                 if (is_collateral_only) {
                     let balance_ref = simple_map::borrow_mut<String,Balance>(&mut position_ref.balance, &key);
                     balance_ref.conly_deposited = balance_ref.conly_deposited - amount;
-                    if (balance_ref.conly_deposited == 0) {
-                        let (_, i) = vector::index_of<String>(&position_ref.coins, &key);
-                        vector::remove<String>(&mut position_ref.coins, i);
-                    };
-                }
+                };
+                remove_balance_if_unused<P>(addr, key);
             } else if (!is_deposit && is_increase) {
                 // Borrow
                 let balance_ref = simple_map::borrow_mut<String,Balance>(&mut position_ref.balance, &key);
@@ -313,10 +306,7 @@ module leizd::account_position {
                 let balance_ref = simple_map::borrow_mut<String,Balance>(&mut position_ref.balance, &key);
                 assert!(balance_ref.borrowed >= amount, error::invalid_argument(EOVER_BORROWED_AMOUNT));
                 balance_ref.borrowed = balance_ref.borrowed - amount;
-                if (balance_ref.borrowed == 0) {
-                    let (_, i) = vector::index_of<String>(&position_ref.coins, &key);
-                    vector::remove<String>(&mut position_ref.coins, i);
-                };
+                remove_balance_if_unused<P>(addr, key);
             }
         } else {
             new_position<P>(addr, amount, is_deposit, is_collateral_only, key);
@@ -334,6 +324,20 @@ module leizd::account_position {
             conly_deposited: conly_amount,
             borrowed: 0,
         });
+    }
+
+    fun remove_balance_if_unused<P>(addr: address, key: String) acquires Position {
+        let position_ref = borrow_global_mut<Position<P>>(addr);
+        let balance_ref = simple_map::borrow<String,Balance>(&position_ref.balance, &key);
+        if (
+            balance_ref.deposited == 0
+            && balance_ref.conly_deposited == 0
+            && balance_ref.borrowed == 0
+        ) {
+            simple_map::remove<String, Balance>(&mut position_ref.balance, &key);
+            let (_, i) = vector::index_of<String>(&position_ref.coins, &key);
+            vector::remove<String>(&mut position_ref.coins, i);
+        }
     }
 
     fun is_safe<C,P>(addr: address): bool acquires Position {
