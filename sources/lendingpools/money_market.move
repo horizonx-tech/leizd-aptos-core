@@ -38,9 +38,9 @@ module leizd::money_market {
 
         let is_shadow = pool_type::is_type_shadow<P>();
         if (is_shadow) {
-            asset_pool::deposit_for<C>(account, depositor_addr, amount, is_collateral_only);
-        } else {
             shadow_pool::deposit_for<C>(account, depositor_addr, amount, is_collateral_only);
+        } else {
+            asset_pool::deposit_for<C>(account, depositor_addr, amount, is_collateral_only);
         };
         account_position::deposit<C,P>(account, depositor_addr, amount, is_collateral_only);
     }
@@ -65,9 +65,9 @@ module leizd::money_market {
         let depositor_addr = signer::address_of(account);
         let is_shadow = pool_type::is_type_shadow<P>();
         if (is_shadow) {
-            amount = asset_pool::withdraw_for<C>(depositor_addr, receiver_addr, amount, is_collateral_only);
-        } else {
             amount = shadow_pool::withdraw_for<C>(depositor_addr, receiver_addr, amount, is_collateral_only, 0);
+        } else {
+            amount = asset_pool::withdraw_for<C>(depositor_addr, receiver_addr, amount, is_collateral_only);
         };
         account_position::withdraw<C,P>(depositor_addr, amount, is_collateral_only);
     }
