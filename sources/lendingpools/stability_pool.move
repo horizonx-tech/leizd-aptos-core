@@ -65,11 +65,18 @@ module leizd::stability_pool {
         target_account: address,
         amount: u64
     }
+    struct UpdateStateEvent has store, drop {
+        old_index: u64,
+        new_index: u64,
+        emission_per_sec: u64,
+        updated_at: u64,
+    }
     struct StabilityPoolEventHandle has key, store {
         deposit_event: event::EventHandle<DepositEvent>,
         withdraw_event: event::EventHandle<WithdrawEvent>,
         borrow_event: event::EventHandle<BorrowEvent>,
         repay_event: event::EventHandle<RepayEvent>,
+        update_state_event: event::EventHandle<UpdateStateEvent>,
     }
 
     public entry fun initialize(owner: &signer) {
@@ -92,6 +99,7 @@ module leizd::stability_pool {
             withdraw_event: account::new_event_handle<WithdrawEvent>(owner),
             borrow_event: account::new_event_handle<BorrowEvent>(owner),
             repay_event: account::new_event_handle<RepayEvent>(owner),
+            update_state_event: account::new_event_handle<UpdateStateEvent>(owner),
         });
     }
 
@@ -233,7 +241,7 @@ module leizd::stability_pool {
         };
     }
 
-    public entry fun claim_reward(account: &signer, amount: u64) acquires DistributionConfig, UserDistribution, StabilityPool {
+    public entry fun claim_reward(account: &signer, amount: u64) acquires DistributionConfig, UserDistribution, StabilityPool, StabilityPoolEventHandle {
         assert!(amount > 0, error::invalid_argument(EINVALID_AMOUNT));
         let pool_ref = borrow_global_mut<StabilityPool>(permission::owner_address());
         let user_ref = borrow_global<UserDistribution>(signer::address_of(account));
@@ -255,7 +263,7 @@ module leizd::stability_pool {
         coin::deposit<USDZ>(account_addr, coin::extract(&mut pool_ref.collected_fee, amount_to_claim));
         // TODO: emit claim event
     }
-    fun update_user_asset(addr: address, staked_by_user: u64, total_staked: u64): u64 acquires DistributionConfig, UserDistribution {
+    fun update_user_asset(addr: address, staked_by_user: u64, total_staked: u64): u64 acquires DistributionConfig, UserDistribution, StabilityPoolEventHandle {
         let config_ref = borrow_global_mut<DistributionConfig>(permission::owner_address());
         let user_ref = borrow_global_mut<UserDistribution>(addr);
         let accrued_reward = 0;
@@ -266,7 +274,7 @@ module leizd::stability_pool {
         user_ref.index = new_index;
         accrued_reward
     }
-    fun update_asset_state(config_ref: &mut DistributionConfig, total_staked: u64): u64 {        
+    fun update_asset_state(config_ref: &mut DistributionConfig, total_staked: u64): u64 acquires StabilityPoolEventHandle {
         let old_index = config_ref.index;
         let last_updated = config_ref.last_updated;
         let now = timestamp::now_seconds();
@@ -275,11 +283,20 @@ module leizd::stability_pool {
         };
 
         let new_index = asset_index(old_index, config_ref.emission_per_sec, last_updated, total_staked);
-        if (new_index != old_index) {
-            config_ref.index = new_index;
-            // TODO: emit event
-        };
         config_ref.last_updated = now;
+        if (new_index != old_index) {
+            // update index & emit event
+            config_ref.index = new_index;
+            event::emit_event<UpdateStateEvent>(
+                &mut borrow_global_mut<StabilityPoolEventHandle>(permission::owner_address()).update_state_event,
+                UpdateStateEvent {
+                    old_index,
+                    new_index,
+                    emission_per_sec: config_ref.emission_per_sec,
+                    updated_at: config_ref.last_updated,
+                }
+            );
+        };
         new_index
     }
     fun asset_index(current_index: u64, emission_per_sec: u64, last_updated: u64, total_balance: u64): u64 {
@@ -698,7 +715,7 @@ module leizd::stability_pool {
     }
     #[test(owner=@leizd, account=@0x111, aptos_framework=@aptos_framework)]
     #[expected_failure(abort_code = 65540)]
-    public entry fun test_claim_reward_with_no_claimable(owner: &signer, account: &signer, aptos_framework: &signer) acquires StabilityPool, DistributionConfig, UserDistribution {
+    public entry fun test_claim_reward_with_no_claimable(owner: &signer, account: &signer, aptos_framework: &signer) acquires StabilityPool, DistributionConfig, UserDistribution, StabilityPoolEventHandle {
         timestamp::set_time_has_started_for_testing(aptos_framework);
         initialize_for_test_to_use_coin(owner);
         init_user_distribution_for_test(account);
@@ -706,13 +723,13 @@ module leizd::stability_pool {
     }
     #[test(owner=@leizd, account=@0x111)]
     #[expected_failure(abort_code = 65538)]
-    public entry fun test_claim_reward_with_zero_amount(owner: &signer, account: &signer) acquires StabilityPool, DistributionConfig, UserDistribution {
+    public entry fun test_claim_reward_with_zero_amount(owner: &signer, account: &signer) acquires StabilityPool, DistributionConfig, UserDistribution, StabilityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         claim_reward(account, 0);
     }
     //// related functions
-    #[test(aptos_framework=@aptos_framework, stash=@0x999)]
-    fun test_update_asset_state(aptos_framework: &signer, stash: &signer) {
+    #[test(owner=@leizd, aptos_framework=@aptos_framework, stash=@0x999)]
+    fun test_update_asset_state(owner: &signer, aptos_framework: &signer, stash: &signer) acquires StabilityPoolEventHandle {
         let total_staked = 100;
         let emission_per_sec = 10;
         let last_updated_per_sec = 1648738800; // 20220401T00:00:00
@@ -725,10 +742,71 @@ module leizd::stability_pool {
         // prepares
         timestamp::set_time_has_started_for_testing(aptos_framework);
         timestamp::update_global_time_for_test((last_updated_per_sec + 30) * 1000 * 1000); // + 30 sec
+        //// for event
+        let owner_address = signer::address_of(owner);
+        account::create_account_for_test(owner_address);
+        move_to(owner, StabilityPoolEventHandle { 
+            deposit_event: account::new_event_handle<DepositEvent>(owner),
+            withdraw_event: account::new_event_handle<WithdrawEvent>(owner),
+            borrow_event: account::new_event_handle<BorrowEvent>(owner),
+            repay_event: account::new_event_handle<RepayEvent>(owner),
+            update_state_event: account::new_event_handle<UpdateStateEvent>(owner),
+        });
 
         // execute
         let new_index = update_asset_state(&mut distribution_config, total_staked);
-        assert!(new_index == emission_per_sec * 30 * PRECISION / total_staked, 0);
+        let expected_new_index = emission_per_sec * 30 * PRECISION / total_staked;
+        assert!(new_index == expected_new_index, 0);
+        assert!(distribution_config.index == expected_new_index, 0);
+        assert!(distribution_config.last_updated == last_updated_per_sec + 30, 0);
+        assert!(distribution_config.emission_per_sec == emission_per_sec, 0);
+        assert!(event::counter<UpdateStateEvent>(&borrow_global<StabilityPoolEventHandle>(owner_address).update_state_event) == 1, 0);
+
+        // post_process
+        move_to(stash, distribution_config);
+    }
+    #[test(owner=@leizd, aptos_framework=@aptos_framework, stash=@0x999)]
+    fun test_update_asset_state_when_index_is_not_updated(owner: &signer, aptos_framework: &signer, stash: &signer) acquires StabilityPoolEventHandle {
+        let total_staked = 100;
+        let last_updated_per_sec = 1648738800; // 20220401T00:00:00
+
+        // prepares
+        let distribution_config = DistributionConfig {
+            emission_per_sec: 0,
+            last_updated: last_updated_per_sec,
+            index: 0,
+        };
+        timestamp::set_time_has_started_for_testing(aptos_framework);
+        //// for event
+        let owner_address = signer::address_of(owner);
+        account::create_account_for_test(owner_address);
+        move_to(owner, StabilityPoolEventHandle {
+            deposit_event: account::new_event_handle<DepositEvent>(owner),
+            withdraw_event: account::new_event_handle<WithdrawEvent>(owner),
+            borrow_event: account::new_event_handle<BorrowEvent>(owner),
+            repay_event: account::new_event_handle<RepayEvent>(owner),
+            update_state_event: account::new_event_handle<UpdateStateEvent>(owner),
+        });
+
+        // execute: proceed time, but no emission_per_sec
+        timestamp::update_global_time_for_test((last_updated_per_sec + 30) * 1000 * 1000); // + 30 sec
+        let index_1 = update_asset_state(&mut distribution_config, total_staked);
+        assert!(index_1 == 0, 0);
+        assert!(distribution_config.last_updated == last_updated_per_sec + 30, 0);
+        assert!(event::counter<UpdateStateEvent>(&borrow_global<StabilityPoolEventHandle>(owner_address).update_state_event) == 0, 0);
+
+        // execute: equal to the calculated result
+        let emission_per_sec = 10;
+        let duration = 30;
+        timestamp::update_global_time_for_test((last_updated_per_sec + 30 + duration) * 1000 * 1000); // + 30 sec
+        let pre_calcurated_index = emission_per_sec * duration * PRECISION / total_staked;
+        let pre_setted_index = (emission_per_sec * duration * 5)  * PRECISION / (total_staked * 5);
+        assert!(pre_calcurated_index == pre_setted_index, 0); // check condition
+        distribution_config.index = pre_setted_index;
+        let index_2 = update_asset_state(&mut distribution_config, total_staked);
+        assert!(index_2 == pre_calcurated_index, 0);
+        assert!(distribution_config.last_updated == last_updated_per_sec + 30 + duration, 0);
+        assert!(event::counter<UpdateStateEvent>(&borrow_global<StabilityPoolEventHandle>(owner_address).update_state_event) == 0, 0);
 
         // post_process
         move_to(stash, distribution_config);
@@ -739,8 +817,11 @@ module leizd::stability_pool {
         let emission_per_sec = 10;
         let total_balance = 100;
 
+        // prepares
         timestamp::set_time_has_started_for_testing(aptos_framework);
         timestamp::update_global_time_for_test((last_updated_per_sec + 30) * 1000 * 1000); // + 30 sec
+
+        // execute
         let index = asset_index(0, emission_per_sec, last_updated_per_sec, total_balance);
         let rewards = rewards(total_balance / 4, index, 0);
         assert!(rewards == emission_per_sec * 30 * 1 / 4, 0); // emission_per_sec * duration * 25% (user balance / total balance)
