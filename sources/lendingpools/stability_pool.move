@@ -19,6 +19,7 @@ module leizd::stability_pool {
     const EALREADY_INITIALIZED: u64 = 1;
     const EINVALID_AMOUNT: u64 = 2;
     const EEXCEED_REMAINING_AMOUNT: u64 = 3;
+    const ENO_CLAIMABLE_AMOUNT: u64 = 4;
 
     struct StabilityPool has key {
         left: coin::Coin<USDZ>,
@@ -229,23 +230,25 @@ module leizd::stability_pool {
     }
 
     public entry fun claim_reward(account: &signer, amount: u64) acquires DistributionConfig, UserDistribution, StabilityPool {
+        assert!(amount > 0, error::invalid_argument(EINVALID_AMOUNT));
         let pool_ref = borrow_global_mut<StabilityPool>(permission::owner_address());
         let user_ref = borrow_global<UserDistribution>(signer::address_of(account));
-        let unclaimed_reward = user_ref.unclaimed;
+        let account_addr = signer::address_of(account);
 
+        let unclaimed_reward = user_ref.unclaimed;
         let staked_by_user = user_ref.deposited;
         let total_staked = pool_ref.total_deposited;
-        let accrued_reward = update_user_asset(signer::address_of(account), staked_by_user, (total_staked as u64));
+        let accrued_reward = update_user_asset(account_addr, staked_by_user, (total_staked as u64));
         if (accrued_reward != 0) {
             unclaimed_reward = unclaimed_reward + accrued_reward;
         };
-        assert!(unclaimed_reward != 0, 0); // no claimable amount
+        assert!(unclaimed_reward > 0, error::invalid_argument(ENO_CLAIMABLE_AMOUNT));
 
         let amount_to_claim = if (amount > unclaimed_reward) unclaimed_reward else amount;
-        let user_mut_ref = borrow_global_mut<UserDistribution>(signer::address_of(account));
+        let user_mut_ref = borrow_global_mut<UserDistribution>(account_addr);
         user_mut_ref.unclaimed = user_mut_ref.unclaimed - amount_to_claim;
 
-        coin::deposit<USDZ>(signer::address_of(account), coin::extract(&mut pool_ref.collected_fee, amount_to_claim));
+        coin::deposit<USDZ>(account_addr, coin::extract(&mut pool_ref.collected_fee, amount_to_claim));
         // TODO: emit claim event
     }
     fun update_user_asset(addr: address, staked_by_user: u64, total_staked: u64): u64 acquires DistributionConfig, UserDistribution {
@@ -675,6 +678,14 @@ module leizd::stability_pool {
         assert!(total_borrowed<WETH>() == 9950, 0);
         assert!(uncollected_fee<WETH>() == 0, 0);
         assert!(usdz::balance_of(borrower_addr) == 9900, 0);
+    }
+
+    // for claim_reward
+    #[test(owner=@leizd,account=@0x111)]
+    #[expected_failure(abort_code = 65538)]
+    public entry fun test_claim_reward_with_zero_amount(owner: &signer, account: &signer) acquires StabilityPool, DistributionConfig, UserDistribution {
+        initialize_for_test_to_use_coin(owner);
+        claim_reward(account, 0);
     }
 
     // for related configuration
