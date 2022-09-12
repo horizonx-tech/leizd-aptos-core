@@ -483,22 +483,25 @@ module leizd::stability_pool {
         account::create_account_for_test(account1_addr);
         account::create_account_for_test(account2_addr);
 
-        managed_coin::register<WETH>(account1);
-        managed_coin::mint<WETH>(owner, account1_addr, 1000000);
-        managed_coin::register<WETH>(account2);
         managed_coin::register<USDZ>(account1);
         usdz::mint_for_test(account1_addr, 1000000);
         managed_coin::register<USDZ>(account2);
-                
+
+        // check prerequisite
+        assert!(stability_fee_amount(1000) == 5, 0); // 5%
+
+        // execute
         deposit(account1, 400000);
         let borrowed = borrow<WETH>(account1_addr, 300000);
         coin::deposit(account2_addr, borrowed);
-        assert!(left() == 100000, 0);
-        assert!(total_deposited() == 400000, 0);
-        assert!(total_borrowed<WETH>() == 301500, 0);
-        assert!(usdz::balance_of(account2_addr) == 300000, 0);
-        assert!(stb_usdz::balance_of(account1_addr) == 400000, 0);
 
+        // assertions
+        assert!(total_deposited() == 400000, 0);
+        assert!(left() == 100000, 0);
+        assert!(total_borrowed<WETH>() == ((300000 + stability_fee_amount(300000)) as u128), 0);
+        assert!(stb_usdz::balance_of(account1_addr) == 400000, 0);
+        assert!(usdz::balance_of(account2_addr) == 300000, 0);
+        //// event
         assert!(event::counter<BorrowEvent>(&borrow_global<StabilityPoolEventHandle>(signer::address_of(owner)).borrow_event) == 1, 0);
     }
     #[test(owner=@leizd, account=@0x111)]
