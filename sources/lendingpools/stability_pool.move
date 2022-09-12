@@ -46,22 +46,22 @@ module leizd::stability_pool {
     // events
     struct DepositEvent has store, drop {
         caller: address,
-        depositor: address,
+        target_account: address,
         amount: u64
     }
     struct WithdrawEvent has store, drop {
         caller: address,
-        withdrawer: address,
+        target_account: address,
         amount: u64
     }
     struct BorrowEvent has store, drop {
         caller: address,
-        borrower: address,
+        target_account: address,
         amount: u64
     }
     struct RepayEvent has store, drop {
         caller: address,
-        repayer: address,
+        target_account: address,
         amount: u64
     }
     struct StabilityPoolEventHandle has key, store {
@@ -130,7 +130,7 @@ module leizd::stability_pool {
             &mut borrow_global_mut<StabilityPoolEventHandle>(owner_address).deposit_event,
             DepositEvent {
                 caller: account_addr,
-                depositor: account_addr,
+                target_account: account_addr,
                 amount
             }
         );
@@ -150,7 +150,7 @@ module leizd::stability_pool {
             &mut borrow_global_mut<StabilityPoolEventHandle>(owner_address).withdraw_event,
             WithdrawEvent {
                 caller: account_addr,
-                withdrawer: account_addr,
+                target_account: account_addr,
                 amount
             }
         );
@@ -166,17 +166,12 @@ module leizd::stability_pool {
             &mut borrow_global_mut<StabilityPoolEventHandle>(permission::owner_address()).borrow_event,
             BorrowEvent {
                 caller: addr,
-                borrower: addr,
+                target_account: addr,
                 amount
             }
         );
         borrowed
     }
-
-    public fun stability_fee_amount(borrow_amount: u64): u64 {
-        borrow_amount * STABILITY_FEE / PRECISION
-    }
-
     fun borrow_internal<C>(amount: u64): coin::Coin<USDZ> acquires StabilityPool, Balance {
         assert!(amount > 0, error::invalid_argument(EINVALID_AMOUNT));
         let owner_address = permission::owner_address();
@@ -189,79 +184,22 @@ module leizd::stability_pool {
         balance_ref.uncollected_fee = balance_ref.uncollected_fee + fee;
         coin::extract<USDZ>(&mut pool_ref.left, amount)
     }
+    public fun stability_fee_amount(borrow_amount: u64): u64 {
+        borrow_amount * STABILITY_FEE / PRECISION
+    }
 
     public(friend) entry fun repay<C>(account: &signer, amount: u64) acquires StabilityPool, Balance, StabilityPoolEventHandle {
         repay_internal<C>(account, amount);
+        let account_addr = signer::address_of(account);
         event::emit_event<RepayEvent>(
             &mut borrow_global_mut<StabilityPoolEventHandle>(permission::owner_address()).repay_event,
             RepayEvent {
-                caller: signer::address_of(account),
-                repayer: signer::address_of(account),
+                caller: account_addr,
+                target_account: account_addr,
                 amount: amount
             }
         );
     }
-
-    public entry fun claim_reward(account: &signer, amount: u64) acquires DistributionConfig, UserDistribution, StabilityPool {
-        let pool_ref = borrow_global_mut<StabilityPool>(permission::owner_address());
-        let user_ref = borrow_global<UserDistribution>(signer::address_of(account));
-        let unclaimed_reward = user_ref.unclaimed;
-
-        let staked_by_user = user_ref.deposited;
-        let total_staked = pool_ref.total_deposited;
-        let accrued_reward = update_user_asset(signer::address_of(account), staked_by_user, (total_staked as u64));
-        if (accrued_reward != 0) {
-            unclaimed_reward = unclaimed_reward + accrued_reward;
-        };
-        assert!(unclaimed_reward != 0, 0); // no claimable amount
-
-        let amount_to_claim = if (amount > unclaimed_reward) unclaimed_reward else amount;
-        let user_mut_ref = borrow_global_mut<UserDistribution>(signer::address_of(account));
-        user_mut_ref.unclaimed = user_mut_ref.unclaimed - amount_to_claim;
-
-        coin::deposit<USDZ>(signer::address_of(account), coin::extract(&mut pool_ref.collected_fee, amount_to_claim));
-        // TODO: emit claim event
-    }
-
-    fun update_user_asset(addr: address, staked_by_user: u64, total_staked: u64): u64 acquires DistributionConfig, UserDistribution {
-        let config_ref = borrow_global_mut<DistributionConfig>(permission::owner_address());
-        let user_ref = borrow_global_mut<UserDistribution>(addr);
-        let accrued_reward = 0;
-        let new_index = update_asset_state(config_ref, total_staked);
-        if (user_ref.index != new_index) {
-            accrued_reward = rewards(staked_by_user, new_index, user_ref.index);
-        };
-        user_ref.index = new_index;
-        accrued_reward
-    }
-
-    fun update_asset_state(config_ref: &mut DistributionConfig, total_staked: u64): u64 {        
-        let old_index = config_ref.index;
-        let last_updated = config_ref.last_updated;
-        let now = timestamp::now_microseconds();
-        if (now == last_updated) {
-            return old_index
-        };
-
-        let new_index = asset_index(old_index, config_ref.emission_per_sec, last_updated, total_staked);
-        if (new_index != old_index) {
-            config_ref.index = new_index;
-            // TODO: emit event
-        };
-        config_ref.last_updated = now;
-        new_index
-    }
-
-    fun asset_index(current_index: u64, emission_per_sec: u64, last_updated: u64, total_balance: u64): u64 {
-        let current_timestamp = timestamp::now_microseconds();
-        let time_delta = current_timestamp - last_updated;
-        emission_per_sec * time_delta * PRECISION / total_balance + current_index
-    }
-
-    fun rewards(user_balance: u64, reserve_index: u64, user_index: u64): u64 {
-         user_balance * (reserve_index - user_index) / PRECISION
-    }
-
     fun repay_internal<C>(account: &signer, amount: u64) acquires StabilityPool, Balance {
         assert!(amount > 0, error::invalid_argument(EINVALID_AMOUNT));
         let owner_address = permission::owner_address();
@@ -288,6 +226,62 @@ module leizd::stability_pool {
             balance_ref.total_borrowed = balance_ref.total_borrowed - (amount as u128);
             coin::merge<USDZ>(&mut pool_ref.left, coin::withdraw<USDZ>(account, amount));
         };
+    }
+
+    public entry fun claim_reward(account: &signer, amount: u64) acquires DistributionConfig, UserDistribution, StabilityPool {
+        let pool_ref = borrow_global_mut<StabilityPool>(permission::owner_address());
+        let user_ref = borrow_global<UserDistribution>(signer::address_of(account));
+        let unclaimed_reward = user_ref.unclaimed;
+
+        let staked_by_user = user_ref.deposited;
+        let total_staked = pool_ref.total_deposited;
+        let accrued_reward = update_user_asset(signer::address_of(account), staked_by_user, (total_staked as u64));
+        if (accrued_reward != 0) {
+            unclaimed_reward = unclaimed_reward + accrued_reward;
+        };
+        assert!(unclaimed_reward != 0, 0); // no claimable amount
+
+        let amount_to_claim = if (amount > unclaimed_reward) unclaimed_reward else amount;
+        let user_mut_ref = borrow_global_mut<UserDistribution>(signer::address_of(account));
+        user_mut_ref.unclaimed = user_mut_ref.unclaimed - amount_to_claim;
+
+        coin::deposit<USDZ>(signer::address_of(account), coin::extract(&mut pool_ref.collected_fee, amount_to_claim));
+        // TODO: emit claim event
+    }
+    fun update_user_asset(addr: address, staked_by_user: u64, total_staked: u64): u64 acquires DistributionConfig, UserDistribution {
+        let config_ref = borrow_global_mut<DistributionConfig>(permission::owner_address());
+        let user_ref = borrow_global_mut<UserDistribution>(addr);
+        let accrued_reward = 0;
+        let new_index = update_asset_state(config_ref, total_staked);
+        if (user_ref.index != new_index) {
+            accrued_reward = rewards(staked_by_user, new_index, user_ref.index);
+        };
+        user_ref.index = new_index;
+        accrued_reward
+    }
+    fun update_asset_state(config_ref: &mut DistributionConfig, total_staked: u64): u64 {        
+        let old_index = config_ref.index;
+        let last_updated = config_ref.last_updated;
+        let now = timestamp::now_microseconds();
+        if (now == last_updated) {
+            return old_index
+        };
+
+        let new_index = asset_index(old_index, config_ref.emission_per_sec, last_updated, total_staked);
+        if (new_index != old_index) {
+            config_ref.index = new_index;
+            // TODO: emit event
+        };
+        config_ref.last_updated = now;
+        new_index
+    }
+    fun asset_index(current_index: u64, emission_per_sec: u64, last_updated: u64, total_balance: u64): u64 {
+        let current_timestamp = timestamp::now_microseconds();
+        let time_delta = current_timestamp - last_updated;
+        emission_per_sec * time_delta * PRECISION / total_balance + current_index
+    }
+    fun rewards(user_balance: u64, reserve_index: u64, user_index: u64): u64 {
+         user_balance * (reserve_index - user_index) / PRECISION
     }
 
     public fun left(): u128 acquires StabilityPool {
