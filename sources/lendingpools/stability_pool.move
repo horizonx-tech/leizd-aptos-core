@@ -18,6 +18,7 @@ module leizd::stability_pool {
 
     const EALREADY_INITIALIZED: u64 = 1;
     const EINVALID_AMOUNT: u64 = 2;
+    const EEXCEED_REMAINING_AMOUNT: u64 = 3;
 
     struct StabilityPool has key {
         left: coin::Coin<USDZ>,
@@ -119,18 +120,20 @@ module leizd::stability_pool {
 
         let owner_address = permission::owner_address();
         let pool_ref = borrow_global_mut<StabilityPool>(owner_address);
-        
+
         pool_ref.total_deposited = pool_ref.total_deposited + (amount as u128);
+
         coin::merge(&mut pool_ref.left, coin::withdraw<USDZ>(account, amount));
-        if (!stb_usdz::is_account_registered(signer::address_of(account))) {
+        let account_addr = signer::address_of(account);
+        if (!stb_usdz::is_account_registered(account_addr)) {
             stb_usdz::register(account);
         };
-        stb_usdz::mint(signer::address_of(account), amount);
+        stb_usdz::mint(account_addr, amount);
         event::emit_event<DepositEvent>(
             &mut borrow_global_mut<StabilityPoolEventHandle>(owner_address).deposit_event,
             DepositEvent {
-                caller: signer::address_of(account),
-                depositor: signer::address_of(account),
+                caller: account_addr,
+                depositor: account_addr,
                 amount
             }
         );
@@ -140,16 +143,17 @@ module leizd::stability_pool {
         assert!(amount > 0, error::invalid_argument(EINVALID_AMOUNT));
         let owner_address = permission::owner_address();
         let pool_ref = borrow_global_mut<StabilityPool>(owner_address);
+        assert!(pool_ref.total_deposited >= (amount as u128), error::invalid_argument(EEXCEED_REMAINING_AMOUNT));
 
-        assert!(pool_ref.total_deposited >= (amount as u128), error::invalid_argument(EINVALID_AMOUNT));
         pool_ref.total_deposited = pool_ref.total_deposited - (amount as u128);
-        coin::deposit(signer::address_of(account), coin::extract(&mut pool_ref.left, amount));
+        let account_addr = signer::address_of(account);
+        coin::deposit(account_addr, coin::extract(&mut pool_ref.left, amount));
         stb_usdz::burn(account, amount);
         event::emit_event<WithdrawEvent>(
             &mut borrow_global_mut<StabilityPoolEventHandle>(owner_address).withdraw_event,
             WithdrawEvent {
-                caller: signer::address_of(account),
-                withdrawer: signer::address_of(account),
+                caller: account_addr,
+                withdrawer: account_addr,
                 amount
             }
         );
@@ -177,10 +181,11 @@ module leizd::stability_pool {
     }
 
     fun borrow_internal<C>(amount: u64): coin::Coin<USDZ> acquires StabilityPool, Balance {
+        assert!(amount > 0, error::invalid_argument(EINVALID_AMOUNT));
         let owner_address = permission::owner_address();
         let pool_ref = borrow_global_mut<StabilityPool>(owner_address);
         let balance_ref = borrow_global_mut<Balance<C>>(owner_address);
-        assert!(coin::value<USDZ>(&pool_ref.left) >= amount, 0);
+        assert!(coin::value<USDZ>(&pool_ref.left) >= amount, error::invalid_argument(EEXCEED_REMAINING_AMOUNT));
 
         let fee = stability_fee_amount(amount);
         balance_ref.total_borrowed = balance_ref.total_borrowed + (amount as u128) + (fee as u128);
@@ -335,6 +340,7 @@ module leizd::stability_pool {
     public entry fun test_initialize_without_owner(account: &signer) {
         initialize(account);
     }
+
     #[test_only]
     fun initialize_for_test_to_use_coin(owner: &signer) {
         let owner_addr = signer::address_of(owner);
@@ -346,7 +352,6 @@ module leizd::stability_pool {
         test_coin::init_weth(owner);
         init_pool<WETH>(owner);
     }
-
     // for deposit
     #[test(owner=@leizd,account=@0x111)]
     public entry fun test_deposit_to_stability_pool(owner: &signer, account: &signer) acquires StabilityPool, StabilityPoolEventHandle {
@@ -367,7 +372,7 @@ module leizd::stability_pool {
     }
     #[test(owner=@leizd,account1=@0x111)]
     #[expected_failure(abort_code = 65538)]
-    public entry fun test_deposit_to_stability_pool_with_amount_is_zero(owner: &signer, account1: &signer) acquires StabilityPool, StabilityPoolEventHandle {
+    public entry fun test_deposit_to_stability_pool_with_no_amount(owner: &signer, account1: &signer) acquires StabilityPool, StabilityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         let account1_addr = signer::address_of(account1);
         account::create_account_for_test(account1_addr);
@@ -376,6 +381,18 @@ module leizd::stability_pool {
         usdz::mint_for_test(account1_addr, 1000000);
 
         deposit(account1, 0);
+    }
+    #[test(owner=@leizd,account1=@0x111)]
+    #[expected_failure(abort_code = 65542)]
+    public entry fun test_deposit_to_stability_pool_with_not_enough_coin(owner: &signer, account1: &signer) acquires StabilityPool, StabilityPoolEventHandle {
+        initialize_for_test_to_use_coin(owner);
+        let account1_addr = signer::address_of(account1);
+        account::create_account_for_test(account1_addr);
+
+        managed_coin::register<USDZ>(account1);
+        usdz::mint_for_test(account1_addr, 1000);
+
+        deposit(account1, 1001);
     }
 
     // for withdraw
@@ -400,7 +417,7 @@ module leizd::stability_pool {
     }
     #[test(owner=@leizd,account1=@0x111)]
     #[expected_failure(abort_code = 65538)]
-    public entry fun test_withdraw_from_stability_pool_with_amount_is_zero(owner: &signer, account1: &signer) acquires StabilityPool, StabilityPoolEventHandle {
+    public entry fun test_withdraw_from_stability_pool_with_no_amount(owner: &signer, account1: &signer) acquires StabilityPool, StabilityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         let account1_addr = signer::address_of(account1);
         account::create_account_for_test(account1_addr);
@@ -444,7 +461,7 @@ module leizd::stability_pool {
         assert!(stb_usdz::balance_of(account_addr) == 0, 0);
     }
     #[test(owner=@leizd,account=@0x111)]
-    #[expected_failure(abort_code = 65538)]
+    #[expected_failure(abort_code = 65539)]
     public entry fun test_withdraw_with_amount_is_greater_than_total_deposited(owner: &signer, account: &signer) acquires StabilityPool, StabilityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         let account_addr = signer::address_of(account);
@@ -484,6 +501,32 @@ module leizd::stability_pool {
 
         assert!(event::counter<BorrowEvent>(&borrow_global<StabilityPoolEventHandle>(signer::address_of(owner)).borrow_event) == 1, 0);
     }
+    #[test(owner=@leizd, account=@0x111)]
+    #[expected_failure(abort_code = 65538)]
+    public entry fun test_borrow_from_stability_pool_with_no_amount(owner: &signer, account: &signer) acquires StabilityPool, Balance, StabilityPoolEventHandle {
+        initialize_for_test_to_use_coin(owner);
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+        managed_coin::register<USDZ>(account);
+
+        let coin = borrow<WETH>(account_addr, 0);
+
+        // post_process
+        coin::deposit(account_addr, coin);
+    }
+    #[test(owner=@leizd, account=@0x111)]
+    #[expected_failure(abort_code = 65539)]
+    public entry fun test_borrow_from_stability_pool_with_amount_is_greater_than_left(owner: &signer, account: &signer) acquires StabilityPool, Balance, StabilityPoolEventHandle {
+        initialize_for_test_to_use_coin(owner);
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+        managed_coin::register<USDZ>(account);
+
+        let coin = borrow<WETH>(account_addr, 1001);
+
+        // post_process
+        coin::deposit(account_addr, coin);
+    }
 
     // for repay
     #[test(owner=@leizd,account1=@0x111,account2=@0x222)]
@@ -514,5 +557,13 @@ module leizd::stability_pool {
         assert!(stb_usdz::balance_of(account1_addr) == 400000, 0);
 
         assert!(event::counter<RepayEvent>(&borrow_global<StabilityPoolEventHandle>(signer::address_of(owner)).repay_event) == 1, 0);
+    }
+
+    // for related configuration
+    #[test]
+    fun test_stability_fee_amount() {
+        assert!(stability_fee_amount(1000) == 5, 0);
+        assert!(stability_fee_amount(543200) == 2716, 0);
+        assert!(stability_fee_amount(100) == 0, 0); // TODO: round up
     }
 }
