@@ -206,24 +206,24 @@ module leizd::stability_pool {
         let balance_ref = borrow_global_mut<Balance<C>>(owner_address);
         assert!((amount as u128) <= balance_ref.total_borrowed, error::invalid_argument(EINVALID_AMOUNT));
 
+        balance_ref.total_borrowed = balance_ref.total_borrowed - (amount as u128);
         let pool_ref = borrow_global_mut<StabilityPool>(owner_address);
-
         if (balance_ref.uncollected_fee > 0) {
             // collect as fees at first
             if (balance_ref.uncollected_fee >= amount) {
-                balance_ref.total_borrowed = balance_ref.total_borrowed - (amount as u128);
+                // all amount to fee
                 balance_ref.uncollected_fee = balance_ref.uncollected_fee - amount;
                 coin::merge<USDZ>(&mut pool_ref.collected_fee, coin::withdraw<USDZ>(account, amount));
             } else {
+                // complete uncollected fee, and remaining amount to left
                 let to_fee = balance_ref.uncollected_fee;
                 let to_left = amount - to_fee;
-                balance_ref.total_borrowed = balance_ref.total_borrowed - (amount as u128);
                 balance_ref.uncollected_fee = 0;
                 coin::merge<USDZ>(&mut pool_ref.collected_fee, coin::withdraw<USDZ>(account, to_fee));
                 coin::merge<USDZ>(&mut pool_ref.left, coin::withdraw<USDZ>(account, to_left));
             }
         } else {
-            balance_ref.total_borrowed = balance_ref.total_borrowed - (amount as u128);
+            // all amount to left
             coin::merge<USDZ>(&mut pool_ref.left, coin::withdraw<USDZ>(account, amount));
         };
     }
