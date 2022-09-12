@@ -43,30 +43,27 @@ module leizd::stability_pool {
         deposited: u64,
     }
 
+    // events
     struct DepositEvent has store, drop {
         caller: address,
         depositor: address,
         amount: u64
     }
-
     struct WithdrawEvent has store, drop {
         caller: address,
         withdrawer: address,
         amount: u64
     }
-
     struct BorrowEvent has store, drop {
         caller: address,
         borrower: address,
         amount: u64
     }
-
     struct RepayEvent has store, drop {
         caller: address,
         repayer: address,
         amount: u64
     }
-
     struct StabilityPoolEventHandle has key, store {
         deposit_event: event::EventHandle<DepositEvent>,
         withdraw_event: event::EventHandle<WithdrawEvent>,
@@ -539,26 +536,27 @@ module leizd::stability_pool {
         let account2_addr = signer::address_of(account2);
         account::create_account_for_test(account1_addr);
         account::create_account_for_test(account2_addr);
-
-        managed_coin::register<WETH>(account1);
-        managed_coin::mint<WETH>(owner, account1_addr, 1000000);
-        managed_coin::register<WETH>(account2);
         managed_coin::register<USDZ>(account1);
         usdz::mint_for_test(account1_addr, 1000000);
         managed_coin::register<USDZ>(account2);
 
+        // check prerequisite
+        assert!(stability_fee_amount(1000) == 5, 0); // 5%
+
+        // execute
         deposit(account1, 400000);
         let borrowed = borrow_internal<WETH>(300000);
         coin::deposit(account2_addr, borrowed);
-        // let repayed = coin::withdraw<USDZ>(&account2, 200000);
         repay<WETH>(account2, 200000);
+
+        // check
         assert!(left() == 298500, 0);
         assert!(collected_fee() == 1500, 0);
         assert!(total_deposited() == 400000, 0);
         assert!(total_borrowed<WETH>() == 101500, 0);
         assert!(usdz::balance_of(account2_addr) == 100000, 0);
         assert!(stb_usdz::balance_of(account1_addr) == 400000, 0);
-
+        //// event
         assert!(event::counter<RepayEvent>(&borrow_global<StabilityPoolEventHandle>(signer::address_of(owner)).repay_event) == 1, 0);
     }
 
