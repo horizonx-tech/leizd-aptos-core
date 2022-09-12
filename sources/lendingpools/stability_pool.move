@@ -304,6 +304,10 @@ module leizd::stability_pool {
         borrow_global<Balance<C>>(permission::owner_address()).total_borrowed
     }
 
+    public fun uncollected_fee<C>(): u64 acquires Balance {
+        borrow_global<Balance<C>>(permission::owner_address()).uncollected_fee
+    }
+
     #[test_only]
     use aptos_framework::managed_coin;
     #[test_only]
@@ -558,6 +562,95 @@ module leizd::stability_pool {
         assert!(stb_usdz::balance_of(account1_addr) == 400000, 0);
         //// event
         assert!(event::counter<RepayEvent>(&borrow_global<StabilityPoolEventHandle>(signer::address_of(owner)).repay_event) == 1, 0);
+    }
+    #[test(owner=@leizd,depositor=@0x111,borrower=@0x222)]
+    public entry fun test_repay_for_confirming_priority(owner: &signer, depositor: &signer, borrower: &signer) acquires StabilityPool, Balance, StabilityPoolEventHandle {
+        initialize_for_test_to_use_coin(owner);
+        let depositor_addr = signer::address_of(depositor);
+        let borrower_addr = signer::address_of(borrower);
+        account::create_account_for_test(depositor_addr);
+        account::create_account_for_test(borrower_addr);
+        managed_coin::register<USDZ>(depositor);
+        usdz::mint_for_test(depositor_addr, 10000);
+        managed_coin::register<USDZ>(borrower);
+
+        // check prerequisite
+        assert!(stability_fee_amount(1000) == 5, 0); // 5%
+
+        // execute
+        //// add liquidity & borrow
+        deposit(depositor, 10000);
+        let borrowed = borrow_internal<WETH>(10000);
+        coin::deposit(borrower_addr, borrowed);
+        assert!(total_deposited() == 10000, 0);
+        assert!(left() == 0, 0);
+        assert!(collected_fee() == 0, 0);
+        assert!(total_borrowed<WETH>() == 10050, 0);
+        assert!(uncollected_fee<WETH>() == 50, 0);
+        assert!(stb_usdz::balance_of(depositor_addr) == 10000, 0);
+        assert!(usdz::balance_of(borrower_addr) == 10000, 0);
+        //// repay (take a priority to uncollected_fee)
+        repay_internal<WETH>(borrower, 49);
+        assert!(left() == 0, 0);
+        assert!(collected_fee() == 49, 0);
+        assert!(total_borrowed<WETH>() == 10001, 0);
+        assert!(uncollected_fee<WETH>() == 1, 0);
+        assert!(usdz::balance_of(borrower_addr) == 9951, 0);
+        ////// repay to remained uncollected_fee
+        repay_internal<WETH>(borrower, 1);
+        assert!(left() == 0, 0);
+        assert!(collected_fee() == 50, 0);
+        assert!(total_borrowed<WETH>() == 10000, 0);
+        assert!(uncollected_fee<WETH>() == 0, 0);
+        assert!(usdz::balance_of(borrower_addr) == 9950, 0);
+        //// repay to total_borrowed
+        repay_internal<WETH>(borrower, 9900);
+        assert!(left() == 9900, 0);
+        assert!(collected_fee() == 50, 0);
+        assert!(total_borrowed<WETH>() == 100, 0);
+        assert!(uncollected_fee<WETH>() == 0, 0);
+        assert!(usdz::balance_of(borrower_addr) == 50, 0);
+        ////// repay to remained total_borrowed
+        usdz::mint_for_test(borrower_addr, 50);
+        repay_internal<WETH>(borrower, 100);
+        assert!(left() == 10000, 0);
+        assert!(collected_fee() == 50, 0);
+        assert!(total_borrowed<WETH>() == 0, 0);
+        assert!(uncollected_fee<WETH>() == 0, 0);
+        assert!(usdz::balance_of(borrower_addr) == 0, 0);
+    }
+    #[test(owner=@leizd,depositor=@0x111,borrower=@0x222)]
+    public entry fun test_repay_with_amount_between_total_borrowed_and_uncollected_fee(owner: &signer, depositor: &signer, borrower: &signer) acquires StabilityPool, Balance, StabilityPoolEventHandle {
+        initialize_for_test_to_use_coin(owner);
+        let depositor_addr = signer::address_of(depositor);
+        let borrower_addr = signer::address_of(borrower);
+        account::create_account_for_test(depositor_addr);
+        account::create_account_for_test(borrower_addr);
+        managed_coin::register<USDZ>(depositor);
+        usdz::mint_for_test(depositor_addr, 10000);
+        managed_coin::register<USDZ>(borrower);
+
+        // check prerequisite
+        assert!(stability_fee_amount(1000) == 5, 0); // 5%
+
+        // execute
+        //// add liquidity & borrow
+        deposit(depositor, 10000);
+        let borrowed = borrow_internal<WETH>(10000);
+        coin::deposit(borrower_addr, borrowed);
+        assert!(total_deposited() == 10000, 0);
+        assert!(left() == 0, 0);
+        assert!(collected_fee() == 0, 0);
+        assert!(total_borrowed<WETH>() == 10050, 0);
+        assert!(uncollected_fee<WETH>() == 50, 0);
+        assert!(usdz::balance_of(borrower_addr) == 10000, 0);
+        //// repay
+        repay_internal<WETH>(borrower, 100);
+        assert!(left() == 50, 0);
+        assert!(collected_fee() == 50, 0);
+        assert!(total_borrowed<WETH>() == 9950, 0);
+        assert!(uncollected_fee<WETH>() == 0, 0);
+        assert!(usdz::balance_of(borrower_addr) == 9900, 0);
     }
 
     // for related configuration
