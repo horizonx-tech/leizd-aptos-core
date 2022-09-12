@@ -258,7 +258,7 @@ module leizd::stability_pool {
 
         let amount_to_claim = if (amount > unclaimed_reward) unclaimed_reward else amount;
         let user_mut_ref = borrow_global_mut<UserDistribution>(account_addr);
-        user_mut_ref.unclaimed = user_mut_ref.unclaimed - amount_to_claim;
+        user_mut_ref.unclaimed = unclaimed_reward - amount_to_claim;
 
         coin::deposit<USDZ>(account_addr, coin::extract(&mut pool_ref.collected_fee, amount_to_claim));
         // TODO: emit claim event
@@ -712,6 +712,38 @@ module leizd::stability_pool {
     #[test_only]
     fun init_user_distribution_for_test(account: &signer) { // TODO: temp (to be removed)
         move_to(account, default_user_distribution());
+    }
+    #[test(owner=@leizd, account=@0x111, aptos_framework=@aptos_framework)]
+    public entry fun test_claim_reward_temp(owner: &signer, account: &signer, aptos_framework: &signer) acquires Balance, StabilityPool, DistributionConfig, UserDistribution, StabilityPoolEventHandle {
+        timestamp::set_time_has_started_for_testing(aptos_framework);
+        initialize_for_test_to_use_coin(owner);
+        init_user_distribution_for_test(account);
+        let owner_addr = signer::address_of(owner);
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+        managed_coin::register<USDZ>(owner);
+        managed_coin::register<USDZ>(account);
+
+        // prepares (temp)
+        //// update config
+        let dist_config = borrow_global_mut<DistributionConfig>(owner_addr);
+        dist_config.emission_per_sec = 1;
+        let user_dist = borrow_global_mut<UserDistribution>(account_addr);
+        user_dist.deposited = 1500;
+        //// add to collected_fee
+        usdz::mint_for_test(owner_addr, 1505);
+        deposit(owner, 1500);
+        let borrowed = borrow<WETH>(owner_addr, 1000);
+        coin::deposit(owner_addr, borrowed);
+        repay<WETH>(owner, 1005);
+        assert!(total_borrowed<WETH>() == 0, 0);
+        assert!(collected_fee() == 5, 0);
+        // prepares
+        timestamp::update_global_time_for_test(10 * 1000 * 1000); // + 10 sec
+
+        // execute
+        claim_reward(account, 5);
+        assert!(usdz::balance_of(account_addr) == 5, 0);
     }
     #[test(owner=@leizd, account=@0x111, aptos_framework=@aptos_framework)]
     #[expected_failure(abort_code = 65540)]
