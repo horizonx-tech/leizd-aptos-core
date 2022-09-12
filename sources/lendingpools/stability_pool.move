@@ -263,9 +263,12 @@ module leizd::stability_pool {
     }
 
     fun repay_internal<C>(account: &signer, amount: u64) acquires StabilityPool, Balance {
+        assert!(amount > 0, error::invalid_argument(EINVALID_AMOUNT));
         let owner_address = permission::owner_address();
-        let pool_ref = borrow_global_mut<StabilityPool>(owner_address);
         let balance_ref = borrow_global_mut<Balance<C>>(owner_address);
+        assert!((amount as u128) <= balance_ref.total_borrowed, error::invalid_argument(EINVALID_AMOUNT));
+
+        let pool_ref = borrow_global_mut<StabilityPool>(owner_address);
 
         if (balance_ref.uncollected_fee > 0) {
             // collect as fees at first
@@ -563,6 +566,33 @@ module leizd::stability_pool {
         //// event
         assert!(event::counter<RepayEvent>(&borrow_global<StabilityPoolEventHandle>(signer::address_of(owner)).repay_event) == 1, 0);
     }
+    //// validations
+    #[test(owner=@leizd,account=@0x111)]
+    #[expected_failure(abort_code = 65538)]
+    public entry fun test_repay_with_zero_amount(owner: &signer, account: &signer) acquires StabilityPool, Balance, StabilityPoolEventHandle {
+        initialize_for_test_to_use_coin(owner);
+        repay<WETH>(account, 0);
+    }
+    #[test(owner=@leizd,account=@0x111)]
+    #[expected_failure(abort_code = 65538)]
+    public entry fun test_repay_with_amount_is_greater_than_total_borrowed(owner: &signer, account: &signer) acquires StabilityPool, Balance, StabilityPoolEventHandle {
+        initialize_for_test_to_use_coin(owner);
+        let owner_addr = signer::address_of(owner);
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+        managed_coin::register<USDZ>(owner);
+        managed_coin::register<USDZ>(account);
+        usdz::mint_for_test(owner_addr, 100);
+
+        // execute
+        deposit(owner, 50);
+        let borrowed = borrow<WETH>(owner_addr, 50);
+        repay<WETH>(account, 51);
+
+        // post_process
+        coin::deposit(owner_addr, borrowed);
+    }
+    //// calcuration
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222)]
     public entry fun test_repay_for_confirming_priority(owner: &signer, depositor: &signer, borrower: &signer) acquires StabilityPool, Balance, StabilityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
