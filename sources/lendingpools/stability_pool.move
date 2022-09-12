@@ -106,14 +106,18 @@ module leizd::stability_pool {
         });
     }
 
+    public fun default_user_distribution(): UserDistribution {
+        UserDistribution { 
+            index: 0,
+            unclaimed: 0,
+            deposited: 0,
+        }
+    }
+
     public entry fun deposit(account: &signer, amount: u64) acquires StabilityPool, StabilityPoolEventHandle {
         assert!(amount > 0, error::invalid_argument(EINVALID_AMOUNT));
         if (!exists<UserDistribution>(signer::address_of(account))) {
-            move_to(account, UserDistribution { 
-                index: 0, 
-                unclaimed: 0,
-                deposited: 0,
-            });
+            move_to(account, default_user_distribution());
         };
 
         let owner_address = permission::owner_address();
@@ -295,7 +299,6 @@ module leizd::stability_pool {
         coin::value<USDZ>(&borrow_global<StabilityPool>(permission::owner_address()).collected_fee)
     }
 
-
     public fun total_deposited(): u128 acquires StabilityPool {
         borrow_global<StabilityPool>(permission::owner_address()).total_deposited
     }
@@ -308,6 +311,11 @@ module leizd::stability_pool {
         borrow_global<Balance<C>>(permission::owner_address()).uncollected_fee
     }
 
+    public fun distribution_config(): (u64, u64, u64) acquires DistributionConfig {
+        let config = borrow_global<DistributionConfig>(permission::owner_address());
+        (config.emission_per_sec, config.last_updated, config.index)
+    }
+
     #[test_only]
     use aptos_framework::managed_coin;
     #[test_only]
@@ -316,6 +324,7 @@ module leizd::stability_pool {
     use leizd::usdz;
     #[test_only]
     use leizd::trove_manager;
+    // related initialize
     #[test(owner=@leizd)]
     public entry fun test_initialize(owner: &signer) {
         let owner_addr = signer::address_of(owner);
@@ -681,7 +690,19 @@ module leizd::stability_pool {
     }
 
     // for claim_reward
-    #[test(owner=@leizd,account=@0x111)]
+    #[test_only]
+    fun init_user_distribution_for_test(account: &signer) { // temp
+        move_to(account, default_user_distribution());
+    }
+    #[test(owner=@leizd, account=@0x111, aptos_framework=@aptos_framework)]
+    #[expected_failure(abort_code = 65540)]
+    public entry fun test_claim_reward_with_no_claimable(owner: &signer, account: &signer, aptos_framework: &signer) acquires StabilityPool, DistributionConfig, UserDistribution {
+        timestamp::set_time_has_started_for_testing(aptos_framework);
+        initialize_for_test_to_use_coin(owner);
+        init_user_distribution_for_test(account);
+        claim_reward(account, 100);
+    }
+    #[test(owner=@leizd, account=@0x111)]
     #[expected_failure(abort_code = 65538)]
     public entry fun test_claim_reward_with_zero_amount(owner: &signer, account: &signer) acquires StabilityPool, DistributionConfig, UserDistribution {
         initialize_for_test_to_use_coin(owner);
@@ -694,5 +715,16 @@ module leizd::stability_pool {
         assert!(stability_fee_amount(1000) == 5, 0);
         assert!(stability_fee_amount(543200) == 2716, 0);
         assert!(stability_fee_amount(100) == 0, 0); // TODO: round up
+    }
+    #[test(owner = @leizd)]
+    fun test_distribution_config(owner: &signer) acquires DistributionConfig {
+        account::create_account_for_test(signer::address_of(owner));
+        trove_manager::initialize(owner);
+        initialize(owner);
+
+        let (emission_per_sec, last_updated ,index) = distribution_config();
+        assert!(emission_per_sec == 0, 0);
+        assert!(last_updated == 0, 0);
+        assert!(index == 0, 0);
     }
 }
