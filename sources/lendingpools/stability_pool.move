@@ -269,7 +269,7 @@ module leizd::stability_pool {
     fun update_asset_state(config_ref: &mut DistributionConfig, total_staked: u64): u64 {        
         let old_index = config_ref.index;
         let last_updated = config_ref.last_updated;
-        let now = timestamp::now_microseconds();
+        let now = timestamp::now_seconds();
         if (now == last_updated) {
             return old_index
         };
@@ -283,7 +283,7 @@ module leizd::stability_pool {
         new_index
     }
     fun asset_index(current_index: u64, emission_per_sec: u64, last_updated: u64, total_balance: u64): u64 {
-        let current_timestamp = timestamp::now_microseconds();
+        let current_timestamp = timestamp::now_seconds();
         let time_delta = current_timestamp - last_updated;
         emission_per_sec * time_delta * PRECISION / total_balance + current_index
     }
@@ -316,6 +316,8 @@ module leizd::stability_pool {
         (config.emission_per_sec, config.last_updated, config.index)
     }
 
+    // #[test_only]
+    // use aptos_framework::debug;
     #[test_only]
     use aptos_framework::managed_coin;
     #[test_only]
@@ -691,7 +693,7 @@ module leizd::stability_pool {
 
     // for claim_reward
     #[test_only]
-    fun init_user_distribution_for_test(account: &signer) { // temp
+    fun init_user_distribution_for_test(account: &signer) { // TODO: temp (to be removed)
         move_to(account, default_user_distribution());
     }
     #[test(owner=@leizd, account=@0x111, aptos_framework=@aptos_framework)]
@@ -700,13 +702,48 @@ module leizd::stability_pool {
         timestamp::set_time_has_started_for_testing(aptos_framework);
         initialize_for_test_to_use_coin(owner);
         init_user_distribution_for_test(account);
-        claim_reward(account, 100);
+        claim_reward(account, 1);
     }
     #[test(owner=@leizd, account=@0x111)]
     #[expected_failure(abort_code = 65538)]
     public entry fun test_claim_reward_with_zero_amount(owner: &signer, account: &signer) acquires StabilityPool, DistributionConfig, UserDistribution {
         initialize_for_test_to_use_coin(owner);
         claim_reward(account, 0);
+    }
+    //// related functions
+    #[test(aptos_framework=@aptos_framework, stash=@0x999)]
+    fun test_update_asset_state(aptos_framework: &signer, stash: &signer) {
+        let total_staked = 100;
+        let emission_per_sec = 10;
+        let last_updated_per_sec = 1648738800; // 20220401T00:00:00
+        let distribution_config = DistributionConfig {
+            emission_per_sec,
+            last_updated: last_updated_per_sec,
+            index: 0,
+        };
+
+        // prepares
+        timestamp::set_time_has_started_for_testing(aptos_framework);
+        timestamp::update_global_time_for_test((last_updated_per_sec + 30) * 1000 * 1000); // + 30 sec
+
+        // execute
+        let new_index = update_asset_state(&mut distribution_config, total_staked);
+        assert!(new_index == emission_per_sec * 30 * PRECISION / total_staked, 0);
+
+        // post_process
+        move_to(stash, distribution_config);
+    }
+    #[test(aptos_framework=@aptos_framework)]
+    fun test_rewards_and_asset_index(aptos_framework: &signer) {
+        let last_updated_per_sec = 1648738800; // 20220401T00:00:00
+        let emission_per_sec = 10;
+        let total_balance = 100;
+
+        timestamp::set_time_has_started_for_testing(aptos_framework);
+        timestamp::update_global_time_for_test((last_updated_per_sec + 30) * 1000 * 1000); // + 30 sec
+        let index = asset_index(0, emission_per_sec, last_updated_per_sec, total_balance);
+        let rewards = rewards(total_balance / 4, index, 0);
+        assert!(rewards == emission_per_sec * 30 * 1 / 4, 0); // emission_per_sec * duration * 25% (user balance / total balance)
     }
 
     // for related configuration
