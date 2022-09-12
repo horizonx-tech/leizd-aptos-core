@@ -71,12 +71,19 @@ module leizd::stability_pool {
         emission_per_sec: u64,
         updated_at: u64,
     }
+    struct ClaimRewardEvent has store, drop {
+        caller: address,
+        deposited: u64,
+        claimed_amount: u64,
+        unclaimed: u64,
+    }
     struct StabilityPoolEventHandle has key, store {
         deposit_event: event::EventHandle<DepositEvent>,
         withdraw_event: event::EventHandle<WithdrawEvent>,
         borrow_event: event::EventHandle<BorrowEvent>,
         repay_event: event::EventHandle<RepayEvent>,
         update_state_event: event::EventHandle<UpdateStateEvent>,
+        claim_reward_event: event::EventHandle<ClaimRewardEvent>,
     }
 
     public entry fun initialize(owner: &signer) {
@@ -100,6 +107,7 @@ module leizd::stability_pool {
             borrow_event: account::new_event_handle<BorrowEvent>(owner),
             repay_event: account::new_event_handle<RepayEvent>(owner),
             update_state_event: account::new_event_handle<UpdateStateEvent>(owner),
+            claim_reward_event: account::new_event_handle<ClaimRewardEvent>(owner),
         });
     }
 
@@ -243,9 +251,10 @@ module leizd::stability_pool {
 
     public entry fun claim_reward(account: &signer, amount: u64) acquires DistributionConfig, UserDistribution, StabilityPool, StabilityPoolEventHandle {
         assert!(amount > 0, error::invalid_argument(EINVALID_AMOUNT));
-        let pool_ref = borrow_global_mut<StabilityPool>(permission::owner_address());
-        let user_ref = borrow_global<UserDistribution>(signer::address_of(account));
+        let owner_address = permission::owner_address();
+        let pool_ref = borrow_global_mut<StabilityPool>(owner_address);
         let account_addr = signer::address_of(account);
+        let user_ref = borrow_global<UserDistribution>(account_addr);
 
         let unclaimed_reward = user_ref.unclaimed;
         let staked_by_user = user_ref.deposited;
@@ -261,7 +270,15 @@ module leizd::stability_pool {
         user_mut_ref.unclaimed = unclaimed_reward - amount_to_claim;
 
         coin::deposit<USDZ>(account_addr, coin::extract(&mut pool_ref.collected_fee, amount_to_claim));
-        // TODO: emit claim event
+        event::emit_event<ClaimRewardEvent>(
+            &mut borrow_global_mut<StabilityPoolEventHandle>(owner_address).claim_reward_event,
+            ClaimRewardEvent {
+                caller: account_addr,
+                deposited: staked_by_user,
+                claimed_amount: amount_to_claim,
+                unclaimed: user_mut_ref.unclaimed,
+            }
+        );
     }
     fun update_user_asset(addr: address, staked_by_user: u64, total_staked: u64): u64 acquires DistributionConfig, UserDistribution, StabilityPoolEventHandle {
         let config_ref = borrow_global_mut<DistributionConfig>(permission::owner_address());
@@ -744,6 +761,7 @@ module leizd::stability_pool {
         // execute
         claim_reward(account, 5);
         assert!(usdz::balance_of(account_addr) == 5, 0);
+        assert!(event::counter<ClaimRewardEvent>(&borrow_global<StabilityPoolEventHandle>(owner_addr).claim_reward_event) == 1, 0);
     }
     #[test(owner=@leizd, account=@0x111, aptos_framework=@aptos_framework)]
     #[expected_failure(abort_code = 65540)]
@@ -783,6 +801,7 @@ module leizd::stability_pool {
             borrow_event: account::new_event_handle<BorrowEvent>(owner),
             repay_event: account::new_event_handle<RepayEvent>(owner),
             update_state_event: account::new_event_handle<UpdateStateEvent>(owner),
+            claim_reward_event: account::new_event_handle<ClaimRewardEvent>(owner),
         });
 
         // execute
@@ -818,6 +837,7 @@ module leizd::stability_pool {
             borrow_event: account::new_event_handle<BorrowEvent>(owner),
             repay_event: account::new_event_handle<RepayEvent>(owner),
             update_state_event: account::new_event_handle<UpdateStateEvent>(owner),
+            claim_reward_event: account::new_event_handle<ClaimRewardEvent>(owner),
         });
 
         // execute: proceed time, but no emission_per_sec
