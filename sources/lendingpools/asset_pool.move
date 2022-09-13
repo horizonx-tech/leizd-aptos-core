@@ -291,7 +291,7 @@ module leizd::asset_pool {
     }
 
     /// Repays an asset or a shadow for the borrowed position.
-    public entry fun repay<C>(
+    public(friend) fun repay<C>(
         account: &signer,
         amount: u64,
     ): u64 acquires Pool, Storage, PoolEventHandle {
