@@ -337,9 +337,12 @@ module leizd::shadow_pool {
         coin::merge(&mut pool_ref.shadow, withdrawn);
 
         storage_ref.total_borrowed = storage_ref.total_borrowed - (amount as u128);
-        let borrowed = simple_map::borrow_mut<String,u64>(&mut storage_ref.borrowed, &generate_coin_key<C>());
-        *borrowed = *borrowed - amount;
-
+        let repayed_to_stability_pool = repay_to_stability_pool<C>(account, amount);
+        if (amount > repayed_to_stability_pool) {
+            let remains = amount - repayed_to_stability_pool;
+            let borrowed = simple_map::borrow_mut<String,u64>(&mut storage_ref.borrowed, &generate_coin_key<C>());
+            *borrowed = *borrowed - remains;
+        };
         event::emit_event<RepayEvent>(
             &mut borrow_global_mut<PoolEventHandle>(owner_address).repay_event,
             RepayEvent {
@@ -371,15 +374,15 @@ module leizd::shadow_pool {
     /// Repays the shadow to the stability pool if someone has already borrowed from the pool.
     /// @return repaid amount
     fun repay_to_stability_pool<C>(account: &signer, amount: u64): u64 {
-        let left = stability_pool::left();
-        if (left == 0) {
+        let borrowed = stability_pool::total_borrowed<C>();
+        if (borrowed == 0) {
             return 0
-        } else if (left >= (amount as u128)) {
+        } else if (borrowed >= (amount as u128)) {
             stability_pool::repay<C>(account, amount);
             return amount
         } else {
-            stability_pool::repay<C>(account, (left as u64));
-            return (left as u64)
+            stability_pool::repay<C>(account, (borrowed as u64));
+            return (borrowed as u64)
         }
     }
 
