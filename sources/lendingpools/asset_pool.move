@@ -633,14 +633,17 @@ module leizd::asset_pool {
     }
 
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
-    public entry fun test_deposit_with_all_patterns(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+    public entry fun test_deposit_with_all_patterns_over_time(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
         managed_coin::register<WETH>(account);
         managed_coin::mint<WETH>(owner, account_addr, 10);
 
+        let initial_sec = 1648738800; // 20220401T00:00:00
+        timestamp::update_global_time_for_test(initial_sec * 1000 * 1000);
         deposit_for_internal<WETH>(account, account_addr, 1, false);
+        timestamp::update_global_time_for_test((initial_sec + 90) * 1000 * 1000); // + 90 sec
         deposit_for_internal<WETH>(account, account_addr, 2, true);
 
         assert!(total_deposited<WETH>() == 3, 0);
@@ -727,7 +730,7 @@ module leizd::asset_pool {
         assert!(total_borrowed<WETH>() == 0, 0);
     }
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
-    public entry fun test_withdraw_with_all_patterns(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+    public entry fun test_withdraw_with_all_patterns_over_time(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         price_oracle::initialize_with_fixed_price_for_test(owner);
 
@@ -736,10 +739,15 @@ module leizd::asset_pool {
         managed_coin::register<WETH>(account);
         managed_coin::mint<WETH>(owner, account_addr, 20);
 
+        let initial_sec = 1648738800; // 20220401T00:00:00
+        timestamp::update_global_time_for_test(initial_sec * 1000 * 1000);
         deposit_for_internal<WETH>(account, account_addr, 10, false);
+        timestamp::update_global_time_for_test((initial_sec + 150) * 1000 * 1000); // + 150 sec
         deposit_for_internal<WETH>(account, account_addr, 10, true);
 
+        timestamp::update_global_time_for_test((initial_sec + 300) * 1000 * 1000); // + 150 sec
         withdraw_for_internal<WETH>(account_addr, account_addr, 1, false, 0);
+        timestamp::update_global_time_for_test((initial_sec + 450) * 1000 * 1000); // + 150 sec
         withdraw_for_internal<WETH>(account_addr, account_addr, 2, true, 0);
 
         assert!(coin::balance<WETH>(account_addr) == 3, 0);
@@ -851,6 +859,39 @@ module leizd::asset_pool {
         borrow_for_internal<UNI>(borrower_addr, borrower_addr, 40);
         assert!(coin::balance<UNI>(borrower_addr) == 100, 0);
     }
+    // TODO: pass this test
+    // #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
+    // fun test_borrow_more_than_once_sequentially_over_time(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+    //     // TODO: consider HF
+    //     setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+    //     price_oracle::initialize_with_fixed_price_for_test(owner);
+
+    //     let depositor_addr = signer::address_of(depositor);
+    //     let borrower_addr = signer::address_of(borrower);
+    //     account::create_account_for_test(depositor_addr);
+    //     account::create_account_for_test(borrower_addr);
+    //     managed_coin::register<UNI>(depositor);
+    //     managed_coin::register<UNI>(borrower);
+    //     managed_coin::mint<UNI>(owner, depositor_addr, 100);
+
+    //     let initial_sec = 1648738800; // 20220401T00:00:00
+    //     // deposit UNI
+    //     timestamp::update_global_time_for_test(initial_sec * 1000 * 1000);
+    //     deposit_for_internal<UNI>(depositor, depositor_addr, 100, false);
+    //     // borrow UNI
+    //     timestamp::update_global_time_for_test((initial_sec + 250) * 1000 * 1000); // + 250 sec
+    //     borrow_for_internal<UNI>(borrower_addr, borrower_addr, 10);
+    //     assert!(coin::balance<UNI>(borrower_addr) == 10, 0);
+    //     timestamp::update_global_time_for_test((initial_sec + 500) * 1000 * 1000); // + 250 sec
+    //     borrow_for_internal<UNI>(borrower_addr, borrower_addr, 20);
+    //     assert!(coin::balance<UNI>(borrower_addr) == 30, 0);
+    //     timestamp::update_global_time_for_test((initial_sec + 750) * 1000 * 1000); // + 250 sec
+    //     borrow_for_internal<UNI>(borrower_addr, borrower_addr, 30); // fail here
+    //     assert!(coin::balance<UNI>(borrower_addr) == 60, 0);
+    //     timestamp::update_global_time_for_test((initial_sec + 1000) * 1000 * 1000); // + 250 sec
+    //     borrow_for_internal<UNI>(borrower_addr, borrower_addr, 40);
+    //     assert!(coin::balance<UNI>(borrower_addr) == 100, 0);
+    // }
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
     fun test_borrow_to_not_borrow_collateral_only(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
         // TODO: consider HF
