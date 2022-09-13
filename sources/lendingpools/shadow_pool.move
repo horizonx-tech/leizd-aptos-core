@@ -14,7 +14,6 @@ module leizd::shadow_pool {
     use leizd::treasury;
     use leizd::stability_pool;
     use leizd::risk_factor;
-    use leizd::account_position;
     use leizd::pool_status;
 
     friend leizd::money_market;
@@ -334,13 +333,10 @@ module leizd::shadow_pool {
         // TODO: accrue_interest<C,Shadow>(storage_ref);
 
         let account_addr = signer::address_of(account);
-        let debt_amount = account_position::borrowed_shadow<C>(account_addr);
-        let repaid_amount = if (amount >= debt_amount) debt_amount else amount;
-
-        let withdrawn = coin::withdraw<USDZ>(account, repaid_amount);
+        let withdrawn = coin::withdraw<USDZ>(account, amount);
         coin::merge(&mut pool_ref.shadow, withdrawn);
 
-        storage_ref.total_borrowed = storage_ref.total_borrowed - (repaid_amount as u128);
+        storage_ref.total_borrowed = storage_ref.total_borrowed - (amount as u128);
 
         event::emit_event<RepayEvent>(
             &mut borrow_global_mut<PoolEventHandle>(owner_address).repay_event,
@@ -351,7 +347,7 @@ module leizd::shadow_pool {
                 is_shadow: false
             },
         );
-        repaid_amount
+        amount
     }
 
     fun default_storage(): Storage {

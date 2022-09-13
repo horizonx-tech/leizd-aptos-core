@@ -22,7 +22,6 @@ module leizd::asset_pool {
     use leizd::pool_status;
     use leizd::constant;
     use leizd::dex_facade;
-    use leizd::account_position;
     use leizd::stability_pool;
 
     friend leizd::money_market;
@@ -299,7 +298,6 @@ module leizd::asset_pool {
         repay_internal<C>(account, amount)
     }
 
-
     fun repay_internal<C>(
         account: &signer,
         amount: u64,
@@ -314,10 +312,8 @@ module leizd::asset_pool {
         accrue_interest<C,Asset>(storage_ref);
 
         let account_addr = signer::address_of(account);
-        let debt_amount = account_position::borrowed_shadow<C>(account_addr);
-        let repaid_amount = if (amount >= debt_amount) debt_amount else amount;
-        storage_ref.total_borrowed = storage_ref.total_borrowed - (repaid_amount as u128);
-        let withdrawn = coin::withdraw<C>(account, repaid_amount);
+        storage_ref.total_borrowed = storage_ref.total_borrowed - (amount as u128);
+        let withdrawn = coin::withdraw<C>(account, amount);
         coin::merge(&mut pool_ref.asset, withdrawn);
 
         event::emit_event<RepayEvent>(
@@ -329,7 +325,7 @@ module leizd::asset_pool {
                 is_shadow: false
             },
         );
-        repaid_amount
+        amount
     }
 
     // public entry fun liquidate<C>(
