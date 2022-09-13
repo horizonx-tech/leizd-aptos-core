@@ -83,13 +83,78 @@ module leizd::prb_math {
         result
     }
 
+    // use std::debug;
+
     #[test]
     public entry fun test_exp2() {
+        let x = 1;
+        let expected = 1000000000;
+        x = (x << 64) / SCALE;
+        let result = exp2(x);
+        assert!(result == expected, 0);
+
+        let x = 10000;
+        let expected = 1000006931;
+        x = (x << 64) / SCALE;
+        let result = exp2(x);
+        assert!(result == expected, 0);
+
+        let x = 321200000;
+        let expected = 1249369313;
+        x = (x << 64) / SCALE;
+        let result = exp2(x);
+        assert!(result == expected, 0);
+
         let x = 500000000;
         let expected = 1414213562;
         x = (x << 64) / SCALE;
-
         let result = exp2(x);
         assert!(result == expected, 0);
+
+        let x = 1000000000;
+        let expected = 2000000000;
+        x = (x << 64) / SCALE;
+        let result = exp2(x);
+        assert!(result == expected, 0);
+
+        let x = 2000000000;
+        let expected = 4000000000;
+        x = (x << 64) / SCALE;
+        let result = exp2(x);
+        assert!(result == expected, 0);
+
+        let x = 2718281828;
+        let expected = 6580885988;
+        x = (x << 64) / SCALE;
+        let result = exp2(x);
+        assert!(result == expected, 0);
+
+        // TODO: check
+        // let x = 3141592653;
+        // let expected = 8824977827;
+        // x = (x << 64) / SCALE;
+        // let result = exp2(x);
+        // debug::print(&result);
+        // assert!(result == expected, 0);
+
+        let x = 4000000000;
+        let expected = 16000000000;
+        x = (x << 64) / SCALE;
+        let result = exp2(x);
+        assert!(result == expected, 0);
+
+        let x = 16000000000;
+        let expected = 65536000000000;
+        x = (x << 64) / SCALE;
+        let result = exp2(x);
+        assert!(result == expected, 0);
+
+        // TODO: check
+        // let x = 96000000000;
+        // let expected = 79228162514264337593543950336;
+        // x = (x << 64) / SCALE;
+        // let result = exp2(x);
+        // debug::print(&result);
+        // assert!(result == expected, 0);
     }
 }
