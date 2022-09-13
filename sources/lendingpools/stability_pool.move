@@ -440,6 +440,28 @@ module leizd::stability_pool {
 
         deposit(account1, 1001);
     }
+    #[test(owner=@leizd, account=@0x111)]
+    public entry fun test_deposit_to_stability_pool_more_than_once_sequentially(owner: &signer, account: &signer) acquires StabilityPool, StabilityPoolEventHandle {
+        initialize_for_test_to_use_coin(owner);
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+
+        managed_coin::register<USDZ>(account);
+        usdz::mint_for_test(account_addr, 1000);
+
+        deposit(account, 100);
+        assert!(usdz::balance_of(account_addr) == 900, 0);
+        assert!(stb_usdz::balance_of(account_addr) == 100, 0);
+        deposit(account, 200);
+        assert!(usdz::balance_of(account_addr) == 700, 0);
+        assert!(stb_usdz::balance_of(account_addr) == 300, 0);
+        deposit(account, 300);
+        assert!(usdz::balance_of(account_addr) == 400, 0);
+        assert!(stb_usdz::balance_of(account_addr) == 600, 0);
+        deposit(account, 400);
+        assert!(usdz::balance_of(account_addr) == 0, 0);
+        assert!(stb_usdz::balance_of(account_addr) == 1000, 0);
+    }
 
     // for withdraw
     #[test(owner=@leizd,account=@0x111)]
@@ -519,6 +541,29 @@ module leizd::stability_pool {
         deposit(account, 300000);
         withdraw(account, 300001);
     }
+    #[test(owner=@leizd, account=@0x111)]
+    public entry fun test_withdraw_more_than_once_sequentially(owner: &signer, account: &signer) acquires StabilityPool, StabilityPoolEventHandle {
+        initialize_for_test_to_use_coin(owner);
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+
+        managed_coin::register<USDZ>(account);
+        usdz::mint_for_test(account_addr, 1000);
+
+        deposit(account, 1000);
+        withdraw(account, 100);
+        assert!(usdz::balance_of(account_addr) == 100, 0);
+        assert!(stb_usdz::balance_of(account_addr) == 900, 0);
+        withdraw(account, 200);
+        assert!(usdz::balance_of(account_addr) == 300, 0);
+        assert!(stb_usdz::balance_of(account_addr) == 700, 0);
+        withdraw(account, 300);
+        assert!(usdz::balance_of(account_addr) == 600, 0);
+        assert!(stb_usdz::balance_of(account_addr) == 400, 0);
+        withdraw(account, 400);
+        assert!(usdz::balance_of(account_addr) == 1000, 0);
+        assert!(stb_usdz::balance_of(account_addr) == 0, 0);
+    }
 
     // for borrow
     #[test(owner=@leizd,account1=@0x111,account2=@0x222)]
@@ -575,6 +620,45 @@ module leizd::stability_pool {
 
         // post_process
         coin::deposit(account_addr, coin);
+    }
+    #[test(owner=@leizd,depositor=@0x111,borrower=@0x222)]
+    public entry fun test_borrow_more_than_once_sequentially(owner: &signer, depositor: &signer, borrower: &signer) acquires StabilityPool, Balance, StabilityPoolEventHandle {
+        initialize_for_test_to_use_coin(owner);
+        let depositor_addr = signer::address_of(depositor);
+        let borrower_addr = signer::address_of(borrower);
+        account::create_account_for_test(depositor_addr);
+        account::create_account_for_test(borrower_addr);
+
+        managed_coin::register<USDZ>(depositor);
+        usdz::mint_for_test(depositor_addr, 1000000);
+        managed_coin::register<USDZ>(borrower);
+
+        // check prerequisite
+        assert!(stability_fee_amount(1000) == 5, 0); // 5%
+
+        // execute
+        deposit(depositor, 400000);
+        assert!(total_deposited() == 400000, 0);
+
+        let borrowed = borrow<WETH>(depositor_addr, 100000);
+        assert!(left() == 300000, 0);
+        assert!(total_borrowed<WETH>() == ((100000 + stability_fee_amount(100000)) as u128), 0);
+        coin::deposit(borrower_addr, borrowed);
+
+        let borrowed = borrow<WETH>(depositor_addr, 100000);
+        assert!(left() == 200000, 0);
+        assert!(total_borrowed<WETH>() == ((200000 + stability_fee_amount(200000)) as u128), 0);
+        coin::deposit(borrower_addr, borrowed);
+
+        let borrowed = borrow<WETH>(depositor_addr, 100000);
+        assert!(left() == 100000, 0);
+        assert!(total_borrowed<WETH>() == ((300000 + stability_fee_amount(300000)) as u128), 0);
+        coin::deposit(borrower_addr, borrowed);
+
+        let borrowed = borrow<WETH>(depositor_addr, 100000);
+        assert!(left() == 0, 0);
+        assert!(total_borrowed<WETH>() == ((400000 + stability_fee_amount(400000)) as u128), 0);
+        coin::deposit(borrower_addr, borrowed);
     }
 
     // for repay
