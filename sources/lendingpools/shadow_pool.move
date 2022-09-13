@@ -14,7 +14,6 @@ module leizd::shadow_pool {
     use leizd::treasury;
     use leizd::stability_pool;
     use leizd::risk_factor;
-    use leizd::account_position;
     use leizd::pool_status;
 
     friend leizd::money_market;
@@ -334,13 +333,12 @@ module leizd::shadow_pool {
         // TODO: accrue_interest<C,Shadow>(storage_ref);
 
         let account_addr = signer::address_of(account);
-        let debt_amount = account_position::borrowed_shadow<C>(account_addr);
-        let repaid_amount = if (amount >= debt_amount) debt_amount else amount;
-
-        let withdrawn = coin::withdraw<USDZ>(account, repaid_amount);
+        let withdrawn = coin::withdraw<USDZ>(account, amount);
         coin::merge(&mut pool_ref.shadow, withdrawn);
 
-        storage_ref.total_borrowed = storage_ref.total_borrowed - (repaid_amount as u128);
+        storage_ref.total_borrowed = storage_ref.total_borrowed - (amount as u128);
+        let borrowed = simple_map::borrow_mut<String,u64>(&mut storage_ref.borrowed, &generate_coin_key<C>());
+        *borrowed = *borrowed - amount;
 
         event::emit_event<RepayEvent>(
             &mut borrow_global_mut<PoolEventHandle>(owner_address).repay_event,
@@ -351,7 +349,7 @@ module leizd::shadow_pool {
                 is_shadow: false
             },
         );
-        repaid_amount
+        amount
     }
 
     fun default_storage(): Storage {
@@ -853,7 +851,198 @@ module leizd::shadow_pool {
     }
 
     // for repay
-    // public entry fun test_repay // TODO
+    #[test_only]
+    fun pool_shadow_value(addr: address): u64 acquires Pool {
+        coin::value(&borrow_global<Pool>(addr).shadow)
+    }
+    #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
+    public entry fun test_repay(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+        // TODO: consider HF
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        price_oracle::initialize_with_fixed_price_for_test(owner);
+
+        let owner_address = signer::address_of(owner);
+        let depositor_addr = signer::address_of(depositor);
+        let borrower_addr = signer::address_of(borrower);
+        account::create_account_for_test(depositor_addr);
+        account::create_account_for_test(borrower_addr);
+        managed_coin::register<USDZ>(depositor);
+        managed_coin::register<USDZ>(borrower);
+
+        // Check status before repay
+        assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
+
+        // execute
+        usdz::mint_for_test(depositor_addr, 1005);
+        deposit_for_internal<UNI>(depositor, depositor_addr, 1005, false);
+        assert!(pool_shadow_value(owner_address) == 1005, 0);
+        assert!(borrowed<UNI>() == 0, 0);
+        borrow_for<UNI>(borrower_addr, borrower_addr, 1000);
+        assert!(pool_shadow_value(owner_address) == 0, 0);
+        assert!(borrowed<UNI>() == 1000, 0);
+        assert!(coin::balance<USDZ>(borrower_addr) == 1000, 0);
+        let repaid_amount = repay<UNI>(borrower, 900);
+        assert!(repaid_amount == 900, 0);
+        assert!(pool_shadow_value(owner_address) == 900, 0);
+        assert!(borrowed<UNI>() == 100, 0);
+        assert!(coin::balance<USDZ>(borrower_addr) == 100, 0);
+
+        let event_handle = borrow_global<PoolEventHandle>(signer::address_of(owner));
+        assert!(event::counter<RepayEvent>(&event_handle.repay_event) == 1, 0);
+    }
+    #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
+    public entry fun test_repay_with_same_as_total_borrowed_amount(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+        // TODO: consider HF
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        price_oracle::initialize_with_fixed_price_for_test(owner);
+
+        let owner_address = signer::address_of(owner);
+        let depositor_addr = signer::address_of(depositor);
+        let borrower_addr = signer::address_of(borrower);
+        account::create_account_for_test(depositor_addr);
+        account::create_account_for_test(borrower_addr);
+        managed_coin::register<USDZ>(depositor);
+        managed_coin::register<USDZ>(borrower);
+
+        // Check status before repay
+        assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
+
+        // execute
+        usdz::mint_for_test(depositor_addr, 1005);
+        deposit_for_internal<UNI>(depositor, depositor_addr, 1005, false);
+        borrow_for<UNI>(borrower_addr, borrower_addr, 1000);
+        let repaid_amount = repay<UNI>(borrower, 1000);
+        assert!(repaid_amount == 1000, 0);
+        assert!(pool_shadow_value(owner_address) == 1000, 0);
+        assert!(borrowed<UNI>() == 0, 0);
+        assert!(coin::balance<USDZ>(borrower_addr) == 0, 0);
+    }
+    #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
+    #[expected_failure(abort_code = 65542)]
+    public entry fun test_repay_with_more_than_total_borrowed_amount(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+        // TODO: consider HF
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        price_oracle::initialize_with_fixed_price_for_test(owner);
+
+        let depositor_addr = signer::address_of(depositor);
+        let borrower_addr = signer::address_of(borrower);
+        account::create_account_for_test(depositor_addr);
+        account::create_account_for_test(borrower_addr);
+        managed_coin::register<USDZ>(depositor);
+        managed_coin::register<USDZ>(borrower);
+
+        // Check status before repay
+        assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
+
+        // execute
+        usdz::mint_for_test(depositor_addr, 1005);
+        deposit_for_internal<UNI>(depositor, depositor_addr, 1005, false);
+        borrow_for<UNI>(borrower_addr, borrower_addr, 250);
+        repay<UNI>(borrower, 251);
+    }
+    #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
+    public entry fun test_repay_more_than_once_sequentially(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+        // TODO: consider HF
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        price_oracle::initialize_with_fixed_price_for_test(owner);
+
+        let owner_address = signer::address_of(owner);
+        let depositor_addr = signer::address_of(depositor);
+        let borrower_addr = signer::address_of(borrower);
+        account::create_account_for_test(depositor_addr);
+        account::create_account_for_test(borrower_addr);
+        managed_coin::register<USDZ>(depositor);
+        managed_coin::register<USDZ>(borrower);
+
+        // Check status before repay
+        assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
+
+        // execute
+        usdz::mint_for_test(depositor_addr, 1005);
+        deposit_for_internal<UNI>(depositor, depositor_addr, 1005, false);
+        assert!(pool_shadow_value(owner_address) == 1005, 0);
+        borrow_for<UNI>(borrower_addr, borrower_addr, 1000);
+        assert!(pool_shadow_value(owner_address) == 0, 0);
+        let repaid_amount = repay<UNI>(borrower, 100);
+        assert!(repaid_amount == 100, 0);
+        assert!(pool_shadow_value(owner_address) == 100, 0);
+        assert!(borrowed<UNI>() == 900, 0);
+        assert!(coin::balance<USDZ>(borrower_addr) == 900, 0);
+        let repaid_amount = repay<UNI>(borrower, 200);
+        assert!(repaid_amount == 200, 0);
+        assert!(pool_shadow_value(owner_address) == 300, 0);
+        assert!(borrowed<UNI>() == 700, 0);
+        assert!(coin::balance<USDZ>(borrower_addr) == 700, 0);
+        let repaid_amount = repay<UNI>(borrower, 300);
+        assert!(repaid_amount == 300, 0);
+        assert!(pool_shadow_value(owner_address) == 600, 0);
+        assert!(borrowed<UNI>() == 400, 0);
+        assert!(coin::balance<USDZ>(borrower_addr) == 400, 0);
+        let repaid_amount = repay<UNI>(borrower, 400);
+        assert!(repaid_amount == 400, 0);
+        assert!(pool_shadow_value(owner_address) == 1000, 0);
+        assert!(borrowed<UNI>() == 0, 0);
+        assert!(coin::balance<USDZ>(borrower_addr) == 0, 0);
+
+        let event_handle = borrow_global<PoolEventHandle>(signer::address_of(owner));
+        assert!(event::counter<RepayEvent>(&event_handle.repay_event) == 4, 0);
+    }
+    #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
+    public entry fun test_repay_more_than_once_sequentially_over_time(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+        // TODO: consider HF
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        price_oracle::initialize_with_fixed_price_for_test(owner);
+
+        let owner_address = signer::address_of(owner);
+        let depositor_addr = signer::address_of(depositor);
+        let borrower_addr = signer::address_of(borrower);
+        account::create_account_for_test(depositor_addr);
+        account::create_account_for_test(borrower_addr);
+        managed_coin::register<USDZ>(depositor);
+        managed_coin::register<USDZ>(borrower);
+
+        // Check status before repay
+        assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
+
+        // execute
+        usdz::mint_for_test(depositor_addr, 1005);
+
+        let initial_sec = 1648738800; // 20220401T00:00:00
+        timestamp::update_global_time_for_test(initial_sec * 1000 * 1000);
+        deposit_for_internal<UNI>(depositor, depositor_addr, 1005, false);
+        assert!(pool_shadow_value(owner_address) == 1005, 0);
+        timestamp::update_global_time_for_test((initial_sec + 80) * 1000 * 1000); // + 80 sec
+        borrow_for<UNI>(borrower_addr, borrower_addr, 1000);
+        assert!(pool_shadow_value(owner_address) == 0, 0);
+
+        timestamp::update_global_time_for_test((initial_sec + 160) * 1000 * 1000); // + 80 sec
+        let repaid_amount = repay<UNI>(borrower, 100);
+        assert!(repaid_amount == 100, 0);
+        assert!(pool_shadow_value(owner_address) == 100, 0);
+        assert!(borrowed<UNI>() == 900, 0);
+        assert!(coin::balance<USDZ>(borrower_addr) == 900, 0);
+        timestamp::update_global_time_for_test((initial_sec + 240) * 1000 * 1000); // + 80 sec
+        let repaid_amount = repay<UNI>(borrower, 200);
+        assert!(repaid_amount == 200, 0);
+        assert!(pool_shadow_value(owner_address) == 300, 0);
+        assert!(borrowed<UNI>() == 700, 0);
+        assert!(coin::balance<USDZ>(borrower_addr) == 700, 0);
+        timestamp::update_global_time_for_test((initial_sec + 320) * 1000 * 1000); // + 80 sec
+        let repaid_amount = repay<UNI>(borrower, 300);
+        assert!(repaid_amount == 300, 0);
+        assert!(pool_shadow_value(owner_address) == 600, 0);
+        assert!(borrowed<UNI>() == 400, 0);
+        assert!(coin::balance<USDZ>(borrower_addr) == 400, 0);
+        timestamp::update_global_time_for_test((initial_sec + 400) * 1000 * 1000); // + 80 sec
+        let repaid_amount = repay<UNI>(borrower, 400);
+        assert!(repaid_amount == 400, 0);
+        assert!(pool_shadow_value(owner_address) == 1000, 0);
+        assert!(borrowed<UNI>() == 0, 0);
+        assert!(coin::balance<USDZ>(borrower_addr) == 0, 0);
+
+        let event_handle = borrow_global<PoolEventHandle>(signer::address_of(owner));
+        assert!(event::counter<RepayEvent>(&event_handle.repay_event) == 4, 0);
+    }
 
     // rebalance shadow
     #[test(owner=@leizd,account1=@0x111,aptos_framework=@aptos_framework)]
