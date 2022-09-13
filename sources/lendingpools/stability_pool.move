@@ -416,29 +416,29 @@ module leizd::stability_pool {
 
         assert!(event::counter<DepositEvent>(&borrow_global<StabilityPoolEventHandle>(signer::address_of(owner)).deposit_event) == 1, 0);
     }
-    #[test(owner=@leizd,account1=@0x111)]
+    #[test(owner=@leizd,account=@0x111)]
     #[expected_failure(abort_code = 65538)]
-    public entry fun test_deposit_to_stability_pool_with_no_amount(owner: &signer, account1: &signer) acquires StabilityPool, StabilityPoolEventHandle {
+    public entry fun test_deposit_to_stability_pool_with_no_amount(owner: &signer, account: &signer) acquires StabilityPool, StabilityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
-        let account1_addr = signer::address_of(account1);
-        account::create_account_for_test(account1_addr);
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
 
-        managed_coin::register<USDZ>(account1);
-        usdz::mint_for_test(account1_addr, 1000000);
+        managed_coin::register<USDZ>(account);
+        usdz::mint_for_test(account_addr, 1000000);
 
-        deposit(account1, 0);
+        deposit(account, 0);
     }
-    #[test(owner=@leizd,account1=@0x111)]
+    #[test(owner=@leizd,account=@0x111)]
     #[expected_failure(abort_code = 65542)]
-    public entry fun test_deposit_to_stability_pool_with_not_enough_coin(owner: &signer, account1: &signer) acquires StabilityPool, StabilityPoolEventHandle {
+    public entry fun test_deposit_to_stability_pool_with_not_enough_coin(owner: &signer, account: &signer) acquires StabilityPool, StabilityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
-        let account1_addr = signer::address_of(account1);
-        account::create_account_for_test(account1_addr);
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
 
-        managed_coin::register<USDZ>(account1);
-        usdz::mint_for_test(account1_addr, 1000);
+        managed_coin::register<USDZ>(account);
+        usdz::mint_for_test(account_addr, 1000);
 
-        deposit(account1, 1001);
+        deposit(account, 1001);
     }
     #[test(owner=@leizd, account=@0x111)]
     public entry fun test_deposit_to_stability_pool_more_than_once_sequentially(owner: &signer, account: &signer) acquires StabilityPool, StabilityPoolEventHandle {
@@ -483,18 +483,18 @@ module leizd::stability_pool {
 
         assert!(event::counter<WithdrawEvent>(&borrow_global<StabilityPoolEventHandle>(signer::address_of(owner)).withdraw_event) == 1, 0);
     }
-    #[test(owner=@leizd,account1=@0x111)]
+    #[test(owner=@leizd,account=@0x111)]
     #[expected_failure(abort_code = 65538)]
-    public entry fun test_withdraw_from_stability_pool_with_no_amount(owner: &signer, account1: &signer) acquires StabilityPool, StabilityPoolEventHandle {
+    public entry fun test_withdraw_from_stability_pool_with_no_amount(owner: &signer, account: &signer) acquires StabilityPool, StabilityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
-        let account1_addr = signer::address_of(account1);
-        account::create_account_for_test(account1_addr);
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
 
-        managed_coin::register<USDZ>(account1);
-        usdz::mint_for_test(account1_addr, 1000000);
+        managed_coin::register<USDZ>(account);
+        usdz::mint_for_test(account_addr, 1000000);
 
-        deposit(account1, 400000);
-        withdraw(account1, 0);
+        deposit(account, 400000);
+        withdraw(account, 0);
     }
     #[test(owner=@leizd,account1=@0x111,account2=@0x222)]
     #[expected_failure(abort_code = 65542)]
