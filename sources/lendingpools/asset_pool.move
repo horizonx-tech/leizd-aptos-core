@@ -855,39 +855,38 @@ module leizd::asset_pool {
         borrow_for_internal<UNI>(borrower_addr, borrower_addr, 40);
         assert!(coin::balance<UNI>(borrower_addr) == 100, 0);
     }
-    // TODO: pass this test
-    // #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
-    // fun test_borrow_more_than_once_sequentially_over_time(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
-    //     // TODO: consider HF
-    //     setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
-    //     price_oracle::initialize_with_fixed_price_for_test(owner);
+    #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
+    fun test_borrow_more_than_once_sequentially_over_time(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+        // TODO: consider HF
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        price_oracle::initialize_with_fixed_price_for_test(owner);
 
-    //     let depositor_addr = signer::address_of(depositor);
-    //     let borrower_addr = signer::address_of(borrower);
-    //     account::create_account_for_test(depositor_addr);
-    //     account::create_account_for_test(borrower_addr);
-    //     managed_coin::register<UNI>(depositor);
-    //     managed_coin::register<UNI>(borrower);
-    //     managed_coin::mint<UNI>(owner, depositor_addr, 100);
+        let depositor_addr = signer::address_of(depositor);
+        let borrower_addr = signer::address_of(borrower);
+        account::create_account_for_test(depositor_addr);
+        account::create_account_for_test(borrower_addr);
+        managed_coin::register<UNI>(depositor);
+        managed_coin::register<UNI>(borrower);
+        managed_coin::mint<UNI>(owner, depositor_addr, 100);
 
-    //     let initial_sec = 1648738800; // 20220401T00:00:00
-    //     // deposit UNI
-    //     timestamp::update_global_time_for_test(initial_sec * 1000 * 1000);
-    //     deposit_for_internal<UNI>(depositor, depositor_addr, 100, false);
-    //     // borrow UNI
-    //     timestamp::update_global_time_for_test((initial_sec + 250) * 1000 * 1000); // + 250 sec
-    //     borrow_for_internal<UNI>(borrower_addr, borrower_addr, 10);
-    //     assert!(coin::balance<UNI>(borrower_addr) == 10, 0);
-    //     timestamp::update_global_time_for_test((initial_sec + 500) * 1000 * 1000); // + 250 sec
-    //     borrow_for_internal<UNI>(borrower_addr, borrower_addr, 20);
-    //     assert!(coin::balance<UNI>(borrower_addr) == 30, 0);
-    //     timestamp::update_global_time_for_test((initial_sec + 750) * 1000 * 1000); // + 250 sec
-    //     borrow_for_internal<UNI>(borrower_addr, borrower_addr, 30); // fail here
-    //     assert!(coin::balance<UNI>(borrower_addr) == 60, 0);
-    //     timestamp::update_global_time_for_test((initial_sec + 1000) * 1000 * 1000); // + 250 sec
-    //     borrow_for_internal<UNI>(borrower_addr, borrower_addr, 40);
-    //     assert!(coin::balance<UNI>(borrower_addr) == 100, 0);
-    // }
+        let initial_sec = 1648738800; // 20220401T00:00:00
+        // deposit UNI
+        timestamp::update_global_time_for_test(initial_sec * 1000 * 1000);
+        deposit_for_internal<UNI>(depositor, depositor_addr, 100, false);
+        // borrow UNI
+        timestamp::update_global_time_for_test((initial_sec + 250) * 1000 * 1000); // + 250 sec
+        borrow_for_internal<UNI>(borrower_addr, borrower_addr, 10);
+        assert!(coin::balance<UNI>(borrower_addr) == 10, 0);
+        timestamp::update_global_time_for_test((initial_sec + 500) * 1000 * 1000); // + 250 sec
+        borrow_for_internal<UNI>(borrower_addr, borrower_addr, 20);
+        assert!(coin::balance<UNI>(borrower_addr) == 30, 0);
+        // timestamp::update_global_time_for_test((initial_sec + 750) * 1000 * 1000); // + 250 sec
+        // borrow_for_internal<UNI>(borrower_addr, borrower_addr, 30); // TODO: fail here
+        // assert!(coin::balance<UNI>(borrower_addr) == 60, 0);
+        // timestamp::update_global_time_for_test((initial_sec + 1000) * 1000 * 1000); // + 250 sec
+        // borrow_for_internal<UNI>(borrower_addr, borrower_addr, 40);
+        // assert!(coin::balance<UNI>(borrower_addr) == 100, 0);
+    }
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
     fun test_borrow_to_not_borrow_collateral_only(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
         // TODO: consider HF
