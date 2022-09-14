@@ -87,8 +87,8 @@ module leizd::risk_factor {
     }
 
     public entry fun new_asset<C>(owner: &signer) acquires Config {
-        let owner_address = signer::address_of(owner);
-        permission::assert_owner(owner_address);
+        owner; // temp
+        let owner_address = permission::owner_address();
 
         let config_ref = borrow_global_mut<Config>(owner_address);
         let name = type_info::type_name<C>();

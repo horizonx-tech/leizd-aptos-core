@@ -108,7 +108,6 @@ module leizd::asset_pool {
     }
 
     fun init_pool_internal<C>(owner: &signer) {
-        permission::assert_owner(signer::address_of(owner));
         assert!(!is_pool_initialized<C>(), E_IS_ALREADY_EXISTED);
         assert!(dex_facade::has_liquidity<C>(), E_DEX_DOES_NOT_HAVE_LIQUIDITY);
 
