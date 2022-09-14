@@ -42,19 +42,16 @@ module leizd::shadow_pool {
     // Events
     struct DepositEvent has store, drop {
         caller: address,
-        depositor: address,
+        receiver: address,
         amount: u64,
         is_collateral_only: bool,
-        is_shadow: bool,
     }
 
     struct WithdrawEvent has store, drop {
         caller: address,
-        depositor: address,
         receiver: address,
         amount: u64,
         is_collateral_only: bool,
-        is_shadow: bool,
     }
     
     struct BorrowEvent has store, drop {
@@ -62,20 +59,17 @@ module leizd::shadow_pool {
         borrower: address,
         receiver: address,
         amount: u64,
-        is_shadow: bool,
     }
     
     struct RepayEvent has store, drop {
         caller: address,
-        repayer: address,
+        repay_target: address,
         amount: u64,
-        is_shadow: bool,
     }
     
     struct LiquidateEvent has store, drop {
         caller: address,
         target: address,
-        is_shadow: bool,
     }
     
     struct PoolEventHandle has key, store {
@@ -107,16 +101,16 @@ module leizd::shadow_pool {
 
     public(friend) fun deposit_for<C>(
         account: &signer,
-        depositor_addr: address,
+        for_address: address, // TODO: use to control target deposited
         amount: u64,
         is_collateral_only: bool
     ) acquires Pool, Storage, PoolEventHandle {
-        deposit_for_internal<C>(account, depositor_addr, amount, is_collateral_only);
+        deposit_for_internal<C>(account, for_address, amount, is_collateral_only);
     }
 
     fun deposit_for_internal<C>(
         account: &signer,
-        depositor_addr: address,
+        for_address: address,
         amount: u64,
         is_collateral_only: bool
     ) acquires Pool, Storage, PoolEventHandle {
@@ -153,10 +147,9 @@ module leizd::shadow_pool {
             &mut borrow_global_mut<PoolEventHandle>(owner_address).deposit_event,
             DepositEvent {
                 caller: signer::address_of(account),
-                depositor: depositor_addr,
+                receiver: for_address,
                 amount,
                 is_collateral_only,
-                is_shadow: false,
             },
         );
     }
@@ -266,11 +259,9 @@ module leizd::shadow_pool {
             &mut borrow_global_mut<PoolEventHandle>(owner_address).withdraw_event,
             WithdrawEvent {
                 caller: depositor_addr,
-                depositor: depositor_addr,
                 receiver: reciever_addr,
                 amount,
                 is_collateral_only,
-                is_shadow: false
             },
         );
         (withdrawn_amount as u64)
@@ -326,7 +317,6 @@ module leizd::shadow_pool {
                 borrower: borrower_addr,
                 receiver: receiver_addr,
                 amount,
-                is_shadow: false
             },
         );
     }
@@ -360,9 +350,8 @@ module leizd::shadow_pool {
             &mut borrow_global_mut<PoolEventHandle>(owner_address).repay_event,
             RepayEvent {
                 caller: account_addr,
-                repayer: account_addr,
+                repay_target: account_addr,
                 amount,
-                is_shadow: false
             },
         );
         amount
