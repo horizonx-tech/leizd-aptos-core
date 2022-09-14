@@ -3,6 +3,7 @@ module leizd::pool_manager {
   use std::signer;
   use std::string::{String};
   use aptos_std::simple_map;
+  use aptos_framework::coin;
   use aptos_framework::type_info::{Self, TypeInfo};
   use leizd::asset_pool;
   use leizd::permission;
@@ -28,6 +29,7 @@ module leizd::pool_manager {
 
   public entry fun add_pool<C>(holder: &signer) acquires PoolList {
     assert!(!is_exist<C>(), 0);
+    assert!(coin::is_coin_initialized<C>(), 0);
     let pool_list = borrow_global_mut<PoolList>(permission::owner_address());
     asset_pool::init_pool<C>(holder);
     
@@ -114,6 +116,15 @@ module leizd::pool_manager {
 
     initialize(owner);
     add_pool<WETH>(account);
+    add_pool<WETH>(account);
+  }
+  #[test(owner = @leizd, account = @0x111)]
+  fun test_add_pool_with_not_initilized_coin(owner: &signer, account: &signer) acquires PoolList {
+    account::create_account_for_test(signer::address_of(owner));
+    account::create_account_for_test(signer::address_of(account));
+    risk_factor::initialize(owner);
+
+    initialize(owner);
     add_pool<WETH>(account);
   }
 }
