@@ -8,6 +8,7 @@ module leizd::shadow_pool {
     use aptos_framework::coin;
     use aptos_framework::type_info;
     use aptos_framework::account;
+    use aptos_framework::timestamp;
     use leizd::usdz::{USDZ};
     use leizd::permission;
     use leizd::constant;
@@ -15,6 +16,8 @@ module leizd::shadow_pool {
     use leizd::stability_pool;
     use leizd::risk_factor;
     use leizd::pool_status;
+    use leizd::interest_rate;
+
 
     friend leizd::money_market;
 
@@ -33,6 +36,8 @@ module leizd::shadow_pool {
         deposited: simple_map::SimpleMap<String,u64>, // borrowable + collateral only
         conly_deposited: simple_map::SimpleMap<String,u64>, // collateral only
         borrowed: simple_map::SimpleMap<String,u64>,
+        last_updated: u64,
+        protocol_fees: u64,
     }
 
     // Events
@@ -123,7 +128,7 @@ module leizd::shadow_pool {
         let storage_ref = borrow_global_mut<Storage>(owner_address);
         let pool_ref = borrow_global_mut<Pool>(owner_address);
 
-        // TODO: accrue_interest<C,Shadow>(storage_ref);
+        accrue_interest<C>(storage_ref);
 
         let key = generate_coin_key<C>();
         coin::merge(&mut pool_ref.shadow, coin::withdraw<USDZ>(account, amount));
@@ -229,7 +234,7 @@ module leizd::shadow_pool {
         let pool_ref = borrow_global_mut<Pool>(owner_address);
         let storage_ref = borrow_global_mut<Storage>(owner_address);
 
-        // TODO: accrue_interest<C,Shadow>(storage_ref);
+        accrue_interest<C>(storage_ref);
         collect_shadow_fee<C>(pool_ref, liquidation_fee);
 
         let amount_to_transfer = amount - liquidation_fee;
@@ -284,7 +289,7 @@ module leizd::shadow_pool {
         let pool_ref = borrow_global_mut<Pool>(owner_address);
         let storage_ref = borrow_global_mut<Storage>(owner_address);
 
-        // accrue_interest<C,Shadow>(storage_ref);
+        accrue_interest<C>(storage_ref);
 
         let fee = calculate_entry_fee(amount);
         collect_shadow_fee<C>(pool_ref, fee);
@@ -338,7 +343,7 @@ module leizd::shadow_pool {
         let storage_ref = borrow_global_mut<Storage>(owner_address);
         let pool_ref = borrow_global_mut<Pool>(owner_address);
 
-        // TODO: accrue_interest<C,Shadow>(storage_ref);
+        accrue_interest<C>(storage_ref);
 
         // at first, repay to stability_pool
         let repayed_to_stability_pool = repay_to_stability_pool<C>(account, amount);
@@ -372,6 +377,8 @@ module leizd::shadow_pool {
             deposited: simple_map::create<String,u64>(),
             conly_deposited: simple_map::create<String,u64>(),
             borrowed: simple_map::create<String,u64>(),
+            last_updated: 0,
+            protocol_fees: 0,
         }
     }
 
@@ -396,6 +403,38 @@ module leizd::shadow_pool {
             stability_pool::repay<C>(account, (borrowed as u64));
             return (borrowed as u64)
         }
+    }
+
+    /// This function is called on every user action.
+    fun accrue_interest<C>(storage_ref: &mut Storage) {
+        let now = timestamp::now_microseconds();
+
+        // This is the first time
+        if (storage_ref.last_updated == 0) {
+            storage_ref.last_updated = now;
+            return
+        };
+
+        if (storage_ref.last_updated == now) {
+            return
+        };
+
+        let protocol_share_fee = risk_factor::share_fee();
+        let rcomp = interest_rate::update_interest_rate<C>(
+            storage_ref.total_deposited,
+            storage_ref.total_borrowed,
+            storage_ref.last_updated,
+            now,
+        );
+        let accrued_interest = storage_ref.total_borrowed * rcomp / interest_rate::precision();
+        let protocol_share = accrued_interest * (protocol_share_fee as u128) / interest_rate::precision();
+        let new_protocol_fees = storage_ref.protocol_fees + (protocol_share as u64);
+
+        let depositors_share = accrued_interest - protocol_share;
+        storage_ref.total_borrowed = storage_ref.total_borrowed + accrued_interest;
+        storage_ref.total_deposited = storage_ref.total_deposited + depositors_share;
+        storage_ref.protocol_fees = new_protocol_fees;
+        storage_ref.last_updated = now;
     }
 
     fun collect_shadow_fee<C>(pool_ref: &mut Pool, liquidation_fee: u64) {
@@ -477,8 +516,6 @@ module leizd::shadow_pool {
     use leizd::initializer;
     #[test_only]
     use leizd::system_administrator;
-    #[test_only]
-    use aptos_framework::timestamp;
     #[test_only]
     use leizd::asset_pool;
     #[test_only]
