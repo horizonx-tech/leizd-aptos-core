@@ -1384,14 +1384,17 @@ module leizd::shadow_pool {
     public entry fun test_borrow_and_rebalance(owner: &signer, account1: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
 
+        let owner_addr = signer::address_of(owner);
         let account1_addr = signer::address_of(account1);
         account::create_account_for_test(account1_addr);
-        initializer::register<WETH>(account1);
-        initializer::register<UNI>(account1);
+        initializer::register<USDZ>(owner);
         initializer::register<USDZ>(account1);
-        managed_coin::mint<WETH>(owner, account1_addr, 1000000);
+        usdz::mint_for_test(owner_addr, 1000000);
         usdz::mint_for_test(account1_addr, 1000000);
 
+        // execute
+        //// prepares
+        deposit_for_internal<WETH>(owner, owner_addr, 100000, false);
         deposit_for_internal<UNI>(account1, account1_addr, 100000, false);
         borrow_for<WETH>(account1_addr, account1_addr, 50000);
         assert!(borrowed<WETH>() == 50000, 0);
