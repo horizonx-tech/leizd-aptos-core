@@ -61,6 +61,13 @@ module leizd::pool_manager {
   use leizd::risk_factor;
   #[test_only]
   use leizd::test_coin::{Self, WETH, USDC, USDT};
+  #[test_only]
+  fun borrow_pool_info<C>(): (address, vector<u8>, vector<u8>, address) acquires PoolList {
+    let key = type_info::type_name<C>();
+    let pool_list = borrow_global<PoolList>(permission::owner_address());
+    let info = simple_map::borrow<String, PoolInfo>(&pool_list.infos, &key);
+    (type_info::account_address(&info.type_info), type_info::module_name(&info.type_info), type_info::struct_name(&info.type_info), info.holder)
+  }
   #[test(owner = @leizd)]
   fun test_initialize(owner: &signer) {
     initialize(owner);
@@ -99,8 +106,10 @@ module leizd::pool_manager {
   }
   #[test(owner = @leizd, account = @0x111)]
   fun test_add_pool_more_than_once(owner: &signer, account: &signer) acquires PoolList {
-    account::create_account_for_test(signer::address_of(owner));
-    account::create_account_for_test(signer::address_of(account));
+    let owner_addr = signer::address_of(owner);
+    let account_addr = signer::address_of(account);
+    account::create_account_for_test(owner_addr);
+    account::create_account_for_test(account_addr);
     test_coin::init_weth(owner);
     test_coin::init_usdc(owner);
     test_coin::init_usdt(owner);
@@ -110,6 +119,22 @@ module leizd::pool_manager {
     add_pool<WETH>(account);
     add_pool<USDC>(owner);
     add_pool<USDT>(account);
+
+    let (account_address, module_name, struct_name, holder) = borrow_pool_info<WETH>();
+    assert!(account_address == @leizd, 0);
+    assert!(module_name == b"test_coin", 0);
+    assert!(struct_name == b"WETH", 0);
+    assert!(holder == account_addr, 0);
+    let (account_address, module_name, struct_name, holder) = borrow_pool_info<USDC>();
+    assert!(account_address == @leizd, 0);
+    assert!(module_name == b"test_coin", 0);
+    assert!(struct_name == b"USDC", 0);
+    assert!(holder == owner_addr, 0);
+  let (account_address, module_name, struct_name, holder) = borrow_pool_info<USDT>();
+    assert!(account_address == @leizd, 0);
+    assert!(module_name == b"test_coin", 0);
+    assert!(struct_name == b"USDT", 0);
+    assert!(holder == account_addr, 0);
   }
   #[test(owner = @leizd, account = @0x111)]
   #[expected_failure(abort_code = 65538)]
