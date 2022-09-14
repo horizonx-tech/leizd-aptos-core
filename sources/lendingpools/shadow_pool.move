@@ -20,6 +20,7 @@ module leizd::shadow_pool {
 
     const E_NOT_AVAILABLE_STATUS: u64 = 4;
     const E_AMOUNT_ARG_IS_ZERO: u64 = 5;
+    const E_EXCEED_BORRAWABLE_AMOUNT: u64 = 6;
 
     struct Pool has key {
         shadow: coin::Coin<USDZ>
@@ -293,7 +294,7 @@ module leizd::shadow_pool {
         if (amount > remains) {
             // use stability pool
             let insufficiencies = amount - remains;
-            assert!(stability_pool::left() >= (insufficiencies as u128), 0); // check the staiblity left
+            assert!(stability_pool::left() >= (insufficiencies as u128), error::invalid_argument(E_EXCEED_BORRAWABLE_AMOUNT)); // check the staiblity left
             borrow_from_stability_pool<C>(receiver_addr, insufficiencies);
             fee = fee + stability_pool::stability_fee_amount(insufficiencies);
             if (remains > 0) {
@@ -1109,6 +1110,26 @@ module leizd::shadow_pool {
         assert!(stability_pool::total_borrowed<UNI>() == 200, 0);
         assert!(stability_pool::left() == 300, 0);
         assert!(usdz::balance_of(borrower_addr) == 300, 0);
+    }
+    #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
+    #[expected_failure(abort_code = 65542)]
+    public entry fun test_with_stability_pool_to_borrow_with_cannot_borrowed_amount(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        price_oracle::initialize_with_fixed_price_for_test(owner);
+
+        let depositor_addr = signer::address_of(depositor);
+        let borrower_addr = signer::address_of(borrower);
+        account::create_account_for_test(depositor_addr);
+        account::create_account_for_test(borrower_addr);
+        managed_coin::register<USDZ>(depositor);
+        managed_coin::register<USDZ>(borrower);
+        usdz::mint_for_test(depositor_addr, 1000);
+
+        // execute
+        stability_pool::deposit(depositor, 15);
+        deposit_for_internal<UNI>(depositor, depositor_addr, 25, false);
+
+        borrow_for<UNI>(borrower_addr, borrower_addr, 41);
     }
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
     public entry fun test_borrow_from_stability_pool_over_time(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
