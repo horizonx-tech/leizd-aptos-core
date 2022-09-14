@@ -153,13 +153,22 @@ module leizd::risk_factor {
     public fun entry_fee(): u64 acquires ProtocolFees {
         borrow_global<ProtocolFees>(permission::owner_address()).entry_fee
     }
+    public fun calculate_entry_fee(value: u64): u64 acquires ProtocolFees {
+        value * entry_fee() / precision() // TODO: rounded up
+    }
 
     public fun share_fee(): u64 acquires ProtocolFees {
         borrow_global<ProtocolFees>(permission::owner_address()).share_fee
     }
+    public fun calculate_share_fee(value: u64): u64 acquires ProtocolFees {
+        value * share_fee() / precision() // TODO: rounded up
+    }
 
     public fun liquidation_fee(): u64 acquires ProtocolFees {
         borrow_global<ProtocolFees>(permission::owner_address()).liquidation_fee
+    }
+    public fun calculate_liquidation_fee(value: u64): u64 acquires ProtocolFees {
+        value * liquidation_fee() / precision() // TODO: rounded up
     }
 
     public fun ltv<C>(): u64 acquires Config {

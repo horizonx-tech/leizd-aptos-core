@@ -281,7 +281,7 @@ module leizd::shadow_pool {
 
         accrue_interest<C>(storage_ref);
 
-        let fee = calculate_entry_fee(amount);
+        let fee = risk_factor::calculate_entry_fee(amount);
         collect_shadow_fee<C>(pool_ref, fee);
 
         let key = generate_coin_key<C>();
@@ -428,10 +428,6 @@ module leizd::shadow_pool {
     fun collect_shadow_fee<C>(pool_ref: &mut Pool, liquidation_fee: u64) {
         let fee_extracted = coin::extract(&mut pool_ref.shadow, liquidation_fee);
         treasury::collect_shadow_fee<C>(fee_extracted);
-    }
-
-    fun calculate_entry_fee(value: u64): u64 {
-        value * risk_factor::entry_fee() / risk_factor::precision() // TODO: rounded up
     }
 
     public entry fun total_deposited(): u128 acquires Storage {

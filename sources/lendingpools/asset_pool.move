@@ -257,7 +257,7 @@ module leizd::asset_pool {
 
         accrue_interest<C,Asset>(storage_ref);
 
-        let fee = calculate_entry_fee(amount);
+        let fee = risk_factor::calculate_entry_fee(amount);
         collect_asset_fee<C>(pool_ref, fee);
 
         let deposited = coin::extract(&mut pool_ref.asset, amount);
@@ -385,18 +385,6 @@ module leizd::asset_pool {
             last_updated: 0,
             protocol_fees: 0,
         }
-    }
-
-    fun calculate_entry_fee(value: u64): u64 {
-        value * risk_factor::entry_fee() / risk_factor::precision() // TODO: rounded up
-    }
-
-    fun calculate_share_fee(value: u64): u64 {
-        value * risk_factor::share_fee() / risk_factor::precision() // TODO: rounded up
-    }
-
-    fun calculate_liquidation_fee(value: u64): u64 {
-        value * risk_factor::liquidation_fee() / risk_factor::precision() // TODO: rounded up
     }
 
     public entry fun total_deposited<C>(): u128 acquires Storage {
