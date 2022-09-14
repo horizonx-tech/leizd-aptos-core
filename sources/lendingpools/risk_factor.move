@@ -10,6 +10,8 @@ module leizd::risk_factor {
     use leizd::permission;
     use leizd::usdz::{USDZ};
 
+    friend leizd::asset_pool;
+
     const PRECISION: u64 = 1000000000;
     const DEFAULT_ENTRY_FEE: u64 = 1000000000 / 1000 * 5; // 0.5%
     const DEFAULT_SHARE_FEE: u64 = 1000000000 / 1000 * 5; // 0.5%
@@ -86,9 +88,11 @@ module leizd::risk_factor {
         });
     }
 
-    public entry fun new_asset<C>(owner: &signer) acquires Config {
-        let owner_address = signer::address_of(owner);
-        permission::assert_owner(owner_address);
+    public(friend) fun new_asset<C>(account: &signer) acquires Config {
+        new_asset_internal<C>(account);
+    }
+    fun new_asset_internal<C>(_account: &signer) acquires Config {
+        let owner_address = permission::owner_address();
 
         let config_ref = borrow_global_mut<Config>(owner_address);
         let name = type_info::type_name<C>();
@@ -194,6 +198,10 @@ module leizd::risk_factor {
     #[test_only]
     public fun default_share_fee(): u64 {
         DEFAULT_SHARE_FEE
+    }
+    #[test_only]
+    public fun new_asset_for_test<C>(account: &signer) acquires Config {
+        new_asset_internal<C>(account);
     }
     #[test(owner = @leizd)]
     public entry fun test_initialize(owner: signer) acquires ProtocolFees, RepositoryEventHandle {
@@ -303,10 +311,20 @@ module leizd::risk_factor {
         let event_handle = borrow_global<RepositoryAssetEventHandle>(owner_addr);
         assert!(event::counter(&event_handle.update_config_event) == 0, 0);
     }
-    #[test(account = @0x111)]
-    #[expected_failure(abort_code = 1)]
-    public entry fun test_new_asset_without_owner(account: &signer) acquires Config {
+    #[test(owner = @leizd, account = @0x111)]
+    public entry fun test_new_asset_without_owner(owner: &signer, account: &signer) acquires Config {
+        let owner_addr = signer::address_of(owner);
+        account::create_account_for_test(owner_addr);
+        initialize(owner);
         new_asset<TestAsset>(account);
+
+        let key = type_info::type_name<TestAsset>();
+        let config = borrow_global<Config>(owner_addr);
+        let new_ltv = table::borrow<string::String,u64>(&config.ltv, key);
+        let new_lt = table::borrow<string::String,u64>(&config.lt, key);
+
+        assert!(*new_ltv == DEFAULT_LTV, 0);
+        assert!(*new_lt == DEFAULT_THRESHOLD, 0);
     }
     #[test(owner = @leizd)]
     #[expected_failure(abort_code = 65537)]

@@ -25,6 +25,7 @@ module leizd::asset_pool {
     use leizd::stability_pool;
 
     friend leizd::money_market;
+    friend leizd::pool_manager;
 
     const E_IS_ALREADY_EXISTED: u64 = 1;
     const E_IS_NOT_EXISTED: u64 = 2;
@@ -103,12 +104,11 @@ module leizd::asset_pool {
     /// Initializes a pool with the coin the owner specifies.
     /// The caller is only owner and creates not only a pool but also other resources
     /// such as a treasury for the coin, an interest rate model, and coins of collaterals and debts.
-    public fun init_pool<C>(owner: &signer) {
+    public(friend) fun init_pool<C>(owner: &signer) {
         init_pool_internal<C>(owner);
     }
 
     fun init_pool_internal<C>(owner: &signer) {
-        permission::assert_owner(signer::address_of(owner));
         assert!(!is_pool_initialized<C>(), E_IS_ALREADY_EXISTED);
         assert!(dex_facade::has_liquidity<C>(), E_DEX_DOES_NOT_HAVE_LIQUIDITY);
 

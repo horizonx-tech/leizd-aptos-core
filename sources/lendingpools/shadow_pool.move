@@ -516,7 +516,7 @@ module leizd::shadow_pool {
     #[test_only]
     use leizd::system_administrator;
     #[test_only]
-    use leizd::asset_pool;
+    use leizd::pool_manager;
     #[test_only]
     use leizd::price_oracle;
     #[test_only]
@@ -528,8 +528,8 @@ module leizd::shadow_pool {
         test_coin::init_weth(owner);
         test_coin::init_uni(owner);
         init_pool_internal(owner);
-        asset_pool::init_pool<WETH>(owner);
-        asset_pool::init_pool<UNI>(owner);
+        pool_manager::add_pool<WETH>(owner);
+        pool_manager::add_pool<UNI>(owner);
     }
 
     // for deposit
@@ -539,7 +539,7 @@ module leizd::shadow_pool {
 
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
-        initializer::register<USDZ>(account);
+        managed_coin::register<USDZ>(account);
 
         usdz::mint_for_test(account_addr, 1000000);
         assert!(coin::balance<USDZ>(account_addr) == 1000000, 0);
@@ -564,7 +564,7 @@ module leizd::shadow_pool {
 
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
-        initializer::register<USDZ>(account);
+        managed_coin::register<USDZ>(account);
         usdz::mint_for_test(account_addr, 100);
 
         deposit_for_internal<WETH>(account, account_addr, 100, false);
@@ -585,7 +585,7 @@ module leizd::shadow_pool {
 
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
-        initializer::register<USDZ>(account);
+        managed_coin::register<USDZ>(account);
         usdz::mint_for_test(account_addr, 100);
 
         deposit_for_internal<WETH>(account, account_addr, 101, false);
@@ -596,7 +596,7 @@ module leizd::shadow_pool {
 
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
-        initializer::register<USDZ>(account);
+        managed_coin::register<USDZ>(account);
         usdz::mint_for_test(account_addr, 100);
 
         let initial_sec = 1648738800; // 20220401T00:00:00
@@ -622,8 +622,8 @@ module leizd::shadow_pool {
 
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
-        initializer::register<WETH>(account);
-        initializer::register<USDZ>(account);
+        managed_coin::register<WETH>(account);
+        managed_coin::register<USDZ>(account);
 
         usdz::mint_for_test(account_addr, 1000000);
 
@@ -1401,9 +1401,9 @@ module leizd::shadow_pool {
 
         let account1_addr = signer::address_of(account1);
         account::create_account_for_test(account1_addr);
-        initializer::register<WETH>(account1);
-        initializer::register<UNI>(account1);
-        initializer::register<USDZ>(account1);
+        managed_coin::register<WETH>(account1);
+        managed_coin::register<UNI>(account1);
+        managed_coin::register<USDZ>(account1);
         managed_coin::mint<WETH>(owner, account1_addr, 1000000);
         usdz::mint_for_test(account1_addr, 1000000);
 
@@ -1423,8 +1423,8 @@ module leizd::shadow_pool {
         let owner_addr = signer::address_of(owner);
         let account1_addr = signer::address_of(account1);
         account::create_account_for_test(account1_addr);
-        initializer::register<USDZ>(owner);
-        initializer::register<USDZ>(account1);
+        managed_coin::register<USDZ>(owner);
+        managed_coin::register<USDZ>(account1);
         usdz::mint_for_test(owner_addr, 1000000);
         usdz::mint_for_test(account1_addr, 1000000);
 
