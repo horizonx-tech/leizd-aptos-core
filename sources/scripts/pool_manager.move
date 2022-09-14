@@ -1,5 +1,6 @@
 module leizd::pool_manager {
 
+  use std::error;
   use std::signer;
   use std::string::{String};
   use aptos_std::simple_map;
@@ -7,6 +8,10 @@ module leizd::pool_manager {
   use aptos_framework::type_info::{Self, TypeInfo};
   use leizd::asset_pool;
   use leizd::permission;
+
+  const ENOT_INITIALIZED: u64 = 1;
+  const EALREADY_ADDED_COIN: u64 = 2;
+  const ENOT_INITIALIZED_COIN: u64 = 3;
 
   struct PoolInfo has store {
     type_info: TypeInfo,
@@ -19,7 +24,7 @@ module leizd::pool_manager {
 
   public entry fun initialize(owner: &signer) {
     permission::assert_owner(signer::address_of(owner));
-    assert!(!is_initialized(), 0);
+    assert!(!is_initialized(), error::invalid_argument(ENOT_INITIALIZED));
     move_to(owner, PoolList { infos: simple_map::create<String, PoolInfo>() });
   }
 
@@ -28,8 +33,8 @@ module leizd::pool_manager {
   }
 
   public entry fun add_pool<C>(holder: &signer) acquires PoolList {
-    assert!(!is_exist<C>(), 0);
-    assert!(coin::is_coin_initialized<C>(), 0);
+    assert!(!is_exist<C>(), error::invalid_argument(EALREADY_ADDED_COIN));
+    assert!(coin::is_coin_initialized<C>(), error::invalid_argument(ENOT_INITIALIZED_COIN));
     let pool_list = borrow_global_mut<PoolList>(permission::owner_address());
     asset_pool::init_pool<C>(holder);
     
@@ -67,7 +72,7 @@ module leizd::pool_manager {
     initialize(account);
   }
   #[test(owner = @leizd)]
-  #[expected_failure(abort_code = 0)]
+  #[expected_failure(abort_code = 65537)]
   fun test_initialize_more_than_once(owner: &signer) {
     initialize(owner);
     initialize(owner);
@@ -107,7 +112,7 @@ module leizd::pool_manager {
     add_pool<USDT>(account);
   }
   #[test(owner = @leizd, account = @0x111)]
-  #[expected_failure(abort_code = 0)]
+  #[expected_failure(abort_code = 65538)]
   fun test_add_pool_with_same_coins(owner: &signer, account: &signer) acquires PoolList {
     account::create_account_for_test(signer::address_of(owner));
     account::create_account_for_test(signer::address_of(account));
@@ -119,6 +124,7 @@ module leizd::pool_manager {
     add_pool<WETH>(account);
   }
   #[test(owner = @leizd, account = @0x111)]
+  #[expected_failure(abort_code = 65539)]
   fun test_add_pool_with_not_initilized_coin(owner: &signer, account: &signer) acquires PoolList {
     account::create_account_for_test(signer::address_of(owner));
     account::create_account_for_test(signer::address_of(account));
