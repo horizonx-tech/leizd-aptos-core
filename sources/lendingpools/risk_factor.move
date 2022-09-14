@@ -303,10 +303,20 @@ module leizd::risk_factor {
         let event_handle = borrow_global<RepositoryAssetEventHandle>(owner_addr);
         assert!(event::counter(&event_handle.update_config_event) == 0, 0);
     }
-    #[test(account = @0x111)]
-    #[expected_failure(abort_code = 1)]
-    public entry fun test_new_asset_without_owner(account: &signer) acquires Config {
+    #[test(owner = @leizd, account = @0x111)]
+    public entry fun test_new_asset_without_owner(owner: &signer, account: &signer) acquires Config {
+        let owner_addr = signer::address_of(owner);
+        account::create_account_for_test(owner_addr);
+        initialize(owner);
         new_asset<TestAsset>(account);
+
+        let key = type_info::type_name<TestAsset>();
+        let config = borrow_global<Config>(owner_addr);
+        let new_ltv = table::borrow<string::String,u64>(&config.ltv, key);
+        let new_lt = table::borrow<string::String,u64>(&config.lt, key);
+
+        assert!(*new_ltv == DEFAULT_LTV, 0);
+        assert!(*new_lt == DEFAULT_THRESHOLD, 0);
     }
     #[test(owner = @leizd)]
     #[expected_failure(abort_code = 65537)]
