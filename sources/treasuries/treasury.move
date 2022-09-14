@@ -63,8 +63,6 @@ module leizd::treasury {
     #[test_only]
     use aptos_framework::managed_coin;
     #[test_only]
-    use leizd::initializer;
-    #[test_only]
     use leizd::usdz;
     #[test_only]
     use leizd::test_coin::{Self, WETH};
@@ -77,9 +75,9 @@ module leizd::treasury {
         account::create_account_for_test(account_address);
         test_coin::init_weth(owner);
         usdz::initialize_for_test(owner);
-        initializer::register<USDZ>(owner);
-        initializer::register<WETH>(account);
-        initializer::register<USDZ>(account);
+        managed_coin::register<USDZ>(owner);
+        managed_coin::register<WETH>(account);
+        managed_coin::register<USDZ>(account);
         managed_coin::mint<WETH>(owner, account_address, 1000);
         usdz::mint_for_test(account_address, 500);
 

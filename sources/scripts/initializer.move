@@ -4,6 +4,7 @@ module leizd::initializer {
     use leizd::risk_factor;
     use leizd::system_status;
     use leizd::trove_manager;
+    use leizd::pool_manager;
     use leizd::stability_pool;
 
     /// Called only once by the owner.
@@ -11,6 +12,7 @@ module leizd::initializer {
         system_status::initialize(owner);
         risk_factor::initialize(owner);
         trove_manager::initialize(owner);
+        pool_manager::initialize(owner);
         stability_pool::initialize(owner);
     }
 
