@@ -67,11 +67,9 @@ module leizd::math64 {
         if (a > b) a else b
     }
 
-
     public fun min(a: u64, b: u64): u64 {
         if (a < b) a else b
     }
-
 
     public fun pow(n: u64, e: u64): u64 {
         if (e == 0) {

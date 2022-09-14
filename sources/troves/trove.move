@@ -49,7 +49,6 @@ module leizd::trove {
         add_supported_coin_internal<C>(owner);
     }
 
-
     fun add_supported_coin_internal<C>(owner: &signer) {
         permission::assert_owner(signer::address_of(owner));
         move_to(owner, SupportedCoin<C> {});
@@ -178,7 +177,6 @@ module leizd::trove {
         );
     }
 
-
     #[test_only]
     fun open_trove_for_test<C>(account: &signer, amount: u64) acquires Trove, TroveEventHandle {
         open_trove_internal<C>(account, amount, amount);
@@ -239,7 +237,6 @@ module leizd::trove {
             &(want * 3)
         )), 0);
     }
-
 
     #[test(owner=@leizd,account1=@0x111,aptos_framework=@aptos_framework)]
     fun test_close_trove(owner: signer, account1: signer) acquires Trove, TroveEventHandle {

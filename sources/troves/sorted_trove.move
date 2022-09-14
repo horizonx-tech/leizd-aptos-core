@@ -74,7 +74,6 @@ module leizd::sorted_trove {
         prev_node.next_id == next_id && trove::trove_amount<C>(prev_id) >= amount && amount >= trove::trove_amount<C>(next_id)
     }
 
-
     fun insert_internal<C>(id: address, prev_id: address, next_id: address) acquires Data {
         assert!(!contains<C>(id), E_NODE_ALREADY_EXISTS);
         let data = borrow_global_mut<Data<C>>(permission::owner_address());
@@ -234,7 +233,6 @@ module leizd::sorted_trove {
     #[test_only]
     use std::signer;
 
-
     #[test_only]
     fun node<C>(account: address): option::Option<Node> acquires Data {
         let data = borrow_global_mut<Data<C>>(permission::owner_address());
@@ -253,7 +251,6 @@ module leizd::sorted_trove {
         let node = node<C>(account);
         option::borrow_with_default<Node>(&node, &Node{next_id: @0x0, prev_id: @0x0}).prev_id
     }
-
 
     #[test_only]
     fun set_up(owner: &signer) {

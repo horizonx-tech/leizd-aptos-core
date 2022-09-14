@@ -20,7 +20,6 @@ module leizd::trove_manager {
         sorted_trove::insert<C>(signer::address_of(account))
     }
 
-
     public entry fun redeem<C>(account: &signer, amount: u64) {
         let redeemed = 0;
         let next_target_address = sorted_trove::tail<C>();
@@ -100,7 +99,6 @@ module leizd::trove_manager {
         initialize_token<USDC>(owner);
     }
 
-
     #[test_only]
     fun create_user(owner: &signer, account: address): signer {
         let sig = account::create_account_for_test(account);
@@ -109,7 +107,6 @@ module leizd::trove_manager {
         managed_coin::mint<USDC>(owner, account, INITIAL_BALANCE);
         sig
     }
-
 
     #[test(owner=@leizd)]
     fun test_insert(owner: &signer) {
@@ -138,7 +135,6 @@ module leizd::trove_manager {
         assert!(node_next(&carol) == signer::address_of(&alice), 0);
         assert!(node_prev(&alice) == signer::address_of(&carol), 0);
     }
-
 
    #[test(owner=@leizd)]
    fun test_remove_1_entry(owner: &signer) {

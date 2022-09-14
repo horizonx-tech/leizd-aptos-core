@@ -18,7 +18,6 @@ module leizd::shadow_pool {
     use leizd::pool_status;
     use leizd::interest_rate;
 
-
     friend leizd::money_market;
 
     const E_NOT_AVAILABLE_STATUS: u64 = 4;
