@@ -516,7 +516,7 @@ module leizd::shadow_pool {
     #[test_only]
     use leizd::system_administrator;
     #[test_only]
-    use leizd::asset_pool;
+    use leizd::pool_manager;
     #[test_only]
     use leizd::price_oracle;
     #[test_only]
@@ -525,11 +525,12 @@ module leizd::shadow_pool {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
         initializer::initialize(owner);
+        pool_manager::initialize(owner);
         test_coin::init_weth(owner);
         test_coin::init_uni(owner);
         init_pool_internal(owner);
-        asset_pool::init_pool<WETH>(owner);
-        asset_pool::init_pool<UNI>(owner);
+        pool_manager::add_pool<WETH>(owner);
+        pool_manager::add_pool<UNI>(owner);
     }
 
     // for deposit

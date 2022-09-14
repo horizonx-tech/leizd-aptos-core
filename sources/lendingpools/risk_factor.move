@@ -10,6 +10,8 @@ module leizd::risk_factor {
     use leizd::permission;
     use leizd::usdz::{USDZ};
 
+    friend leizd::asset_pool;
+
     const PRECISION: u64 = 1000000000;
     const DEFAULT_ENTRY_FEE: u64 = 1000000000 / 1000 * 5; // 0.5%
     const DEFAULT_SHARE_FEE: u64 = 1000000000 / 1000 * 5; // 0.5%
@@ -86,8 +88,10 @@ module leizd::risk_factor {
         });
     }
 
-    public entry fun new_asset<C>(owner: &signer) acquires Config {
-        owner; // temp
+    public(friend) fun new_asset<C>(account: &signer) acquires Config {
+        new_asset_internal<C>(account);
+    }
+    fun new_asset_internal<C>(_account: &signer) acquires Config {
         let owner_address = permission::owner_address();
 
         let config_ref = borrow_global_mut<Config>(owner_address);
@@ -194,6 +198,10 @@ module leizd::risk_factor {
     #[test_only]
     public fun default_share_fee(): u64 {
         DEFAULT_SHARE_FEE
+    }
+    #[test_only]
+    public fun new_asset_for_test<C>(account: &signer) acquires Config {
+        new_asset_internal<C>(account);
     }
     #[test(owner = @leizd)]
     public entry fun test_initialize(owner: signer) acquires ProtocolFees, RepositoryEventHandle {
