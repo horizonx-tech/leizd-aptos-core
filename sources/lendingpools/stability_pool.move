@@ -205,8 +205,10 @@ module leizd::stability_pool {
         balance_ref.uncollected_fee = balance_ref.uncollected_fee + fee;
         coin::extract<USDZ>(&mut pool_ref.left, amount)
     }
-    public fun calculate_stability_fee(borrow_amount: u64): u64 {
-        borrow_amount * STABILITY_FEE / PRECISION
+    public fun calculate_stability_fee(value: u64): u64 {
+        let value_mul_by_fee = value * STABILITY_FEE;
+        let result = value_mul_by_fee / PRECISION;
+        if (value_mul_by_fee % PRECISION != 0) result + 1 else result
     }
 
     public(friend) entry fun repay<C>(account: &signer, amount: u64) acquires StabilityPool, Balance, StabilityPoolEventHandle {
@@ -708,12 +710,12 @@ module leizd::stability_pool {
         account::create_account_for_test(account_addr);
         managed_coin::register<USDZ>(owner);
         managed_coin::register<USDZ>(account);
-        usdz::mint_for_test(owner_addr, 100);
+        usdz::mint_for_test(owner_addr, 2000);
 
         // execute
-        deposit(owner, 50);
-        let borrowed = borrow<WETH>(owner_addr, 50);
-        repay<WETH>(account, 51);
+        deposit(owner, 2000);
+        let borrowed = borrow<WETH>(owner_addr, 1000);
+        repay<WETH>(account, 1005 + 1);
 
         // post_process
         coin::deposit(owner_addr, borrowed);
@@ -966,9 +968,13 @@ module leizd::stability_pool {
     // for related configuration
     #[test]
     fun test_calculate_stability_fee() {
-        assert!(calculate_stability_fee(1000) == 5, 0);
-        assert!(calculate_stability_fee(543200) == 2716, 0);
-        assert!(calculate_stability_fee(100) == 0, 0); // TODO: round up
+        assert!(calculate_stability_fee(100000) == 500, 0);
+        assert!(calculate_stability_fee(100001) == 501, 0);
+        assert!(calculate_stability_fee(99999) == 500, 0);
+        assert!(calculate_stability_fee(200) == 1, 0);
+        assert!(calculate_stability_fee(199) == 1, 0);
+        assert!(calculate_stability_fee(1) == 1, 0);
+        assert!(calculate_stability_fee(0) == 0, 0);
     }
     #[test(owner = @leizd)]
     fun test_distribution_config(owner: &signer) acquires DistributionConfig {
