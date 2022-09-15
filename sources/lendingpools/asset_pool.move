@@ -772,13 +772,17 @@ module leizd::asset_pool {
         account::create_account_for_test(borrower_addr);
         managed_coin::register<UNI>(depositor);
         managed_coin::register<UNI>(borrower);
-        managed_coin::mint<UNI>(owner, depositor_addr, 100);
+        managed_coin::mint<UNI>(owner, depositor_addr, 1000 + 5);
 
-        // deposit UNI
-        deposit_for_internal<UNI>(depositor, depositor_addr, 100, false);
-        // borrow UNI
-        borrow_for_internal<UNI>(borrower_addr, borrower_addr, 100);
-        assert!(coin::balance<UNI>(borrower_addr) == 100, 0);
+        // Prerequisite
+        assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
+
+        // execute
+        //// deposit UNI
+        deposit_for_internal<UNI>(depositor, depositor_addr, 1000 + 5, false);
+        //// borrow UNI
+        borrow_for_internal<UNI>(borrower_addr, borrower_addr, 1000);
+        assert!(coin::balance<UNI>(borrower_addr) == 1000, 0);
     }
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
     #[expected_failure(abort_code = 65542)]
@@ -812,19 +816,27 @@ module leizd::asset_pool {
         account::create_account_for_test(borrower_addr);
         managed_coin::register<UNI>(depositor);
         managed_coin::register<UNI>(borrower);
-        managed_coin::mint<UNI>(owner, depositor_addr, 100);
+        managed_coin::mint<UNI>(owner, depositor_addr, 10000 + 5 * 10);
 
-        // deposit UNI
-        deposit_for_internal<UNI>(depositor, depositor_addr, 100, false);
-        // borrow UNI
-        borrow_for_internal<UNI>(borrower_addr, borrower_addr, 10);
-        assert!(coin::balance<UNI>(borrower_addr) == 10, 0);
-        borrow_for_internal<UNI>(borrower_addr, borrower_addr, 20);
-        assert!(coin::balance<UNI>(borrower_addr) == 30, 0);
-        borrow_for_internal<UNI>(borrower_addr, borrower_addr, 30);
-        assert!(coin::balance<UNI>(borrower_addr) == 60, 0);
-        borrow_for_internal<UNI>(borrower_addr, borrower_addr, 40);
-        assert!(coin::balance<UNI>(borrower_addr) == 100, 0);
+        // Prerequisite
+        assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
+
+        // execute
+        //// deposit UNI
+        deposit_for_internal<UNI>(depositor, depositor_addr, 10000 + 5 * 10, false);
+        //// borrow UNI
+        borrow_for_internal<UNI>(borrower_addr, borrower_addr, 1000);
+        assert!(coin::balance<UNI>(borrower_addr) == 1000, 0);
+        assert!(total_borrowed<UNI>() == 1000 + 5 * 1, 0);
+        borrow_for_internal<UNI>(borrower_addr, borrower_addr, 2000);
+        assert!(coin::balance<UNI>(borrower_addr) == 3000, 0);
+        assert!(total_borrowed<UNI>() == 3000 + 5 * 3, 0);
+        borrow_for_internal<UNI>(borrower_addr, borrower_addr, 3000);
+        assert!(coin::balance<UNI>(borrower_addr) == 6000, 0);
+        assert!(total_borrowed<UNI>() == 6000 + 5 * 6, 0);
+        borrow_for_internal<UNI>(borrower_addr, borrower_addr, 4000);
+        assert!(coin::balance<UNI>(borrower_addr) == 10000, 0);
+        assert!(total_borrowed<UNI>() == 10000 + 5 * 10, 0);
     }
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
     fun test_borrow_more_than_once_sequentially_over_time(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
