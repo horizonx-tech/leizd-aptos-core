@@ -150,27 +150,6 @@ module leizd::risk_factor {
         assert!(ltv != 0 && ltv < lt, error::invalid_argument(EINVALID_LTV));
     }
 
-    public fun entry_fee(): u64 acquires ProtocolFees {
-        borrow_global<ProtocolFees>(permission::owner_address()).entry_fee
-    }
-    public fun calculate_entry_fee(value: u64): u64 acquires ProtocolFees {
-        value * entry_fee() / precision() // TODO: rounded up
-    }
-
-    public fun share_fee(): u64 acquires ProtocolFees {
-        borrow_global<ProtocolFees>(permission::owner_address()).share_fee
-    }
-    public fun calculate_share_fee(value: u64): u64 acquires ProtocolFees {
-        value * share_fee() / precision() // TODO: rounded up
-    }
-
-    public fun liquidation_fee(): u64 acquires ProtocolFees {
-        borrow_global<ProtocolFees>(permission::owner_address()).liquidation_fee
-    }
-    public fun calculate_liquidation_fee(value: u64): u64 acquires ProtocolFees {
-        value * liquidation_fee() / precision() // TODO: rounded up
-    }
-
     public fun ltv<C>(): u64 acquires Config {
         let name = type_info::type_name<C>();
         let config = borrow_global<Config>(permission::owner_address());
@@ -190,7 +169,31 @@ module leizd::risk_factor {
     public fun lt_of_shadow(): u64 acquires Config {
         let config = borrow_global<Config>(permission::owner_address());
         *table::borrow<string::String,u64>(&config.lt, type_info::type_name<USDZ>())
-    } 
+    }
+
+    public fun entry_fee(): u64 acquires ProtocolFees {
+        borrow_global<ProtocolFees>(permission::owner_address()).entry_fee
+    }
+    public fun calculate_entry_fee(value: u64): u64 acquires ProtocolFees {
+        calculate_fee(value, entry_fee())
+    }
+    public fun share_fee(): u64 acquires ProtocolFees {
+        borrow_global<ProtocolFees>(permission::owner_address()).share_fee
+    }
+    public fun calculate_share_fee(value: u64): u64 acquires ProtocolFees {
+        calculate_fee(value, share_fee())
+    }
+    public fun liquidation_fee(): u64 acquires ProtocolFees {
+        borrow_global<ProtocolFees>(permission::owner_address()).liquidation_fee
+    }
+    public fun calculate_liquidation_fee(value: u64): u64 acquires ProtocolFees {
+        calculate_fee(value, share_fee())
+    }
+    fun calculate_fee(value: u64, fee: u64): u64 {
+        let value_mul_by_fee = value * fee;
+        let result = value_mul_by_fee / precision();
+        if (value_mul_by_fee % precision() != 0) result + 1 else result
+    }
 
     public entry fun precision(): u64 {
         PRECISION
@@ -207,6 +210,10 @@ module leizd::risk_factor {
     #[test_only]
     public fun default_share_fee(): u64 {
         DEFAULT_SHARE_FEE
+    }
+    #[test_only]
+    public fun default_liquidation_fee(): u64 {
+        DEFAULT_LIQUIDATION_FEE
     }
     #[test_only]
     public fun new_asset_for_test<C>(account: &signer) acquires Config {
@@ -410,5 +417,59 @@ module leizd::risk_factor {
         initialize(owner);
         new_asset<TestAsset>(owner);
         update_config<TestAsset>(owner, PRECISION / 100 * 50, PRECISION / 100 * 50);
+    }
+    #[test(owner = @leizd)]
+    fun test_calcurate_entry_fee(owner: &signer) acquires ProtocolFees {
+        account::create_account_for_test(signer::address_of(owner));
+        initialize(owner);
+
+        // Prerequisite
+        assert!(entry_fee() == default_entry_fee(), 0);
+
+        // Execute
+        assert!(calculate_entry_fee(100000) == 500, 0);
+        assert!(calculate_entry_fee(100001) == 501, 0);
+        assert!(calculate_entry_fee(99999) == 500, 0);
+        assert!(calculate_entry_fee(200) == 1, 0);
+        assert!(calculate_entry_fee(199) == 1, 0);
+        assert!(calculate_entry_fee(1) == 1, 0);
+        assert!(calculate_entry_fee(0) == 0, 0);
+    }
+    #[test(owner = @leizd)]
+    fun test_calculate_share_fee(owner: &signer) acquires ProtocolFees {
+        account::create_account_for_test(signer::address_of(owner));
+        initialize(owner);
+
+        // Prerequisite
+        assert!(share_fee() == default_share_fee(), 0);
+
+        // Execute
+        assert!(calculate_share_fee(100000 + 1) == 501, 0);
+        assert!(calculate_share_fee(100000) == 500, 0);
+        assert!(calculate_share_fee(100000 - 1) == 500, 0);
+        assert!(calculate_share_fee(99800 + 1) == 500, 0);
+        assert!(calculate_share_fee(99800) == 499, 0);
+        assert!(calculate_share_fee(99800 - 1) == 499, 0);
+        assert!(calculate_share_fee(200) == 1, 0);
+        assert!(calculate_share_fee(199) == 1, 0);
+        assert!(calculate_share_fee(1) == 1, 0);
+        assert!(calculate_share_fee(0) == 0, 0);
+    }
+        #[test(owner = @leizd)]
+    fun test_calculate_liquidation_fee(owner: &signer) acquires ProtocolFees {
+        account::create_account_for_test(signer::address_of(owner));
+        initialize(owner);
+
+        // Prerequisite
+        assert!(liquidation_fee() == default_liquidation_fee(), 0);
+
+        // Execute
+        assert!(calculate_liquidation_fee(100000) == 500, 0);
+        assert!(calculate_liquidation_fee(100001) == 501, 0);
+        assert!(calculate_liquidation_fee(99999) == 500, 0);
+        assert!(calculate_liquidation_fee(200) == 1, 0);
+        assert!(calculate_liquidation_fee(199) == 1, 0);
+        assert!(calculate_liquidation_fee(1) == 1, 0);
+        assert!(calculate_liquidation_fee(0) == 0, 0);
     }
 }
