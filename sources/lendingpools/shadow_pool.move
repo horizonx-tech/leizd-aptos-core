@@ -493,8 +493,11 @@ module leizd::shadow_pool {
     }
 
     public entry fun conly_deposited<C>(): u64 acquires Storage {
-        let key = generate_coin_key<C>();
-        let conly_deposited = borrow_global<Storage>(permission::owner_address()).conly_deposited;
+        let storage = borrow_global<Storage>(permission::owner_address());
+        conly_deposit_internal(generate_coin_key<C>(), storage)
+    }
+    fun conly_deposit_internal(key: String, storage: &Storage): u64 {
+        let conly_deposited = storage.conly_deposited;
         if (simple_map::contains_key<String,u64>(&conly_deposited, &key)) {
             *simple_map::borrow<String,u64>(&conly_deposited, &key)
         } else {
