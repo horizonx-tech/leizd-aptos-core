@@ -116,6 +116,15 @@ module leizd::asset_pool {
             liquidate_event: account::new_event_handle<LiquidateEvent>(owner),
         });
     }
+    fun default_storage<C,P>(): Storage<C> {
+        Storage<C>{
+            total_deposited: 0,
+            total_conly_deposited: 0,
+            total_borrowed: 0,
+            last_updated: 0,
+            protocol_fees: 0,
+        }
+    }
 
     /// Deposits an asset or a shadow to the pool.
     /// If a user wants to protect the asset, it's possible that it can be used only for the collateral.
@@ -373,23 +382,15 @@ module leizd::asset_pool {
         treasury::collect_asset_fee<C>(fee_extracted);
     }
 
-    fun default_storage<C,P>(): Storage<C> {
-        Storage<C>{
-            total_deposited: 0,
-            total_conly_deposited: 0,
-            total_borrowed: 0,
-            last_updated: 0,
-            protocol_fees: 0,
-        }
-    }
-
     public entry fun total_deposited<C>(): u128 acquires Storage {
         borrow_global<Storage<C>>(permission::owner_address()).total_deposited
     }
 
-    public entry fun liquidity<C>(): u128 acquires Storage {
-        let storage_ref = borrow_global<Storage<C>>(permission::owner_address());
-        storage_ref.total_deposited - storage_ref.total_conly_deposited
+    public entry fun liquidity<C>(): u128 acquires Pool, Storage {
+        let owner_addr = permission::owner_address();
+        let pool_ref = borrow_global<Pool<C>>(owner_addr);
+        let storage_ref = borrow_global<Storage<C>>(owner_addr);
+        (coin::value(&pool_ref.asset) as u128) - storage_ref.total_conly_deposited
     }
 
     public entry fun total_conly_deposited<C>(): u128 acquires Storage {
@@ -743,7 +744,7 @@ module leizd::asset_pool {
         borrow_for_internal<UNI>(borrower_addr, borrower_addr, 100000);
         assert!(coin::balance<UNI>(borrower_addr) == 100000, 0);
         assert!(total_deposited<UNI>() == 800000, 0);
-        assert!(liquidity<UNI>() == 800000, 0);
+        assert!(liquidity<UNI>() == 699500, 0);
         assert!(total_conly_deposited<UNI>() == 0, 0);
         assert!(total_borrowed<UNI>() == 100500, 0); // 100000 + 500
 
