@@ -37,7 +37,6 @@ module leizd::asset_pool {
     /// Each asset is separately deposited into a pool.
     struct Pool<phantom C> has key {
         asset: coin::Coin<C>,
-        is_active: bool,
     }
 
     /// The total deposit amount and total borrowed amount can be updated
@@ -106,8 +105,7 @@ module leizd::asset_pool {
         pool_status::initialize<C>(owner);
         
         move_to(owner, Pool<C> {
-            asset: coin::zero<C>(),
-            is_active: true
+            asset: coin::zero<C>()
         });
         move_to(owner, default_storage<C,Asset>());
         move_to(owner, PoolEventHandle<C> {
@@ -433,7 +431,6 @@ module leizd::asset_pool {
 
         assert!(exists<Pool<WETH>>(owner_address), 0);
         let pool = borrow_global<Pool<WETH>>(owner_address);
-        assert!(pool.is_active, 0);
         assert!(coin::value<WETH>(&pool.asset) == 0, 0);
         assert!(pool_status::is_available<WETH>(), 0);
         assert!(is_pool_initialized<WETH>(), 0);
