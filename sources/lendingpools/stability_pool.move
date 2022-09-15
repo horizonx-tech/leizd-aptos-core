@@ -200,12 +200,12 @@ module leizd::stability_pool {
         let balance_ref = borrow_global_mut<Balance<C>>(owner_address);
         assert!(coin::value<USDZ>(&pool_ref.left) >= amount, error::invalid_argument(EEXCEED_REMAINING_AMOUNT));
 
-        let fee = stability_fee_amount(amount);
+        let fee = calculate_stability_fee(amount);
         balance_ref.total_borrowed = balance_ref.total_borrowed + (amount as u128) + (fee as u128);
         balance_ref.uncollected_fee = balance_ref.uncollected_fee + fee;
         coin::extract<USDZ>(&mut pool_ref.left, amount)
     }
-    public fun stability_fee_amount(borrow_amount: u64): u64 {
+    public fun calculate_stability_fee(borrow_amount: u64): u64 {
         borrow_amount * STABILITY_FEE / PRECISION
     }
 
@@ -579,7 +579,7 @@ module leizd::stability_pool {
         managed_coin::register<USDZ>(account2);
 
         // check prerequisite
-        assert!(stability_fee_amount(1000) == 5, 0); // 5%
+        assert!(calculate_stability_fee(1000) == 5, 0); // 5%
 
         // execute
         deposit(account1, 400000);
@@ -589,7 +589,7 @@ module leizd::stability_pool {
         // assertions
         assert!(total_deposited() == 400000, 0);
         assert!(left() == 100000, 0);
-        assert!(total_borrowed<WETH>() == ((300000 + stability_fee_amount(300000)) as u128), 0);
+        assert!(total_borrowed<WETH>() == ((300000 + calculate_stability_fee(300000)) as u128), 0);
         assert!(stb_usdz::balance_of(account1_addr) == 400000, 0);
         assert!(usdz::balance_of(account2_addr) == 300000, 0);
         //// event
@@ -634,7 +634,7 @@ module leizd::stability_pool {
         managed_coin::register<USDZ>(borrower);
 
         // check prerequisite
-        assert!(stability_fee_amount(1000) == 5, 0); // 5%
+        assert!(calculate_stability_fee(1000) == 5, 0); // 5%
 
         // execute
         deposit(depositor, 400000);
@@ -642,22 +642,22 @@ module leizd::stability_pool {
 
         let borrowed = borrow<WETH>(depositor_addr, 100000);
         assert!(left() == 300000, 0);
-        assert!(total_borrowed<WETH>() == ((100000 + stability_fee_amount(100000)) as u128), 0);
+        assert!(total_borrowed<WETH>() == ((100000 + calculate_stability_fee(100000)) as u128), 0);
         coin::deposit(borrower_addr, borrowed);
 
         let borrowed = borrow<WETH>(depositor_addr, 100000);
         assert!(left() == 200000, 0);
-        assert!(total_borrowed<WETH>() == ((200000 + stability_fee_amount(200000)) as u128), 0);
+        assert!(total_borrowed<WETH>() == ((200000 + calculate_stability_fee(200000)) as u128), 0);
         coin::deposit(borrower_addr, borrowed);
 
         let borrowed = borrow<WETH>(depositor_addr, 100000);
         assert!(left() == 100000, 0);
-        assert!(total_borrowed<WETH>() == ((300000 + stability_fee_amount(300000)) as u128), 0);
+        assert!(total_borrowed<WETH>() == ((300000 + calculate_stability_fee(300000)) as u128), 0);
         coin::deposit(borrower_addr, borrowed);
 
         let borrowed = borrow<WETH>(depositor_addr, 100000);
         assert!(left() == 0, 0);
-        assert!(total_borrowed<WETH>() == ((400000 + stability_fee_amount(400000)) as u128), 0);
+        assert!(total_borrowed<WETH>() == ((400000 + calculate_stability_fee(400000)) as u128), 0);
         coin::deposit(borrower_addr, borrowed);
     }
 
@@ -674,7 +674,7 @@ module leizd::stability_pool {
         managed_coin::register<USDZ>(account2);
 
         // check prerequisite
-        assert!(stability_fee_amount(1000) == 5, 0); // 5%
+        assert!(calculate_stability_fee(1000) == 5, 0); // 5%
 
         // execute
         deposit(account1, 400000);
@@ -731,7 +731,7 @@ module leizd::stability_pool {
         managed_coin::register<USDZ>(borrower);
 
         // check prerequisite
-        assert!(stability_fee_amount(1000) == 5, 0); // 5%
+        assert!(calculate_stability_fee(1000) == 5, 0); // 5%
 
         // execute
         //// add liquidity & borrow
@@ -787,7 +787,7 @@ module leizd::stability_pool {
         managed_coin::register<USDZ>(borrower);
 
         // check prerequisite
-        assert!(stability_fee_amount(1000) == 5, 0); // 5%
+        assert!(calculate_stability_fee(1000) == 5, 0); // 5%
 
         // execute
         //// add liquidity & borrow
@@ -965,10 +965,10 @@ module leizd::stability_pool {
 
     // for related configuration
     #[test]
-    fun test_stability_fee_amount() {
-        assert!(stability_fee_amount(1000) == 5, 0);
-        assert!(stability_fee_amount(543200) == 2716, 0);
-        assert!(stability_fee_amount(100) == 0, 0); // TODO: round up
+    fun test_calculate_stability_fee() {
+        assert!(calculate_stability_fee(1000) == 5, 0);
+        assert!(calculate_stability_fee(543200) == 2716, 0);
+        assert!(calculate_stability_fee(100) == 0, 0); // TODO: round up
     }
     #[test(owner = @leizd)]
     fun test_distribution_config(owner: &signer) acquires DistributionConfig {
