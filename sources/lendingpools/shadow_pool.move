@@ -71,6 +71,15 @@ module leizd::shadow_pool {
         caller: address,
         target: address,
     }
+
+    struct RebalanceEvent has store, drop {
+        // caller: address, // TODO: judge use or not use
+        from: String,
+        to: String,
+        amount: u64,
+        is_collateral_only: bool,
+        with_borrow: bool,
+    }
     
     struct PoolEventHandle has key, store {
         deposit_event: event::EventHandle<DepositEvent>,
@@ -78,6 +87,7 @@ module leizd::shadow_pool {
         borrow_event: event::EventHandle<BorrowEvent>,
         repay_event: event::EventHandle<RepayEvent>,
         liquidate_event: event::EventHandle<LiquidateEvent>,
+        rebalance_event: event::EventHandle<RebalanceEvent>,
     }
 
     public fun init_pool(owner: &signer) {
@@ -96,6 +106,7 @@ module leizd::shadow_pool {
             borrow_event: account::new_event_handle<BorrowEvent>(owner),
             repay_event: account::new_event_handle<RepayEvent>(owner),
             liquidate_event: account::new_event_handle<LiquidateEvent>(owner),
+            rebalance_event: account::new_event_handle<RebalanceEvent>(owner),
         })
     }
 
@@ -154,46 +165,67 @@ module leizd::shadow_pool {
         );
     }
 
-    public(friend) fun rebalance_shadow<C1,C2>(amount: u64, is_collateral_only: bool) acquires Storage {
-        let key1 = generate_coin_key<C1>();
-        let key2 = generate_coin_key<C2>();
-        let storage_ref = borrow_global_mut<Storage>(permission::owner_address());
-        assert!(simple_map::contains_key<String,u64>(&storage_ref.deposited, &key1), 0);
-        assert!(simple_map::contains_key<String,u64>(&storage_ref.deposited, &key2), 0);
+    public(friend) fun rebalance_shadow<C1,C2>(amount: u64, is_collateral_only: bool) acquires Storage, PoolEventHandle {
+        let key_from = generate_coin_key<C1>();
+        let key_to = generate_coin_key<C2>();
+        let owner_addr = permission::owner_address();
+        let storage_ref = borrow_global_mut<Storage>(owner_addr);
+        assert!(simple_map::contains_key<String,u64>(&storage_ref.deposited, &key_from), 0);
+        assert!(simple_map::contains_key<String,u64>(&storage_ref.deposited, &key_to), 0);
 
-        let deposited = simple_map::borrow_mut<String,u64>(&mut storage_ref.deposited, &key1);
+        let deposited = simple_map::borrow_mut<String,u64>(&mut storage_ref.deposited, &key_from);
         *deposited = *deposited - amount;
-        let deposited = simple_map::borrow_mut<String,u64>(&mut storage_ref.deposited, &key2);
+        let deposited = simple_map::borrow_mut<String,u64>(&mut storage_ref.deposited, &key_to);
         *deposited = *deposited + amount;
 
         if (is_collateral_only) {
-            let conly_deposited = simple_map::borrow_mut<String,u64>(&mut storage_ref.conly_deposited, &key1);
+            let conly_deposited = simple_map::borrow_mut<String,u64>(&mut storage_ref.conly_deposited, &key_from);
             *conly_deposited = *conly_deposited - amount;
-            let conly_deposited = simple_map::borrow_mut<String,u64>(&mut storage_ref.conly_deposited, &key2);
+            let conly_deposited = simple_map::borrow_mut<String,u64>(&mut storage_ref.conly_deposited, &key_to);
             *conly_deposited = *conly_deposited + amount;
         };
 
-        // TODO: event
+        event::emit_event<RebalanceEvent>(
+            &mut borrow_global_mut<PoolEventHandle>(owner_addr).rebalance_event,
+            RebalanceEvent {
+                from: key_from,
+                to: key_to,
+                amount,
+                is_collateral_only,
+                with_borrow: false,
+            },
+        );
     }
 
-    public(friend) fun borrow_and_rebalance<C1,C2>(amount: u64, is_collateral_only: bool) acquires Storage {
-        let key1 = generate_coin_key<C1>();
-        let key2 = generate_coin_key<C2>();
-        let storage_ref = borrow_global_mut<Storage>(permission::owner_address());
-        assert!(simple_map::contains_key<String,u64>(&storage_ref.borrowed, &key1), 0);
-        assert!(simple_map::contains_key<String,u64>(&storage_ref.deposited, &key2), 0);
+    public(friend) fun borrow_and_rebalance<C1,C2>(amount: u64, is_collateral_only: bool) acquires Storage, PoolEventHandle {
+        let key_from = generate_coin_key<C1>();
+        let key_to = generate_coin_key<C2>();
+        let owner_addr = permission::owner_address();
+        let storage_ref = borrow_global_mut<Storage>(owner_addr);
+        assert!(simple_map::contains_key<String,u64>(&storage_ref.borrowed, &key_from), 0);
+        assert!(simple_map::contains_key<String,u64>(&storage_ref.deposited, &key_to), 0);
 
-        let borrowed = simple_map::borrow_mut<String,u64>(&mut storage_ref.borrowed, &key1);
+        // TODO: consider fee
+        let borrowed = simple_map::borrow_mut<String,u64>(&mut storage_ref.borrowed, &key_from);
         *borrowed = *borrowed + amount;
-        let deposited = simple_map::borrow_mut<String,u64>(&mut storage_ref.deposited, &key2);
+        let deposited = simple_map::borrow_mut<String,u64>(&mut storage_ref.deposited, &key_to);
         *deposited = *deposited + amount;
 
         if (is_collateral_only) {
-            let conly_deposited = simple_map::borrow_mut<String,u64>(&mut storage_ref.conly_deposited, &key2);
+            let conly_deposited = simple_map::borrow_mut<String,u64>(&mut storage_ref.conly_deposited, &key_to);
             *conly_deposited = *conly_deposited + amount;
         };
 
-        // TODO: event
+        event::emit_event<RebalanceEvent>(
+            &mut borrow_global_mut<PoolEventHandle>(owner_addr).rebalance_event,
+            RebalanceEvent {
+                from: key_from,
+                to: key_to,
+                amount,
+                is_collateral_only,
+                with_borrow: true,
+            },
+        );
     }
 
     public(friend) fun withdraw_for<C>(
@@ -1412,6 +1444,9 @@ module leizd::shadow_pool {
         rebalance_shadow<WETH,UNI>(10000, false);
         assert!(deposited<WETH>() == 90000, 0);
         assert!(deposited<UNI>() == 110000, 0);
+
+        let event_handle = borrow_global<PoolEventHandle>(signer::address_of(owner));
+        assert!(event::counter<RebalanceEvent>(&event_handle.rebalance_event) == 1, 0);
     }
     #[test(owner=@leizd,account1=@0x111,aptos_framework=@aptos_framework)]
     public entry fun test_borrow_and_rebalance(owner: &signer, account1: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
@@ -1436,6 +1471,9 @@ module leizd::shadow_pool {
         borrow_and_rebalance<WETH,UNI>(10000, false);
         assert!(borrowed<WETH>() == 60000 + 250, 0); // TODO: check to charge fee in rebalance (maybe 300)
         assert!(deposited<UNI>() == 110000, 0);
+
+        let event_handle = borrow_global<PoolEventHandle>(owner_addr);
+        assert!(event::counter<RebalanceEvent>(&event_handle.rebalance_event) == 1, 0);
     }
 
     // for common validations
