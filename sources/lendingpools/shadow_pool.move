@@ -745,7 +745,6 @@ module leizd::shadow_pool {
     // for borrow
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
     public entry fun test_borrow(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
-        // TODO: consider HF
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         price_oracle::initialize_with_fixed_price_for_test(owner);
 
@@ -781,7 +780,6 @@ module leizd::shadow_pool {
     }
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
     public entry fun test_borrow_with_same_as_deposited_amount(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
-        // TODO: consider HF
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         price_oracle::initialize_with_fixed_price_for_test(owner);
 
@@ -815,7 +813,6 @@ module leizd::shadow_pool {
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
     #[expected_failure(abort_code = 65542)]
     public entry fun test_borrow_with_more_than_deposited_amount(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
-        // TODO: consider HF
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         price_oracle::initialize_with_fixed_price_for_test(owner);
 
@@ -835,7 +832,6 @@ module leizd::shadow_pool {
     }
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
     public entry fun test_borrow_more_than_once_sequentially(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
-        // TODO: consider HF
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         price_oracle::initialize_with_fixed_price_for_test(owner);
 
@@ -869,7 +865,6 @@ module leizd::shadow_pool {
     }
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
     public entry fun test_borrow_more_than_once_sequentially_over_time(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
-        // TODO: consider HF
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         price_oracle::initialize_with_fixed_price_for_test(owner);
 
@@ -911,7 +906,6 @@ module leizd::shadow_pool {
     }
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
     public entry fun test_repay(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
-        // TODO: consider HF
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         price_oracle::initialize_with_fixed_price_for_test(owner);
 
@@ -946,7 +940,6 @@ module leizd::shadow_pool {
     }
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
     public entry fun test_repay_with_same_as_total_borrowed_amount(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
-        // TODO: consider HF
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         price_oracle::initialize_with_fixed_price_for_test(owner);
 
@@ -975,7 +968,6 @@ module leizd::shadow_pool {
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
     #[expected_failure(abort_code = 65542)]
     public entry fun test_repay_with_more_than_total_borrowed_amount(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
-        // TODO: consider HF
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         price_oracle::initialize_with_fixed_price_for_test(owner);
 
@@ -997,7 +989,6 @@ module leizd::shadow_pool {
     }
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
     public entry fun test_repay_more_than_once_sequentially(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
-        // TODO: consider HF
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         price_oracle::initialize_with_fixed_price_for_test(owner);
 
@@ -1044,7 +1035,6 @@ module leizd::shadow_pool {
     }
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
     public entry fun test_repay_more_than_once_sequentially_over_time(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
-        // TODO: consider HF
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         price_oracle::initialize_with_fixed_price_for_test(owner);
 
