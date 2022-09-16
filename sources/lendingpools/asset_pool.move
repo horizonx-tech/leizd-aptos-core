@@ -316,21 +316,27 @@ module leizd::asset_pool {
         amount
     }
 
-    public entry fun liquidate<C>(
+    public(friend) entry fun liquidate<C>(
         liquidator_addr: address,
         target_addr: address,
-    ): (u64,bool) acquires Pool, Storage, PoolEventHandle {
-        let liquidation_fee = risk_factor::liquidation_fee();
+        liquidated: u64,
+        is_collateral_only: bool,
+    ) acquires Pool, Storage, PoolEventHandle {
+        liquidate_internal<C>(liquidator_addr, target_addr, liquidated, is_collateral_only);
+    }
+
+    fun liquidate_internal<C>(
+        liquidator_addr: address,
+        target_addr: address,
+        liquidated: u64,
+        is_collateral_only: bool,
+    ) acquires Pool, Storage, PoolEventHandle {
+        let liquidation_fee = risk_factor::liquidation_fee() * liquidated / risk_factor::precision();
         let owner_address = permission::owner_address();
         let storage_ref = borrow_global_mut<Storage<C>>(owner_address);
         accrue_interest<C>(storage_ref);
-        let is_collateral_only = false;
-        let liquidated = withdraw_for_internal<C>(liquidator_addr, target_addr, constant::u64_max(), false, liquidation_fee);
-        if (liquidated == 0) {
-            liquidated = withdraw_for_internal<C>(liquidator_addr, target_addr, constant::u64_max(), true, liquidation_fee);
-            is_collateral_only = true;
-        };
-        
+        withdraw_for_internal<C>(liquidator_addr, target_addr, liquidated, is_collateral_only, liquidation_fee);
+
         event::emit_event<LiquidateEvent>(
             &mut borrow_global_mut<PoolEventHandle<C>>(permission::owner_address()).liquidate_event,
             LiquidateEvent {
@@ -338,7 +344,6 @@ module leizd::asset_pool {
                 target: target_addr,
             }
         );
-        (liquidated, is_collateral_only)
     }
 
     public fun is_pool_initialized<C>(): bool {
@@ -378,8 +383,10 @@ module leizd::asset_pool {
     }
 
     fun collect_asset_fee<C>(pool_ref: &mut Pool<C>, liquidation_fee: u64) {
-        let fee_extracted = coin::extract(&mut pool_ref.asset, liquidation_fee);
-        treasury::collect_asset_fee<C>(fee_extracted);
+        if (liquidation_fee > 0) {
+            let fee_extracted = coin::extract(&mut pool_ref.asset, liquidation_fee);
+            treasury::collect_asset_fee<C>(fee_extracted);
+        };
     }
 
     public entry fun total_deposited<C>(): u128 acquires Storage {
@@ -1053,6 +1060,35 @@ module leizd::asset_pool {
 
         let event_handle = borrow_global<PoolEventHandle<UNI>>(signer::address_of(owner));
         assert!(event::counter<RepayEvent>(&event_handle.repay_event) == 3, 0);
+    }
+
+    // for liquidation
+    #[test(owner=@leizd,depositor=@0x111,liquidator=@0x222,aptos_framework=@aptos_framework)]
+    public entry fun test_liquidate_asset(owner: &signer, depositor: &signer, liquidator: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        price_oracle::initialize_with_fixed_price_for_test(owner);
+        
+        let owner_address = signer::address_of(owner);
+        let depositor_addr = signer::address_of(depositor);
+        let liquidator_addr = signer::address_of(liquidator);
+        account::create_account_for_test(depositor_addr);
+        account::create_account_for_test(liquidator_addr);
+        managed_coin::register<WETH>(depositor);
+        managed_coin::mint<WETH>(owner, depositor_addr, 150);
+        assert!(coin::balance<WETH>(depositor_addr) == 150, 0);
+
+        deposit_for_internal<WETH>(depositor, depositor_addr, 100, false);
+        assert!(pool_asset_value<WETH>(owner_address) == 100, 0);
+        assert!(total_deposited<WETH>() == 100, 0);
+        assert!(total_conly_deposited<WETH>() == 0, 0);
+
+        liquidate_internal<WETH>(liquidator_addr, depositor_addr, 100, false);
+        assert!(pool_asset_value<WETH>(owner_address) == 0, 0);
+        assert!(total_deposited<WETH>() == 0, 0);
+        assert!(total_conly_deposited<WETH>() == 0, 0);
+
+        let event_handle = borrow_global<PoolEventHandle<WETH>>(signer::address_of(owner));
+        assert!(event::counter<LiquidateEvent>(&event_handle.liquidate_event) == 1, 0);
     }
 
     // for common validations
