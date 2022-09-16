@@ -1030,15 +1030,15 @@ module leizd::account_position {
         assert!(borrowed_asset<UNI>(account_addr) == 170, 0);
 
         liquidate_internal<WETH,Shadow>(account_addr);
-        // assert!(deposited_shadow<WETH>(account_addr) == 0, 0);
-        // assert!(conly_deposited_shadow<WETH>(account_addr) == 0, 0);
-        // assert!(borrowed_asset<WETH>(account_addr) == 0, 0);
-        // liquidate_internal<UNI,Shadow>(account_addr);
-        // assert!(deposited_shadow<UNI>(account_addr) == 0, 0);
-        // assert!(conly_deposited_shadow<WETH>(account_addr) == 0, 0);
-        // assert!(borrowed_asset<WETH>(account_addr) == 0, 0);
+        assert!(deposited_shadow<WETH>(account_addr) == 0, 0);
+        assert!(conly_deposited_shadow<WETH>(account_addr) == 0, 0);
+        assert!(borrowed_asset<WETH>(account_addr) == 0, 0);
+        liquidate_internal<UNI,Shadow>(account_addr);
+        assert!(deposited_shadow<UNI>(account_addr) == 0, 0);
+        assert!(conly_deposited_shadow<WETH>(account_addr) == 0, 0);
+        assert!(borrowed_asset<WETH>(account_addr) == 0, 0);
 
-        // assert!(event::counter<UpdatePositionEvent>(&borrow_global<AccountPositionEventHandle<ShadowToAsset>>(account_addr).update_position_event) == 8, 0);
+        assert!(event::counter<UpdatePositionEvent>(&borrow_global<AccountPositionEventHandle<ShadowToAsset>>(account_addr).update_position_event) == 8, 0);
     }
     #[test(owner=@leizd,account=@0x111)]
     public entry fun test_liquidate_asset_and_shadow(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle {
