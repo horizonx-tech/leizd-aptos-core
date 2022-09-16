@@ -17,9 +17,10 @@ module leizd::stability_pool {
     const DEFAULT_ENTRY_FEE: u64 = 1000000000 * 5 / 1000; // 0.5%
 
     const EALREADY_INITIALIZED: u64 = 1;
-    const EINVALID_AMOUNT: u64 = 2;
-    const EEXCEED_REMAINING_AMOUNT: u64 = 3;
-    const ENO_CLAIMABLE_AMOUNT: u64 = 4;
+    const EINVALID_ENTRY_FEE: u64 = 2;
+    const EINVALID_AMOUNT: u64 = 3;
+    const EEXCEED_REMAINING_AMOUNT: u64 = 4;
+    const ENO_CLAIMABLE_AMOUNT: u64 = 5;
 
     struct StabilityPool has key {
         left: coin::Coin<USDZ>,
@@ -144,6 +145,7 @@ module leizd::stability_pool {
     }
 
     public entry fun update_config(owner: &signer, new_entry_fee: u64) acquires Config, StabilityPoolEventHandle {
+        assert!(new_entry_fee < PRECISION, error::invalid_argument(EINVALID_ENTRY_FEE));
         let owner_address = signer::address_of(owner);
         permission::assert_owner(owner_address);
 
@@ -466,7 +468,7 @@ module leizd::stability_pool {
         assert!(event::counter<DepositEvent>(&borrow_global<StabilityPoolEventHandle>(signer::address_of(owner)).deposit_event) == 1, 0);
     }
     #[test(owner=@leizd,account=@0x111)]
-    #[expected_failure(abort_code = 65538)]
+    #[expected_failure(abort_code = 65539)]
     public entry fun test_deposit_to_stability_pool_with_no_amount(owner: &signer, account: &signer) acquires StabilityPool, StabilityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         let account_addr = signer::address_of(account);
@@ -533,7 +535,7 @@ module leizd::stability_pool {
         assert!(event::counter<WithdrawEvent>(&borrow_global<StabilityPoolEventHandle>(signer::address_of(owner)).withdraw_event) == 1, 0);
     }
     #[test(owner=@leizd,account=@0x111)]
-    #[expected_failure(abort_code = 65538)]
+    #[expected_failure(abort_code = 65539)]
     public entry fun test_withdraw_from_stability_pool_with_no_amount(owner: &signer, account: &signer) acquires StabilityPool, StabilityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         let account_addr = signer::address_of(account);
@@ -578,7 +580,7 @@ module leizd::stability_pool {
         assert!(stb_usdz::balance_of(account_addr) == 0, 0);
     }
     #[test(owner=@leizd,account=@0x111)]
-    #[expected_failure(abort_code = 65539)]
+    #[expected_failure(abort_code = 65540)]
     public entry fun test_withdraw_with_amount_is_greater_than_total_deposited(owner: &signer, account: &signer) acquires StabilityPool, StabilityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         let account_addr = signer::address_of(account);
@@ -645,7 +647,7 @@ module leizd::stability_pool {
         assert!(event::counter<BorrowEvent>(&borrow_global<StabilityPoolEventHandle>(signer::address_of(owner)).borrow_event) == 1, 0);
     }
     #[test(owner=@leizd, account=@0x111)]
-    #[expected_failure(abort_code = 65538)]
+    #[expected_failure(abort_code = 65539)]
     public entry fun test_borrow_from_stability_pool_with_no_amount(owner: &signer, account: &signer) acquires StabilityPool, Config, Balance, StabilityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         let account_addr = signer::address_of(account);
@@ -658,7 +660,7 @@ module leizd::stability_pool {
         coin::deposit(account_addr, coin);
     }
     #[test(owner=@leizd, account=@0x111)]
-    #[expected_failure(abort_code = 65539)]
+    #[expected_failure(abort_code = 65540)]
     public entry fun test_borrow_from_stability_pool_with_amount_is_greater_than_left(owner: &signer, account: &signer) acquires StabilityPool, Config, Balance, StabilityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         let account_addr = signer::address_of(account);
@@ -743,13 +745,13 @@ module leizd::stability_pool {
     }
     //// validations
     #[test(owner=@leizd,account=@0x111)]
-    #[expected_failure(abort_code = 65538)]
+    #[expected_failure(abort_code = 65539)]
     public entry fun test_repay_with_zero_amount(owner: &signer, account: &signer) acquires StabilityPool, Balance, StabilityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         repay<WETH>(account, 0);
     }
     #[test(owner=@leizd,account=@0x111)]
-    #[expected_failure(abort_code = 65538)]
+    #[expected_failure(abort_code = 65539)]
     public entry fun test_repay_with_amount_is_greater_than_total_borrowed(owner: &signer, account: &signer) acquires StabilityPool, Config, Balance, StabilityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         let owner_addr = signer::address_of(owner);
@@ -897,7 +899,7 @@ module leizd::stability_pool {
         assert!(event::counter<ClaimRewardEvent>(&borrow_global<StabilityPoolEventHandle>(owner_addr).claim_reward_event) == 1, 0);
     }
     #[test(owner=@leizd, account=@0x111, aptos_framework=@aptos_framework)]
-    #[expected_failure(abort_code = 65540)]
+    #[expected_failure(abort_code = 65541)]
     public entry fun test_claim_reward_with_no_claimable(owner: &signer, account: &signer, aptos_framework: &signer) acquires StabilityPool, DistributionConfig, UserDistribution, StabilityPoolEventHandle {
         timestamp::set_time_has_started_for_testing(aptos_framework);
         initialize_for_test_to_use_coin(owner);
@@ -905,7 +907,7 @@ module leizd::stability_pool {
         claim_reward(account, 1);
     }
     #[test(owner=@leizd, account=@0x111)]
-    #[expected_failure(abort_code = 65538)]
+    #[expected_failure(abort_code = 65539)]
     public entry fun test_claim_reward_with_zero_amount(owner: &signer, account: &signer) acquires StabilityPool, DistributionConfig, UserDistribution, StabilityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         claim_reward(account, 0);
@@ -1029,6 +1031,12 @@ module leizd::stability_pool {
     fun test_update_config_with_not_owner(owner: &signer, account: &signer) acquires Config, StabilityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         update_config(account, PRECISION * 10 / 1000);
+    }
+    #[test(owner = @leizd)]
+    #[expected_failure(abort_code = 65538)]
+    fun test_update_config_with_fee_as_equal_to_precision(owner: &signer) acquires Config, StabilityPoolEventHandle {
+        initialize_for_test_to_use_coin(owner);
+        update_config(owner, PRECISION);
     }
     #[test(owner = @leizd)]
     fun test_calculate_entry_fee(owner: &signer) acquires Config, StabilityPoolEventHandle {
