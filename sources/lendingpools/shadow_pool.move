@@ -389,6 +389,27 @@ module leizd::shadow_pool {
         amount
     }
 
+    public entry fun liquidate<C>(
+        liquidator_addr: address,
+        target_addr: address,
+    ): (u64,u64) acquires Pool, Storage, PoolEventHandle {
+        let liquidation_fee = risk_factor::liquidation_fee();
+        let owner_address = permission::owner_address();
+        let storage_ref = borrow_global_mut<Storage>(owner_address);
+        accrue_interest<C>(storage_ref);
+        let amount = withdraw_for_internal<C>(liquidator_addr, target_addr, constant::u64_max(), false, liquidation_fee);
+        let amount_conly = withdraw_for_internal<C>(liquidator_addr, target_addr, constant::u64_max(), true, liquidation_fee);
+        
+        event::emit_event<LiquidateEvent>(
+            &mut borrow_global_mut<PoolEventHandle>(permission::owner_address()).liquidate_event,
+            LiquidateEvent {
+                caller: liquidator_addr,
+                target: target_addr,
+            }
+        );
+        (amount, amount_conly)
+    }
+
     fun default_storage(): Storage {
         Storage {
             total_deposited: 0,

@@ -22,6 +22,7 @@ module leizd::account_position {
     const EALREADY_PROTECTED: u64 = 4;
     const EOVER_DEPOSITED_AMOUNT: u64 = 5;
     const EOVER_BORROWED_AMOUNT: u64 = 6;
+    const EPOSITION_EXISTED: u64 = 7;
 
     /// P: The position type - AssetToShadow or ShadowToAsset.
     struct Position<phantom P> has key {
@@ -195,6 +196,18 @@ module leizd::account_position {
             update_position<C,ShadowToAsset>(addr, amount, false, false, false);
         } else {
             update_position<C,AssetToShadow>(addr, amount, false, false, false);
+        };
+    }
+
+    public(friend) fun liquidate<C,P>(target_addr: address, liquidated: u64, liquidated_conly: u64) acquires Position, AccountPositionEventHandle {
+        if (pool_type::is_type_asset<P>()) {
+            if (liquidated > 0) update_position<C,AssetToShadow>(target_addr, liquidated, true, false, false);
+            if (liquidated_conly > 0) update_position<C, AssetToShadow>(target_addr, liquidated_conly, true, false, true);
+            assert!(is_zero_position<C,AssetToShadow>(target_addr), error::invalid_state(EPOSITION_EXISTED));
+        } else {
+            if (liquidated > 0) update_position<C,ShadowToAsset>(target_addr, liquidated, true, false, false);
+            if (liquidated_conly > 0) update_position<C, ShadowToAsset>(target_addr, liquidated_conly, true, false, true);
+            assert!(is_zero_position<C,ShadowToAsset>(target_addr), error::invalid_state(EPOSITION_EXISTED));
         };
     }
 
@@ -380,6 +393,12 @@ module leizd::account_position {
         } else {
             utilization_of<P>(position_ref, key) < risk_factor::lt_of_shadow()
         }
+    }
+
+    fun is_zero_position<C,P>(addr: address): bool acquires Position {
+        let key = generate_key<C>();
+        let position_ref = borrow_global<Position<P>>(addr);
+        !vector::contains<String>(&position_ref.coins, &key)
     }
 
     fun utilization_of<P>(position_ref: &Position<P>, key: String): u64 {

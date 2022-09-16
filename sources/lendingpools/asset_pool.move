@@ -317,29 +317,26 @@ module leizd::asset_pool {
         amount
     }
 
-    // public entry fun liquidate<C>(
-    //     account: &signer,
-    //     target_addr: address,
-    //     is_shadow: bool
-    // ) acquires Pool, Storage, PoolEventHandle {
-    //     let liquidation_fee = risk_factor::liquidation_fee();
-    //     if (is_shadow) {
-    //         assert!(is_shadow_solvent<C>(target_addr), 0);
-    //         withdraw_shadow<C>(account, target_addr, constant::u64_max(), true, liquidation_fee);
-    //         withdraw_shadow<C>(account, target_addr, constant::u64_max(), false, liquidation_fee);
-    //     } else {
-    //         assert!(is_asset_solvent<C>(target_addr), 0);
-    //         withdraw_asset<C>(account, target_addr, constant::u64_max(), true, liquidation_fee);
-    //         withdraw_asset<C>(account, target_addr, constant::u64_max(), false, liquidation_fee);
-    //     };
-    //     event::emit_event<LiquidateEvent>(
-    //         &mut borrow_global_mut<PoolEventHandle<C>>(permission::owner_address()).liquidate_event,
-    //         LiquidateEvent {
-    //             caller: signer::address_of(account),
-    //             target: target_addr,
-    //         }
-    //     )
-    // }
+    public entry fun liquidate<C>(
+        liquidator_addr: address,
+        target_addr: address,
+    ): (u64,u64) acquires Pool, Storage, PoolEventHandle {
+        let liquidation_fee = risk_factor::liquidation_fee();
+        let owner_address = permission::owner_address();
+        let storage_ref = borrow_global_mut<Storage<C>>(owner_address);
+        accrue_interest<C,Asset>(storage_ref);
+        let amount = withdraw_for_internal<C>(liquidator_addr, target_addr, constant::u64_max(), false, liquidation_fee);
+        let amount_conly = withdraw_for_internal<C>(liquidator_addr, target_addr, constant::u64_max(), true, liquidation_fee);
+        
+        event::emit_event<LiquidateEvent>(
+            &mut borrow_global_mut<PoolEventHandle<C>>(permission::owner_address()).liquidate_event,
+            LiquidateEvent {
+                caller: liquidator_addr,
+                target: target_addr,
+            }
+        );
+        (amount, amount_conly)
+    }
 
     public fun is_pool_initialized<C>(): bool {
         exists<Pool<C>>(permission::owner_address())

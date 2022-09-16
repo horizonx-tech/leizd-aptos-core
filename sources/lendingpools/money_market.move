@@ -123,4 +123,17 @@ module leizd::money_market {
     }
 
     // Liquidation
+    public entry fun liquidate<C,P>(account: &signer, target_addr: address) {
+        pool_type::assert_pool_type<P>();
+
+        let (liquidated, liquidated_conly);
+        let liquidator_addr = signer::address_of(account);
+        let is_shadow = pool_type::is_type_shadow<P>();
+        if (is_shadow) {
+            (liquidated, liquidated_conly) = shadow_pool::liquidate<C>(liquidator_addr, target_addr);
+        } else {
+            (liquidated, liquidated_conly) = asset_pool::liquidate<C>(liquidator_addr, target_addr);
+        };
+        account_position::liquidate<C,P>(target_addr, liquidated, liquidated_conly);
+    }
 }
