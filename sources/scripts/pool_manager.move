@@ -30,7 +30,7 @@ module leizd::pool_manager {
 
   struct AddPoolEvent has store, drop {
     caller: address,
-    coin: CoinInfo,
+    info: TypeInfo,
   }
 
   struct CoinInfo has store, drop {
@@ -67,10 +67,7 @@ module leizd::pool_manager {
       &mut borrow_global_mut<PoolManagerEventHandle>(permission::owner_address()).add_pool_event,
         AddPoolEvent {
           caller: signer::address_of(holder),
-          coin: CoinInfo{
-            symbol: coin::symbol<C>(),
-            decimals: coin::decimals<C>(),
-          },
+          info: type_info::type_of<C>(),
         },
     );
   }
