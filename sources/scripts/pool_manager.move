@@ -31,6 +31,7 @@ module leizd::pool_manager {
   struct AddPoolEvent has store, drop {
     caller: address,
     info: TypeInfo,
+    coin_info: CoinInfo,
   }
 
   struct CoinInfo has store, drop {
@@ -68,6 +69,10 @@ module leizd::pool_manager {
         AddPoolEvent {
           caller: signer::address_of(holder),
           info: type_info::type_of<C>(),
+          coin_info: CoinInfo {
+            symbol: coin::symbol<C>(),
+            decimals: coin::decimals<C>(),
+          }
         },
     );
   }
