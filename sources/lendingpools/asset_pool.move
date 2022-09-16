@@ -31,6 +31,7 @@ module leizd::asset_pool {
     const E_DEX_DOES_NOT_HAVE_LIQUIDITY: u64 = 3;
     const E_NOT_AVAILABLE_STATUS: u64 = 4;
     const E_AMOUNT_ARG_IS_ZERO: u64 = 5;
+    const E_INSUFFICIENT_LIQUIDITY: u64 = 12;
 
     /// Asset Pool where users can deposit and borrow.
     /// Each asset is separately deposited into a pool.
@@ -262,11 +263,14 @@ module leizd::asset_pool {
         accrue_interest<C>(storage_ref);
 
         let fee = risk_factor::calculate_entry_fee(amount);
-        collect_asset_fee<C>(pool_ref, fee);
+        let amount_with_fee = amount + fee;
+        assert!((amount_with_fee as u128) <= liquidity_internal(pool_ref, storage_ref), error::invalid_argument(E_INSUFFICIENT_LIQUIDITY));
 
-        let deposited = coin::extract(&mut pool_ref.asset, amount);
-        coin::deposit<C>(receiver_addr, deposited);
-        storage_ref.total_borrowed = storage_ref.total_borrowed + (amount as u128) + (fee as u128);
+        collect_asset_fee<C>(pool_ref, fee);
+        let borrowed = coin::extract(&mut pool_ref.asset, amount);
+        coin::deposit<C>(receiver_addr, borrowed);
+
+        storage_ref.total_borrowed = storage_ref.total_borrowed + (amount_with_fee as u128);
         
         event::emit_event<BorrowEvent>(
             &mut borrow_global_mut<PoolEventHandle<C>>(owner_address).borrow_event,
@@ -382,9 +386,9 @@ module leizd::asset_pool {
         storage_ref.last_updated = now;
     }
 
-    fun collect_asset_fee<C>(pool_ref: &mut Pool<C>, liquidation_fee: u64) {
-        if (liquidation_fee > 0) {
-            let fee_extracted = coin::extract(&mut pool_ref.asset, liquidation_fee);
+    fun collect_asset_fee<C>(pool_ref: &mut Pool<C>, fee: u64) {
+        if (fee > 0) {
+            let fee_extracted = coin::extract(&mut pool_ref.asset, fee);
             treasury::collect_asset_fee<C>(fee_extracted);
         };
     }
@@ -397,7 +401,10 @@ module leizd::asset_pool {
         let owner_addr = permission::owner_address();
         let pool_ref = borrow_global<Pool<C>>(owner_addr);
         let storage_ref = borrow_global<Storage<C>>(owner_addr);
-        (coin::value(&pool_ref.asset) as u128) - storage_ref.total_conly_deposited
+        liquidity_internal(pool_ref, storage_ref)
+    }
+    fun liquidity_internal<C>(pool: &Pool<C>, storage: &Storage<C>): u128 {
+        (coin::value(&pool.asset) as u128) - storage.total_conly_deposited
     }
 
     public entry fun total_conly_deposited<C>(): u128 acquires Storage {
@@ -784,9 +791,11 @@ module leizd::asset_pool {
         //// borrow UNI
         borrow_for_internal<UNI>(borrower_addr, borrower_addr, 1000);
         assert!(coin::balance<UNI>(borrower_addr) == 1000, 0);
+        assert!(treasury::balance_of_asset<UNI>() == 5, 0);
+        assert!(pool_asset_value<UNI>(signer::address_of(owner)) == 0, 0);
     }
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
-    #[expected_failure(abort_code = 65542)]
+    #[expected_failure(abort_code = 65548)]
     fun test_borrow_with_more_than_deposited_amount(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         price_oracle::initialize_with_fixed_price_for_test(owner);
@@ -869,6 +878,7 @@ module leizd::asset_pool {
         // assert!(coin::balance<UNI>(borrower_addr) == 100, 0);
     }
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
+    #[expected_failure(abort_code = 65548)]
     fun test_borrow_to_not_borrow_collateral_only(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         price_oracle::initialize_with_fixed_price_for_test(owner);
@@ -886,7 +896,6 @@ module leizd::asset_pool {
         deposit_for_internal<UNI>(depositor, depositor_addr, 50, true);
         // borrow UNI
         borrow_for_internal<UNI>(borrower_addr, borrower_addr, 120);
-        assert!(coin::balance<UNI>(borrower_addr) == 120, 0); // TODO: cannot borrow collateral_only
     }
 
     // for repay
