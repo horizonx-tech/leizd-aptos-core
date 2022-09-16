@@ -1,0 +1,26 @@
+name: Tests
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Get Aptos
+        uses: pontem-network/get-aptos@main
+        with:
+          version: latest
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compile
+        run: aptos move compile
