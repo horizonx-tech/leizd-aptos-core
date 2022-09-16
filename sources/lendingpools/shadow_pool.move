@@ -323,7 +323,7 @@ module leizd::shadow_pool {
             let insufficiencies = amount - remains;
             assert!(stability_pool::left() >= (insufficiencies as u128), error::invalid_argument(E_EXCEED_BORRAWABLE_AMOUNT)); // check the staiblity left
             borrow_from_stability_pool<C>(receiver_addr, insufficiencies);
-            fee = fee + stability_pool::calculate_stability_fee(insufficiencies);
+            fee = fee + stability_pool::calculate_entry_fee(insufficiencies);
             if (remains > 0) {
                 // borrow from shadow_pool too if remains > 0
                 let deposited = coin::extract_all(&mut pool_ref.shadow);

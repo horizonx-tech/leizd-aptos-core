@@ -14,7 +14,7 @@ module leizd::stability_pool {
     friend leizd::shadow_pool;
 
     const PRECISION: u64 = 1000000000;
-    const STABILITY_FEE: u64 = 1000000000 * 5 / 1000; // 0.5%
+    const DEFAULT_ENTRY_FEE: u64 = 1000000000 * 5 / 1000; // 0.5%
 
     const EALREADY_INITIALIZED: u64 = 1;
     const EINVALID_AMOUNT: u64 = 2;
@@ -30,6 +30,10 @@ module leizd::stability_pool {
     struct Balance<phantom C> has key {
         total_borrowed: u128,
         uncollected_fee: u64,
+    }
+
+    struct Config has key {
+        entry_fee: u64, // One time protocol fee for opening a borrow position
     }
 
     struct DistributionConfig has key {
@@ -95,6 +99,9 @@ module leizd::stability_pool {
             left: coin::zero<USDZ>(),
             total_deposited: 0,
             collected_fee: coin::zero<USDZ>(),
+        });
+        move_to(owner, Config {
+            entry_fee: DEFAULT_ENTRY_FEE
         });
         move_to(owner, DistributionConfig {
             emission_per_sec: 0,
@@ -177,7 +184,7 @@ module leizd::stability_pool {
         );
     }
 
-    public(friend) entry fun borrow<C>(addr: address, amount: u64): coin::Coin<USDZ> acquires StabilityPool, Balance, StabilityPoolEventHandle {
+    public(friend) entry fun borrow<C>(addr: address, amount: u64): coin::Coin<USDZ> acquires StabilityPool, Config, Balance, StabilityPoolEventHandle {
         // TODO: 
         // if (!exists<UserDistribution>(signer::address_of(account))) {
         //     move_to(account, UserDistribution { index: 0 });
@@ -193,22 +200,25 @@ module leizd::stability_pool {
         );
         borrowed
     }
-    fun borrow_internal<C>(amount: u64): coin::Coin<USDZ> acquires StabilityPool, Balance {
+    fun borrow_internal<C>(amount: u64): coin::Coin<USDZ> acquires StabilityPool, Config, Balance {
         assert!(amount > 0, error::invalid_argument(EINVALID_AMOUNT));
         let owner_address = permission::owner_address();
         let pool_ref = borrow_global_mut<StabilityPool>(owner_address);
         let balance_ref = borrow_global_mut<Balance<C>>(owner_address);
         assert!(coin::value<USDZ>(&pool_ref.left) >= amount, error::invalid_argument(EEXCEED_REMAINING_AMOUNT));
 
-        let fee = calculate_stability_fee(amount);
+        let fee = calculate_entry_fee(amount);
         balance_ref.total_borrowed = balance_ref.total_borrowed + (amount as u128) + (fee as u128);
         balance_ref.uncollected_fee = balance_ref.uncollected_fee + fee;
         coin::extract<USDZ>(&mut pool_ref.left, amount)
     }
-    public fun calculate_stability_fee(value: u64): u64 {
-        let value_mul_by_fee = value * STABILITY_FEE;
+    public fun calculate_entry_fee(value: u64): u64 acquires Config {
+        let value_mul_by_fee = value * entry_fee();
         let result = value_mul_by_fee / PRECISION;
         if (value_mul_by_fee % PRECISION != 0) result + 1 else result
+    }
+    fun entry_fee(): u64 acquires Config {
+        borrow_global<Config>(permission::owner_address()).entry_fee
     }
 
     public(friend) entry fun repay<C>(account: &signer, amount: u64) acquires StabilityPool, Balance, StabilityPoolEventHandle {
@@ -569,7 +579,7 @@ module leizd::stability_pool {
 
     // for borrow
     #[test(owner=@leizd,account1=@0x111,account2=@0x222)]
-    public entry fun test_borrow_from_stability_pool(owner: &signer, account1: &signer, account2: &signer) acquires StabilityPool, Balance, StabilityPoolEventHandle {
+    public entry fun test_borrow_from_stability_pool(owner: &signer, account1: &signer, account2: &signer) acquires StabilityPool, Config, Balance, StabilityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         let account1_addr = signer::address_of(account1);
         let account2_addr = signer::address_of(account2);
@@ -581,7 +591,7 @@ module leizd::stability_pool {
         managed_coin::register<USDZ>(account2);
 
         // check prerequisite
-        assert!(calculate_stability_fee(1000) == 5, 0); // 5%
+        assert!(calculate_entry_fee(1000) == 5, 0); // 5%
 
         // execute
         deposit(account1, 400000);
@@ -591,7 +601,7 @@ module leizd::stability_pool {
         // assertions
         assert!(total_deposited() == 400000, 0);
         assert!(left() == 100000, 0);
-        assert!(total_borrowed<WETH>() == ((300000 + calculate_stability_fee(300000)) as u128), 0);
+        assert!(total_borrowed<WETH>() == ((300000 + calculate_entry_fee(300000)) as u128), 0);
         assert!(stb_usdz::balance_of(account1_addr) == 400000, 0);
         assert!(usdz::balance_of(account2_addr) == 300000, 0);
         //// event
@@ -599,7 +609,7 @@ module leizd::stability_pool {
     }
     #[test(owner=@leizd, account=@0x111)]
     #[expected_failure(abort_code = 65538)]
-    public entry fun test_borrow_from_stability_pool_with_no_amount(owner: &signer, account: &signer) acquires StabilityPool, Balance, StabilityPoolEventHandle {
+    public entry fun test_borrow_from_stability_pool_with_no_amount(owner: &signer, account: &signer) acquires StabilityPool, Config, Balance, StabilityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -612,7 +622,7 @@ module leizd::stability_pool {
     }
     #[test(owner=@leizd, account=@0x111)]
     #[expected_failure(abort_code = 65539)]
-    public entry fun test_borrow_from_stability_pool_with_amount_is_greater_than_left(owner: &signer, account: &signer) acquires StabilityPool, Balance, StabilityPoolEventHandle {
+    public entry fun test_borrow_from_stability_pool_with_amount_is_greater_than_left(owner: &signer, account: &signer) acquires StabilityPool, Config, Balance, StabilityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -624,7 +634,7 @@ module leizd::stability_pool {
         coin::deposit(account_addr, coin);
     }
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222)]
-    public entry fun test_borrow_more_than_once_sequentially(owner: &signer, depositor: &signer, borrower: &signer) acquires StabilityPool, Balance, StabilityPoolEventHandle {
+    public entry fun test_borrow_more_than_once_sequentially(owner: &signer, depositor: &signer, borrower: &signer) acquires StabilityPool, Config, Balance, StabilityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         let depositor_addr = signer::address_of(depositor);
         let borrower_addr = signer::address_of(borrower);
@@ -636,7 +646,7 @@ module leizd::stability_pool {
         managed_coin::register<USDZ>(borrower);
 
         // check prerequisite
-        assert!(calculate_stability_fee(1000) == 5, 0); // 5%
+        assert!(calculate_entry_fee(1000) == 5, 0); // 5%
 
         // execute
         deposit(depositor, 400000);
@@ -644,28 +654,28 @@ module leizd::stability_pool {
 
         let borrowed = borrow<WETH>(depositor_addr, 100000);
         assert!(left() == 300000, 0);
-        assert!(total_borrowed<WETH>() == ((100000 + calculate_stability_fee(100000)) as u128), 0);
+        assert!(total_borrowed<WETH>() == ((100000 + calculate_entry_fee(100000)) as u128), 0);
         coin::deposit(borrower_addr, borrowed);
 
         let borrowed = borrow<WETH>(depositor_addr, 100000);
         assert!(left() == 200000, 0);
-        assert!(total_borrowed<WETH>() == ((200000 + calculate_stability_fee(200000)) as u128), 0);
+        assert!(total_borrowed<WETH>() == ((200000 + calculate_entry_fee(200000)) as u128), 0);
         coin::deposit(borrower_addr, borrowed);
 
         let borrowed = borrow<WETH>(depositor_addr, 100000);
         assert!(left() == 100000, 0);
-        assert!(total_borrowed<WETH>() == ((300000 + calculate_stability_fee(300000)) as u128), 0);
+        assert!(total_borrowed<WETH>() == ((300000 + calculate_entry_fee(300000)) as u128), 0);
         coin::deposit(borrower_addr, borrowed);
 
         let borrowed = borrow<WETH>(depositor_addr, 100000);
         assert!(left() == 0, 0);
-        assert!(total_borrowed<WETH>() == ((400000 + calculate_stability_fee(400000)) as u128), 0);
+        assert!(total_borrowed<WETH>() == ((400000 + calculate_entry_fee(400000)) as u128), 0);
         coin::deposit(borrower_addr, borrowed);
     }
 
     // for repay
     #[test(owner=@leizd,account1=@0x111,account2=@0x222)]
-    public entry fun test_repay_to_stability_pool(owner: &signer, account1: &signer, account2: &signer) acquires StabilityPool, Balance, StabilityPoolEventHandle {
+    public entry fun test_repay_to_stability_pool(owner: &signer, account1: &signer, account2: &signer) acquires StabilityPool, Config, Balance, StabilityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         let account1_addr = signer::address_of(account1);
         let account2_addr = signer::address_of(account2);
@@ -676,7 +686,7 @@ module leizd::stability_pool {
         managed_coin::register<USDZ>(account2);
 
         // check prerequisite
-        assert!(calculate_stability_fee(1000) == 5, 0); // 5%
+        assert!(calculate_entry_fee(1000) == 5, 0); // 5%
 
         // execute
         deposit(account1, 400000);
@@ -703,7 +713,7 @@ module leizd::stability_pool {
     }
     #[test(owner=@leizd,account=@0x111)]
     #[expected_failure(abort_code = 65538)]
-    public entry fun test_repay_with_amount_is_greater_than_total_borrowed(owner: &signer, account: &signer) acquires StabilityPool, Balance, StabilityPoolEventHandle {
+    public entry fun test_repay_with_amount_is_greater_than_total_borrowed(owner: &signer, account: &signer) acquires StabilityPool, Config, Balance, StabilityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         let owner_addr = signer::address_of(owner);
         let account_addr = signer::address_of(account);
@@ -722,7 +732,7 @@ module leizd::stability_pool {
     }
     //// calcuration
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222)]
-    public entry fun test_repay_for_confirming_priority(owner: &signer, depositor: &signer, borrower: &signer) acquires StabilityPool, Balance, StabilityPoolEventHandle {
+    public entry fun test_repay_for_confirming_priority(owner: &signer, depositor: &signer, borrower: &signer) acquires StabilityPool, Config, Balance, StabilityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         let depositor_addr = signer::address_of(depositor);
         let borrower_addr = signer::address_of(borrower);
@@ -733,7 +743,7 @@ module leizd::stability_pool {
         managed_coin::register<USDZ>(borrower);
 
         // check prerequisite
-        assert!(calculate_stability_fee(1000) == 5, 0); // 5%
+        assert!(calculate_entry_fee(1000) == 5, 0); // 5%
 
         // execute
         //// add liquidity & borrow
@@ -778,7 +788,7 @@ module leizd::stability_pool {
         assert!(usdz::balance_of(borrower_addr) == 0, 0);
     }
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222)]
-    public entry fun test_repay_with_amount_between_total_borrowed_and_uncollected_fee(owner: &signer, depositor: &signer, borrower: &signer) acquires StabilityPool, Balance, StabilityPoolEventHandle {
+    public entry fun test_repay_with_amount_between_total_borrowed_and_uncollected_fee(owner: &signer, depositor: &signer, borrower: &signer) acquires StabilityPool, Config, Balance, StabilityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         let depositor_addr = signer::address_of(depositor);
         let borrower_addr = signer::address_of(borrower);
@@ -789,7 +799,7 @@ module leizd::stability_pool {
         managed_coin::register<USDZ>(borrower);
 
         // check prerequisite
-        assert!(calculate_stability_fee(1000) == 5, 0); // 5%
+        assert!(calculate_entry_fee(1000) == 5, 0); // 5%
 
         // execute
         //// add liquidity & borrow
@@ -817,7 +827,7 @@ module leizd::stability_pool {
         move_to(account, default_user_distribution());
     }
     #[test(owner=@leizd, account=@0x111, aptos_framework=@aptos_framework)]
-    public entry fun test_claim_reward_temp(owner: &signer, account: &signer, aptos_framework: &signer) acquires Balance, StabilityPool, DistributionConfig, UserDistribution, StabilityPoolEventHandle {
+    public entry fun test_claim_reward_temp(owner: &signer, account: &signer, aptos_framework: &signer) acquires Balance, StabilityPool, Config, DistributionConfig, UserDistribution, StabilityPoolEventHandle {
         timestamp::set_time_has_started_for_testing(aptos_framework);
         initialize_for_test_to_use_coin(owner);
         init_user_distribution_for_test(account);
@@ -966,15 +976,19 @@ module leizd::stability_pool {
     }
 
     // for related configuration
-    #[test]
-    fun test_calculate_stability_fee() {
-        assert!(calculate_stability_fee(100000) == 500, 0);
-        assert!(calculate_stability_fee(100001) == 501, 0);
-        assert!(calculate_stability_fee(99999) == 500, 0);
-        assert!(calculate_stability_fee(200) == 1, 0);
-        assert!(calculate_stability_fee(199) == 1, 0);
-        assert!(calculate_stability_fee(1) == 1, 0);
-        assert!(calculate_stability_fee(0) == 0, 0);
+    #[test(owner = @leizd)]
+    fun test_calculate_entry_fee(owner: &signer) acquires Config {
+        move_to(owner, Config {
+            entry_fee: DEFAULT_ENTRY_FEE
+        });
+
+        assert!(calculate_entry_fee(100000) == 500, 0);
+        assert!(calculate_entry_fee(100001) == 501, 0);
+        assert!(calculate_entry_fee(99999) == 500, 0);
+        assert!(calculate_entry_fee(200) == 1, 0);
+        assert!(calculate_entry_fee(199) == 1, 0);
+        assert!(calculate_entry_fee(1) == 1, 0);
+        assert!(calculate_entry_fee(0) == 0, 0);
     }
     #[test(owner = @leizd)]
     fun test_distribution_config(owner: &signer) acquires DistributionConfig {
