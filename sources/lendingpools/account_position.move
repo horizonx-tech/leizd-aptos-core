@@ -157,9 +157,9 @@ module leizd::account_position {
         assert!(exists<Position<AssetToShadow>>(depositor_addr), 0);
 
         if (pool_type::is_type_asset<P>()) {
-            update_position<C,AssetToShadow>(depositor_addr, amount, true, true, is_collateral_only);
+            update_on_deposit<C,AssetToShadow>(depositor_addr, amount, is_collateral_only);
         } else {
-            update_position<C,ShadowToAsset>(depositor_addr, amount, true, true, is_collateral_only);
+            update_on_deposit<C,ShadowToAsset>(depositor_addr, amount, is_collateral_only);
         };
     }
 
@@ -169,10 +169,10 @@ module leizd::account_position {
 
     fun withdraw_internal<C,P>(depositor_addr: address, amount: u64, is_collateral_only: bool) acquires Position, AccountPositionEventHandle {
         if (pool_type::is_type_asset<P>()) {
-            update_position<C,AssetToShadow>(depositor_addr, amount, true, false, is_collateral_only);
+            update_on_withdraw<C,AssetToShadow>(depositor_addr, amount, is_collateral_only);
             assert!(is_safe<C,AssetToShadow>(depositor_addr), error::invalid_state(ENO_SAFE_POSITION));
         } else {
-            update_position<C,ShadowToAsset>(depositor_addr, amount, true, false, is_collateral_only);
+            update_on_withdraw<C,ShadowToAsset>(depositor_addr, amount, is_collateral_only);
             assert!(is_safe<C,ShadowToAsset>(depositor_addr), error::invalid_state(ENO_SAFE_POSITION));
         };
     }
@@ -183,19 +183,19 @@ module leizd::account_position {
 
     fun borrow_internal<C,P>(borrower_addr: address, amount: u64) acquires Position, AccountPositionEventHandle {
         if (pool_type::is_type_asset<P>()) {
-            update_position<C,ShadowToAsset>(borrower_addr, amount, false, true, false);
+            update_on_borrow<C,ShadowToAsset>(borrower_addr, amount);
             assert!(is_safe<C,ShadowToAsset>(borrower_addr), error::invalid_state(ENO_SAFE_POSITION));
         } else {
-            update_position<C,AssetToShadow>(borrower_addr, amount, false, true, false);
+            update_on_borrow<C,AssetToShadow>(borrower_addr, amount);
             assert!(is_safe<C,AssetToShadow>(borrower_addr), error::invalid_state(ENO_SAFE_POSITION));
         };
     }
 
     public(friend) fun repay<C,P>(addr: address, amount: u64) acquires Position, AccountPositionEventHandle {
         if (pool_type::is_type_asset<P>()) {
-            update_position<C,ShadowToAsset>(addr, amount, false, false, false);
+            update_on_repay<C,ShadowToAsset>(addr, amount);
         } else {
-            update_position<C,AssetToShadow>(addr, amount, false, false, false);
+            update_on_repay<C,AssetToShadow>(addr, amount);
         };
     }
 
@@ -206,26 +206,26 @@ module leizd::account_position {
     fun liquidate_internal<C,P>(target_addr: address, liquidated: u64, liquidated_conly: u64) acquires Position, AccountPositionEventHandle {
         if (pool_type::is_type_asset<P>()) {
             if (liquidated > 0) {
-                update_position<C,AssetToShadow>(target_addr, liquidated, true, false, false);
+                update_on_withdraw<C,AssetToShadow>(target_addr, liquidated, false);
                 let borrowed = borrowed_shadow<C>(target_addr);
-                update_position<C,AssetToShadow>(target_addr, borrowed, false, false, false);
+                update_on_repay<C,AssetToShadow>(target_addr, borrowed);
             };
             if (liquidated_conly > 0) {
-                update_position<C, AssetToShadow>(target_addr, liquidated_conly, true, false, true);
+                update_on_withdraw<C, AssetToShadow>(target_addr, liquidated_conly, true);
                 let borrowed = borrowed_shadow<C>(target_addr);
-                update_position<C,AssetToShadow>(target_addr, borrowed, false, false, true);
+                update_on_repay<C,AssetToShadow>(target_addr, borrowed);
             };
             assert!(is_zero_position<C,AssetToShadow>(target_addr), error::invalid_state(EPOSITION_EXISTED));
         } else {
             if (liquidated > 0) {
-                update_position<C,ShadowToAsset>(target_addr, liquidated, true, false, false);
+                update_on_withdraw<C,ShadowToAsset>(target_addr, liquidated, false);
                 let borrowed = borrowed_asset<C>(target_addr);
-                update_position<C,ShadowToAsset>(target_addr, borrowed, false, false, false);
+                update_on_repay<C,ShadowToAsset>(target_addr, borrowed);
             };
             if (liquidated_conly > 0) {
-                update_position<C, ShadowToAsset>(target_addr, liquidated_conly, true, false, true);
+                update_on_withdraw<C, ShadowToAsset>(target_addr, liquidated_conly, true);
                 let borrowed = borrowed_asset<C>(target_addr);
-                update_position<C,ShadowToAsset>(target_addr, borrowed, false, false, true);
+                update_on_repay<C,ShadowToAsset>(target_addr, borrowed);
             };
             assert!(is_zero_position<C,ShadowToAsset>(target_addr), error::invalid_state(EPOSITION_EXISTED));
         };
@@ -258,8 +258,8 @@ module leizd::account_position {
         let insufficient = required_deposit - deposited;
 
         assert!(extra >= insufficient, 0);
-        update_position<C1,ShadowToAsset>(addr, insufficient, true, false, is_collateral_only);
-        update_position<C2,ShadowToAsset>(addr, insufficient, true, true, is_collateral_only);
+        update_on_withdraw<C1,ShadowToAsset>(addr, insufficient, is_collateral_only);
+        update_on_deposit<C2,ShadowToAsset>(addr, insufficient, is_collateral_only);
 
         insufficient
     }
@@ -292,8 +292,8 @@ module leizd::account_position {
         let insufficient = required_deposit - deposited;
 
         assert!(extra_borrow >= insufficient, 0);
-        update_position<C1,AssetToShadow>(addr, insufficient, false, true, is_collateral_only);
-        update_position<C2,ShadowToAsset>(addr, insufficient, true, true, is_collateral_only);
+        update_on_borrow<C1,AssetToShadow>(addr, insufficient);
+        update_on_deposit<C2,ShadowToAsset>(addr, insufficient, is_collateral_only);
 
         insufficient
     }
@@ -316,6 +316,36 @@ module leizd::account_position {
         } else {
             0
         }
+    }
+
+    fun update_on_deposit<C,P>(
+        depositor_addr: address,
+        amount: u64,
+        is_collateral_only: bool
+    ) acquires Position, AccountPositionEventHandle {
+        update_position<C,P>(depositor_addr, amount, true, true, is_collateral_only);
+    }
+
+    fun update_on_withdraw<C,P>(
+        depositor_addr: address,
+        amount: u64,
+        is_collateral_only: bool
+    ) acquires Position, AccountPositionEventHandle {
+        update_position<C,P>(depositor_addr, amount, true, false, is_collateral_only);
+    }
+
+    fun update_on_borrow<C,P>(
+        depositor_addr: address,
+        amount: u64
+    ) acquires Position, AccountPositionEventHandle {
+        update_position<C,P>(depositor_addr, amount, false, true, false);
+    }
+
+    fun update_on_repay<C,P>(
+        depositor_addr: address,
+        amount: u64
+    ) acquires Position, AccountPositionEventHandle {
+        update_position<C,P>(depositor_addr, amount, false, false, false);
     }
 
     fun update_position<C,P>(
