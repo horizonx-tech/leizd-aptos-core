@@ -1,7 +1,7 @@
 module leizd::position_type {
 
     use std::error;
-    use aptos_framework::comparator;
+    use aptos_std::comparator;
     use aptos_framework::type_info;
 
     struct AssetToShadow {}

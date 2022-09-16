@@ -77,7 +77,8 @@ module leizd::shadow_pool {
         from: String,
         to: String,
         amount: u64,
-        is_collateral_only: bool,
+        is_collateral_only_from: bool,
+        is_collateral_only_to: bool,
         with_borrow: bool,
     }
     
@@ -165,7 +166,11 @@ module leizd::shadow_pool {
         );
     }
 
-    public(friend) fun rebalance_shadow<C1,C2>(amount: u64, is_collateral_only: bool) acquires Storage, PoolEventHandle {
+    public(friend) fun rebalance_shadow<C1,C2>(
+        amount: u64,
+        is_collateral_only_C1: bool,
+        is_collateral_only_C2: bool
+    ) acquires Storage, PoolEventHandle {
         let key_from = generate_coin_key<C1>();
         let key_to = generate_coin_key<C2>();
         let owner_addr = permission::owner_address();
@@ -178,9 +183,11 @@ module leizd::shadow_pool {
         let deposited = simple_map::borrow_mut<String,u64>(&mut storage_ref.deposited, &key_to);
         *deposited = *deposited + amount;
 
-        if (is_collateral_only) {
+        if (is_collateral_only_C1) {
             let conly_deposited = simple_map::borrow_mut<String,u64>(&mut storage_ref.conly_deposited, &key_from);
             *conly_deposited = *conly_deposited - amount;
+        };
+        if (is_collateral_only_C2) {
             let conly_deposited = simple_map::borrow_mut<String,u64>(&mut storage_ref.conly_deposited, &key_to);
             *conly_deposited = *conly_deposited + amount;
         };
@@ -191,7 +198,8 @@ module leizd::shadow_pool {
                 from: key_from,
                 to: key_to,
                 amount,
-                is_collateral_only,
+                is_collateral_only_from: is_collateral_only_C1,
+                is_collateral_only_to: is_collateral_only_C2,
                 with_borrow: false,
             },
         );
@@ -222,7 +230,8 @@ module leizd::shadow_pool {
                 from: key_from,
                 to: key_to,
                 amount,
-                is_collateral_only,
+                is_collateral_only_from: is_collateral_only,
+                is_collateral_only_to: false,
                 with_borrow: true,
             },
         );
@@ -1492,7 +1501,7 @@ module leizd::shadow_pool {
         assert!(deposited<WETH>() == 100000, 0);
         assert!(deposited<UNI>() == 100000, 0);
 
-        rebalance_shadow<WETH,UNI>(10000, false);
+        rebalance_shadow<WETH,UNI>(10000, false, false);
         assert!(deposited<WETH>() == 90000, 0);
         assert!(deposited<UNI>() == 110000, 0);
 

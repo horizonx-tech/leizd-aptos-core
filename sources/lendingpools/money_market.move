@@ -111,9 +111,9 @@ module leizd::money_market {
 
     /// Rebalance shadow coin from C1 Pool to C2 Pool.
     /// The amount is automatially calculated to be the inssuficient value.
-    public entry fun rebalance_shadow<C1,C2>(addr: address, is_collateral_only: bool) {
-        let amount = account_position::rebalance_shadow<C1,C2>(addr, is_collateral_only);
-        shadow_pool::rebalance_shadow<C1,C2>(amount, is_collateral_only);
+    public entry fun rebalance_shadow<C1,C2>(addr: address) {
+        let (amount, is_collateral_only_C1, is_collateral_only_C2) = account_position::rebalance_shadow<C1,C2>(addr);
+        shadow_pool::rebalance_shadow<C1,C2>(amount, is_collateral_only_C1, is_collateral_only_C2);
     }
 
     /// Borrow shadow and rebalance it to the unhealthy pool.
@@ -134,6 +134,5 @@ module leizd::money_market {
         } else {
             asset_pool::liquidate<C>(liquidator_addr, target_addr, liquidated, is_collateral_only);
         };
-        
     }
 }
