@@ -320,13 +320,17 @@ module leizd::asset_pool {
     public entry fun liquidate<C>(
         liquidator_addr: address,
         target_addr: address,
-    ): (u64,u64) acquires Pool, Storage, PoolEventHandle {
+    ): (u64,bool) acquires Pool, Storage, PoolEventHandle {
         let liquidation_fee = risk_factor::liquidation_fee();
         let owner_address = permission::owner_address();
         let storage_ref = borrow_global_mut<Storage<C>>(owner_address);
         accrue_interest<C,Asset>(storage_ref);
-        let amount = withdraw_for_internal<C>(liquidator_addr, target_addr, constant::u64_max(), false, liquidation_fee);
-        let amount_conly = withdraw_for_internal<C>(liquidator_addr, target_addr, constant::u64_max(), true, liquidation_fee);
+        let is_collateral_only = false;
+        let liquidated = withdraw_for_internal<C>(liquidator_addr, target_addr, constant::u64_max(), false, liquidation_fee);
+        if (liquidated == 0) {
+            liquidated = withdraw_for_internal<C>(liquidator_addr, target_addr, constant::u64_max(), true, liquidation_fee);
+            is_collateral_only = true;
+        };
         
         event::emit_event<LiquidateEvent>(
             &mut borrow_global_mut<PoolEventHandle<C>>(permission::owner_address()).liquidate_event,
@@ -335,7 +339,7 @@ module leizd::asset_pool {
                 target: target_addr,
             }
         );
-        (amount, amount_conly)
+        (liquidated, is_collateral_only)
     }
 
     public fun is_pool_initialized<C>(): bool {
