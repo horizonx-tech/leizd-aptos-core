@@ -100,6 +100,7 @@ module leizd::pool_manager {
   }
   #[test(owner = @leizd)]
   fun test_initialize(owner: &signer) {
+    account::create_account_for_test(signer::address_of(owner));
     initialize(owner);
     assert!(exists<PoolList>(signer::address_of(owner)), 0);
   }
@@ -111,6 +112,7 @@ module leizd::pool_manager {
   #[test(owner = @leizd)]
   #[expected_failure(abort_code = 65537)]
   fun test_initialize_more_than_once(owner: &signer) {
+    account::create_account_for_test(signer::address_of(owner));
     initialize(owner);
     initialize(owner);
   }
