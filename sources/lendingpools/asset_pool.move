@@ -15,7 +15,6 @@ module leizd::asset_pool {
     use aptos_framework::coin;
     use aptos_framework::timestamp;
     use leizd::risk_factor;
-    use leizd::pool_type::{Asset};
     use leizd::permission;
     use leizd::treasury;
     use leizd::interest_rate;
@@ -107,7 +106,7 @@ module leizd::asset_pool {
         move_to(owner, Pool<C> {
             asset: coin::zero<C>()
         });
-        move_to(owner, default_storage<C,Asset>());
+        move_to(owner, default_storage<C>());
         move_to(owner, PoolEventHandle<C> {
             deposit_event: account::new_event_handle<DepositEvent>(owner),
             withdraw_event: account::new_event_handle<WithdrawEvent>(owner),
@@ -116,7 +115,7 @@ module leizd::asset_pool {
             liquidate_event: account::new_event_handle<LiquidateEvent>(owner),
         });
     }
-    fun default_storage<C,P>(): Storage<C> {
+    fun default_storage<C>(): Storage<C> {
         Storage<C>{
             total_deposited: 0,
             total_conly_deposited: 0,
@@ -158,7 +157,7 @@ module leizd::asset_pool {
         let storage_ref = borrow_global_mut<Storage<C>>(owner_address);
         let pool_ref = borrow_global_mut<Pool<C>>(owner_address);
 
-        accrue_interest<C,Asset>(storage_ref);
+        accrue_interest<C>(storage_ref);
 
         coin::merge(&mut pool_ref.asset, coin::withdraw<C>(account, amount));
         storage_ref.total_deposited = storage_ref.total_deposited + (amount as u128);
@@ -206,7 +205,7 @@ module leizd::asset_pool {
         let pool_ref = borrow_global_mut<Pool<C>>(owner_address);
         let storage_ref = borrow_global_mut<Storage<C>>(owner_address);
 
-        accrue_interest<C,Asset>(storage_ref);
+        accrue_interest<C>(storage_ref);
         collect_asset_fee<C>(pool_ref, liquidation_fee);
 
         let amount_to_transfer = amount - liquidation_fee;
@@ -260,7 +259,7 @@ module leizd::asset_pool {
         let pool_ref = borrow_global_mut<Pool<C>>(owner_address);
         let storage_ref = borrow_global_mut<Storage<C>>(owner_address);
 
-        accrue_interest<C,Asset>(storage_ref);
+        accrue_interest<C>(storage_ref);
 
         let fee = risk_factor::calculate_entry_fee(amount);
         collect_asset_fee<C>(pool_ref, fee);
@@ -299,7 +298,7 @@ module leizd::asset_pool {
         let pool_ref = borrow_global_mut<Pool<C>>(owner_address);
         let storage_ref = borrow_global_mut<Storage<C>>(owner_address);
 
-        accrue_interest<C,Asset>(storage_ref);
+        accrue_interest<C>(storage_ref);
 
         let account_addr = signer::address_of(account);
         storage_ref.total_borrowed = storage_ref.total_borrowed - (amount as u128);
@@ -317,36 +316,42 @@ module leizd::asset_pool {
         amount
     }
 
-    // public entry fun liquidate<C>(
-    //     account: &signer,
-    //     target_addr: address,
-    //     is_shadow: bool
-    // ) acquires Pool, Storage, PoolEventHandle {
-    //     let liquidation_fee = risk_factor::liquidation_fee();
-    //     if (is_shadow) {
-    //         assert!(is_shadow_solvent<C>(target_addr), 0);
-    //         withdraw_shadow<C>(account, target_addr, constant::u64_max(), true, liquidation_fee);
-    //         withdraw_shadow<C>(account, target_addr, constant::u64_max(), false, liquidation_fee);
-    //     } else {
-    //         assert!(is_asset_solvent<C>(target_addr), 0);
-    //         withdraw_asset<C>(account, target_addr, constant::u64_max(), true, liquidation_fee);
-    //         withdraw_asset<C>(account, target_addr, constant::u64_max(), false, liquidation_fee);
-    //     };
-    //     event::emit_event<LiquidateEvent>(
-    //         &mut borrow_global_mut<PoolEventHandle<C>>(permission::owner_address()).liquidate_event,
-    //         LiquidateEvent {
-    //             caller: signer::address_of(account),
-    //             target: target_addr,
-    //         }
-    //     )
-    // }
+    public(friend) entry fun liquidate<C>(
+        liquidator_addr: address,
+        target_addr: address,
+        liquidated: u64,
+        is_collateral_only: bool,
+    ) acquires Pool, Storage, PoolEventHandle {
+        liquidate_internal<C>(liquidator_addr, target_addr, liquidated, is_collateral_only);
+    }
+
+    fun liquidate_internal<C>(
+        liquidator_addr: address,
+        target_addr: address,
+        liquidated: u64,
+        is_collateral_only: bool,
+    ) acquires Pool, Storage, PoolEventHandle {
+        let liquidation_fee = risk_factor::liquidation_fee() * liquidated / risk_factor::precision();
+        let owner_address = permission::owner_address();
+        let storage_ref = borrow_global_mut<Storage<C>>(owner_address);
+        accrue_interest<C>(storage_ref);
+        withdraw_for_internal<C>(liquidator_addr, target_addr, liquidated, is_collateral_only, liquidation_fee);
+
+        event::emit_event<LiquidateEvent>(
+            &mut borrow_global_mut<PoolEventHandle<C>>(permission::owner_address()).liquidate_event,
+            LiquidateEvent {
+                caller: liquidator_addr,
+                target: target_addr,
+            }
+        );
+    }
 
     public fun is_pool_initialized<C>(): bool {
         exists<Pool<C>>(permission::owner_address())
     }
 
     /// This function is called on every user action.
-    fun accrue_interest<C,P>(storage_ref: &mut Storage<C>) {
+    fun accrue_interest<C>(storage_ref: &mut Storage<C>) {
         let now = timestamp::now_microseconds();
 
         // This is the first time
@@ -378,8 +383,10 @@ module leizd::asset_pool {
     }
 
     fun collect_asset_fee<C>(pool_ref: &mut Pool<C>, liquidation_fee: u64) {
-        let fee_extracted = coin::extract(&mut pool_ref.asset, liquidation_fee);
-        treasury::collect_asset_fee<C>(fee_extracted);
+        if (liquidation_fee > 0) {
+            let fee_extracted = coin::extract(&mut pool_ref.asset, liquidation_fee);
+            treasury::collect_asset_fee<C>(fee_extracted);
+        };
     }
 
     public entry fun total_deposited<C>(): u128 acquires Storage {
@@ -1053,6 +1060,35 @@ module leizd::asset_pool {
 
         let event_handle = borrow_global<PoolEventHandle<UNI>>(signer::address_of(owner));
         assert!(event::counter<RepayEvent>(&event_handle.repay_event) == 3, 0);
+    }
+
+    // for liquidation
+    #[test(owner=@leizd,depositor=@0x111,liquidator=@0x222,aptos_framework=@aptos_framework)]
+    public entry fun test_liquidate_asset(owner: &signer, depositor: &signer, liquidator: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        price_oracle::initialize_with_fixed_price_for_test(owner);
+        
+        let owner_address = signer::address_of(owner);
+        let depositor_addr = signer::address_of(depositor);
+        let liquidator_addr = signer::address_of(liquidator);
+        account::create_account_for_test(depositor_addr);
+        account::create_account_for_test(liquidator_addr);
+        managed_coin::register<WETH>(depositor);
+        managed_coin::mint<WETH>(owner, depositor_addr, 150);
+        assert!(coin::balance<WETH>(depositor_addr) == 150, 0);
+
+        deposit_for_internal<WETH>(depositor, depositor_addr, 100, false);
+        assert!(pool_asset_value<WETH>(owner_address) == 100, 0);
+        assert!(total_deposited<WETH>() == 100, 0);
+        assert!(total_conly_deposited<WETH>() == 0, 0);
+
+        liquidate_internal<WETH>(liquidator_addr, depositor_addr, 100, false);
+        assert!(pool_asset_value<WETH>(owner_address) == 0, 0);
+        assert!(total_deposited<WETH>() == 0, 0);
+        assert!(total_conly_deposited<WETH>() == 0, 0);
+
+        let event_handle = borrow_global<PoolEventHandle<WETH>>(signer::address_of(owner));
+        assert!(event::counter<LiquidateEvent>(&event_handle.liquidate_event) == 1, 0);
     }
 
     // for common validations

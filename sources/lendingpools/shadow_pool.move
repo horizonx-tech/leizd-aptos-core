@@ -389,6 +389,36 @@ module leizd::shadow_pool {
         amount
     }
 
+   public(friend) entry fun liquidate<C>(
+        liquidator_addr: address,
+        target_addr: address,
+        liquidated: u64,
+        is_collateral_only: bool,
+    ) acquires Pool, Storage, PoolEventHandle {
+        liquidate_internal<C>(liquidator_addr, target_addr, liquidated, is_collateral_only);
+    }
+
+    fun liquidate_internal<C>(
+        liquidator_addr: address,
+        target_addr: address,
+        liquidated: u64,
+        is_collateral_only: bool,
+    ) acquires Pool, Storage, PoolEventHandle {
+        let liquidation_fee = risk_factor::liquidation_fee() * liquidated / risk_factor::precision();
+        let owner_address = permission::owner_address();
+        let storage_ref = borrow_global_mut<Storage>(owner_address);
+        accrue_interest<C>(storage_ref);
+        withdraw_for_internal<C>(liquidator_addr, target_addr, liquidated, is_collateral_only, liquidation_fee);
+
+        event::emit_event<LiquidateEvent>(
+            &mut borrow_global_mut<PoolEventHandle>(permission::owner_address()).liquidate_event,
+            LiquidateEvent {
+                caller: liquidator_addr,
+                target: target_addr,
+            }
+        );
+    }
+
     fun default_storage(): Storage {
         Storage {
             total_deposited: 0,
@@ -1111,6 +1141,34 @@ module leizd::shadow_pool {
 
         let event_handle = borrow_global<PoolEventHandle>(signer::address_of(owner));
         assert!(event::counter<RepayEvent>(&event_handle.repay_event) == 3, 0);
+    }
+
+    // for liquidation
+    #[test(owner=@leizd,depositor=@0x111,liquidator=@0x222,aptos_framework=@aptos_framework)]
+    public entry fun test_liquidate_shadow(owner: &signer, depositor: &signer, liquidator: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        price_oracle::initialize_with_fixed_price_for_test(owner);
+        
+        let owner_address = signer::address_of(owner);
+        let depositor_addr = signer::address_of(depositor);
+        let liquidator_addr = signer::address_of(liquidator);
+        account::create_account_for_test(depositor_addr);
+        account::create_account_for_test(liquidator_addr);
+        managed_coin::register<USDZ>(depositor);
+        usdz::mint_for_test(depositor_addr, 500);
+
+        deposit_for_internal<WETH>(depositor, depositor_addr, 100, false);
+        assert!(pool_shadow_value(owner_address) == 100, 0);
+        assert!(total_deposited() == 100, 0);
+        assert!(total_conly_deposited() == 0, 0);
+
+        liquidate_internal<WETH>(liquidator_addr, depositor_addr, 100, false);
+        assert!(pool_shadow_value(owner_address) == 0, 0);
+        assert!(total_deposited() == 0, 0);
+        assert!(total_conly_deposited() == 0, 0);
+
+        let event_handle = borrow_global<PoolEventHandle>(signer::address_of(owner));
+        assert!(event::counter<LiquidateEvent>(&event_handle.liquidate_event) == 1, 0);
     }
 
     // for with stability_pool
