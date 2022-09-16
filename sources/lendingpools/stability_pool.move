@@ -397,14 +397,28 @@ module leizd::stability_pool {
     use leizd::trove_manager;
     // related initialize
     #[test(owner=@leizd)]
-    public entry fun test_initialize(owner: &signer) {
+    public entry fun test_initialize(owner: &signer) acquires StabilityPool, Config, DistributionConfig {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
         trove_manager::initialize(owner);
 
         initialize(owner);
+
         assert!(exists<StabilityPool>(owner_addr), 0);
+        let stability_pool_ref = borrow_global<StabilityPool>(owner_addr);
+        assert!(stability_pool_ref.total_deposited == 0, 0);
+
+        assert!(exists<Config>(owner_addr), 0);
+        let config_ref = borrow_global<Config>(owner_addr);
+        assert!(config_ref.entry_fee == DEFAULT_ENTRY_FEE, 0);
+
         assert!(exists<DistributionConfig>(owner_addr), 0);
+        let distribution_config_ref = borrow_global<DistributionConfig>(owner_addr);
+        assert!(distribution_config_ref.emission_per_sec == 0, 0);
+        assert!(distribution_config_ref.last_updated == 0, 0);
+        assert!(distribution_config_ref.index == 0, 0);
+
+        assert!(exists<StabilityPoolEventHandle>(owner_addr), 0);
     }
     #[test(owner=@leizd)]
     #[expected_failure(abort_code = 196609)]
@@ -1002,10 +1016,23 @@ module leizd::stability_pool {
 
     // for related configuration
     #[test(owner = @leizd)]
-    fun test_calculate_entry_fee(owner: &signer) acquires Config {
-        move_to(owner, Config {
-            entry_fee: DEFAULT_ENTRY_FEE
-        });
+    fun test_update_config(owner: &signer) acquires Config, StabilityPoolEventHandle {
+        initialize_for_test_to_use_coin(owner);
+
+        update_config(owner, PRECISION * 10 / 1000);
+        assert!(entry_fee() == PRECISION * 10 / 1000, 0);
+
+        assert!(event::counter<UpdateConfigEvent>(&borrow_global<StabilityPoolEventHandle>(signer::address_of(owner)).update_config_event) == 1, 0);
+    }
+    #[test(owner = @leizd, account = @0x111)]
+    #[expected_failure(abort_code = 1)]
+    fun test_update_config_with_not_owner(owner: &signer, account: &signer) acquires Config, StabilityPoolEventHandle {
+        initialize_for_test_to_use_coin(owner);
+        update_config(account, PRECISION * 10 / 1000);
+    }
+    #[test(owner = @leizd)]
+    fun test_calculate_entry_fee(owner: &signer) acquires Config, StabilityPoolEventHandle {
+        initialize_for_test_to_use_coin(owner);
 
         assert!(calculate_entry_fee(100000) == 500, 0);
         assert!(calculate_entry_fee(100001) == 501, 0);
@@ -1014,6 +1041,19 @@ module leizd::stability_pool {
         assert!(calculate_entry_fee(199) == 1, 0);
         assert!(calculate_entry_fee(1) == 1, 0);
         assert!(calculate_entry_fee(0) == 0, 0);
+
+        update_config(owner, PRECISION * 7 / 1000);
+        assert!(calculate_entry_fee(100001) == 701, 0);
+        assert!(calculate_entry_fee(100000) == 700, 0);
+        assert!(calculate_entry_fee(99999) == 700, 0);
+        assert!(calculate_entry_fee(143) == 2, 0);
+        assert!(calculate_entry_fee(142) == 1, 0);
+        assert!(calculate_entry_fee(1) == 1, 0);
+        assert!(calculate_entry_fee(0) == 0, 0);
+
+        update_config(owner, 0);
+        assert!(calculate_entry_fee(100000) == 0, 0);
+        assert!(calculate_entry_fee(1) == 0, 0);
     }
     #[test(owner = @leizd)]
     fun test_distribution_config(owner: &signer) acquires DistributionConfig {
