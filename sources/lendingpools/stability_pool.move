@@ -81,6 +81,10 @@ module leizd::stability_pool {
         claimed_amount: u64,
         unclaimed: u64,
     }
+    struct UpdateConfigEvent has store, drop {
+        caller: address,
+        entry_fee: u64,
+    }
     struct StabilityPoolEventHandle has key, store {
         deposit_event: event::EventHandle<DepositEvent>,
         withdraw_event: event::EventHandle<WithdrawEvent>,
@@ -88,6 +92,7 @@ module leizd::stability_pool {
         repay_event: event::EventHandle<RepayEvent>,
         update_state_event: event::EventHandle<UpdateStateEvent>,
         claim_reward_event: event::EventHandle<ClaimRewardEvent>,
+        update_config_event: event::EventHandle<UpdateConfigEvent>,
     }
 
     public entry fun initialize(owner: &signer) {
@@ -115,6 +120,7 @@ module leizd::stability_pool {
             repay_event: account::new_event_handle<RepayEvent>(owner),
             update_state_event: account::new_event_handle<UpdateStateEvent>(owner),
             claim_reward_event: account::new_event_handle<ClaimRewardEvent>(owner),
+            update_config_event: account::new_event_handle<UpdateConfigEvent>(owner),
         });
     }
 
@@ -135,6 +141,23 @@ module leizd::stability_pool {
             unclaimed: 0,
             deposited: 0,
         }
+    }
+
+    public entry fun update_config(owner: &signer, new_entry_fee: u64) acquires Config, StabilityPoolEventHandle {
+        let owner_address = signer::address_of(owner);
+        permission::assert_owner(owner_address);
+
+        let config = borrow_global_mut<Config>(owner_address);
+        if(config.entry_fee == new_entry_fee) return;
+        config.entry_fee = new_entry_fee;
+
+        event::emit_event<UpdateConfigEvent>(
+            &mut borrow_global_mut<StabilityPoolEventHandle>(owner_address).update_config_event,
+            UpdateConfigEvent {
+                caller: owner_address,
+                entry_fee: new_entry_fee,
+            }
+        );
     }
 
     public entry fun deposit(account: &signer, amount: u64) acquires StabilityPool, StabilityPoolEventHandle {
@@ -898,6 +921,7 @@ module leizd::stability_pool {
             repay_event: account::new_event_handle<RepayEvent>(owner),
             update_state_event: account::new_event_handle<UpdateStateEvent>(owner),
             claim_reward_event: account::new_event_handle<ClaimRewardEvent>(owner),
+            update_config_event: account::new_event_handle<UpdateConfigEvent>(owner),
         });
 
         // execute
@@ -934,6 +958,7 @@ module leizd::stability_pool {
             repay_event: account::new_event_handle<RepayEvent>(owner),
             update_state_event: account::new_event_handle<UpdateStateEvent>(owner),
             claim_reward_event: account::new_event_handle<ClaimRewardEvent>(owner),
+            update_config_event: account::new_event_handle<UpdateConfigEvent>(owner),
         });
 
         // execute: proceed time, but no emission_per_sec
