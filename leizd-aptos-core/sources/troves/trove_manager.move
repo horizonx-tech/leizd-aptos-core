@@ -2,7 +2,7 @@ module leizd::trove_manager {
     use std::signer;
     use leizd::sorted_trove;
     use leizd::trove;
-    use leizd::permission;
+    use leizd_aptos_config::permission;
 
     public fun initialize(owner: &signer) {
         permission::assert_owner(signer::address_of(owner));

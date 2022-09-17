@@ -1,7 +1,7 @@
 module leizd::system_administrator {
 
     use std::signer;
-    use leizd::permission;
+    use leizd_aptos_config::permission;
     use leizd::pool_status;
     use leizd::system_status;
 

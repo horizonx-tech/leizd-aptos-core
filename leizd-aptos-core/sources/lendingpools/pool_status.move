@@ -1,5 +1,5 @@
 module leizd::pool_status {
-    use leizd::permission;
+    use leizd_aptos_config::permission;
     use leizd::system_status;
 
     friend leizd::system_administrator;

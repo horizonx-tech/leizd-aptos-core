@@ -3,7 +3,7 @@ module leizd::coin_base {
     use std::signer;
     use std::option;
     use aptos_framework::coin;
-    use leizd::permission;
+    use leizd_aptos_config::permission;
 
     friend leizd::usdz;
     friend leizd::stb_usdz;

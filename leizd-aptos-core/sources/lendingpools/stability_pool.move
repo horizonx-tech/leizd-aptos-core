@@ -8,7 +8,7 @@ module leizd::stability_pool {
     use aptos_framework::timestamp;
     use leizd::usdz::{USDZ};
     use leizd::stb_usdz;
-    use leizd::permission;
+    use leizd_aptos_config::permission;
 
     friend leizd::asset_pool;
     friend leizd::shadow_pool;

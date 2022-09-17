@@ -1,4 +1,4 @@
-module leizd::position_type {
+module leizd_aptos_config::position_type {
 
     use std::error;
     use aptos_std::comparator;

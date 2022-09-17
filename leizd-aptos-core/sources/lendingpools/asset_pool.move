@@ -15,7 +15,7 @@ module leizd::asset_pool {
     use aptos_framework::coin;
     use aptos_framework::timestamp;
     use leizd::risk_factor;
-    use leizd::permission;
+    use leizd_aptos_config::permission;
     use leizd::treasury;
     use leizd::interest_rate;
     use leizd::pool_status;
