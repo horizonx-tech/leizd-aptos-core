@@ -40,4 +40,4 @@ jobs:
         run: aptos move publish --package-dir leizd_aptos_external --override-size-check
 
       - name: release leizd_aptos_core
-        run: aptos move publish --package-dir leizd_aptos_core --override-size-check
+        run: aptos move publish --package-dir leizd_aptos_core --override-size-check --included-artifacts none --max-gas 10000
