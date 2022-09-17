@@ -1,10 +1,10 @@
-module leizd::sorted_trove {
+module leizd_aptos_trove::sorted_trove {
     use aptos_std::simple_map;
     use leizd_aptos_lib::constant;
     use leizd_aptos_common::permission;
-    use leizd::trove;
+    use leizd_aptos_trove::trove;
 
-    friend leizd::trove_manager;
+    friend leizd_aptos_trove::trove_manager;
 
     const E_NODE_ALREADY_EXISTS: u64 = 0;
     const E_EXCEEDS_MAX_NODE_CAP: u64 = 1;
@@ -100,7 +100,7 @@ module leizd::sorted_trove {
             let next_node = simple_map::borrow_mut<address, Node>(&mut data.nodes, &next_id);
             next_node.prev_id = id;
         };
-        simple_map::add<address, leizd::sorted_trove::Node>(&mut data.nodes, id, new_node);
+        simple_map::add<address, Node>(&mut data.nodes, id, new_node);
         data.size = data.size + 1;
     }
 
@@ -221,17 +221,17 @@ module leizd::sorted_trove {
     }
 
     #[test_only]
-    use leizd::test_coin::{Self,USDC};
+    use std::option;
     #[test_only]
-    use leizd::usdz;
+    use std::signer;
     #[test_only]
     use aptos_framework::account;
     #[test_only]
     use aptos_framework::managed_coin;
     #[test_only]
-    use std::option;
+    use leizd_aptos_trove::test_coin_in_trove::{Self,USDC};
     #[test_only]
-    use std::signer;
+    use leizd_aptos_trove::usdz;
 
     #[test_only]
     fun node<C>(account: address): option::Option<Node> acquires Data {
@@ -256,7 +256,7 @@ module leizd::sorted_trove {
     fun set_up(owner: &signer) {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
-        test_coin::init_usdc(owner);
+        test_coin_in_trove::init_usdc(owner);
         initialize<USDC>(owner);
     }
 
@@ -289,17 +289,17 @@ module leizd::sorted_trove {
         account
     }
 
-    #[test(owner=@leizd)]
+    #[test(owner=@leizd_aptos_trove)]
     #[expected_failure(abort_code = 1)]
     fun test_node_capacity(owner: &signer) acquires Data {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
-        test_coin::init_usdc(owner);
+        test_coin_in_trove::init_usdc(owner);
         initialize_internal<USDC>(owner, 0);
         insert<USDC>(alice(owner));
     }
 
-   #[test(owner=@leizd)]
+   #[test(owner=@leizd_aptos_trove)]
    #[expected_failure(abort_code = 2)]
    fun test_remove_unknown_entry(owner: &signer) acquires Data {
         set_up(owner);

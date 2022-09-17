@@ -426,7 +426,7 @@ module leizd::asset_pool {
     #[test_only]
     use leizd::price_oracle;
     #[test_only]
-    use leizd::usdz::{USDZ};
+    use leizd_aptos_trove::usdz::{USDZ};
     #[test_only]
     use leizd::dummy;
     #[test_only]

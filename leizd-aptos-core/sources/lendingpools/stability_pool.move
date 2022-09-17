@@ -6,7 +6,7 @@ module leizd::stability_pool {
     use aptos_framework::event;
     use aptos_framework::account;
     use aptos_framework::timestamp;
-    use leizd::usdz::{USDZ};
+    use leizd_aptos_trove::usdz::{USDZ};
     use leizd::stb_usdz;
     use leizd_aptos_common::permission;
 
@@ -394,9 +394,9 @@ module leizd::stability_pool {
     #[test_only]
     use leizd::test_coin::{Self,WETH};
     #[test_only]
-    use leizd::usdz;
+    use leizd_aptos_trove::usdz;
     #[test_only]
-    use leizd::trove_manager;
+    use leizd_aptos_trove::trove_manager;
     // related initialize
     #[test(owner=@leizd)]
     public entry fun test_initialize(owner: &signer) acquires StabilityPool, Config, DistributionConfig {

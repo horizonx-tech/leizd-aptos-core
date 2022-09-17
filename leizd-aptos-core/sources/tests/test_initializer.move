@@ -3,7 +3,7 @@ module leizd::test_initializer {
 
     use leizd::risk_factor;
     use leizd::system_status;
-    use leizd::trove_manager;
+    use leizd_aptos_trove::trove_manager;
     use leizd::stability_pool;
 
     /// Called only once by the owner.

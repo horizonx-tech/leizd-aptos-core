@@ -1,8 +1,8 @@
-module leizd::trove_manager {
+module leizd_aptos_trove::trove_manager {
     use std::signer;
-    use leizd::sorted_trove;
-    use leizd::trove;
     use leizd_aptos_common::permission;
+    use leizd_aptos_trove::sorted_trove;
+    use leizd_aptos_trove::trove;
 
     public fun initialize(owner: &signer) {
         permission::assert_owner(signer::address_of(owner));
@@ -58,17 +58,17 @@ module leizd::trove_manager {
     }
 
     #[test_only]
-    use leizd::test_coin::{Self,USDC};
-    #[test_only]
-    use leizd::usdz;
-    #[test_only]
-    use leizd_aptos_lib::math64;
-    #[test_only]
     use aptos_framework::account;
     #[test_only]
     use aptos_framework::coin;
     #[test_only]
     use aptos_framework::managed_coin;
+    #[test_only]
+    use leizd_aptos_lib::math64;
+    #[test_only]
+    use leizd_aptos_trove::usdz;
+    #[test_only]
+    use leizd_aptos_trove::test_coin_in_trove::{Self,USDC};
     #[test_only]
     fun trove_size(): u64 { sorted_trove::size<USDC>() }
     #[test_only]
@@ -95,7 +95,7 @@ module leizd::trove_manager {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
         initialize(owner);
-        test_coin::init_usdc(owner);
+        test_coin_in_trove::init_usdc(owner);
         initialize_token<USDC>(owner);
     }
 
@@ -108,7 +108,7 @@ module leizd::trove_manager {
         sig
     }
 
-    #[test(owner=@leizd)]
+    #[test(owner=@leizd_aptos_trove)]
     fun test_insert(owner: &signer) {
         set_up(owner);
         let (alice, bob, carol) = users(owner);
@@ -136,7 +136,7 @@ module leizd::trove_manager {
         assert!(node_prev(&alice) == signer::address_of(&carol), 0);
     }
 
-   #[test(owner=@leizd)]
+   #[test(owner=@leizd_aptos_trove)]
    fun test_remove_1_entry(owner: &signer) {
         set_up(owner);
         let alice = alice(owner);
@@ -148,7 +148,7 @@ module leizd::trove_manager {
         assert!(trove_tail() == @0x0, 0);
    }
 
-   #[test(owner=@leizd)]
+   #[test(owner=@leizd_aptos_trove)]
    fun test_remove_head_of_2_entries(owner: &signer) {
         set_up(owner);
         let (alice, bob, _) = users(owner);
@@ -163,7 +163,7 @@ module leizd::trove_manager {
         assert!(node_prev(&bob) == @0x0, 0);
    }
 
-   #[test(owner=@leizd)]
+   #[test(owner=@leizd_aptos_trove)]
    fun test_remove_tail_of_2_entries(owner: &signer)  {
         set_up(owner);
         let (alice, bob, _) = users(owner);
@@ -178,7 +178,7 @@ module leizd::trove_manager {
         assert!(node_prev(&alice) == @0x0, 0);
    }
    
-   #[test(owner=@leizd)]
+   #[test(owner=@leizd_aptos_trove)]
    fun test_remove_head_of_3_entries(owner: &signer) {
         set_up(owner);
         let (alice, bob, carol) = users(owner);
@@ -197,7 +197,7 @@ module leizd::trove_manager {
         assert!(sorted_trove::node_prev<USDC>(signer::address_of(&bob)) == signer::address_of(&carol), 0);
    }
 
-   #[test(owner=@leizd)]
+   #[test(owner=@leizd_aptos_trove)]
    fun test_remove_middle_of_3_entries(owner: &signer) {
         set_up(owner);
         let (alice, bob, carol) = users(owner);
@@ -215,7 +215,7 @@ module leizd::trove_manager {
         assert!(sorted_trove::node_prev<USDC>(signer::address_of(&alice)) == signer::address_of(&carol), 0);
    }
 
-   #[test(owner=@leizd)]
+   #[test(owner=@leizd_aptos_trove)]
     fun test_remove_tail_of_3_entries(owner: &signer) {
         set_up(owner);
         let (alice, bob, carol) = users(owner);
@@ -233,7 +233,7 @@ module leizd::trove_manager {
         assert!(node_prev(&alice) == signer::address_of(&bob), 0);
    }
 
-   #[test(owner=@leizd)]
+   #[test(owner=@leizd_aptos_trove)]
    fun test_redeem(owner: &signer) {
         set_up(owner);
         let (alice, bob, carol) = users(owner);

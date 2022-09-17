@@ -2,7 +2,7 @@ module leizd::stb_usdz {
     
     use std::string;
     use aptos_framework::coin;
-    use leizd::usdz::{USDZ};
+    use leizd_aptos_trove::usdz::{USDZ};
     use leizd::coin_base;
 
     friend leizd::stability_pool;

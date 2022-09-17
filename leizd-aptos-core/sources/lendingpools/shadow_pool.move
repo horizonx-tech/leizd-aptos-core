@@ -9,7 +9,7 @@ module leizd::shadow_pool {
     use aptos_framework::type_info;
     use aptos_framework::account;
     use aptos_framework::timestamp;
-    use leizd::usdz::{USDZ};
+    use leizd_aptos_trove::usdz::{USDZ};
     use leizd_aptos_common::permission;
     use leizd_aptos_lib::constant;
     use leizd::treasury;
@@ -594,7 +594,7 @@ module leizd::shadow_pool {
     #[test_only]
     use leizd::test_coin::{Self,WETH,UNI};
     #[test_only]
-    use leizd::usdz;
+    use leizd_aptos_trove::usdz;
     #[test_only]
     use leizd::initializer;
     #[test_only]
