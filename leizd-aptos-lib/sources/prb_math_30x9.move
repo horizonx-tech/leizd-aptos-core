@@ -1,5 +1,5 @@
-module leizd::prb_math_30x9 {
-    use leizd::prb_math;
+module leizd_aptos_lib::prb_math_30x9 {
+    use leizd_aptos_lib::prb_math;
 
     // log2(e) as a signed 30.9-decimal fixed-point number.
     // 1_442695040

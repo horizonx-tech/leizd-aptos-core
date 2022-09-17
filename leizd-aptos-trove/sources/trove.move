@@ -1,13 +1,13 @@
-// TODO: This file and related logic should be moved under `leizd-aptos-stablecoin`
-module leizd::trove {
+module leizd_aptos_trove::trove {
     use std::signer;
     use aptos_std::event;
-    use aptos_framework::coin;
-    use leizd::usdz;
-    use leizd::math64;
-    use leizd::permission;
     use aptos_framework::account;
-    friend leizd::trove_manager;
+    use aptos_framework::coin;
+    use leizd_aptos_lib::math64;
+    use leizd_aptos_common::permission;
+    use leizd_aptos_trove::usdz;
+
+    friend leizd_aptos_trove::trove_manager;
 
     struct Trove<phantom C> has key, store {
         coin: coin::Coin<C>
@@ -185,7 +185,7 @@ module leizd::trove {
     #[test_only]
     use aptos_framework::managed_coin;
     #[test_only]
-    use leizd::test_coin::{Self,USDC,USDT,WETH};
+    use leizd_aptos_trove::test_coin_in_trove::{Self,USDC,USDT,WETH};
     #[test_only]
     use aptos_std::comparator;
 
@@ -196,9 +196,9 @@ module leizd::trove {
         let usdc_amt = 10000;
         account::create_account_for_test(owner_addr);
         account::create_account_for_test(account1_addr);
-        test_coin::init_usdc(owner);
-        test_coin::init_usdt(owner);
-        test_coin::init_weth(owner);
+        test_coin_in_trove::init_usdc(owner);
+        test_coin_in_trove::init_usdt(owner);
+        test_coin_in_trove::init_weth(owner);
         managed_coin::register<USDC>(account1);
         managed_coin::register<USDT>(account1);
         managed_coin::register<WETH>(account1);
@@ -211,7 +211,7 @@ module leizd::trove {
         add_supported_coin_internal<USDT>(owner);
     }
 
-    #[test(owner=@leizd,account1=@0x111,aptos_framework=@aptos_framework)]
+    #[test(owner=@leizd_aptos_trove,account1=@0x111,aptos_framework=@aptos_framework)]
     fun test_open_trove(owner: signer, account1: signer) acquires Trove, TroveEventHandle {
         set_up(&owner, &account1);
         let account1_addr = signer::address_of(&account1);
@@ -238,7 +238,7 @@ module leizd::trove {
         )), 0);
     }
 
-    #[test(owner=@leizd,account1=@0x111,aptos_framework=@aptos_framework)]
+    #[test(owner=@leizd_aptos_trove,account1=@0x111,aptos_framework=@aptos_framework)]
     fun test_close_trove(owner: signer, account1: signer) acquires Trove, TroveEventHandle {
         set_up(&owner, &account1);
         open_trove<USDC>(&account1, 10000);
@@ -249,7 +249,7 @@ module leizd::trove {
         assert!(coin::value(&trove.coin) == 0, 0);
     }    
 
-    #[test(owner=@leizd,account1=@0x111,aptos_framework=@aptos_framework)]
+    #[test(owner=@leizd_aptos_trove,account1=@0x111,aptos_framework=@aptos_framework)]
     fun test_repay(owner: signer, account1: signer) acquires Trove, TroveEventHandle {
         set_up(&owner, &account1);
         open_trove<USDC>(&account1, 10000);
@@ -265,13 +265,13 @@ module leizd::trove {
         assert!(coin::value(&trove2.coin) == 0, 0);
     }
 
-    #[test(owner=@leizd,aptos_framework=@aptos_framework)]
+    #[test(owner=@leizd_aptos_trove,aptos_framework=@aptos_framework)]
     fun test_usdz_amount(owner: signer)  {
         let owner_addr = signer::address_of(&owner);
         account::create_account_for_test(owner_addr);
         let usdc_amt = 12345678;
         let usdc_want = usdc_amt * math64::pow(10, 12);
-        test_coin::init_usdc(&owner);
+        test_coin_in_trove::init_usdc(&owner);
         initialize(&owner);
         assert!(comparator::is_equal(&comparator::compare(
             &borrowable_usdz<USDC>(usdc_amt),

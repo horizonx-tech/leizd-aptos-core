@@ -1,4 +1,4 @@
-module leizd::pool_type {
+module leizd_aptos_common::pool_type {
 
     use std::error;
     use aptos_framework::comparator;

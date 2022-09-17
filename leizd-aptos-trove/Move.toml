@@ -1,5 +1,5 @@
 [package]
-name = 'LeizdAptosCore'
+name = 'LeizdAptosTrove'
 version = '0.1.0'
 upgrade_policy = "compatible"
 
@@ -14,20 +14,7 @@ local = "../leizd-aptos-lib"
 [dependencies.LeizdAptosCommon]
 local = "../leizd-aptos-common"
 
-[dependencies.LeizdAptosTrove]
-local = "../leizd-aptos-trove"
-
-[dependencies.LeizdAptosExternal]
-local = "../leizd-aptos-external"
-
-
 [addresses]
-leizd="0x0123456789ABCDEF"
+leizd_aptos_trove="0x0123456789ABCDEF"
 leizd_aptos_lib="0x0123456789ABCDEF"
 leizd_aptos_common="0x0123456789ABCDEF"
-leizd_aptos_trove="0x0123456789ABCDEF"
-leizd_aptos_external="0x0123456789ABCDEF"
-std = "0x1"
-aptos_std = "0x1"
-aptos_framework = "0x1"
-core_resources = "0xA550C18"

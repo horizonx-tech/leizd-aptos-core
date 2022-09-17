@@ -1,5 +1,6 @@
+// HACK: duplicated to leizd-aptos-core
 #[test_only]
-module leizd::test_coin {
+module leizd_aptos_trove::test_coin_in_trove {
 
     struct USDC {}
     struct USDT {}

@@ -1,15 +1,15 @@
-module leizd::usdz {
+module leizd_aptos_trove::usdz {
     
     use std::string;
     use aptos_std::signer;
-    use leizd::coin_base;
+    use leizd_aptos_trove::coin_base_usdz;
 
-    friend leizd::trove;
+    friend leizd_aptos_trove::trove;
 
     struct USDZ has key, store {}
 
     public(friend) fun initialize(owner: &signer) {
-        coin_base::initialize<USDZ>(
+        coin_base_usdz::initialize<USDZ>(
             owner,
             string::utf8(b"USDZ"),
             string::utf8(b"USDZ"),
@@ -22,19 +22,19 @@ module leizd::usdz {
     }
 
     fun mint_internal(account_addr: address, amount: u64) {
-        coin_base::mint<USDZ>(account_addr, amount);
+        coin_base_usdz::mint<USDZ>(account_addr, amount);
     }
 
     public(friend) fun burn(account: &signer, amount: u64) {
-        coin_base::burn<USDZ>(account, amount);
+        coin_base_usdz::burn<USDZ>(account, amount);
     }
 
     public entry fun balance_of(owner: address): u64 {
-        coin_base::balance_of<USDZ>(owner)
+        coin_base_usdz::balance_of<USDZ>(owner)
     }
 
     public entry fun supply(): u128 {
-        coin_base::supply<USDZ>()
+        coin_base_usdz::supply<USDZ>()
     }
 
     #[test_only]

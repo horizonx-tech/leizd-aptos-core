@@ -11,7 +11,7 @@ module leizd::money_market {
     use std::signer;
     use leizd::asset_pool;
     use leizd::shadow_pool;
-    use leizd::pool_type;
+    use leizd_aptos_common::pool_type;
     use leizd::account_position;
 
     /// Deposits an asset or a shadow to the pool.

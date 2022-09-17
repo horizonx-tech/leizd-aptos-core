@@ -1,13 +1,13 @@
-module leizd::coin_base {
+// HACK: duplicated to leizd-aptos-core
+module leizd_aptos_trove::coin_base_usdz {
     use std::string;
     use std::signer;
     use std::option;
     use aptos_framework::coin;
     use leizd_aptos_common::permission;
 
-    friend leizd::usdz;
-    friend leizd::stb_usdz;
-    
+    friend leizd_aptos_trove::usdz;
+
     struct Capabilities<phantom C> has key {
         burn_cap: coin::BurnCapability<C>,
         freeze_cap: coin::FreezeCapability<C>,
@@ -46,7 +46,7 @@ module leizd::coin_base {
 
     public(friend) fun burn<C>(account: &signer, amount: u64) acquires Capabilities {
         let caps = borrow_global<Capabilities<C>>(permission::owner_address());
-        
+
         let coin_burned = coin::withdraw<C>(account, amount);
         coin::burn(coin_burned, &caps.burn_cap);
     }
@@ -68,7 +68,7 @@ module leizd::coin_base {
     use aptos_framework::account;
     #[test_only]
     struct Dummy {}
-    #[test(owner = @leizd, account = @0x111)]
+    #[test(owner = @leizd_aptos_trove, account = @0x111)]
     fun test_end_to_end(owner: &signer, account: &signer) acquires Capabilities {
         let owner_address = signer::address_of(owner);
         let account_address = signer::address_of(account);
@@ -83,7 +83,7 @@ module leizd::coin_base {
         assert!(exists<Capabilities<Dummy>>(owner_address), 0);
 
         register<Dummy>(account);
-        
+
         assert!(supply<Dummy>() == 0, 0);
         assert!(balance_of<Dummy>(account_address) == 0, 0);
 

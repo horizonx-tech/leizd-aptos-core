@@ -1,4 +1,4 @@
-module leizd::constant {
+module leizd_aptos_lib::constant {
 
     const E18_U64: u64 = 1000000000000000000;
     const E18_U128: u128 = 1000000000000000000;

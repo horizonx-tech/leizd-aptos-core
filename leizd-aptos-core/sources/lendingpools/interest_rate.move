@@ -3,10 +3,10 @@ module leizd::interest_rate {
     use std::signer;
     use aptos_std::event;
     use aptos_framework::account;
-    use leizd::math128;
-    use leizd::prb_math_30x9;
-    use leizd::permission;
-    use leizd::i128;
+    use leizd_aptos_lib::math128;
+    use leizd_aptos_lib::prb_math_30x9;
+    use leizd_aptos_common::permission;
+    use leizd_aptos_lib::i128;
 
     friend leizd::asset_pool;
     friend leizd::shadow_pool;

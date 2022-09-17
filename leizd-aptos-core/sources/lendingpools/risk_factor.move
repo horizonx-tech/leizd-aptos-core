@@ -7,8 +7,8 @@ module leizd::risk_factor {
     use aptos_std::type_info;
     use aptos_framework::account;
     use aptos_framework::table;
-    use leizd::permission;
-    use leizd::usdz::{USDZ};
+    use leizd_aptos_common::permission;
+    use leizd_aptos_trove::usdz::{USDZ};
 
     friend leizd::asset_pool;
 

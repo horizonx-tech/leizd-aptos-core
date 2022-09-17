@@ -2,8 +2,8 @@ module leizd::treasury {
 
     use std::signer;
     use aptos_framework::coin;
-    use leizd::usdz::{USDZ};
-    use leizd::permission;
+    use leizd_aptos_trove::usdz::{USDZ};
+    use leizd_aptos_common::permission;
 
     friend leizd::asset_pool;
     friend leizd::shadow_pool;
@@ -63,7 +63,7 @@ module leizd::treasury {
     #[test_only]
     use aptos_framework::managed_coin;
     #[test_only]
-    use leizd::usdz;
+    use leizd_aptos_trove::usdz;
     #[test_only]
     use leizd::test_coin::{Self, WETH};
     #[test(owner = @leizd, account = @0x111)]

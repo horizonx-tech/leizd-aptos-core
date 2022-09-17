@@ -1,6 +1,6 @@
-module leizd::prb_math {
+module leizd_aptos_lib::prb_math {
 
-    use leizd::fixed_point64;
+    use leizd_aptos_lib::fixed_point64;
 
     const SCALE: u128 = 1000000000;
 
