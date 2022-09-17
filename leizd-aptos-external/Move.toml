@@ -8,10 +8,10 @@ git = 'https://github.com/aptos-labs/aptos-core.git'
 rev = 'devnet'
 subdir = 'aptos-move/framework/aptos-framework'
 
-[dependencies.Switchboard]
-git = 'https://github.com/switchboard-xyz/aptos-sdk.git'
-rev = 'main'
-subdir = 'switchboard-move/switchboard'
+#[dependencies.Switchboard]
+#git = 'https://github.com/switchboard-xyz/aptos-sdk.git'
+#rev = 'main'
+#subdir = 'switchboard-move/switchboard'
 
 [dependencies.LeizdAptosCommon]
 local = "../leizd-aptos-common"
@@ -19,5 +19,4 @@ local = "../leizd-aptos-common"
 [addresses]
 leizd_aptos_external="0x0123456789ABCDEF"
 leizd_aptos_common="0x0123456789ABCDEF"
-switchboard = "0x14611263909398572be034debb2e61b6751cafbeaddd994b9a1250cb76b99d38"
-
+#switchboard = "0x14611263909398572be034debb2e61b6751cafbeaddd994b9a1250cb76b99d38"
