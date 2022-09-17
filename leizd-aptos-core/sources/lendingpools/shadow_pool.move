@@ -1451,7 +1451,7 @@ module leizd::shadow_pool {
         //// prepares
         stability_pool::deposit(depositor, 50000);
         //// 1st
-        borrow_for<UNI>(borrower_addr, borrower_addr, 5000); // TODO: fail here because of collect_shadow_fee when no balance in pool
+        borrow_for<UNI>(borrower_addr, borrower_addr, 5000);
         usdz::mint_for_test(borrower_addr, 25 + 26); // fee in shadow + fee in stability
         repay<UNI>(borrower, 5000 + 25 + 26);
         assert!(stability_pool::total_borrowed<UNI>() == 0, 0);
