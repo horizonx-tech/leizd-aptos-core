@@ -342,7 +342,7 @@ module leizd::shadow_pool {
                 coin::merge(&mut extracted, borrowed_from_stability);
                 let for_entry_fee = coin::extract(&mut extracted, entry_fee);
                 coin::deposit<USDZ>(receiver_addr, extracted); // to receiver
-                coin::merge(&mut pool_ref.shadow, for_entry_fee); // to shadow_pool (for collecting fee)
+                treasury::collect_shadow_fee<C>(for_entry_fee); // to treasury (collected fee)
 
                 total_fee = total_fee + stability_pool::calculate_entry_fee(borrowing_value_from_stability);
             } else {
@@ -350,7 +350,7 @@ module leizd::shadow_pool {
                 let borrowed_from_stability = borrow_from_stability_pool<C>(receiver_addr, amount_with_entry_fee);
                 let for_entry_fee = coin::extract(&mut borrowed_from_stability, entry_fee);
                 coin::deposit<USDZ>(receiver_addr, borrowed_from_stability); // to receiver
-                coin::merge(&mut pool_ref.shadow, for_entry_fee); // to shadow_pool (for collecting fee)
+                treasury::collect_shadow_fee<C>(for_entry_fee); // to treasury (collected fee)
 
                 total_fee = total_fee + stability_pool::calculate_entry_fee(amount_with_entry_fee);
             }
@@ -358,8 +358,8 @@ module leizd::shadow_pool {
             // not use stability pool
             let extracted = coin::extract(&mut pool_ref.shadow, amount);
             coin::deposit<USDZ>(receiver_addr, extracted);
+            collect_shadow_fee<C>(pool_ref, entry_fee); // fee to treasury
         };
-        collect_shadow_fee<C>(pool_ref, entry_fee); // fee to treasury
 
         // update borrowed stats
         let key = generate_coin_key<C>();
@@ -441,7 +441,7 @@ module leizd::shadow_pool {
         withdraw_for_internal<C>(liquidator_addr, target_addr, liquidated, is_collateral_only, liquidation_fee);
 
         event::emit_event<LiquidateEvent>(
-            &mut borrow_global_mut<PoolEventHandle>(permission::owner_address()).liquidate_event,
+            &mut borrow_global_mut<PoolEventHandle>(owner_address).liquidate_event,
             LiquidateEvent {
                 caller: liquidator_addr,
                 target: target_addr,
@@ -464,10 +464,6 @@ module leizd::shadow_pool {
 
     /// Borrow the shadow from the stability pool
     /// use when shadow in this pool become insufficient.
-    fun borrow_from_stability_pool_to_receiver<C>(receiver_addr: address, amount: u64) {
-        let borrowed = borrow_from_stability_pool<C>(receiver_addr, amount);
-        coin::deposit(receiver_addr, borrowed);
-    }
     fun borrow_from_stability_pool<C>(caller_addr: address, amount: u64): coin::Coin<USDZ> {
         stability_pool::borrow<C>(caller_addr, amount)
     }
