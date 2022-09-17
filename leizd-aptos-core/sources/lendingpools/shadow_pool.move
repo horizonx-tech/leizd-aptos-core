@@ -347,7 +347,11 @@ module leizd::shadow_pool {
                 total_fee = total_fee + stability_pool::calculate_entry_fee(borrowing_value_from_stability);
             } else {
                 // when no liquidity in pool, borrow all from stability pool
-                borrow_from_stability_pool_to_receiver<C>(receiver_addr, amount_with_entry_fee);
+                let borrowed_from_stability = borrow_from_stability_pool<C>(receiver_addr, amount_with_entry_fee);
+                let for_entry_fee = coin::extract(&mut borrowed_from_stability, entry_fee);
+                coin::deposit<USDZ>(receiver_addr, borrowed_from_stability); // to receiver
+                coin::merge(&mut pool_ref.shadow, for_entry_fee); // to shadow_pool (for collecting fee)
+
                 total_fee = total_fee + stability_pool::calculate_entry_fee(amount_with_entry_fee);
             }
         } else {
@@ -1206,56 +1210,56 @@ module leizd::shadow_pool {
     }
 
     // for with stability_pool
-    // #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
-    // public entry fun test_with_stability_pool_to_borrow(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
-    //     setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
-    //     test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+    #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
+    public entry fun test_with_stability_pool_to_borrow(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
 
-    //     let owner_addr = signer::address_of(owner);
-    //     let depositor_addr = signer::address_of(depositor);
-    //     let borrower_addr = signer::address_of(borrower);
-    //     account::create_account_for_test(depositor_addr);
-    //     account::create_account_for_test(borrower_addr);
-    //     managed_coin::register<USDZ>(depositor);
-    //     managed_coin::register<USDZ>(borrower);
-    //     usdz::mint_for_test(depositor_addr, 100000);
+        let owner_addr = signer::address_of(owner);
+        let depositor_addr = signer::address_of(depositor);
+        let borrower_addr = signer::address_of(borrower);
+        account::create_account_for_test(depositor_addr);
+        account::create_account_for_test(borrower_addr);
+        managed_coin::register<USDZ>(depositor);
+        managed_coin::register<USDZ>(borrower);
+        usdz::mint_for_test(depositor_addr, 100000);
 
-    //     // Prerequisite
-    //     assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
+        // Prerequisite
+        assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
 
-    //     // execute
-    //     //// prepares
-    //     stability_pool::deposit(depositor, 50000);
-    //     deposit_for_internal<UNI>(depositor, depositor_addr, 10000 + 50, false);
-    //     assert!(pool_shadow_value(owner_addr) == 10050, 0);
-    //     assert!(borrowed<UNI>() == 0, 0);
-    //     assert!(stability_pool::total_borrowed<UNI>() == 0, 0);
-    //     assert!(stability_pool::left() == 50000, 0);
-    //     assert!(usdz::balance_of(borrower_addr) == 0, 0);
-    //     //// from only shadow_pool
-    //     borrow_for<UNI>(borrower_addr, borrower_addr, 5000);
-    //     assert!(pool_shadow_value(owner_addr) == 10050 - (5000 + 25), 0);
-    //     assert!(borrowed<UNI>() == 5025, 0);
-    //     assert!(stability_pool::total_borrowed<UNI>() == 0, 0);
-    //     assert!(stability_pool::left() == 50000, 0);
-    //     assert!(usdz::balance_of(borrower_addr) == 5000, 0);
-    //     //// from both
-    //     borrow_for<UNI>(borrower_addr, borrower_addr, 10000);
-    //     assert!(pool_shadow_value(owner_addr) == 0, 0);
-    //     // TODO: consider with stability_pool's fee
-    //     // assert!(borrowed<UNI>() == 15050, 0);
-    //     // assert!(stability_pool::total_borrowed<UNI>() == 5000 + 25, 0);
-    //     // assert!(stability_pool::left() == 45000, 0);
-    //     // debug::print(&usdz::balance_of(borrower_addr));
-    //     // assert!(usdz::balance_of(borrower_addr) == 15000, 0);
-    //     // //// from only stability_pool
-    //     // borrow_for<UNI>(borrower_addr, borrower_addr, 15000);
-    //     // assert!(pool_shadow_value(owner_addr) == 0, 0);
-    //     // assert!(borrowed<UNI>() == 30000, 0);
-    //     // assert!(stability_pool::total_borrowed<UNI>() == 20000, 0);
-    //     // assert!(stability_pool::left() == 30000, 0);
-    //     // assert!(usdz::balance_of(borrower_addr) == 30000, 0);
-    // }
+        // execute
+        //// prepares
+        stability_pool::deposit(depositor, 50000);
+        deposit_for_internal<UNI>(depositor, depositor_addr, 10000 + 50, false);
+        assert!(pool_shadow_value(owner_addr) == 10050, 0);
+        assert!(borrowed<UNI>() == 0, 0);
+        assert!(stability_pool::total_borrowed<UNI>() == 0, 0);
+        assert!(stability_pool::left() == 50000, 0);
+        assert!(usdz::balance_of(borrower_addr) == 0, 0);
+        //// from only shadow_pool
+        borrow_for<UNI>(borrower_addr, borrower_addr, 5000);
+        assert!(pool_shadow_value(owner_addr) == 10050 - (5000 + 25), 0);
+        assert!(borrowed<UNI>() == 5025, 0);
+        assert!(stability_pool::total_borrowed<UNI>() == 0, 0);
+        assert!(stability_pool::left() == 50000, 0);
+        assert!(usdz::balance_of(borrower_addr) == 5000, 0);
+        //// from both
+        borrow_for<UNI>(borrower_addr, borrower_addr, 10000);
+        let from_shadow = 5025;
+        let from_stability = 10050 - from_shadow;
+        assert!(pool_shadow_value(owner_addr) == 0, 0);
+        assert!(stability_pool::total_borrowed<UNI>() == (from_shadow + 26 as u128), 0); // from_shadow + fee calculated by from_shadow
+        assert!(stability_pool::left() == (50000 - from_shadow as u128) , 0);
+        assert!(borrowed<UNI>() == 5025 + from_shadow + from_stability + 26, 0);        
+        assert!(usdz::balance_of(borrower_addr) == 15000, 0);
+        //// from only stability_pool
+        borrow_for<UNI>(borrower_addr, borrower_addr, 15000);
+        assert!(pool_shadow_value(owner_addr) == 0, 0);
+        assert!(borrowed<UNI>() == 15101 + ((15000 + 75) + 76), 0); // (borrowed + fee) + fee calculated by (borrowed + fee)
+        assert!(stability_pool::total_borrowed<UNI>() == 5051 + ((15000 + 75) + 76), 0); // previous + this time
+        assert!(stability_pool::left() == (50000 - 5025 - 15075 as u128), 0); // initial - previous - this time
+        assert!(usdz::balance_of(borrower_addr) == 30000, 0);
+    }
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
     #[expected_failure(abort_code = 65548)]
     public entry fun test_with_stability_pool_to_borrow_with_cannot_borrowed_amount(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
@@ -1431,7 +1435,6 @@ module leizd::shadow_pool {
     //     // assert!(usdz::balance_of(borrower_addr) == 0, 0);
     // }
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
-    #[expected_failure] // TODO: removed
     public entry fun test_with_stability_pool_to_open_position_more_than_once(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
