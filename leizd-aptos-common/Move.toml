@@ -1,0 +1,11 @@
+[package]
+name = 'LeizdAptosCommon'
+version = '1.0.0'
+
+[dependencies.AptosFramework]
+git = 'https://github.com/aptos-labs/aptos-core.git'
+rev = 'devnet'
+subdir = 'aptos-move/framework/aptos-framework'
+
+[addresses]
+leizd_aptos_common="0x0123456789ABCDEF"

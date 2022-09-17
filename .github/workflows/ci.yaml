@@ -1,4 +1,4 @@
-name: Tests
+name: CI
 on:
   pull_request:
   push:
@@ -7,7 +7,7 @@ on:
 
 jobs:
   tests:
-    name: Test
+    name: CI
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -23,8 +23,8 @@ jobs:
           version: latest
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build
-        run: aptos move compile
+      - name: Compile
+        run: for pkg in `ls | grep leizd-aptos`; do aptos move compile --package-dir ${pkg}; done
 
       - name: Test
-        run: aptos move test
+        run: for pkg in `ls | grep leizd-aptos`; do aptos move test --package-dir ${pkg}; done
