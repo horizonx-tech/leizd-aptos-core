@@ -505,9 +505,11 @@ module leizd::shadow_pool {
         borrow_global<Storage>(permission::owner_address()).total_deposited
     }
 
-    public entry fun total_liquidity(): u128 acquires Storage {
-        let storage_ref = borrow_global<Storage>(permission::owner_address());
-        storage_ref.total_deposited - storage_ref.total_conly_deposited
+    public entry fun total_liquidity(): u128 acquires Pool, Storage {
+        let owner_addr = permission::owner_address();
+        let pool_ref = borrow_global<Pool>(owner_addr);
+        let storage_ref = borrow_global<Storage>(owner_addr);
+        (coin::value(&pool_ref.shadow) as u128) - storage_ref.total_conly_deposited
     }
 
     public entry fun total_conly_deposited(): u128 acquires Storage {
@@ -830,7 +832,7 @@ module leizd::shadow_pool {
         assert!(coin::balance<USDZ>(borrower_addr) == 100000, 0);
         assert!(total_deposited() == 800000, 0);
         assert!(deposited<UNI>() == 800000, 0);
-        assert!(total_liquidity() == 800000, 0);
+        assert!(total_liquidity() == 800000 - (100000 + 500), 0);
         assert!(total_conly_deposited() == 0, 0);
         assert!(conly_deposited<UNI>() == 0, 0);
         assert!(total_borrowed() == 100500, 0);
@@ -864,7 +866,7 @@ module leizd::shadow_pool {
         assert!(coin::balance<USDZ>(borrower_addr) == 1000, 0);
         assert!(total_deposited() == 1005, 0);
         assert!(deposited<UNI>() == 1005, 0);
-        assert!(total_liquidity() == 1005, 0);
+        assert!(total_liquidity() == 0, 0);
         assert!(total_conly_deposited() == 0, 0);
         assert!(conly_deposited<UNI>() == 0, 0);
         assert!(total_borrowed() == 1005, 0);
