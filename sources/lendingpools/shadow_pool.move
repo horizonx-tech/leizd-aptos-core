@@ -326,6 +326,8 @@ module leizd::shadow_pool {
         let total_fee = entry_fee;
         let amount_with_entry_fee = amount + entry_fee;
         let total_liquidity = total_liquidity_internal(pool_ref, storage_ref);
+
+        // check liquidity
         assert!((amount_with_entry_fee as u128) <= total_liquidity + stability_pool::left(), error::invalid_argument(E_EXCEED_BORRAWABLE_AMOUNT));
 
         if ((amount_with_entry_fee as u128) > total_liquidity) {
@@ -333,8 +335,7 @@ module leizd::shadow_pool {
             if (total_liquidity > 0) {
                 // extract all from shadow_pool, supply the shortage to borrow from stability pool
                 let extracted = coin::extract_all(&mut pool_ref.shadow);
-                let extracted_value = coin::value(&extracted);
-                let borrowing_value_from_stability = amount_with_entry_fee - extracted_value;
+                let borrowing_value_from_stability = amount_with_entry_fee - coin::value(&extracted);
                 let borrowed_from_stability = borrow_from_stability_pool<C>(receiver_addr, borrowing_value_from_stability);
 
                 // merge coins extracted & distribute calculated values to receiver & shadow_pool
@@ -354,15 +355,17 @@ module leizd::shadow_pool {
             let extracted = coin::extract(&mut pool_ref.shadow, amount);
             coin::deposit<USDZ>(receiver_addr, extracted);
         };
-        collect_shadow_fee<C>(pool_ref, entry_fee); // to treasury (with fee)
+        collect_shadow_fee<C>(pool_ref, entry_fee); // fee to treasury
 
+        // update borrowed stats
         let key = generate_coin_key<C>();
-        storage_ref.total_borrowed = storage_ref.total_borrowed + (amount as u128) + (total_fee as u128);
+        let amount_with_total_fee = amount + total_fee;
+        storage_ref.total_borrowed = storage_ref.total_borrowed + (amount_with_total_fee as u128);
         if (simple_map::contains_key<String,u64>(&storage_ref.borrowed, &key)) {
             let borrowed = simple_map::borrow_mut<String,u64>(&mut storage_ref.borrowed, &key);
-            *borrowed = *borrowed + amount + total_fee;
+            *borrowed = *borrowed + amount_with_total_fee;
         } else {
-            simple_map::add<String,u64>(&mut storage_ref.borrowed, key, amount + total_fee);
+            simple_map::add<String,u64>(&mut storage_ref.borrowed, key, amount_with_total_fee);
         };
 
         event::emit_event<BorrowEvent>(
