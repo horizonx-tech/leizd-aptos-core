@@ -602,7 +602,7 @@ module leizd::shadow_pool {
     #[test_only]
     use leizd::pool_manager;
     #[test_only]
-    use leizd::price_oracle;
+    use leizd_aptos_external::price_oracle;
     #[test_only]
     fun setup_for_test_to_initialize_coins_and_pools(owner: &signer, aptos_framework: &signer) {
         timestamp::set_time_has_started_for_testing(aptos_framework);

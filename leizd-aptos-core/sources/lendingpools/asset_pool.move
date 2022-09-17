@@ -20,7 +20,7 @@ module leizd::asset_pool {
     use leizd::interest_rate;
     use leizd::pool_status;
     use leizd_aptos_lib::constant;
-    use leizd::dex_facade;
+    use leizd_aptos_external::dex_facade;
     use leizd::stability_pool;
 
     friend leizd::money_market;
@@ -424,7 +424,7 @@ module leizd::asset_pool {
     #[test_only]
     use aptos_framework::managed_coin;
     #[test_only]
-    use leizd::price_oracle;
+    use leizd_aptos_external::price_oracle;
     #[test_only]
     use leizd_aptos_trove::usdz::{USDZ};
     #[test_only]

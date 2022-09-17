@@ -12,7 +12,7 @@ module leizd::account_position {
     use aptos_framework::type_info;
     use leizd_aptos_common::pool_type;
     use leizd_aptos_common::position_type::{Self,AssetToShadow,ShadowToAsset};
-    use leizd::price_oracle;
+    use leizd_aptos_external::price_oracle;
     use leizd::risk_factor;
 
     friend leizd::money_market;
