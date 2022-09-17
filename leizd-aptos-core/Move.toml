@@ -13,8 +13,12 @@ git = 'https://github.com/switchboard-xyz/aptos-sdk.git'
 rev = 'main'
 subdir = 'switchboard-move/switchboard'
 
+[dependencies.LeizdAptosLib]
+local = "../leizd-aptos-lib"
+
 [addresses]
 leizd="0x0123456789ABCDEF"
+leizd_aptos_lib="0x0123456789ABCDEF"
 std = "0x1"
 aptos_std = "0x1"
 aptos_framework = "0x1"

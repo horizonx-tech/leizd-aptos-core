@@ -1,4 +1,4 @@
-module leizd::math128 {
+module leizd_aptos_lib::math128 {
 
     public fun to_share(amount: u128, total_amount: u128, total_shares: u128): u128 {
         if (total_shares == 0 || total_amount == 0) {

@@ -19,7 +19,7 @@ module leizd::asset_pool {
     use leizd::treasury;
     use leizd::interest_rate;
     use leizd::pool_status;
-    use leizd::constant;
+    use leizd_aptos_lib::constant;
     use leizd::dex_facade;
     use leizd::stability_pool;
 

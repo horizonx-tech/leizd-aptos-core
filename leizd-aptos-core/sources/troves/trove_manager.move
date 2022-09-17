@@ -62,7 +62,7 @@ module leizd::trove_manager {
     #[test_only]
     use leizd::usdz;
     #[test_only]
-    use leizd::math64;
+    use leizd_aptos_lib::math64;
     #[test_only]
     use aptos_framework::account;
     #[test_only]

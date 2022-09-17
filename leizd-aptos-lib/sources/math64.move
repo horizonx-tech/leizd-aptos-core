@@ -1,6 +1,6 @@
-module leizd::math64 {
+module leizd_aptos_lib::math64 {
 
-    use leizd::constant;
+    use leizd_aptos_lib::constant;
 
     public fun to_share(amount: u64, total_amount: u64, total_shares: u64): u64 {
         if (total_shares == 0 || total_amount == 0) {
