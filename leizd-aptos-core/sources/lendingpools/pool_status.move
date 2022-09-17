@@ -1,4 +1,5 @@
 module leizd::pool_status {
+    use std::error;
     use leizd_aptos_common::permission;
     use leizd::system_status;
 
@@ -8,26 +9,79 @@ module leizd::pool_status {
     const E_IS_NOT_EXISTED: u64 = 1;
 
     struct Status<phantom C> has key {
-        active: bool
+        can_deposit: bool,
+        can_withdraw: bool,
+        can_borrow: bool,
+        can_repay: bool
     }
 
     public(friend) fun initialize<C>(owner: &signer) {
         move_to(owner, Status<C> {
-            active: true
+            can_deposit: true,
+            can_withdraw: true,
+            can_borrow: true,
+            can_repay: true
         });
     }
 
-    public fun is_available<C>(): bool acquires Status {
-        let owner_address = permission::owner_address();
-        assert!(exists<Status<C>>(owner_address), E_IS_NOT_EXISTED);
-        let system_is_active = system_status::status();
-        let pool_status_ref = borrow_global<Status<C>>(owner_address);
-        system_is_active && pool_status_ref.active 
+    fun assert_pool_status_initialized<C>(owner_address: address) {
+        assert!(exists<Status<C>>(owner_address), error::invalid_argument(E_IS_NOT_EXISTED));
     }
 
-    public(friend) fun update_status<C>(active: bool) acquires Status {
-        let pool_status_ref = borrow_global_mut<Status<C>>(permission::owner_address());
-        pool_status_ref.active = active;
+    public fun can_deposit<C>(): bool acquires Status {
+        let owner_address = permission::owner_address();
+        assert_pool_status_initialized<C>(owner_address);
+        let pool_status_ref = borrow_global<Status<C>>(owner_address);
+        system_status::status() && pool_status_ref.can_deposit
+    }
+
+    public fun can_withdraw<C>(): bool acquires Status {
+        let owner_address = permission::owner_address();
+        assert_pool_status_initialized<C>(owner_address);
+        let pool_status_ref = borrow_global<Status<C>>(owner_address);
+        system_status::status() && pool_status_ref.can_withdraw
+    }
+
+    public fun can_borrow<C>(): bool acquires Status {
+        let owner_address = permission::owner_address();
+        assert_pool_status_initialized<C>(owner_address);
+        let pool_status_ref = borrow_global<Status<C>>(owner_address);
+        system_status::status() && pool_status_ref.can_borrow
+    }
+
+    public fun can_repay<C>(): bool acquires Status {
+        let owner_address = permission::owner_address();
+        assert_pool_status_initialized<C>(owner_address);
+        let pool_status_ref = borrow_global<Status<C>>(owner_address);
+        system_status::status() && pool_status_ref.can_repay
+    }
+
+    public(friend) fun update_deposit_status<C>(active: bool) acquires Status {
+        let owner_address = permission::owner_address();
+        assert_pool_status_initialized<C>(owner_address);
+        let pool_status_ref = borrow_global_mut<Status<C>>(owner_address);
+        pool_status_ref.can_deposit = active;
+    }
+
+    public(friend) fun update_withdraw_status<C>(active: bool) acquires Status {
+        let owner_address = permission::owner_address();
+        assert_pool_status_initialized<C>(owner_address);
+        let pool_status_ref = borrow_global_mut<Status<C>>(owner_address);
+        pool_status_ref.can_withdraw = active;
+    }
+
+    public(friend) fun update_borrow_status<C>(active: bool) acquires Status {
+        let owner_address = permission::owner_address();
+        assert_pool_status_initialized<C>(owner_address);
+        let pool_status_ref = borrow_global_mut<Status<C>>(owner_address);
+        pool_status_ref.can_borrow = active;
+    }
+
+    public(friend) fun update_repay_status<C>(active: bool) acquires Status {
+        let owner_address = permission::owner_address();
+        assert_pool_status_initialized<C>(owner_address);
+        let pool_status_ref = borrow_global_mut<Status<C>>(owner_address);
+        pool_status_ref.can_repay = active;
     }
 
     #[test_only]
@@ -36,8 +90,17 @@ module leizd::pool_status {
     fun test_end_to_end(owner: &signer) acquires Status {
         system_status::initialize(owner);
         initialize<DummyStruct>(owner);
-        assert!(is_available<DummyStruct>(), 0);
-        update_status<DummyStruct>(false);
-        assert!(!is_available<DummyStruct>(), 0);
+        assert!(can_deposit<DummyStruct>(), 0);
+        assert!(can_withdraw<DummyStruct>(), 0);
+        assert!(can_borrow<DummyStruct>(), 0);
+        assert!(can_repay<DummyStruct>(), 0);
+        update_deposit_status<DummyStruct>(false);
+        update_withdraw_status<DummyStruct>(false);
+        update_borrow_status<DummyStruct>(false);
+        update_repay_status<DummyStruct>(false);
+        assert!(!can_deposit<DummyStruct>(), 0);
+        assert!(!can_withdraw<DummyStruct>(), 0);
+        assert!(!can_borrow<DummyStruct>(), 0);
+        assert!(!can_repay<DummyStruct>(), 0);
     }
 }
