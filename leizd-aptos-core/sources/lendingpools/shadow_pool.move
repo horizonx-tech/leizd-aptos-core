@@ -1447,31 +1447,41 @@ module leizd::shadow_pool {
         managed_coin::register<USDZ>(borrower);
         usdz::mint_for_test(depositor_addr, 100000);
 
+        // check prerequisite
+        assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
+        assert!(stability_pool::entry_fee() == stability_pool::default_entry_fee(), 0);
+
         // execute
         //// prepares
         stability_pool::deposit(depositor, 50000);
         //// 1st
-        borrow_for<UNI>(borrower_addr, borrower_addr, 2500); // TODO: fail here because of collect_shadow_fee when no balance in pool
-        // repay<UNI>(borrower, 2500);
-        // assert!(stability_pool::total_borrowed<UNI>() == 0, 0);
-        // //// 2nd
-        // borrow_for<UNI>(borrower_addr, borrower_addr, 5000);
-        // borrow_for<UNI>(borrower_addr, borrower_addr, 7500);
-        // repay<UNI>(borrower, 11000);
-        // repay<UNI>(borrower, 1500);
-        // assert!(stability_pool::total_borrowed<UNI>() == 0, 0);
-        // //// 3rd
-        // borrow_for<UNI>(borrower_addr, borrower_addr, 1500);
-        // repay<UNI>(borrower, 1000);
-        // borrow_for<UNI>(borrower_addr, borrower_addr, 3000);
-        // repay<UNI>(borrower, 2500);
-        // borrow_for<UNI>(borrower_addr, borrower_addr, 4500);
-        // repay<UNI>(borrower, 4000);
-        // repay<UNI>(borrower, 1500);
-        // assert!(stability_pool::total_borrowed<UNI>() == 0, 0);
-        // //// still open position
-        // borrow_for<UNI>(borrower_addr, borrower_addr, 5000); // TODO: fail if pattern that fee > 0 (amount > ?)
-        // assert!(stability_pool::total_borrowed<UNI>() == 5000, 0);
+        borrow_for<UNI>(borrower_addr, borrower_addr, 5000); // TODO: fail here because of collect_shadow_fee when no balance in pool
+        usdz::mint_for_test(borrower_addr, 25 + 26); // fee in shadow + fee in stability
+        repay<UNI>(borrower, 5000 + 25 + 26);
+        assert!(stability_pool::total_borrowed<UNI>() == 0, 0);
+        assert!(stability_pool::uncollected_fee<UNI>() == 0, 0);
+        //// 2nd
+        borrow_for<UNI>(borrower_addr, borrower_addr, 10000);
+        borrow_for<UNI>(borrower_addr, borrower_addr, 20000);
+        usdz::mint_for_test(borrower_addr, 100 + 101); // fee in shadow + fee in stability for 20000
+        usdz::mint_for_test(borrower_addr, 50 + 51); // fee in shadow + fee in stability for 10000
+        repay<UNI>(borrower, 20000 + 100 + 101);
+        repay<UNI>(borrower, 10000 + 50 + 51);
+        assert!(stability_pool::total_borrowed<UNI>() == 0, 0);
+        //// 3rd
+        borrow_for<UNI>(borrower_addr, borrower_addr, 10);
+        repay<UNI>(borrower, 10);
+        borrow_for<UNI>(borrower_addr, borrower_addr, 20);
+        repay<UNI>(borrower, 20);
+        borrow_for<UNI>(borrower_addr, borrower_addr, 50);
+        repay<UNI>(borrower, 40);
+        repay<UNI>(borrower, 10);
+        usdz::mint_for_test(borrower_addr, 6);
+        repay<UNI>(borrower, 6);
+        assert!(stability_pool::total_borrowed<UNI>() == 0, 0);
+        //// still open position
+        borrow_for<UNI>(borrower_addr, borrower_addr, 5000);
+        assert!(stability_pool::total_borrowed<UNI>() == 5051, 0);
     }
     // #[test(owner=@leizd,depositor=@0x111,borrower1=@0x222,borrower2=@0x333,aptos_framework=@aptos_framework)]
     // public entry fun test_with_stability_pool_to_open_multi_position(owner: &signer, depositor: &signer, borrower1: &signer, borrower2: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {

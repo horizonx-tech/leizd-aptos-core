@@ -242,7 +242,7 @@ module leizd::stability_pool {
         let result = value_mul_by_fee / PRECISION;
         if (value_mul_by_fee % PRECISION != 0) result + 1 else result
     }
-    fun entry_fee(): u64 acquires Config {
+    public fun entry_fee(): u64 acquires Config {
         borrow_global<Config>(permission::owner_address()).entry_fee
     }
 
@@ -397,6 +397,10 @@ module leizd::stability_pool {
     use leizd_aptos_trove::usdz;
     #[test_only]
     use leizd_aptos_trove::trove_manager;
+    #[test_only]
+    public fun default_entry_fee(): u64 {
+        DEFAULT_ENTRY_FEE
+    }
     // related initialize
     #[test(owner=@leizd)]
     public entry fun test_initialize(owner: &signer) acquires StabilityPool, Config, DistributionConfig {
