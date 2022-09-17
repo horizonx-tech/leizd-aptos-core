@@ -1,4 +1,4 @@
-name: Tests
+name: CD devnet
 on:
   push:
     branches:
@@ -6,7 +6,7 @@ on:
 
 jobs:
   deploy:
-    name: Test
+    name: deploy
     runs-on: ubuntu-latest
     env:
       TEST_PRIVATE_KEY: ${{ secrets.TEST_PRIVATE_KEY}}
