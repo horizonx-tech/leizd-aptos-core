@@ -25,7 +25,7 @@ module leizd::pool_status {
     }
 
     fun assert_pool_status_initialized<C>(owner_address: address) {
-        assert!(exists<Status<C>>(owner_address), error::invalid_argument(E_IS_NOT_EXISTED));
+        assert!(exists<Status<C>>(owner_address), error::not_found(E_IS_NOT_EXISTED));
     }
 
     public fun can_deposit<C>(): bool acquires Status {
