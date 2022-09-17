@@ -505,7 +505,7 @@ module leizd::shadow_pool {
         borrow_global<Storage>(permission::owner_address()).total_deposited
     }
 
-    public entry fun liquidity(): u128 acquires Storage {
+    public entry fun total_liquidity(): u128 acquires Storage {
         let storage_ref = borrow_global<Storage>(permission::owner_address());
         storage_ref.total_deposited - storage_ref.total_conly_deposited
     }
@@ -607,7 +607,7 @@ module leizd::shadow_pool {
         assert!(coin::balance<USDZ>(account_addr) == 200000, 0);
         assert!(total_deposited() == 800000, 0);
         assert!(deposited<WETH>() == 800000, 0);
-        assert!(liquidity() == 800000, 0);
+        assert!(total_liquidity() == 800000, 0);
         assert!(total_conly_deposited() == 0, 0);
         assert!(conly_deposited<WETH>() == 0, 0);
         assert!(total_borrowed() == 0, 0);
@@ -629,7 +629,7 @@ module leizd::shadow_pool {
         assert!(coin::balance<USDZ>(account_addr) == 0, 0);
         assert!(total_deposited() == 100, 0);
         assert!(deposited<WETH>() == 100, 0);
-        assert!(liquidity() == 100, 0);
+        assert!(total_liquidity() == 100, 0);
         assert!(total_conly_deposited() == 0, 0);
         assert!(conly_deposited<WETH>() == 0, 0);
         assert!(total_borrowed() == 0, 0);
@@ -666,7 +666,7 @@ module leizd::shadow_pool {
         assert!(coin::balance<USDZ>(account_addr) == 40, 0);
         assert!(total_deposited() == 60, 0);
         assert!(deposited<WETH>() == 60, 0);
-        assert!(liquidity() == 60, 0);
+        assert!(total_liquidity() == 60, 0);
         assert!(total_conly_deposited() == 0, 0);
         assert!(conly_deposited<WETH>() == 0, 0);
         assert!(total_borrowed() == 0, 0);
@@ -687,7 +687,7 @@ module leizd::shadow_pool {
         assert!(coin::balance<USDZ>(account_addr) == 200000, 0);
         assert!(total_deposited() == 800000, 0);
         assert!(deposited<WETH>() == 800000, 0);
-        assert!(liquidity() == 0, 0);
+        assert!(total_liquidity() == 0, 0);
         assert!(total_conly_deposited() == 800000, 0);
         assert!(conly_deposited<WETH>() == 800000, 0);
         assert!(total_borrowed() == 0, 0);
@@ -711,7 +711,7 @@ module leizd::shadow_pool {
         assert!(coin::balance<USDZ>(account_addr) == 900000, 0);
         assert!(total_deposited() == 100000, 0);
         assert!(deposited<WETH>() == 100000, 0);
-        assert!(liquidity() == 100000, 0);
+        assert!(total_liquidity() == 100000, 0);
         assert!(total_conly_deposited() == 0, 0);
         assert!(conly_deposited<WETH>() == 0, 0);
         assert!(total_borrowed() == 0, 0);
@@ -736,7 +736,7 @@ module leizd::shadow_pool {
         assert!(coin::balance<USDZ>(account_addr) == 100, 0);
         assert!(total_deposited() == 0, 0);
         assert!(deposited<WETH>() == 0, 0);
-        assert!(liquidity() == 0, 0);
+        assert!(total_liquidity() == 0, 0);
         assert!(total_conly_deposited() == 0, 0);
         assert!(conly_deposited<WETH>() == 0, 0);
         assert!(total_borrowed() == 0, 0);
@@ -779,7 +779,7 @@ module leizd::shadow_pool {
         assert!(coin::balance<USDZ>(account_addr) == 60, 0);
         assert!(total_deposited() == 40, 0);
         assert!(deposited<WETH>() == 40, 0);
-        assert!(liquidity() == 40, 0);
+        assert!(total_liquidity() == 40, 0);
         assert!(total_conly_deposited() == 0, 0);
         assert!(conly_deposited<WETH>() == 0, 0);
         assert!(total_borrowed() == 0, 0);
@@ -801,7 +801,7 @@ module leizd::shadow_pool {
         assert!(coin::balance<USDZ>(account_addr) == 900000, 0);
         assert!(total_deposited() == 100000, 0);
         assert!(deposited<WETH>() == 100000, 0);
-        assert!(liquidity() == 0, 0);
+        assert!(total_liquidity() == 0, 0);
         assert!(total_conly_deposited() == 100000, 0);
         assert!(conly_deposited<WETH>() == 100000, 0);
         assert!(total_borrowed() == 0, 0);
@@ -830,7 +830,7 @@ module leizd::shadow_pool {
         assert!(coin::balance<USDZ>(borrower_addr) == 100000, 0);
         assert!(total_deposited() == 800000, 0);
         assert!(deposited<UNI>() == 800000, 0);
-        assert!(liquidity() == 800000, 0);
+        assert!(total_liquidity() == 800000, 0);
         assert!(total_conly_deposited() == 0, 0);
         assert!(conly_deposited<UNI>() == 0, 0);
         assert!(total_borrowed() == 100500, 0);
@@ -864,7 +864,7 @@ module leizd::shadow_pool {
         assert!(coin::balance<USDZ>(borrower_addr) == 1000, 0);
         assert!(total_deposited() == 1005, 0);
         assert!(deposited<UNI>() == 1005, 0);
-        assert!(liquidity() == 1005, 0);
+        assert!(total_liquidity() == 1005, 0);
         assert!(total_conly_deposited() == 0, 0);
         assert!(conly_deposited<UNI>() == 0, 0);
         assert!(total_borrowed() == 1005, 0);
