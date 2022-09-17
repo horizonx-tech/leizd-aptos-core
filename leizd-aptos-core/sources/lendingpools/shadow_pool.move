@@ -1483,43 +1483,46 @@ module leizd::shadow_pool {
         borrow_for<UNI>(borrower_addr, borrower_addr, 5000);
         assert!(stability_pool::total_borrowed<UNI>() == 5051, 0);
     }
-    // #[test(owner=@leizd,depositor=@0x111,borrower1=@0x222,borrower2=@0x333,aptos_framework=@aptos_framework)]
-    // public entry fun test_with_stability_pool_to_open_multi_position(owner: &signer, depositor: &signer, borrower1: &signer, borrower2: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
-    //     setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
-    //     test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+    #[test(owner=@leizd,depositor=@0x111,borrower1=@0x222,borrower2=@0x333,aptos_framework=@aptos_framework)]
+    public entry fun test_with_stability_pool_to_open_multi_position(owner: &signer, depositor: &signer, borrower1: &signer, borrower2: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
 
-    //     let depositor_addr = signer::address_of(depositor);
-    //     let borrower1_addr = signer::address_of(borrower1);
-    //     let borrower2_addr = signer::address_of(borrower2);
-    //     account::create_account_for_test(depositor_addr);
-    //     account::create_account_for_test(borrower1_addr);
-    //     account::create_account_for_test(borrower2_addr);
-    //     managed_coin::register<USDZ>(depositor);
-    //     managed_coin::register<USDZ>(borrower1);
-    //     managed_coin::register<USDZ>(borrower2);
-    //     usdz::mint_for_test(depositor_addr, 20000);
+        let depositor_addr = signer::address_of(depositor);
+        let borrower1_addr = signer::address_of(borrower1);
+        let borrower2_addr = signer::address_of(borrower2);
+        account::create_account_for_test(depositor_addr);
+        account::create_account_for_test(borrower1_addr);
+        account::create_account_for_test(borrower2_addr);
+        managed_coin::register<USDZ>(depositor);
+        managed_coin::register<USDZ>(borrower1);
+        managed_coin::register<USDZ>(borrower2);
+        usdz::mint_for_test(depositor_addr, 20000);
 
-    //     // execute
-    //     stability_pool::deposit(depositor, 10000);
-    //     deposit_for_internal<WETH>(depositor, depositor_addr, 2500, false);
-    //     //// borrow
-    //     borrow_for<WETH>(borrower1_addr, borrower1_addr, 3000);
-    //     // borrow_for<WETH>(borrower2_addr, borrower2_addr, 2000); // TODO: fail here because of collect_shadow_fee when no balance in pool
-    //     // borrow_for<UNI>(borrower2_addr, borrower2_addr, 4000);
-    //     // assert!(stability_pool::left() == 3500, 0);
-    //     // assert!(stability_pool::total_borrowed<WETH>() == 2500, 0);
-    //     // assert!(stability_pool::total_borrowed<UNI>() == 4000, 0);
-    //     // //// repay
-    //     // repay<UNI>(depositor, 4000);
-    //     // assert!(stability_pool::total_borrowed<WETH>() == 2500, 0);
-    //     // assert!(stability_pool::total_borrowed<UNI>() == 0, 0);
-    //     // repay<WETH>(depositor, 2500);
-    //     // debug::print(&stability_pool::left());
-    //     // debug::print(&stability_pool::total_borrowed<WETH>());
-    //     // debug::print(&stability_pool::total_borrowed<UNI>());
-    //     // assert!(stability_pool::total_borrowed<WETH>() == 0, 0);
-    //     // assert!(stability_pool::total_borrowed<UNI>() == 0, 0);
-    // }
+        // execute
+        stability_pool::deposit(depositor, 10000);
+        deposit_for_internal<WETH>(depositor, depositor_addr, 2500, false);
+        //// borrow
+        borrow_for<WETH>(borrower1_addr, borrower1_addr, 3000);
+        assert!(stability_pool::left() == 10000 - (500 + 15), 0);
+        assert!(stability_pool::total_borrowed<WETH>() == (500 + 15) + 3, 0);
+        assert!(stability_pool::total_borrowed<UNI>() == 0, 0);
+        borrow_for<WETH>(borrower2_addr, borrower2_addr, 2000);
+        assert!(stability_pool::left() == 10000 - (500 + 15) - (2000 + 10), 0);
+        assert!(stability_pool::total_borrowed<WETH>() == (500 + 15) + 3 + (2000 + 10) + 11, 0);
+        assert!(stability_pool::total_borrowed<UNI>() == 0, 0);
+        borrow_for<UNI>(borrower2_addr, borrower2_addr, 4000);
+        assert!(stability_pool::left() == 10000 - (500 + 15) - (2000 + 10) - (4000 + 20), 0);
+        assert!(stability_pool::total_borrowed<WETH>() == (500 + 15) + 3 + (2000 + 10) + 11, 0);
+        assert!(stability_pool::total_borrowed<UNI>() == (4000 + 20) + 21, 0);
+        //// repay
+        repay<UNI>(depositor, 4041);
+        assert!(stability_pool::total_borrowed<WETH>() == (500 + 15) + 3 + (2000 + 10) + 11, 0);
+        assert!(stability_pool::total_borrowed<UNI>() == 0, 0);
+        repay<WETH>(depositor, 2539);
+        assert!(stability_pool::total_borrowed<WETH>() == 0, 0);
+        assert!(stability_pool::total_borrowed<UNI>() == 0, 0);
+    }
 
     // rebalance shadow
     #[test(owner=@leizd,account1=@0x111,aptos_framework=@aptos_framework)]
