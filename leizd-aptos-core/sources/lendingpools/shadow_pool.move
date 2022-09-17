@@ -987,6 +987,26 @@ module leizd::shadow_pool {
         // assert!(coin::balance<USDZ>(borrower_addr) == 10000, 0);
         // assert!(borrowed<UNI>() == 10000 + 5 * 10, 0);
     }
+    #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
+    #[expected_failure(abort_code = 65548)]
+    fun test_borrow_to_not_borrow_collateral_only(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+
+        let depositor_addr = signer::address_of(depositor);
+        let borrower_addr = signer::address_of(borrower);
+        account::create_account_for_test(depositor_addr);
+        account::create_account_for_test(borrower_addr);
+        managed_coin::register<USDZ>(depositor);
+        managed_coin::register<USDZ>(borrower);
+        usdz::mint_for_test(depositor_addr, 150);
+
+        // deposit UNI
+        deposit_for_internal<UNI>(depositor, depositor_addr, 100, false);
+        deposit_for_internal<UNI>(depositor, depositor_addr, 50, true);
+        // borrow UNI
+        borrow_for<UNI>(borrower_addr, borrower_addr, 120);
+    }
 
     // for repay
     #[test_only]
