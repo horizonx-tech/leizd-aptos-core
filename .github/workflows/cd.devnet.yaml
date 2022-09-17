@@ -1,0 +1,43 @@
+name: Tests
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: Test
+    runs-on: ubuntu-latest
+    env:
+      TEST_PRIVATE_KEY: ${{ secrets.TEST_PRIVATE_KEY}}
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Get Aptos
+        uses: pontem-network/get-aptos@main
+        with:
+          version: latest
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up release
+        run: sh prerelease.sh
+
+      - name: release leizd-aptos-common
+        run: aptos move publish --package-dir leizd-aptos-common --override-size-check
+
+      - name: release leizd-aptos-lib
+        run: aptos move publish --package-dir leizd-aptos-lib --override-size-check
+
+      - name: release leizd-aptos-lib
+        run: aptos move publish --package-dir leizd-aptos-lib --override-size-check
+
+      - name: release leizd_aptos_external
+        run: aptos move publish --package-dir leizd_aptos_external --override-size-check
+
+      - name: release leizd_aptos_core
+        run: aptos move publish --package-dir leizd_aptos_core --override-size-check
