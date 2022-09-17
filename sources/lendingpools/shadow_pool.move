@@ -22,7 +22,7 @@ module leizd::shadow_pool {
 
     const E_NOT_AVAILABLE_STATUS: u64 = 4;
     const E_AMOUNT_ARG_IS_ZERO: u64 = 5;
-    const E_EXCEED_BORRAWABLE_AMOUNT: u64 = 6;
+    const E_EXCEED_BORRAWABLE_AMOUNT: u64 = 12;
 
     struct Pool has key {
         shadow: coin::Coin<USDZ>
@@ -322,35 +322,52 @@ module leizd::shadow_pool {
 
         accrue_interest<C>(storage_ref);
 
-        let fee = risk_factor::calculate_entry_fee(amount);
-        collect_shadow_fee<C>(pool_ref, fee);
+        let entry_fee = risk_factor::calculate_entry_fee(amount);
+        let total_fee = entry_fee;
+        let amount_with_entry_fee = amount + entry_fee;
+        let total_liquidity = total_liquidity_internal(pool_ref, storage_ref);
 
-        let key = generate_coin_key<C>();
-        let remains = if (deposited_internal(key, storage_ref) > borrowed_internal(key, storage_ref)) deposited_internal(key, storage_ref) - borrowed_internal(key, storage_ref) else 0;
-        if (amount > remains) {
+        // check liquidity
+        assert!((amount_with_entry_fee as u128) <= total_liquidity + stability_pool::left(), error::invalid_argument(E_EXCEED_BORRAWABLE_AMOUNT));
+
+        if ((amount_with_entry_fee as u128) > total_liquidity) {
             // use stability pool
-            let insufficiencies = amount - remains;
-            assert!(stability_pool::left() >= (insufficiencies as u128), error::invalid_argument(E_EXCEED_BORRAWABLE_AMOUNT)); // check the staiblity left
-            borrow_from_stability_pool<C>(receiver_addr, insufficiencies);
-            fee = fee + stability_pool::calculate_entry_fee(insufficiencies);
-            if (remains > 0) {
-                // borrow from shadow_pool too if remains > 0
-                let deposited = coin::extract(&mut pool_ref.shadow, remains);
-                coin::deposit<USDZ>(receiver_addr, deposited);
+            if (total_liquidity > 0) {
+                // extract all from shadow_pool, supply the shortage to borrow from stability pool
+                let extracted = coin::extract_all(&mut pool_ref.shadow);
+                let borrowing_value_from_stability = amount_with_entry_fee - coin::value(&extracted);
+                let borrowed_from_stability = borrow_from_stability_pool<C>(receiver_addr, borrowing_value_from_stability);
+
+                // merge coins extracted & distribute calculated values to receiver & shadow_pool
+                coin::merge(&mut extracted, borrowed_from_stability);
+                let for_entry_fee = coin::extract(&mut extracted, entry_fee);
+                coin::deposit<USDZ>(receiver_addr, extracted); // to receiver
+                coin::merge(&mut pool_ref.shadow, for_entry_fee); // to shadow_pool (for collecting fee)
+
+                total_fee = total_fee + stability_pool::calculate_entry_fee(borrowing_value_from_stability);
+            } else {
+                // when no liquidity in pool, borrow all from stability pool
+                borrow_from_stability_pool_to_receiver<C>(receiver_addr, amount_with_entry_fee);
+                total_fee = total_fee + stability_pool::calculate_entry_fee(amount_with_entry_fee);
             }
         } else {
-            let deposited = coin::extract(&mut pool_ref.shadow, amount);
-            coin::deposit<USDZ>(receiver_addr, deposited);
+            // not use stability pool
+            let extracted = coin::extract(&mut pool_ref.shadow, amount);
+            coin::deposit<USDZ>(receiver_addr, extracted);
         };
+        collect_shadow_fee<C>(pool_ref, entry_fee); // fee to treasury
+
+        // update borrowed stats
         let key = generate_coin_key<C>();
-        storage_ref.total_borrowed = storage_ref.total_borrowed + (amount as u128) + (fee as u128);
+        let amount_with_total_fee = amount + total_fee;
+        storage_ref.total_borrowed = storage_ref.total_borrowed + (amount_with_total_fee as u128);
         if (simple_map::contains_key<String,u64>(&storage_ref.borrowed, &key)) {
             let borrowed = simple_map::borrow_mut<String,u64>(&mut storage_ref.borrowed, &key);
-            *borrowed = *borrowed + amount + fee;
+            *borrowed = *borrowed + amount_with_total_fee;
         } else {
-            simple_map::add<String,u64>(&mut storage_ref.borrowed, key, amount + fee);
+            simple_map::add<String,u64>(&mut storage_ref.borrowed, key, amount_with_total_fee);
         };
-        
+
         event::emit_event<BorrowEvent>(
             &mut borrow_global_mut<PoolEventHandle>(owner_address).borrow_event,
             BorrowEvent {
@@ -443,9 +460,12 @@ module leizd::shadow_pool {
 
     /// Borrow the shadow from the stability pool
     /// use when shadow in this pool become insufficient.
-    fun borrow_from_stability_pool<C>(receiver_addr: address, amount: u64) {
-        let borrowed = stability_pool::borrow<C>(receiver_addr, amount);
+    fun borrow_from_stability_pool_to_receiver<C>(receiver_addr: address, amount: u64) {
+        let borrowed = borrow_from_stability_pool<C>(receiver_addr, amount);
         coin::deposit(receiver_addr, borrowed);
+    }
+    fun borrow_from_stability_pool<C>(caller_addr: address, amount: u64): coin::Coin<USDZ> {
+        stability_pool::borrow<C>(caller_addr, amount)
     }
 
     /// Repays the shadow to the stability pool
@@ -505,9 +525,14 @@ module leizd::shadow_pool {
         borrow_global<Storage>(permission::owner_address()).total_deposited
     }
 
-    public entry fun liquidity(): u128 acquires Storage {
-        let storage_ref = borrow_global<Storage>(permission::owner_address());
-        storage_ref.total_deposited - storage_ref.total_conly_deposited
+    public entry fun total_liquidity(): u128 acquires Pool, Storage {
+        let owner_addr = permission::owner_address();
+        let pool_ref = borrow_global<Pool>(owner_addr);
+        let storage_ref = borrow_global<Storage>(owner_addr);
+        total_liquidity_internal(pool_ref, storage_ref)
+    }
+    fun total_liquidity_internal(pool: &Pool, storage: &Storage): u128 {
+        (coin::value(&pool.shadow) as u128) - storage.total_conly_deposited
     }
 
     public entry fun total_conly_deposited(): u128 acquires Storage {
@@ -607,7 +632,7 @@ module leizd::shadow_pool {
         assert!(coin::balance<USDZ>(account_addr) == 200000, 0);
         assert!(total_deposited() == 800000, 0);
         assert!(deposited<WETH>() == 800000, 0);
-        assert!(liquidity() == 800000, 0);
+        assert!(total_liquidity() == 800000, 0);
         assert!(total_conly_deposited() == 0, 0);
         assert!(conly_deposited<WETH>() == 0, 0);
         assert!(total_borrowed() == 0, 0);
@@ -629,7 +654,7 @@ module leizd::shadow_pool {
         assert!(coin::balance<USDZ>(account_addr) == 0, 0);
         assert!(total_deposited() == 100, 0);
         assert!(deposited<WETH>() == 100, 0);
-        assert!(liquidity() == 100, 0);
+        assert!(total_liquidity() == 100, 0);
         assert!(total_conly_deposited() == 0, 0);
         assert!(conly_deposited<WETH>() == 0, 0);
         assert!(total_borrowed() == 0, 0);
@@ -666,7 +691,7 @@ module leizd::shadow_pool {
         assert!(coin::balance<USDZ>(account_addr) == 40, 0);
         assert!(total_deposited() == 60, 0);
         assert!(deposited<WETH>() == 60, 0);
-        assert!(liquidity() == 60, 0);
+        assert!(total_liquidity() == 60, 0);
         assert!(total_conly_deposited() == 0, 0);
         assert!(conly_deposited<WETH>() == 0, 0);
         assert!(total_borrowed() == 0, 0);
@@ -687,7 +712,7 @@ module leizd::shadow_pool {
         assert!(coin::balance<USDZ>(account_addr) == 200000, 0);
         assert!(total_deposited() == 800000, 0);
         assert!(deposited<WETH>() == 800000, 0);
-        assert!(liquidity() == 0, 0);
+        assert!(total_liquidity() == 0, 0);
         assert!(total_conly_deposited() == 800000, 0);
         assert!(conly_deposited<WETH>() == 800000, 0);
         assert!(total_borrowed() == 0, 0);
@@ -711,7 +736,7 @@ module leizd::shadow_pool {
         assert!(coin::balance<USDZ>(account_addr) == 900000, 0);
         assert!(total_deposited() == 100000, 0);
         assert!(deposited<WETH>() == 100000, 0);
-        assert!(liquidity() == 100000, 0);
+        assert!(total_liquidity() == 100000, 0);
         assert!(total_conly_deposited() == 0, 0);
         assert!(conly_deposited<WETH>() == 0, 0);
         assert!(total_borrowed() == 0, 0);
@@ -736,7 +761,7 @@ module leizd::shadow_pool {
         assert!(coin::balance<USDZ>(account_addr) == 100, 0);
         assert!(total_deposited() == 0, 0);
         assert!(deposited<WETH>() == 0, 0);
-        assert!(liquidity() == 0, 0);
+        assert!(total_liquidity() == 0, 0);
         assert!(total_conly_deposited() == 0, 0);
         assert!(conly_deposited<WETH>() == 0, 0);
         assert!(total_borrowed() == 0, 0);
@@ -779,7 +804,7 @@ module leizd::shadow_pool {
         assert!(coin::balance<USDZ>(account_addr) == 60, 0);
         assert!(total_deposited() == 40, 0);
         assert!(deposited<WETH>() == 40, 0);
-        assert!(liquidity() == 40, 0);
+        assert!(total_liquidity() == 40, 0);
         assert!(total_conly_deposited() == 0, 0);
         assert!(conly_deposited<WETH>() == 0, 0);
         assert!(total_borrowed() == 0, 0);
@@ -801,7 +826,7 @@ module leizd::shadow_pool {
         assert!(coin::balance<USDZ>(account_addr) == 900000, 0);
         assert!(total_deposited() == 100000, 0);
         assert!(deposited<WETH>() == 100000, 0);
-        assert!(liquidity() == 0, 0);
+        assert!(total_liquidity() == 0, 0);
         assert!(total_conly_deposited() == 100000, 0);
         assert!(conly_deposited<WETH>() == 100000, 0);
         assert!(total_borrowed() == 0, 0);
@@ -830,7 +855,7 @@ module leizd::shadow_pool {
         assert!(coin::balance<USDZ>(borrower_addr) == 100000, 0);
         assert!(total_deposited() == 800000, 0);
         assert!(deposited<UNI>() == 800000, 0);
-        assert!(liquidity() == 800000, 0);
+        assert!(total_liquidity() == 800000 - (100000 + 500), 0);
         assert!(total_conly_deposited() == 0, 0);
         assert!(conly_deposited<UNI>() == 0, 0);
         assert!(total_borrowed() == 100500, 0);
@@ -864,7 +889,7 @@ module leizd::shadow_pool {
         assert!(coin::balance<USDZ>(borrower_addr) == 1000, 0);
         assert!(total_deposited() == 1005, 0);
         assert!(deposited<UNI>() == 1005, 0);
-        assert!(liquidity() == 1005, 0);
+        assert!(total_liquidity() == 0, 0);
         assert!(total_conly_deposited() == 0, 0);
         assert!(conly_deposited<UNI>() == 0, 0);
         assert!(total_borrowed() == 1005, 0);
@@ -875,7 +900,7 @@ module leizd::shadow_pool {
         assert!(treasury::balance_of_shadow<UNI>() == 5, 0);
     }
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
-    #[expected_failure(abort_code = 65542)]
+    #[expected_failure(abort_code = 65548)]
     public entry fun test_borrow_with_more_than_deposited_amount(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         price_oracle::initialize_with_fixed_price_for_test(owner);
@@ -1232,7 +1257,7 @@ module leizd::shadow_pool {
     //     // assert!(usdz::balance_of(borrower_addr) == 30000, 0);
     // }
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
-    #[expected_failure(abort_code = 65542)]
+    #[expected_failure(abort_code = 65548)]
     public entry fun test_with_stability_pool_to_borrow_with_cannot_borrowed_amount(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         price_oracle::initialize_with_fixed_price_for_test(owner);
