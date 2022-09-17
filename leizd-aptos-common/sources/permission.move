@@ -1,8 +1,8 @@
-module leizd_aptos_config::permission {
+module leizd_aptos_common::permission {
   const E_NOT_OWNER: u64 = 1;
 
   public fun owner_address(): address {
-    @leizd_aptos_config
+    @leizd_aptos_common
   }
 
   public fun is_owner(account: address): bool {

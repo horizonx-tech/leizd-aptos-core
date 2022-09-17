@@ -16,13 +16,13 @@ subdir = 'switchboard-move/switchboard'
 [dependencies.LeizdAptosLib]
 local = "../leizd-aptos-lib"
 
-[dependencies.LeizdAptosConfig]
-local = "../leizd-aptos-config"
+[dependencies.LeizdAptosCommon]
+local = "../leizd-aptos-common"
 
 [addresses]
 leizd="0x0123456789ABCDEF"
 leizd_aptos_lib="0x0123456789ABCDEF"
-leizd_aptos_config="0x0123456789ABCDEF"
+leizd_aptos_common="0x0123456789ABCDEF"
 std = "0x1"
 aptos_std = "0x1"
 aptos_framework = "0x1"

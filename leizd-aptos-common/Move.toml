@@ -1,5 +1,5 @@
 [package]
-name = 'LeizdAptosConfig'
+name = 'LeizdAptosCommon'
 version = '1.0.0'
 
 [dependencies.AptosFramework]
@@ -8,4 +8,4 @@ rev = 'devnet'
 subdir = 'aptos-move/framework/aptos-framework'
 
 [addresses]
-leizd_aptos_config="0x0123456789ABCDEF"
+leizd_aptos_common="0x0123456789ABCDEF"

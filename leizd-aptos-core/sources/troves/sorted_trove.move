@@ -1,7 +1,7 @@
 module leizd::sorted_trove {
     use aptos_std::simple_map;
     use leizd_aptos_lib::constant;
-    use leizd_aptos_config::permission;
+    use leizd_aptos_common::permission;
     use leizd::trove;
 
     friend leizd::trove_manager;

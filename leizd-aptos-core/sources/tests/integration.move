@@ -8,7 +8,7 @@ module leizd::integration {
     // // use aptos_framework::coin;
     // // use aptos_framework::managed_coin;
     // use leizd::pool;
-    // use leizd_aptos_config::pool_type::{Asset,Shadow};
+    // use leizd_aptos_common::pool_type::{Asset,Shadow};
     // use leizd::test_coin::{Self,USDC,WETH};
 
     // #[test(owner=@leizd)]

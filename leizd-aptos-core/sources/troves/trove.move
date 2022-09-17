@@ -5,7 +5,7 @@ module leizd::trove {
     use aptos_framework::coin;
     use leizd::usdz;
     use leizd_aptos_lib::math64;
-    use leizd_aptos_config::permission;
+    use leizd_aptos_common::permission;
     use aptos_framework::account;
     friend leizd::trove_manager;
 

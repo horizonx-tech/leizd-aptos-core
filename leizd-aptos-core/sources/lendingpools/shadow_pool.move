@@ -10,7 +10,7 @@ module leizd::shadow_pool {
     use aptos_framework::account;
     use aptos_framework::timestamp;
     use leizd::usdz::{USDZ};
-    use leizd_aptos_config::permission;
+    use leizd_aptos_common::permission;
     use leizd_aptos_lib::constant;
     use leizd::treasury;
     use leizd::stability_pool;

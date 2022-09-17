@@ -8,7 +8,7 @@ module leizd::pool_manager {
   use aptos_framework::coin;
   use aptos_framework::type_info::{Self, TypeInfo};
   use leizd::asset_pool;
-  use leizd_aptos_config::permission;
+  use leizd_aptos_common::permission;
   use aptos_framework::account;
 
   const ENOT_INITIALIZED: u64 = 1;

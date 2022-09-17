@@ -6,7 +6,7 @@ module leizd::price_oracle {
     use aptos_framework::table;
     use switchboard::aggregator;
     use switchboard::math;
-    use leizd_aptos_config::permission;
+    use leizd_aptos_common::permission;
 
     struct AggregatorStorage has key {
         aggregators: table::Table<string::String, address>

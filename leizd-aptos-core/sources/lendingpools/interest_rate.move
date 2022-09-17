@@ -5,7 +5,7 @@ module leizd::interest_rate {
     use aptos_framework::account;
     use leizd_aptos_lib::math128;
     use leizd_aptos_lib::prb_math_30x9;
-    use leizd_aptos_config::permission;
+    use leizd_aptos_common::permission;
     use leizd_aptos_lib::i128;
 
     friend leizd::asset_pool;
