@@ -34,11 +34,14 @@ jobs:
       - name: release leizd-aptos-lib
         run: aptos move publish --package-dir leizd-aptos-lib --override-size-check
 
-      - name: release leizd-aptos-lib
-        run: aptos move publish --package-dir leizd-aptos-lib --override-size-check
-
       - name: release leizd-aptos-external
         run: aptos move publish --package-dir leizd-aptos-external --override-size-check
+
+      - name: release leizd-aptos-trove
+        run: aptos move publish --package-dir leizd-aptos-trove --override-size-check
+
+      - name: release leizd-aptos-treasury
+        run: aptos move publish --package-dir leizd-aptos-treasury --override-size-check
 
       - name: release leizd-aptos-core
         run: aptos move publish --package-dir leizd-aptos-core --override-size-check  --max-gas 100000

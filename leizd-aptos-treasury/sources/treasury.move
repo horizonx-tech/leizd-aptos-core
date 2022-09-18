@@ -47,12 +47,12 @@ module leizd_aptos_treasury::treasury {
     }
 
     #[test_only]
-    public(friend) fun balance_of_asset<C>(): u64 acquires Treasury {
+    public fun balance_of_asset<C>(): u64 acquires Treasury {
         let treasury_ref = borrow_global_mut<Treasury<C>>(permission::owner_address());
         coin::value<C>(&treasury_ref.asset)
     }
     #[test_only]
-    public(friend) fun balance_of_shadow<C>(): u64 acquires Treasury {
+    public fun balance_of_shadow<C>(): u64 acquires Treasury {
         let treasury_ref = borrow_global_mut<Treasury<C>>(permission::owner_address());
         coin::value<USDZ>(&treasury_ref.shadow)
     }
@@ -63,15 +63,15 @@ module leizd_aptos_treasury::treasury {
     #[test_only]
     use leizd_aptos_trove::usdz;
     #[test_only]
-    use leizd::test_coin::{Self, WETH};
-    #[test(owner = @leizd, account = @0x111)]
+    use leizd_aptos_treasury::treasury_test_coin::{Self, WETH};
+    #[test(owner = @leizd_aptos_treasury, account = @0x111)]
     fun test_end_to_end(owner: &signer, account: &signer) acquires Treasury {
         // prepares
         let owner_address = permission::owner_address();
         let account_address = signer::address_of(account);
         account::create_account_for_test(owner_address);
         account::create_account_for_test(account_address);
-        test_coin::init_weth(owner);
+        treasury_test_coin::init_weth(owner);
         usdz::initialize_for_test(owner);
         managed_coin::register<USDZ>(owner);
         managed_coin::register<WETH>(account);
