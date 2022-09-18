@@ -315,6 +315,7 @@ module leizd::shadow_pool {
     ) acquires Pool, Storage, PoolEventHandle {
         assert!(pool_status::can_borrow<C>(), error::invalid_state(E_NOT_AVAILABLE_STATUS));
         assert!(amount > 0, error::invalid_argument(E_AMOUNT_ARG_IS_ZERO));
+        // TODO:
 
         let owner_address = permission::owner_address();
         let pool_ref = borrow_global_mut<Pool>(owner_address);
