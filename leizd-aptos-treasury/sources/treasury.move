@@ -11,7 +11,6 @@ module leizd_aptos_treasury::treasury {
     }
 
     public fun initialize<C>(owner: &signer) {
-        permission::assert_owner(signer::address_of(owner));
         move_to(owner, Treasury<C> {
             asset: coin::zero<C>(),
             shadow: coin::zero<USDZ>()
