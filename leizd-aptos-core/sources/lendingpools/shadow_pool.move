@@ -9,9 +9,9 @@ module leizd::shadow_pool {
     use aptos_framework::type_info;
     use aptos_framework::account;
     use aptos_framework::timestamp;
-    use leizd_aptos_trove::usdz::{USDZ};
     use leizd_aptos_common::permission;
     use leizd_aptos_lib::constant;
+    use leizd_aptos_trove::usdz::{USDZ};
     use leizd::treasury;
     use leizd::stability_pool;
     use leizd::risk_factor;

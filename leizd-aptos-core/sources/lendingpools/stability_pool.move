@@ -6,9 +6,9 @@ module leizd::stability_pool {
     use aptos_framework::event;
     use aptos_framework::account;
     use aptos_framework::timestamp;
+    use leizd_aptos_common::permission;
     use leizd_aptos_trove::usdz::{USDZ};
     use leizd::stb_usdz;
-    use leizd_aptos_common::permission;
 
     friend leizd::asset_pool;
     friend leizd::shadow_pool;

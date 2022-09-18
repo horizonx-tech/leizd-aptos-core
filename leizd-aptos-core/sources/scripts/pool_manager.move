@@ -5,11 +5,11 @@ module leizd::pool_manager {
   use std::string::{String};
   use aptos_std::event;
   use aptos_std::simple_map;
+  use aptos_framework::account;
   use aptos_framework::coin;
   use aptos_framework::type_info::{Self, TypeInfo};
-  use leizd::asset_pool;
   use leizd_aptos_common::permission;
-  use aptos_framework::account;
+  use leizd::asset_pool;
 
   const ENOT_INITIALIZED: u64 = 1;
   const EALREADY_ADDED_COIN: u64 = 2;

@@ -51,15 +51,18 @@ module leizd::system_administrator {
     use leizd::pool_manager;
     #[test_only]
     use leizd::test_coin::{Self, WETH};
-    #[test(owner = @leizd)]
-    fun test_operate_pool_to_deactivate(owner: &signer) {
-        let owner_address = signer::address_of(owner);
-        account::create_account_for_test(owner_address);
+    #[test_only]
+    fun prepare_for_test(owner: &signer) {
+        account::create_account_for_test(signer::address_of(owner));
         test_coin::init_weth(owner);
         pool_manager::initialize(owner);
         risk_factor::initialize(owner);
         pool_manager::add_pool<WETH>(owner);
         system_status::initialize(owner);
+    }
+    #[test(owner = @leizd)]
+    fun test_operate_pool_to_deactivate(owner: &signer) {
+        prepare_for_test(owner);
         assert!(pool_status::can_deposit<WETH>(), 0);
         assert!(pool_status::can_withdraw<WETH>(), 0);
         assert!(pool_status::can_borrow<WETH>(), 0);
@@ -72,13 +75,7 @@ module leizd::system_administrator {
     }
     #[test(owner = @leizd)]
     fun test_operate_pool_to_activate(owner: &signer) {
-        let owner_address = signer::address_of(owner);
-        account::create_account_for_test(owner_address);
-        test_coin::init_weth(owner);
-        pool_manager::initialize(owner);
-        risk_factor::initialize(owner);
-        pool_manager::add_pool<WETH>(owner);
-        system_status::initialize(owner);
+        prepare_for_test(owner);
         deactivate_pool<WETH>(owner);
         assert!(!pool_status::can_deposit<WETH>(), 0);
         assert!(!pool_status::can_withdraw<WETH>(), 0);
@@ -92,13 +89,7 @@ module leizd::system_administrator {
     }
     #[test(owner = @leizd)]
     fun test_operate_pool_to_freeze(owner: &signer) {
-        let owner_address = signer::address_of(owner);
-        account::create_account_for_test(owner_address);
-        test_coin::init_weth(owner);
-        pool_manager::initialize(owner);
-        risk_factor::initialize(owner);
-        pool_manager::add_pool<WETH>(owner);
-        system_status::initialize(owner);
+        prepare_for_test(owner);
         assert!(pool_status::can_deposit<WETH>(), 0);
         assert!(pool_status::can_withdraw<WETH>(), 0);
         assert!(pool_status::can_borrow<WETH>(), 0);
@@ -111,13 +102,7 @@ module leizd::system_administrator {
     }
     #[test(owner = @leizd)]
     fun test_operate_pool_to_unfreeze(owner: &signer) {
-        let owner_address = signer::address_of(owner);
-        account::create_account_for_test(owner_address);
-        test_coin::init_weth(owner);
-        pool_manager::initialize(owner);
-        risk_factor::initialize(owner);
-        pool_manager::add_pool<WETH>(owner);
-        system_status::initialize(owner);
+        prepare_for_test(owner);
         freeze_pool<WETH>(owner);
         assert!(!pool_status::can_deposit<WETH>(), 0);
         assert!(!pool_status::can_borrow<WETH>(), 0);

@@ -2,8 +2,8 @@ module leizd::treasury {
 
     use std::signer;
     use aptos_framework::coin;
-    use leizd_aptos_trove::usdz::{USDZ};
     use leizd_aptos_common::permission;
+    use leizd_aptos_trove::usdz::{USDZ};
 
     friend leizd::asset_pool;
     friend leizd::shadow_pool;
