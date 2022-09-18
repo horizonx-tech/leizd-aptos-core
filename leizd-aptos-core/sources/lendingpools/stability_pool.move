@@ -186,24 +186,24 @@ module leizd::stability_pool {
         assert!(coin::is_coin_initialized<C>(), error::invalid_argument(ENOT_INITIALIZED_COIN));
         permission::assert_owner(signer::address_of(owner));
         let key = generate_key<C>();
-        let supported_pools = borrow_global_mut<StabilityPool>(permission::owner_address()).supported_pools;
-        vector::push_back<String>(&mut supported_pools, key);
+        let supported_pools = &mut borrow_global_mut<StabilityPool>(permission::owner_address()).supported_pools;
+        vector::push_back<String>(supported_pools, key);
     }
 
     public entry fun remove_supported_pool<C>(owner: &signer) acquires StabilityPool {
         assert!(is_supported<C>(), error::invalid_argument(ENOT_ADDED_COIN));
         permission::assert_owner(signer::address_of(owner));
         let key = generate_key<C>();
-        let supported_pools = borrow_global_mut<StabilityPool>(permission::owner_address()).supported_pools;
+        let supported_pools = &mut borrow_global_mut<StabilityPool>(permission::owner_address()).supported_pools;
 
-        let i = vector::length<String>(&supported_pools);
+        let i = vector::length<String>(supported_pools);
         while (i > 0) {
             i = i - 1;
-            if (*vector::borrow<String>(&supported_pools, i) == key) {
+            if (*vector::borrow<String>(supported_pools, i) == key) {
                 return
             }
         };
-        vector::remove<String>(&mut supported_pools, i);
+        vector::remove<String>(supported_pools, i);
     }
 
     public entry fun deposit(account: &signer, amount: u64) acquires StabilityPool, StabilityPoolEventHandle {
@@ -718,7 +718,7 @@ module leizd::stability_pool {
         assert!(event::counter<BorrowEvent>(&borrow_global<StabilityPoolEventHandle>(signer::address_of(owner)).borrow_event) == 1, 0);
     }
     #[test(owner=@leizd, account=@0x111)]
-    #[expected_failure(abort_code = 65545)]
+    #[expected_failure(abort_code = 65539)]
     public entry fun test_borrow_with_no_amount(owner: &signer, account: &signer) acquires StabilityPool, Config, Balance, StabilityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         add_supported_pool<WETH>(owner);
@@ -732,7 +732,7 @@ module leizd::stability_pool {
         coin::deposit(account_addr, coin);
     }
     #[test(owner=@leizd, account=@0x111)]
-    #[expected_failure(abort_code = 65545)]
+    #[expected_failure(abort_code = 65540)]
     public entry fun test_borrow_with_amount_is_greater_than_left(owner: &signer, account: &signer) acquires StabilityPool, Config, Balance, StabilityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         add_supported_pool<WETH>(owner);
@@ -830,7 +830,7 @@ module leizd::stability_pool {
         repay<WETH>(account, 0);
     }
     #[test(owner=@leizd,account=@0x111)]
-    #[expected_failure(abort_code = 65545)]
+    #[expected_failure(abort_code = 65539)]
     public entry fun test_repay_with_amount_is_greater_than_total_borrowed(owner: &signer, account: &signer) acquires StabilityPool, Config, Balance, StabilityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         add_supported_pool<WETH>(owner);
