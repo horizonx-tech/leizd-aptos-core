@@ -282,12 +282,12 @@ module leizd::stability_pool {
                 coin::merge<USDZ>(&mut pool_ref.collected_fee, coin::withdraw<USDZ>(account, amount));
             } else {
                 // complete uncollected fee, and remaining amount to left
-                let to_fee = balance_ref.uncollected_fee;
-                let to_left = (amount as u128) - to_fee;
+                let to_fee = (balance_ref.uncollected_fee as u64);
+                let to_left = amount - to_fee;
                 balance_ref.uncollected_fee = 0;
-                pool_ref.total_uncollected_fee = pool_ref.total_uncollected_fee - to_fee;
-                coin::merge<USDZ>(&mut pool_ref.collected_fee, coin::withdraw<USDZ>(account, (to_fee as u64)));
-                coin::merge<USDZ>(&mut pool_ref.left, coin::withdraw<USDZ>(account, (to_left as u64)));
+                pool_ref.total_uncollected_fee = pool_ref.total_uncollected_fee - (to_fee as u128);
+                coin::merge<USDZ>(&mut pool_ref.collected_fee, coin::withdraw<USDZ>(account, to_fee));
+                coin::merge<USDZ>(&mut pool_ref.left, coin::withdraw<USDZ>(account, to_left));
             }
         } else {
             // all amount to left
