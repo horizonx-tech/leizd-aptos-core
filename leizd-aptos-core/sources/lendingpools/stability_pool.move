@@ -25,11 +25,12 @@ module leizd::stability_pool {
     struct StabilityPool has key {
         left: coin::Coin<USDZ>,
         total_deposited: u128,
+        total_borrowed: u128,
         collected_fee: coin::Coin<USDZ>,
     }
 
     struct Balance<phantom C> has key {
-        total_borrowed: u128,
+        borrowed: u128,
         uncollected_fee: u64,
     }
 
@@ -104,6 +105,7 @@ module leizd::stability_pool {
         move_to(owner, StabilityPool {
             left: coin::zero<USDZ>(),
             total_deposited: 0,
+            total_borrowed: 0,
             collected_fee: coin::zero<USDZ>(),
         });
         move_to(owner, Config {
@@ -131,13 +133,13 @@ module leizd::stability_pool {
 
     public(friend) fun init_pool<C>(owner: &signer) {
         move_to(owner, Balance<C> {
-            total_borrowed: 0,
+            borrowed: 0,
             uncollected_fee: 0
         });
     }
 
     public fun default_user_distribution(): UserDistribution {
-        UserDistribution { 
+        UserDistribution {
             index: 0,
             unclaimed: 0,
             deposited: 0,
@@ -233,8 +235,9 @@ module leizd::stability_pool {
         assert!(coin::value<USDZ>(&pool_ref.left) >= amount, error::invalid_argument(EEXCEED_REMAINING_AMOUNT));
 
         let fee = calculate_entry_fee(amount);
-        balance_ref.total_borrowed = balance_ref.total_borrowed + (amount as u128) + (fee as u128);
+        balance_ref.borrowed = balance_ref.borrowed + (amount as u128) + (fee as u128);
         balance_ref.uncollected_fee = balance_ref.uncollected_fee + fee;
+        pool_ref.total_borrowed = pool_ref.total_borrowed + (amount as u128) + (fee as u128);
         coin::extract<USDZ>(&mut pool_ref.left, amount)
     }
     public fun calculate_entry_fee(value: u64): u64 acquires Config {
@@ -262,10 +265,11 @@ module leizd::stability_pool {
         assert!(amount > 0, error::invalid_argument(EINVALID_AMOUNT));
         let owner_address = permission::owner_address();
         let balance_ref = borrow_global_mut<Balance<C>>(owner_address);
-        assert!((amount as u128) <= balance_ref.total_borrowed, error::invalid_argument(EINVALID_AMOUNT));
+        assert!((amount as u128) <= balance_ref.borrowed, error::invalid_argument(EINVALID_AMOUNT));
 
-        balance_ref.total_borrowed = balance_ref.total_borrowed - (amount as u128);
+        balance_ref.borrowed = balance_ref.borrowed - (amount as u128);
         let pool_ref = borrow_global_mut<StabilityPool>(owner_address);
+        pool_ref.total_borrowed = pool_ref.total_borrowed - (amount as u128);
         if (balance_ref.uncollected_fee > 0) {
             // collect as fees at first
             if (balance_ref.uncollected_fee >= amount) {
@@ -374,8 +378,12 @@ module leizd::stability_pool {
         borrow_global<StabilityPool>(permission::owner_address()).total_deposited
     }
 
-    public fun total_borrowed<C>(): u128 acquires Balance {
-        borrow_global<Balance<C>>(permission::owner_address()).total_borrowed
+    public fun total_borrowed(): u128 acquires StabilityPool {
+        borrow_global<StabilityPool>(permission::owner_address()).total_borrowed
+    }
+
+    public fun borrowed<C>(): u128 acquires Balance {
+        borrow_global<Balance<C>>(permission::owner_address()).borrowed
     }
 
     public fun uncollected_fee<C>(): u64 acquires Balance {
@@ -413,6 +421,7 @@ module leizd::stability_pool {
         assert!(exists<StabilityPool>(owner_addr), 0);
         let stability_pool_ref = borrow_global<StabilityPool>(owner_addr);
         assert!(stability_pool_ref.total_deposited == 0, 0);
+        assert!(stability_pool_ref.total_borrowed == 0, 0);
 
         assert!(exists<Config>(owner_addr), 0);
         let config_ref = borrow_global<Config>(owner_addr);
@@ -462,7 +471,7 @@ module leizd::stability_pool {
 
         managed_coin::register<USDZ>(account);
         usdz::mint_for_test(account_addr, 1000000);
-                
+
         deposit(account, 400000);
         assert!(left() == 400000, 0);
         assert!(total_deposited() == 400000, 0);
@@ -527,7 +536,7 @@ module leizd::stability_pool {
 
         managed_coin::register<USDZ>(account);
         usdz::mint_for_test(account_addr, 1000000);
-                
+
         deposit(account, 400000);
 
         withdraw(account, 300000);
@@ -564,7 +573,7 @@ module leizd::stability_pool {
         managed_coin::register<USDZ>(account2);
         stb_usdz::register(account2);
         usdz::mint_for_test(account1_addr, 400000);
-                
+
         deposit(account1, 400000);
         withdraw(account2, 300000);
     }
@@ -644,7 +653,8 @@ module leizd::stability_pool {
         // assertions
         assert!(total_deposited() == 400000, 0);
         assert!(left() == 100000, 0);
-        assert!(total_borrowed<WETH>() == ((300000 + calculate_entry_fee(300000)) as u128), 0);
+        assert!(total_borrowed() == ((300000 + calculate_entry_fee(300000)) as u128), 0);
+        assert!(borrowed<WETH>() == ((300000 + calculate_entry_fee(300000)) as u128), 0);
         assert!(stb_usdz::balance_of(account1_addr) == 400000, 0);
         assert!(usdz::balance_of(account2_addr) == 300000, 0);
         //// event
@@ -697,22 +707,26 @@ module leizd::stability_pool {
 
         let borrowed = borrow<WETH>(depositor_addr, 100000);
         assert!(left() == 300000, 0);
-        assert!(total_borrowed<WETH>() == ((100000 + calculate_entry_fee(100000)) as u128), 0);
+        assert!(total_borrowed() == ((100000 + calculate_entry_fee(100000)) as u128), 0);
+        assert!(borrowed<WETH>() == ((100000 + calculate_entry_fee(100000)) as u128), 0);
         coin::deposit(borrower_addr, borrowed);
 
         let borrowed = borrow<WETH>(depositor_addr, 100000);
         assert!(left() == 200000, 0);
-        assert!(total_borrowed<WETH>() == ((200000 + calculate_entry_fee(200000)) as u128), 0);
+        assert!(total_borrowed() == ((200000 + calculate_entry_fee(200000)) as u128), 0);
+        assert!(borrowed<WETH>() == ((200000 + calculate_entry_fee(200000)) as u128), 0);
         coin::deposit(borrower_addr, borrowed);
 
         let borrowed = borrow<WETH>(depositor_addr, 100000);
         assert!(left() == 100000, 0);
-        assert!(total_borrowed<WETH>() == ((300000 + calculate_entry_fee(300000)) as u128), 0);
+        assert!(total_borrowed() == ((300000 + calculate_entry_fee(300000)) as u128), 0);
+        assert!(borrowed<WETH>() == ((300000 + calculate_entry_fee(300000)) as u128), 0);
         coin::deposit(borrower_addr, borrowed);
 
         let borrowed = borrow<WETH>(depositor_addr, 100000);
         assert!(left() == 0, 0);
-        assert!(total_borrowed<WETH>() == ((400000 + calculate_entry_fee(400000)) as u128), 0);
+        assert!(total_borrowed() == ((400000 + calculate_entry_fee(400000)) as u128), 0);
+        assert!(borrowed<WETH>() == ((400000 + calculate_entry_fee(400000)) as u128), 0);
         coin::deposit(borrower_addr, borrowed);
     }
 
@@ -741,7 +755,8 @@ module leizd::stability_pool {
         assert!(left() == 298500, 0);
         assert!(collected_fee() == 1500, 0);
         assert!(total_deposited() == 400000, 0);
-        assert!(total_borrowed<WETH>() == 101500, 0);
+        assert!(total_borrowed() == 101500, 0);
+        assert!(borrowed<WETH>() == 101500, 0);
         assert!(usdz::balance_of(account2_addr) == 100000, 0);
         assert!(stb_usdz::balance_of(account1_addr) == 400000, 0);
         //// event
@@ -796,7 +811,8 @@ module leizd::stability_pool {
         assert!(total_deposited() == 10000, 0);
         assert!(left() == 0, 0);
         assert!(collected_fee() == 0, 0);
-        assert!(total_borrowed<WETH>() == 10050, 0);
+        assert!(total_borrowed() == 10050, 0);
+        assert!(borrowed<WETH>() == 10050, 0);
         assert!(uncollected_fee<WETH>() == 50, 0);
         assert!(stb_usdz::balance_of(depositor_addr) == 10000, 0);
         assert!(usdz::balance_of(borrower_addr) == 10000, 0);
@@ -804,21 +820,24 @@ module leizd::stability_pool {
         repay_internal<WETH>(borrower, 49);
         assert!(left() == 0, 0);
         assert!(collected_fee() == 49, 0);
-        assert!(total_borrowed<WETH>() == 10001, 0);
+        assert!(total_borrowed() == 10001, 0);
+        assert!(borrowed<WETH>() == 10001, 0);
         assert!(uncollected_fee<WETH>() == 1, 0);
         assert!(usdz::balance_of(borrower_addr) == 9951, 0);
         ////// repay to remained uncollected_fee
         repay_internal<WETH>(borrower, 1);
         assert!(left() == 0, 0);
         assert!(collected_fee() == 50, 0);
-        assert!(total_borrowed<WETH>() == 10000, 0);
+        assert!(total_borrowed() == 10000, 0);
+        assert!(borrowed<WETH>() == 10000, 0);
         assert!(uncollected_fee<WETH>() == 0, 0);
         assert!(usdz::balance_of(borrower_addr) == 9950, 0);
         //// repay to total_borrowed
         repay_internal<WETH>(borrower, 9900);
         assert!(left() == 9900, 0);
         assert!(collected_fee() == 50, 0);
-        assert!(total_borrowed<WETH>() == 100, 0);
+        assert!(total_borrowed() == 100, 0);
+        assert!(borrowed<WETH>() == 100, 0);
         assert!(uncollected_fee<WETH>() == 0, 0);
         assert!(usdz::balance_of(borrower_addr) == 50, 0);
         ////// repay to remained total_borrowed
@@ -826,7 +845,8 @@ module leizd::stability_pool {
         repay_internal<WETH>(borrower, 100);
         assert!(left() == 10000, 0);
         assert!(collected_fee() == 50, 0);
-        assert!(total_borrowed<WETH>() == 0, 0);
+        assert!(total_borrowed() == 0, 0);
+        assert!(borrowed<WETH>() == 0, 0);
         assert!(uncollected_fee<WETH>() == 0, 0);
         assert!(usdz::balance_of(borrower_addr) == 0, 0);
     }
@@ -852,14 +872,16 @@ module leizd::stability_pool {
         assert!(total_deposited() == 10000, 0);
         assert!(left() == 0, 0);
         assert!(collected_fee() == 0, 0);
-        assert!(total_borrowed<WETH>() == 10050, 0);
+        assert!(total_borrowed() == 10050, 0);
+        assert!(borrowed<WETH>() == 10050, 0);
         assert!(uncollected_fee<WETH>() == 50, 0);
         assert!(usdz::balance_of(borrower_addr) == 10000, 0);
         //// repay
         repay_internal<WETH>(borrower, 100);
         assert!(left() == 50, 0);
         assert!(collected_fee() == 50, 0);
-        assert!(total_borrowed<WETH>() == 9950, 0);
+        assert!(total_borrowed() == 9950, 0);
+        assert!(borrowed<WETH>() == 9950, 0);
         assert!(uncollected_fee<WETH>() == 0, 0);
         assert!(usdz::balance_of(borrower_addr) == 9900, 0);
     }
@@ -892,7 +914,7 @@ module leizd::stability_pool {
         let borrowed = borrow<WETH>(owner_addr, 1000);
         coin::deposit(owner_addr, borrowed);
         repay<WETH>(owner, 1005);
-        assert!(total_borrowed<WETH>() == 0, 0);
+        assert!(borrowed<WETH>() == 0, 0);
         assert!(collected_fee() == 5, 0);
         // prepares
         timestamp::update_global_time_for_test(10 * 1000 * 1000); // + 10 sec
@@ -934,7 +956,7 @@ module leizd::stability_pool {
         //// for event
         let owner_address = signer::address_of(owner);
         account::create_account_for_test(owner_address);
-        move_to(owner, StabilityPoolEventHandle { 
+        move_to(owner, StabilityPoolEventHandle {
             deposit_event: account::new_event_handle<DepositEvent>(owner),
             withdraw_event: account::new_event_handle<WithdrawEvent>(owner),
             borrow_event: account::new_event_handle<BorrowEvent>(owner),
