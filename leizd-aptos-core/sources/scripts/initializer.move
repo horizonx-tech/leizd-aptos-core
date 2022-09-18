@@ -1,9 +1,9 @@
 module leizd::initializer {
 
     use aptos_framework::managed_coin;
+    use leizd_aptos_trove::trove_manager;
     use leizd::risk_factor;
     use leizd::system_status;
-    use leizd_aptos_trove::trove_manager;
     use leizd::pool_manager;
     use leizd::stability_pool;
 

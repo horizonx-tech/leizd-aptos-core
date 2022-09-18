@@ -10,6 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       TEST_PRIVATE_KEY: ${{ secrets.TEST_PRIVATE_KEY}}
+      SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
     defaults:
       run:
         shell: bash
@@ -40,4 +41,18 @@ jobs:
         run: aptos move publish --package-dir leizd-aptos-external --override-size-check
 
       - name: release leizd-aptos-core
-        run: aptos move publish --package-dir leizd-aptos-core --override-size-check
+        run: aptos move publish --package-dir leizd-aptos-core --override-size-check  --max-gas 100000
+
+      - name: Slack Notification on Success
+        if: success()
+        uses: rtCamp/action-slack-notify@v2.0.2
+        env:
+          SLACK_TITLE: Deploy Scucess
+          SLACK_COLOR: good
+
+      - name: Slack Notification on Failure
+        if: failure()
+        uses: rtCamp/action-slack-notify@v2.0.2
+        env:
+          SLACK_TITLE: Deploy Failure
+          SLACK_COLOR: danger

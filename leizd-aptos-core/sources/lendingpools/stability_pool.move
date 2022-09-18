@@ -6,9 +6,9 @@ module leizd::stability_pool {
     use aptos_framework::event;
     use aptos_framework::account;
     use aptos_framework::timestamp;
+    use leizd_aptos_common::permission;
     use leizd_aptos_trove::usdz::{USDZ};
     use leizd::stb_usdz;
-    use leizd_aptos_common::permission;
 
     friend leizd::asset_pool;
     friend leizd::shadow_pool;
@@ -242,7 +242,7 @@ module leizd::stability_pool {
         let result = value_mul_by_fee / PRECISION;
         if (value_mul_by_fee % PRECISION != 0) result + 1 else result
     }
-    fun entry_fee(): u64 acquires Config {
+    public fun entry_fee(): u64 acquires Config {
         borrow_global<Config>(permission::owner_address()).entry_fee
     }
 
@@ -392,11 +392,15 @@ module leizd::stability_pool {
     #[test_only]
     use aptos_framework::managed_coin;
     #[test_only]
-    use leizd::test_coin::{Self,WETH};
-    #[test_only]
     use leizd_aptos_trove::usdz;
     #[test_only]
     use leizd_aptos_trove::trove_manager;
+    #[test_only]
+    use leizd::test_coin::{Self,WETH};
+    #[test_only]
+    public fun default_entry_fee(): u64 {
+        DEFAULT_ENTRY_FEE
+    }
     // related initialize
     #[test(owner=@leizd)]
     public entry fun test_initialize(owner: &signer) acquires StabilityPool, Config, DistributionConfig {
