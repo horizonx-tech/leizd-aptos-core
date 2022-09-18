@@ -229,7 +229,7 @@ module leizd_aptos_trove::sorted_trove {
     #[test_only]
     use aptos_framework::managed_coin;
     #[test_only]
-    use leizd_aptos_trove::test_coin_in_trove::{Self,USDC};
+    use leizd_aptos_common::test_coin::{Self,USDC};
     #[test_only]
     use leizd_aptos_trove::usdz;
 
@@ -256,7 +256,7 @@ module leizd_aptos_trove::sorted_trove {
     fun set_up(owner: &signer) {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
-        test_coin_in_trove::init_usdc(owner);
+        test_coin::init_usdc(owner);
         initialize<USDC>(owner);
     }
 
@@ -294,7 +294,7 @@ module leizd_aptos_trove::sorted_trove {
     fun test_node_capacity(owner: &signer) acquires Data {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
-        test_coin_in_trove::init_usdc(owner);
+        test_coin::init_usdc(owner);
         initialize_internal<USDC>(owner, 0);
         insert<USDC>(alice(owner));
     }

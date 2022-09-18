@@ -185,7 +185,7 @@ module leizd_aptos_trove::trove {
     #[test_only]
     use aptos_framework::managed_coin;
     #[test_only]
-    use leizd_aptos_trove::test_coin_in_trove::{Self,USDC,USDT,WETH};
+    use leizd_aptos_common::test_coin::{Self,USDC,USDT,WETH};
     #[test_only]
     use aptos_std::comparator;
 
@@ -196,9 +196,9 @@ module leizd_aptos_trove::trove {
         let usdc_amt = 10000;
         account::create_account_for_test(owner_addr);
         account::create_account_for_test(account1_addr);
-        test_coin_in_trove::init_usdc(owner);
-        test_coin_in_trove::init_usdt(owner);
-        test_coin_in_trove::init_weth(owner);
+        test_coin::init_usdc(owner);
+        test_coin::init_usdt(owner);
+        test_coin::init_weth(owner);
         managed_coin::register<USDC>(account1);
         managed_coin::register<USDT>(account1);
         managed_coin::register<WETH>(account1);
@@ -271,7 +271,7 @@ module leizd_aptos_trove::trove {
         account::create_account_for_test(owner_addr);
         let usdc_amt = 12345678;
         let usdc_want = usdc_amt * math64::pow(10, 12);
-        test_coin_in_trove::init_usdc(&owner);
+        test_coin::init_usdc(&owner);
         initialize(&owner);
         assert!(comparator::is_equal(&comparator::compare(
             &borrowable_usdz<USDC>(usdc_amt),

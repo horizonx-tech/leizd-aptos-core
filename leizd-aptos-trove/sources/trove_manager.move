@@ -68,7 +68,7 @@ module leizd_aptos_trove::trove_manager {
     #[test_only]
     use leizd_aptos_trove::usdz;
     #[test_only]
-    use leizd_aptos_trove::test_coin_in_trove::{Self,USDC};
+    use leizd_aptos_common::test_coin::{Self,USDC};
     #[test_only]
     fun trove_size(): u64 { sorted_trove::size<USDC>() }
     #[test_only]
@@ -95,7 +95,7 @@ module leizd_aptos_trove::trove_manager {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
         initialize(owner);
-        test_coin_in_trove::init_usdc(owner);
+        test_coin::init_usdc(owner);
         initialize_token<USDC>(owner);
     }
 

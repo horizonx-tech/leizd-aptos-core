@@ -63,7 +63,7 @@ module leizd_aptos_treasury::treasury {
     #[test_only]
     use leizd_aptos_trove::usdz;
     #[test_only]
-    use leizd_aptos_treasury::treasury_test_coin::{Self, WETH};
+    use leizd_aptos_common::test_coin::{Self, WETH};
     #[test(owner = @leizd_aptos_treasury, account = @0x111)]
     fun test_end_to_end(owner: &signer, account: &signer) acquires Treasury {
         // prepares
@@ -71,7 +71,7 @@ module leizd_aptos_treasury::treasury {
         let account_address = signer::address_of(account);
         account::create_account_for_test(owner_address);
         account::create_account_for_test(account_address);
-        treasury_test_coin::init_weth(owner);
+        test_coin::init_weth(owner);
         usdz::initialize_for_test(owner);
         managed_coin::register<USDZ>(owner);
         managed_coin::register<WETH>(account);

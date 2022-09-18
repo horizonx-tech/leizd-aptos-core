@@ -1,5 +1,5 @@
 #[test_only]
-module leizd_aptos_treasury::treasury_test_coin {
+module leizd_aptos_common::test_coin {
 
     struct USDC {}
     struct USDT {}
