@@ -26,6 +26,7 @@ module leizd::stability_pool {
         left: coin::Coin<USDZ>,
         total_deposited: u128,
         total_borrowed: u128,
+        total_uncollected_fee: u128,
         collected_fee: coin::Coin<USDZ>,
     }
 
@@ -106,6 +107,7 @@ module leizd::stability_pool {
             left: coin::zero<USDZ>(),
             total_deposited: 0,
             total_borrowed: 0,
+            total_uncollected_fee: 0,
             collected_fee: coin::zero<USDZ>(),
         });
         move_to(owner, Config {
@@ -212,7 +214,7 @@ module leizd::stability_pool {
     }
 
     public(friend) entry fun borrow<C>(addr: address, amount: u64): coin::Coin<USDZ> acquires StabilityPool, Config, Balance, StabilityPoolEventHandle {
-        // TODO: 
+        // TODO:
         // if (!exists<UserDistribution>(signer::address_of(account))) {
         //     move_to(account, UserDistribution { index: 0 });
         // };
@@ -238,6 +240,7 @@ module leizd::stability_pool {
         balance_ref.borrowed = balance_ref.borrowed + (amount as u128) + (fee as u128);
         balance_ref.uncollected_fee = balance_ref.uncollected_fee + fee;
         pool_ref.total_borrowed = pool_ref.total_borrowed + (amount as u128) + (fee as u128);
+        pool_ref.total_uncollected_fee = pool_ref.total_uncollected_fee + (fee as u128);
         coin::extract<USDZ>(&mut pool_ref.left, amount)
     }
     public fun calculate_entry_fee(value: u64): u64 acquires Config {
@@ -275,12 +278,14 @@ module leizd::stability_pool {
             if (balance_ref.uncollected_fee >= amount) {
                 // all amount to fee
                 balance_ref.uncollected_fee = balance_ref.uncollected_fee - amount;
+                pool_ref.total_uncollected_fee = pool_ref.total_uncollected_fee - (amount as u128);
                 coin::merge<USDZ>(&mut pool_ref.collected_fee, coin::withdraw<USDZ>(account, amount));
             } else {
                 // complete uncollected fee, and remaining amount to left
                 let to_fee = balance_ref.uncollected_fee;
                 let to_left = amount - to_fee;
                 balance_ref.uncollected_fee = 0;
+                pool_ref.total_uncollected_fee = pool_ref.total_uncollected_fee - (to_fee as u128);
                 coin::merge<USDZ>(&mut pool_ref.collected_fee, coin::withdraw<USDZ>(account, to_fee));
                 coin::merge<USDZ>(&mut pool_ref.left, coin::withdraw<USDZ>(account, to_left));
             }
@@ -382,6 +387,10 @@ module leizd::stability_pool {
         borrow_global<StabilityPool>(permission::owner_address()).total_borrowed
     }
 
+    public fun total_uncollected_fee(): u128 acquires StabilityPool {
+        borrow_global<StabilityPool>(permission::owner_address()).total_uncollected_fee
+    }
+
     public fun borrowed<C>(): u128 acquires Balance {
         borrow_global<Balance<C>>(permission::owner_address()).borrowed
     }
@@ -422,6 +431,7 @@ module leizd::stability_pool {
         let stability_pool_ref = borrow_global<StabilityPool>(owner_addr);
         assert!(stability_pool_ref.total_deposited == 0, 0);
         assert!(stability_pool_ref.total_borrowed == 0, 0);
+        assert!(stability_pool_ref.total_uncollected_fee == 0, 0);
 
         assert!(exists<Config>(owner_addr), 0);
         let config_ref = borrow_global<Config>(owner_addr);
@@ -814,6 +824,7 @@ module leizd::stability_pool {
         assert!(total_borrowed() == 10050, 0);
         assert!(borrowed<WETH>() == 10050, 0);
         assert!(uncollected_fee<WETH>() == 50, 0);
+        assert!(total_uncollected_fee() == 50, 0);
         assert!(stb_usdz::balance_of(depositor_addr) == 10000, 0);
         assert!(usdz::balance_of(borrower_addr) == 10000, 0);
         //// repay (take a priority to uncollected_fee)
@@ -823,6 +834,7 @@ module leizd::stability_pool {
         assert!(total_borrowed() == 10001, 0);
         assert!(borrowed<WETH>() == 10001, 0);
         assert!(uncollected_fee<WETH>() == 1, 0);
+        assert!(total_uncollected_fee() == 1, 0);
         assert!(usdz::balance_of(borrower_addr) == 9951, 0);
         ////// repay to remained uncollected_fee
         repay_internal<WETH>(borrower, 1);
@@ -831,6 +843,7 @@ module leizd::stability_pool {
         assert!(total_borrowed() == 10000, 0);
         assert!(borrowed<WETH>() == 10000, 0);
         assert!(uncollected_fee<WETH>() == 0, 0);
+        assert!(total_uncollected_fee() == 0, 0);
         assert!(usdz::balance_of(borrower_addr) == 9950, 0);
         //// repay to total_borrowed
         repay_internal<WETH>(borrower, 9900);
@@ -839,6 +852,7 @@ module leizd::stability_pool {
         assert!(total_borrowed() == 100, 0);
         assert!(borrowed<WETH>() == 100, 0);
         assert!(uncollected_fee<WETH>() == 0, 0);
+        assert!(total_uncollected_fee() == 0, 0);
         assert!(usdz::balance_of(borrower_addr) == 50, 0);
         ////// repay to remained total_borrowed
         usdz::mint_for_test(borrower_addr, 50);
@@ -848,6 +862,7 @@ module leizd::stability_pool {
         assert!(total_borrowed() == 0, 0);
         assert!(borrowed<WETH>() == 0, 0);
         assert!(uncollected_fee<WETH>() == 0, 0);
+        assert!(total_uncollected_fee() == 0, 0);
         assert!(usdz::balance_of(borrower_addr) == 0, 0);
     }
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222)]
@@ -875,6 +890,7 @@ module leizd::stability_pool {
         assert!(total_borrowed() == 10050, 0);
         assert!(borrowed<WETH>() == 10050, 0);
         assert!(uncollected_fee<WETH>() == 50, 0);
+        assert!(total_uncollected_fee() == 50, 0);
         assert!(usdz::balance_of(borrower_addr) == 10000, 0);
         //// repay
         repay_internal<WETH>(borrower, 100);
@@ -883,6 +899,7 @@ module leizd::stability_pool {
         assert!(total_borrowed() == 9950, 0);
         assert!(borrowed<WETH>() == 9950, 0);
         assert!(uncollected_fee<WETH>() == 0, 0);
+        assert!(total_uncollected_fee() == 0, 0);
         assert!(usdz::balance_of(borrower_addr) == 9900, 0);
     }
 
