@@ -1,31 +1,29 @@
-module leizd::treasury {
+module leizd_aptos_treasury::treasury {
 
     use std::signer;
     use aptos_framework::coin;
     use leizd_aptos_common::permission;
     use leizd_aptos_trove::usdz::{USDZ};
 
-    friend leizd::asset_pool;
-    friend leizd::shadow_pool;
-
     struct Treasury<phantom C> has key {
         asset: coin::Coin<C>,
         shadow: coin::Coin<USDZ>,
     }
 
-    public(friend) fun initialize<C>(owner: &signer) {
+    public fun initialize<C>(owner: &signer) {
+        permission::assert_owner(signer::address_of(owner));
         move_to(owner, Treasury<C> {
             asset: coin::zero<C>(),
             shadow: coin::zero<USDZ>()
         });
     }
 
-    public(friend) fun collect_asset_fee<C>(coin: coin::Coin<C>) acquires Treasury {
+    public entry fun collect_asset_fee<C>(coin: coin::Coin<C>) acquires Treasury {
         let treasury_ref = borrow_global_mut<Treasury<C>>(permission::owner_address());
         coin::merge<C>(&mut treasury_ref.asset, coin);
     }
 
-    public(friend) fun collect_shadow_fee<C>(coin: coin::Coin<USDZ>) acquires Treasury {
+    public entry fun collect_shadow_fee<C>(coin: coin::Coin<USDZ>) acquires Treasury {
         let treasury_ref = borrow_global_mut<Treasury<C>>(permission::owner_address());
         coin::merge<USDZ>(&mut treasury_ref.shadow, coin);
     }

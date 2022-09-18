@@ -21,7 +21,7 @@ module leizd::asset_pool {
     use leizd::pool_status;
     use leizd::risk_factor;
     use leizd::stability_pool;
-    use leizd::treasury;
+    use leizd_aptos_treasury::treasury;
 
     friend leizd::money_market;
     friend leizd::pool_manager;
