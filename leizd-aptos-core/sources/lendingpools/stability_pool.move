@@ -392,11 +392,11 @@ module leizd::stability_pool {
     #[test_only]
     use aptos_framework::managed_coin;
     #[test_only]
-    use leizd::test_coin::{Self,WETH};
-    #[test_only]
     use leizd_aptos_trove::usdz;
     #[test_only]
     use leizd_aptos_trove::trove_manager;
+    #[test_only]
+    use leizd::test_coin::{Self,WETH};
     #[test_only]
     public fun default_entry_fee(): u64 {
         DEFAULT_ENTRY_FEE

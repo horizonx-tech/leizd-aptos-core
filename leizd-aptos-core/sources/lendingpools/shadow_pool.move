@@ -592,15 +592,15 @@ module leizd::shadow_pool {
     #[test_only]
     use aptos_framework::managed_coin;
     #[test_only]
-    use leizd::test_coin::{Self,WETH,UNI};
-    #[test_only]
     use leizd_aptos_trove::usdz;
     #[test_only]
     use leizd::initializer;
     #[test_only]
+    use leizd::pool_manager;
+    #[test_only]
     use leizd::system_administrator;
     #[test_only]
-    use leizd::pool_manager;
+    use leizd::test_coin::{Self,WETH,UNI};
     #[test_only]
     use leizd::test_initializer;
     #[test_only]
