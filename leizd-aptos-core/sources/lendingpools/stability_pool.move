@@ -32,7 +32,7 @@ module leizd::stability_pool {
 
     struct Balance<phantom C> has key {
         borrowed: u128,
-        uncollected_fee: u64,
+        uncollected_fee: u128,
     }
 
     struct Config has key {
@@ -238,7 +238,7 @@ module leizd::stability_pool {
 
         let fee = calculate_entry_fee(amount);
         balance_ref.borrowed = balance_ref.borrowed + (amount as u128) + (fee as u128);
-        balance_ref.uncollected_fee = balance_ref.uncollected_fee + fee;
+        balance_ref.uncollected_fee = balance_ref.uncollected_fee + (fee as u128);
         pool_ref.total_borrowed = pool_ref.total_borrowed + (amount as u128) + (fee as u128);
         pool_ref.total_uncollected_fee = pool_ref.total_uncollected_fee + (fee as u128);
         coin::extract<USDZ>(&mut pool_ref.left, amount)
@@ -275,19 +275,19 @@ module leizd::stability_pool {
         pool_ref.total_borrowed = pool_ref.total_borrowed - (amount as u128);
         if (balance_ref.uncollected_fee > 0) {
             // collect as fees at first
-            if (balance_ref.uncollected_fee >= amount) {
+            if (balance_ref.uncollected_fee >= (amount as u128)) {
                 // all amount to fee
-                balance_ref.uncollected_fee = balance_ref.uncollected_fee - amount;
+                balance_ref.uncollected_fee = balance_ref.uncollected_fee - (amount as u128);
                 pool_ref.total_uncollected_fee = pool_ref.total_uncollected_fee - (amount as u128);
                 coin::merge<USDZ>(&mut pool_ref.collected_fee, coin::withdraw<USDZ>(account, amount));
             } else {
                 // complete uncollected fee, and remaining amount to left
                 let to_fee = balance_ref.uncollected_fee;
-                let to_left = amount - to_fee;
+                let to_left = (amount as u128) - to_fee;
                 balance_ref.uncollected_fee = 0;
-                pool_ref.total_uncollected_fee = pool_ref.total_uncollected_fee - (to_fee as u128);
-                coin::merge<USDZ>(&mut pool_ref.collected_fee, coin::withdraw<USDZ>(account, to_fee));
-                coin::merge<USDZ>(&mut pool_ref.left, coin::withdraw<USDZ>(account, to_left));
+                pool_ref.total_uncollected_fee = pool_ref.total_uncollected_fee - to_fee;
+                coin::merge<USDZ>(&mut pool_ref.collected_fee, coin::withdraw<USDZ>(account, (to_fee as u64)));
+                coin::merge<USDZ>(&mut pool_ref.left, coin::withdraw<USDZ>(account, (to_left as u64)));
             }
         } else {
             // all amount to left
@@ -395,7 +395,7 @@ module leizd::stability_pool {
         borrow_global<Balance<C>>(permission::owner_address()).borrowed
     }
 
-    public fun uncollected_fee<C>(): u64 acquires Balance {
+    public fun uncollected_fee<C>(): u128 acquires Balance {
         borrow_global<Balance<C>>(permission::owner_address()).uncollected_fee
     }
 
