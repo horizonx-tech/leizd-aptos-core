@@ -21,7 +21,7 @@ module leizd::asset_pool {
     use leizd::pool_status;
     use leizd::risk_factor;
     use leizd::stability_pool;
-    use leizd::treasury;
+    use leizd_aptos_treasury::treasury;
 
     friend leizd::money_market;
     friend leizd::pool_manager;
@@ -98,7 +98,7 @@ module leizd::asset_pool {
         assert!(!is_pool_initialized<C>(), E_IS_ALREADY_EXISTED);
         assert!(dex_facade::has_liquidity<C>(), E_DEX_DOES_NOT_HAVE_LIQUIDITY);
 
-        treasury::initialize<C>(owner);
+        treasury::add_coin<C>(owner);
         risk_factor::new_asset<C>(owner);
         interest_rate::initialize<C>(owner);
         stability_pool::init_pool<C>(owner);

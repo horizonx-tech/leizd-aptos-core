@@ -2,6 +2,7 @@ module leizd::initializer {
 
     use aptos_framework::managed_coin;
     use leizd_aptos_trove::trove_manager;
+    use leizd_aptos_treasury::treasury;
     use leizd::risk_factor;
     use leizd::system_status;
     use leizd::pool_manager;
@@ -11,6 +12,7 @@ module leizd::initializer {
     public entry fun initialize(owner: &signer) {
         system_status::initialize(owner);
         risk_factor::initialize(owner);
+        treasury::initialize(owner);
         trove_manager::initialize(owner);
         pool_manager::initialize(owner);
         stability_pool::initialize(owner);

@@ -52,7 +52,10 @@ module leizd::system_administrator {
     #[test_only]
     use leizd::test_coin::{Self, WETH};
     #[test_only]
+    use leizd_aptos_treasury::treasury;
+    #[test_only]
     fun prepare_for_test(owner: &signer) {
+        treasury::initialize(owner);        
         account::create_account_for_test(signer::address_of(owner));
         test_coin::init_weth(owner);
         pool_manager::initialize(owner);
