@@ -10,7 +10,6 @@ module leizd::pool_manager {
   use aptos_framework::type_info::{Self, TypeInfo};
   use leizd_aptos_common::permission;
   use leizd::asset_pool;
-  use leizd_aptos_treasury::treasury;
 
   const ENOT_INITIALIZED: u64 = 1;
   const EALREADY_ADDED_COIN: u64 = 2;
@@ -92,6 +91,8 @@ module leizd::pool_manager {
   use leizd::risk_factor;
   #[test_only]
   use leizd::test_coin::{Self, WETH, USDC, USDT};
+  #[test_only]
+  use leizd_aptos_treasury::treasury;
   #[test_only]
   fun set_up(owner: &signer) {
     account::create_account_for_test(signer::address_of(owner));
