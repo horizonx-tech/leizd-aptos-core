@@ -35,6 +35,7 @@ module leizd::pool_manager {
   }
 
   struct CoinInfo has store, drop {
+    name: String,
     symbol: String,
     decimals: u8,
   }
@@ -70,6 +71,7 @@ module leizd::pool_manager {
           caller: signer::address_of(holder),
           info: type_info::type_of<C>(),
           coin_info: CoinInfo {
+            name: coin::name<C>(),
             symbol: coin::symbol<C>(),
             decimals: coin::decimals<C>(),
           }
