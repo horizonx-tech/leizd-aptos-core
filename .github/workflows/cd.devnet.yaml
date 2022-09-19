@@ -44,7 +44,7 @@ jobs:
         run: aptos move publish --package-dir leizd-aptos-treasury --override-size-check
 
       - name: release leizd-aptos-core
-        run: aptos move publish --package-dir leizd-aptos-core --override-size-check  --max-gas 100000
+        run: aptos move publish --package-dir leizd-aptos-core --override-size-check  --max-gas 10000
 
       - name: Slack Notification on Success
         if: success()
