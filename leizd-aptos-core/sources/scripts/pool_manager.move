@@ -10,6 +10,7 @@ module leizd::pool_manager {
   use aptos_framework::type_info::{Self, TypeInfo};
   use leizd_aptos_common::permission;
   use leizd::asset_pool;
+  use leizd_aptos_treasury::treasury;
 
   const ENOT_INITIALIZED: u64 = 1;
   const EALREADY_ADDED_COIN: u64 = 2;
@@ -92,6 +93,16 @@ module leizd::pool_manager {
   #[test_only]
   use leizd::test_coin::{Self, WETH, USDC, USDT};
   #[test_only]
+  fun set_up(owner: &signer) {
+    account::create_account_for_test(signer::address_of(owner));
+    test_coin::init_weth(owner);
+    test_coin::init_usdc(owner);
+    test_coin::init_usdt(owner);
+    risk_factor::initialize(owner);
+    treasury::initialize(owner);
+  }
+  
+  #[test_only]
   fun borrow_pool_info<C>(): (address, vector<u8>, vector<u8>, address) acquires PoolList {
     let key = type_info::type_name<C>();
     let pool_list = borrow_global<PoolList>(permission::owner_address());
@@ -118,35 +129,24 @@ module leizd::pool_manager {
   }
   #[test(owner = @leizd)]
   fun test_add_pool_from_owner(owner: &signer) acquires PoolList, PoolManagerEventHandle {
-    account::create_account_for_test(signer::address_of(owner));
-    test_coin::init_weth(owner);
-    test_coin::init_usdc(owner);
-    risk_factor::initialize(owner);
+    set_up(owner);
 
     initialize(owner);
     add_pool<WETH>(owner);
   }
   #[test(owner = @leizd, account = @0x111)]
   fun test_add_pool_from_not_owner(owner: &signer, account: &signer) acquires PoolList, PoolManagerEventHandle {
-    account::create_account_for_test(signer::address_of(owner));
-    test_coin::init_usdc(owner);
-    risk_factor::initialize(owner);
-
+    set_up(owner);
     initialize(owner);
     account::create_account_for_test(signer::address_of(account));
     add_pool<USDC>(account);
   }
   #[test(owner = @leizd, account = @0x111)]
   fun test_add_pool_more_than_once(owner: &signer, account: &signer) acquires PoolList, PoolManagerEventHandle {
-    let owner_addr = signer::address_of(owner);
     let account_addr = signer::address_of(account);
-    account::create_account_for_test(owner_addr);
+    let owner_addr = signer::address_of(owner);
     account::create_account_for_test(account_addr);
-    test_coin::init_weth(owner);
-    test_coin::init_usdc(owner);
-    test_coin::init_usdt(owner);
-    risk_factor::initialize(owner);
-
+    set_up(owner);
     initialize(owner);
     add_pool<WETH>(account);
     add_pool<USDC>(owner);
@@ -175,6 +175,7 @@ module leizd::pool_manager {
     account::create_account_for_test(signer::address_of(account));
     test_coin::init_weth(owner);
     risk_factor::initialize(owner);
+    treasury::initialize(owner);
 
     initialize(owner);
     add_pool<WETH>(account);

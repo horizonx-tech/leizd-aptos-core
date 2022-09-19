@@ -98,7 +98,7 @@ module leizd::asset_pool {
         assert!(!is_pool_initialized<C>(), E_IS_ALREADY_EXISTED);
         assert!(dex_facade::has_liquidity<C>(), E_DEX_DOES_NOT_HAVE_LIQUIDITY);
 
-        treasury::initialize<C>(owner);
+        treasury::add_coin<C>(owner);
         risk_factor::new_asset<C>(owner);
         interest_rate::initialize<C>(owner);
         stability_pool::init_pool<C>(owner);

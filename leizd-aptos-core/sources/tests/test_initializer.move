@@ -3,6 +3,7 @@ module leizd::test_initializer {
 
     use std::signer;
     use leizd_aptos_trove::trove_manager;
+    use leizd_aptos_treasury::treasury;
     use leizd_aptos_external::price_oracle;
     use leizd::risk_factor;
     use leizd::system_status;
@@ -16,6 +17,7 @@ module leizd::test_initializer {
         risk_factor::initialize(owner);
         trove_manager::initialize(owner);
         stability_pool::initialize(owner);
+        treasury::initialize(owner);
     }
     public entry fun initialize_price_oracle_with_fixed_price_for_test(owner: &signer) {
         price_oracle::initialize_for_test(owner);
