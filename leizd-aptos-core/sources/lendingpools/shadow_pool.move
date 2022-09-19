@@ -315,7 +315,6 @@ module leizd::shadow_pool {
     ) acquires Pool, Storage, PoolEventHandle {
         assert!(pool_status::can_borrow<C>(), error::invalid_state(E_NOT_AVAILABLE_STATUS));
         assert!(amount > 0, error::invalid_argument(E_AMOUNT_ARG_IS_ZERO));
-        // TODO:
 
         let owner_address = permission::owner_address();
         let pool_ref = borrow_global_mut<Pool>(owner_address);
@@ -329,7 +328,7 @@ module leizd::shadow_pool {
         let total_liquidity = total_liquidity_internal(pool_ref, storage_ref);
 
         // check liquidity
-        assert!((amount_with_entry_fee as u128) <= total_liquidity + stability_pool::left(), error::invalid_argument(E_EXCEED_BORRAWABLE_AMOUNT));
+        assert!((amount_with_entry_fee as u128) <= if(stability_pool::is_supported<C>()) total_liquidity + stability_pool::left() else total_liquidity, error::invalid_argument(E_EXCEED_BORRAWABLE_AMOUNT));
 
         if ((amount_with_entry_fee as u128) > total_liquidity) {
             // use stability pool
@@ -1231,6 +1230,7 @@ module leizd::shadow_pool {
     public entry fun test_with_stability_pool_to_borrow(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+        stability_pool::add_supported_pool<UNI>(owner);
 
         let owner_addr = signer::address_of(owner);
         let depositor_addr = signer::address_of(depositor);
@@ -1282,6 +1282,7 @@ module leizd::shadow_pool {
     public entry fun test_with_stability_pool_to_borrow_with_cannot_borrowed_amount(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+        stability_pool::add_supported_pool<UNI>(owner);
 
         let depositor_addr = signer::address_of(depositor);
         let borrower_addr = signer::address_of(borrower);
@@ -1301,6 +1302,7 @@ module leizd::shadow_pool {
     public entry fun test_with_stability_pool_to_borrow_over_time(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+        stability_pool::add_supported_pool<UNI>(owner);
 
         let owner_addr = signer::address_of(owner);
         let depositor_addr = signer::address_of(depositor);
@@ -1355,6 +1357,7 @@ module leizd::shadow_pool {
     public entry fun test_with_stability_pool_to_repay(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+        stability_pool::add_supported_pool<UNI>(owner);
 
         let owner_addr = signer::address_of(owner);
         let depositor_addr = signer::address_of(depositor);
@@ -1401,6 +1404,7 @@ module leizd::shadow_pool {
     public entry fun test_with_stability_pool_to_repay_over_time(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+        stability_pool::add_supported_pool<UNI>(owner);
 
         let owner_addr = signer::address_of(owner);
         let depositor_addr = signer::address_of(depositor);
@@ -1455,6 +1459,7 @@ module leizd::shadow_pool {
     public entry fun test_with_stability_pool_to_open_position_more_than_once(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+        stability_pool::add_supported_pool<UNI>(owner);
 
         let depositor_addr = signer::address_of(depositor);
         let borrower_addr = signer::address_of(borrower);
@@ -1504,6 +1509,8 @@ module leizd::shadow_pool {
     public entry fun test_with_stability_pool_to_open_multi_position(owner: &signer, depositor: &signer, borrower1: &signer, borrower2: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+        stability_pool::add_supported_pool<UNI>(owner);
+        stability_pool::add_supported_pool<WETH>(owner);
 
         let depositor_addr = signer::address_of(depositor);
         let borrower1_addr = signer::address_of(borrower1);
