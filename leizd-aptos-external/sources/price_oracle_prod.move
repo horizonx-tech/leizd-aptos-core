@@ -9,7 +9,7 @@ module leizd_aptos_external::price_oracle_prod {
     use leizd_aptos_common::permission;
 
     struct Config has key {
-        isMockedPrice: bool
+        is_mocked_price: bool
     }
 
     struct AggregatorStorage has key {
@@ -18,8 +18,24 @@ module leizd_aptos_external::price_oracle_prod {
 
     public entry fun initialize(owner: &signer) {
         permission::assert_owner(signer::address_of(owner));
-        move_to(owner, Config { isMockedPrice: false });
+        move_to(owner, Config { is_mocked_price: false });
         move_to(owner, AggregatorStorage { aggregators: simple_map::create<string::String, address>() });
+    }
+
+    fun update_is_mocked_price(owner: &signer, flag: bool) acquires Config {
+        let owner_addr = signer::address_of(owner);
+        permission::assert_owner(owner_addr);
+        let config = borrow_global_mut<Config>(owner_addr);
+        config.is_mocked_price = flag;
+    }
+    public entry fun enable_mocked_price(owner: &signer) acquires Config {
+        update_is_mocked_price(owner, true);
+    }
+    public entry fun disable_mocked_price(owner: &signer) acquires Config {
+        update_is_mocked_price(owner, false);
+    }
+    fun is_enabled_mocked_price(): bool acquires Config {
+        borrow_global<Config>(permission::owner_address()).is_mocked_price
     }
 
     public entry fun add_aggregator<C>(owner: &signer, aggregator: address) acquires AggregatorStorage {
@@ -70,6 +86,25 @@ module leizd_aptos_external::price_oracle_prod {
     #[expected_failure(abort_code = 1)]
     fun test_initialize_with_not_owner(account: &signer) {
         initialize(account);
+    }
+    #[test(owner = @leizd_aptos_external)]
+    fun test_update_is_mocked_price(owner: &signer) acquires Config {
+        initialize(owner);
+        assert!(!is_enabled_mocked_price(), 0);
+        enable_mocked_price(owner);
+        assert!(is_enabled_mocked_price(), 0);
+        disable_mocked_price(owner);
+        assert!(!is_enabled_mocked_price(), 0);
+    }
+    #[test(account = @0x111)]
+    #[expected_failure(abort_code = 1)]
+    fun test_enable_mocked_price_with_not_owner(account: &signer) acquires Config {
+        enable_mocked_price(account);
+    }
+    #[test(account = @0x111)]
+    #[expected_failure(abort_code = 1)]
+    fun test_disable_mocked_price_with_not_owner(account: &signer) acquires Config {
+        disable_mocked_price(account);
     }
     #[test(owner = @leizd_aptos_external)]
     fun test_add_aggregator(owner: &signer) acquires AggregatorStorage {
