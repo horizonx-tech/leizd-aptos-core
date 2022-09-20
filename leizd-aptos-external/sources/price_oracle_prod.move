@@ -46,22 +46,24 @@ module leizd_aptos_external::price_oracle_prod {
         simple_map::add<string::String, address>(aggrs, key, aggregator)
     }
 
-    fun price_from_aggregator(aggregator_addr: address): u128 {
+    fun price_from_aggregator(aggregator_addr: address): (u128, u8) {
         let latest_value = aggregator::latest_value(aggregator_addr);
-        let (value, _, _) = math::unpack(latest_value);
-        value / math::pow_10(9) // TODO: modify scaling (currently, temp)
+        let (value, dec, _) = math::unpack(latest_value);
+        (value, dec) // TODO: use neg in struct SwitchboardDecimal
     }
-    fun price_internal(aggregator_key: string::String): u128 acquires Config, AggregatorStorage {
-        if (is_enabled_mocked_price()) return 1;
+    fun price_internal(aggregator_key: string::String): (u128, u8) acquires Config, AggregatorStorage {
+        if (is_enabled_mocked_price()) return (1, 0);
         let aggrs = &borrow_global<AggregatorStorage>(permission::owner_address()).aggregators;
         let aggregator_addr = simple_map::borrow<string::String, address>(aggrs, &aggregator_key);
         price_from_aggregator(*aggregator_addr)
     }
     public fun price<C>(): u64 acquires Config, AggregatorStorage {
-        (price_internal(type_info::type_name<C>()) as u64)
+        let (value, dec) = price_internal(type_info::type_name<C>());
+        ((value / math::pow_10(dec)) as u64) // TOOD: return dec
     }
     public fun price_of(name: &string::String): u64 acquires Config, AggregatorStorage {
-        (price_internal(*name) as u64)
+        let (value, dec) = price_internal(*name);
+        ((value / math::pow_10(dec)) as u64) // TOOD: return dec
     }
 
     public fun volume(name: &string::String, amount: u64): u64 acquires Config, AggregatorStorage {
@@ -146,8 +148,12 @@ module leizd_aptos_external::price_oracle_prod {
         add_aggregator<USDC>(owner, signer::address_of(usdc_aggr));
         add_aggregator<WETH>(owner, signer::address_of(weth_aggr));
 
-        assert!(price_from_aggregator(signer::address_of(usdc_aggr)) == 2, 0);
-        assert!(price_from_aggregator(signer::address_of(weth_aggr)) == 3, 0);
+        let (usdc_value, usdc_dec) = price_from_aggregator(signer::address_of(usdc_aggr));
+        assert!(usdc_value == 2 * math::pow_10(9), 0);
+        assert!(usdc_dec == 9, 0);
+        let (weth_value, weth_dec) = price_from_aggregator(signer::address_of(weth_aggr));
+        assert!(weth_value == 3 * math::pow_10(9), 0);
+        assert!(weth_dec == 9, 0);
         assert!(price<USDC>() == 2, 0);
         assert!(price<WETH>() == 3, 0);
         assert!(price_of(&type_info::type_name<USDC>()) == 2, 0);
