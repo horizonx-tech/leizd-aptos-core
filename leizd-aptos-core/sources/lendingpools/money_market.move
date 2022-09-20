@@ -122,6 +122,14 @@ module leizd::money_market {
         shadow_pool::borrow_and_rebalance<C1,C2>(amount, false);
     }
 
+    public entry fun protect_coin<C>(account: &signer) {
+        account_position::protect_coin<C>(account);
+    }
+
+    public entry fun unprotect_coin<C>(account: &signer) {
+        account_position::unprotect_coin<C>(account);
+    }
+
     // Liquidation
     public entry fun liquidate<C,P>(account: &signer, target_addr: address) {
         pool_type::assert_pool_type<P>();

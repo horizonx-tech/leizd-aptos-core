@@ -31,7 +31,7 @@ module leizd::account_position {
     /// P: The position type - AssetToShadow or ShadowToAsset.
     struct Position<phantom P> has key {
         coins: vector<String>, // e.g. 0x1::module_name::WBTC
-        protected_coins: simple_map::SimpleMap<String,bool>, // e.g. 0x1::module_name::WBTC - true
+        protected_coins: simple_map::SimpleMap<String,bool>, // e.g. 0x1::module_name::WBTC - true, NOTE: use only ShadowToAsset (need to refactor)
         balance: simple_map::SimpleMap<String,Balance>,
     }
 
@@ -144,20 +144,29 @@ module leizd::account_position {
 
     public(friend) fun protect_coin<C>(account: &signer) acquires Position {
         let key = generate_key<C>();
-        let position_ref = borrow_global_mut<Position<AssetToShadow>>(signer::address_of(account));
-        assert!(vector::contains<String>(&position_ref.coins, &key), ENOT_EXISTED);
-        assert!(!simple_map::contains_key<String,bool>(&position_ref.protected_coins, &key), EALREADY_PROTECTED);
+        let position_ref = borrow_global_mut<Position<ShadowToAsset>>(signer::address_of(account));
+        // assert!(vector::contains<String>(&position_ref.coins, &key), ENOT_EXISTED); // TODO: temp
+        assert!(!is_protected_internal(&position_ref.protected_coins, key), EALREADY_PROTECTED);
 
         simple_map::add<String,bool>(&mut position_ref.protected_coins, key, true);
     }
 
     public(friend) fun unprotect_coin<C>(account: &signer) acquires Position {
         let key = generate_key<C>();
-        let position_ref = borrow_global_mut<Position<AssetToShadow>>(signer::address_of(account));
-        assert!(vector::contains<String>(&position_ref.coins, &key), ENOT_EXISTED);
-        assert!(simple_map::contains_key<String,bool>(&position_ref.protected_coins, &key), EALREADY_PROTECTED);
+        let position_ref = borrow_global_mut<Position<ShadowToAsset>>(signer::address_of(account));
+        // assert!(vector::contains<String>(&position_ref.coins, &key), ENOT_EXISTED); // TODO: temp
+        assert!(is_protected_internal(&position_ref.protected_coins, key), EALREADY_PROTECTED);
 
         simple_map::remove<String,bool>(&mut position_ref.protected_coins, &key);
+    }
+
+    public fun is_protected<C>(account_addr: address): bool acquires Position {
+        let key = generate_key<C>();
+        let position_ref = borrow_global<Position<ShadowToAsset>>(account_addr);
+        is_protected_internal(&position_ref.protected_coins, key)
+    }
+    fun is_protected_internal(protected_coins: &simple_map::SimpleMap<String,bool>, key: String): bool {
+        simple_map::contains_key<String,bool>(protected_coins, &key)
     }
 
     public(friend) fun deposit<C,P>(account: &signer, depositor_addr: address, amount: u64, is_collateral_only: bool) acquires Position, AccountPositionEventHandle {
@@ -304,8 +313,8 @@ module leizd::account_position {
         let position_ref = borrow_global<Position<ShadowToAsset>>(addr);
         assert!(vector::contains<String>(&position_ref.coins, &key1), ENOT_EXISTED);
         assert!(vector::contains<String>(&position_ref.coins, &key2), ENOT_EXISTED);
-        assert!(!simple_map::contains_key<String,bool>(&position_ref.protected_coins, &key1), EALREADY_PROTECTED);
-        assert!(!simple_map::contains_key<String,bool>(&position_ref.protected_coins, &key2), EALREADY_PROTECTED);
+        assert!(!is_protected_internal(&position_ref.protected_coins, key1), EALREADY_PROTECTED);
+        assert!(!is_protected_internal(&position_ref.protected_coins, key2), EALREADY_PROTECTED);
 
         // extra in key1
         let borrowed = borrowed_volume<ShadowToAsset>(addr, key1);
@@ -349,12 +358,12 @@ module leizd::account_position {
         let key1 = generate_key<C1>();
         let key2 = generate_key<C2>();
 
-        let position1_ref = borrow_global<Position<AssetToShadow>>(addr);
-        let position2_ref = borrow_global<Position<ShadowToAsset>>(addr);
-        assert!(vector::contains<String>(&position1_ref.coins, &key1), ENOT_EXISTED);
-        assert!(vector::contains<String>(&position2_ref.coins, &key2), ENOT_EXISTED);
-        assert!(!simple_map::contains_key<String,bool>(&position1_ref.protected_coins, &key1), EALREADY_PROTECTED);
-        assert!(!simple_map::contains_key<String,bool>(&position2_ref.protected_coins, &key2), EALREADY_PROTECTED);
+        let pos_ref_asset_to_shadow = borrow_global<Position<AssetToShadow>>(addr);
+        let pos_ref_shadow_to_asset = borrow_global<Position<ShadowToAsset>>(addr);
+        assert!(vector::contains<String>(&pos_ref_asset_to_shadow.coins, &key1), ENOT_EXISTED);
+        assert!(vector::contains<String>(&pos_ref_shadow_to_asset.coins, &key2), ENOT_EXISTED);
+        assert!(!is_protected_internal(&pos_ref_shadow_to_asset.protected_coins, key1), EALREADY_PROTECTED); // NOTE: use only Position<ShadowToAsset> to check protected coin
+        assert!(!is_protected_internal(&pos_ref_shadow_to_asset.protected_coins, key2), EALREADY_PROTECTED); // NOTE: use only Position<ShadowToAsset> to check protected coin
 
         // extra in key1
         let borrowed = borrowed_volume<AssetToShadow>(addr, key1);
@@ -570,6 +579,21 @@ module leizd::account_position {
         };
     }
 
+    #[test(account=@0x111)]
+    public fun test_protect_coin_and_unprotect_coin(account: &signer) acquires Position, AccountPositionEventHandle {
+        let key = generate_key<WETH>();
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+        initialize_if_necessary(account);
+        new_position<ShadowToAsset>(account_addr, 0, false, key);
+        assert!(!is_protected<WETH>(account_addr), 0);
+
+        protect_coin<WETH>(account);
+        assert!(is_protected<WETH>(account_addr), 0);
+
+        unprotect_coin<WETH>(account);
+        assert!(!is_protected<WETH>(account_addr), 0);
+    }
     #[test(owner=@leizd,account=@0x111)]
     public entry fun test_deposit_weth(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle {
         setup_for_test_to_initialize_coins(owner);
@@ -1248,6 +1272,50 @@ module leizd::account_position {
 
         assert!(event::counter<UpdatePositionEvent>(&borrow_global<AccountPositionEventHandle<ShadowToAsset>>(account1_addr).update_position_event) == 7, 0);
     }
+    #[test(owner = @leizd, account = @0x111)]
+    #[expected_failure(abort_code = 3)]
+    fun test_rebalance_shadow_if_no_position_of_key1_coin(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle {
+        setup_for_test_to_initialize_coins(owner);
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+
+        deposit_internal<UNI,Shadow>(account, account_addr, 100, false);
+        rebalance_shadow<WETH, UNI>(account_addr);
+    }
+    #[test(owner = @leizd, account = @0x111)]
+    #[expected_failure(abort_code = 3)]
+    fun test_rebalance_shadow_if_no_position_of_key2_coin(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle {
+        setup_for_test_to_initialize_coins(owner);
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+
+        deposit_internal<WETH,Shadow>(account, account_addr, 100, false);
+        rebalance_shadow<WETH, UNI>(account_addr);
+    }
+    #[test(owner = @leizd, account = @0x111)]
+    #[expected_failure(abort_code = 4)]
+    fun test_rebalance_shadow_if_protect_key1_coin(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle {
+        setup_for_test_to_initialize_coins(owner);
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+
+        deposit_internal<WETH,Shadow>(account, account_addr, 100, false);
+        deposit_internal<UNI,Shadow>(account, account_addr, 100, false);
+        protect_coin<WETH>(account);
+        rebalance_shadow<WETH, UNI>(account_addr);
+    }
+    #[test(owner = @leizd, account = @0x111)]
+    #[expected_failure(abort_code = 4)]
+    fun test_rebalance_shadow_if_protect_key2_coin(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle {
+        setup_for_test_to_initialize_coins(owner);
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+
+        deposit_internal<WETH,Shadow>(account, account_addr, 100, false);
+        deposit_internal<UNI,Shadow>(account, account_addr, 100, false);
+        protect_coin<UNI>(account);
+        rebalance_shadow<WETH, UNI>(account_addr);
+    }
     #[test(owner=@leizd,account1=@0x111)]
     public entry fun test_borrow_and_rebalance(owner: &signer, account1: &signer) acquires Position, AccountPositionEventHandle {
         setup_for_test_to_initialize_coins(owner);
@@ -1272,5 +1340,55 @@ module leizd::account_position {
 
         assert!(event::counter<UpdatePositionEvent>(&borrow_global<AccountPositionEventHandle<AssetToShadow>>(account1_addr).update_position_event) == 3, 0);
         assert!(event::counter<UpdatePositionEvent>(&borrow_global<AccountPositionEventHandle<ShadowToAsset>>(account1_addr).update_position_event) == 4, 0);
+    }
+    #[test(owner = @leizd, account = @0x111)]
+    #[expected_failure(abort_code = 3)]
+    fun test_borrow_and_rebalance_if_no_position_of_key1_coin(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle {
+        setup_for_test_to_initialize_coins(owner);
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+
+        deposit_internal<WETH,Asset>(account, account_addr, 2000, false);
+        borrow_internal<WETH,Shadow>(account_addr, 1000);
+        borrow_and_rebalance<WETH, UNI>(account_addr, false);
+    }
+    #[test(owner = @leizd, account = @0x111)]
+    #[expected_failure(abort_code = 3)]
+    fun test_borrow_and_rebalance_if_no_position_of_key2_coin(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle {
+        setup_for_test_to_initialize_coins(owner);
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+
+        deposit_internal<UNI,Shadow>(account, account_addr, 1000, false);
+        borrow_unsafe_for_test<UNI,Asset>(account_addr, 1500);
+        borrow_and_rebalance<WETH, UNI>(account_addr, false);
+    }
+    #[test(owner = @leizd, account = @0x111)]
+    #[expected_failure(abort_code = 4)]
+    fun test_borrow_and_rebalance_if_protect_key1_coin(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle {
+        setup_for_test_to_initialize_coins(owner);
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+
+        deposit_internal<WETH,Asset>(account, account_addr, 2000, false);
+        borrow_internal<WETH,Shadow>(account_addr, 1000);
+        deposit_internal<UNI,Shadow>(account, account_addr, 1000, false);
+        borrow_unsafe_for_test<UNI,Asset>(account_addr, 1500);
+        protect_coin<WETH>(account);
+        borrow_and_rebalance<WETH, UNI>(account_addr, false);
+    }
+    #[test(owner = @leizd, account = @0x111)]
+    #[expected_failure(abort_code = 4)]
+    fun test_borrow_and_rebalance_if_protect_key2_coin(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle {
+        setup_for_test_to_initialize_coins(owner);
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+
+        deposit_internal<WETH,Asset>(account, account_addr, 2000, false);
+        borrow_internal<WETH,Shadow>(account_addr, 1000);
+        deposit_internal<UNI,Shadow>(account, account_addr, 1000, false);
+        borrow_unsafe_for_test<UNI,Asset>(account_addr, 1500);
+        protect_coin<UNI>(account);
+        borrow_and_rebalance<WETH, UNI>(account_addr, false);
     }
 }
