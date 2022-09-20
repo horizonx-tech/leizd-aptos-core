@@ -570,6 +570,21 @@ module leizd::account_position {
         };
     }
 
+    #[test(account=@0x111)]
+    public fun test_protect_coin_and_unprotect_coin(account: &signer) acquires Position, AccountPositionEventHandle {
+        let key = generate_key<WETH>();
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+        initialize_if_necessary(account);
+        new_position<AssetToShadow>(account_addr, 0, false, key);
+        assert!(!simple_map::contains_key<String,bool>(&borrow_global<Position<AssetToShadow>>(account_addr).protected_coins, &key), 0);
+
+        protect_coin<WETH>(account);
+        assert!(simple_map::contains_key<String,bool>(&borrow_global<Position<AssetToShadow>>(account_addr).protected_coins, &key), 0);
+
+        unprotect_coin<WETH>(account);
+        assert!(!simple_map::contains_key<String,bool>(&borrow_global<Position<AssetToShadow>>(account_addr).protected_coins, &key), 0);
+    }
     #[test(owner=@leizd,account=@0x111)]
     public entry fun test_deposit_weth(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle {
         setup_for_test_to_initialize_coins(owner);
