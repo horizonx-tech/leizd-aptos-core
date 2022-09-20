@@ -96,7 +96,7 @@ module leizd::money_market {
 
         let repayer = signer::address_of(account);
         let is_shadow = pool_type::is_type_shadow<P>();
-        // HACK: check repayable amount by account_position::repay & use this amount to xxx_pool::repay. Better not to calcurate here. (because of just an entry module)
+        // HACK: check repayable amount by account_position::repay & use this amount to xxx_pool::repay. Better not to calculate here. (because of just an entry module)
         if (is_shadow) {
             let debt_amount = account_position::borrowed_asset<C>(repayer);
             if (amount >= debt_amount) amount = debt_amount;
@@ -110,7 +110,7 @@ module leizd::money_market {
     }
 
     /// Rebalance shadow coin from C1 Pool to C2 Pool.
-    /// The amount is automatially calculated to be the inssuficient value.
+    /// The amount is automatically calculated to be the insufficient value.
     public entry fun rebalance_shadow<C1,C2>(addr: address) {
         let (amount, is_collateral_only_C1, is_collateral_only_C2) = account_position::rebalance_shadow<C1,C2>(addr);
         shadow_pool::rebalance_shadow<C1,C2>(amount, is_collateral_only_C1, is_collateral_only_C2);

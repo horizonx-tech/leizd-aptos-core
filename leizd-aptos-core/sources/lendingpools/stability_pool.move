@@ -253,7 +253,7 @@ module leizd::stability_pool {
         );
     }
 
-    public(friend) entry fun borrow<C>(addr: address, amount: u64): coin::Coin<USDZ> acquires StabilityPool, Config, Balance, StabilityPoolEventHandle {
+    public(friend) fun borrow<C>(addr: address, amount: u64): coin::Coin<USDZ> acquires StabilityPool, Config, Balance, StabilityPoolEventHandle {
         assert!(is_supported<C>(), error::invalid_argument(ENOT_SUPPORTED_COIN));
         // TODO:
         // if (!exists<UserDistribution>(signer::address_of(account))) {
@@ -293,7 +293,7 @@ module leizd::stability_pool {
         borrow_global<Config>(permission::owner_address()).entry_fee
     }
 
-    public(friend) entry fun repay<C>(account: &signer, amount: u64) acquires StabilityPool, Balance, StabilityPoolEventHandle {
+    public(friend) fun repay<C>(account: &signer, amount: u64) acquires StabilityPool, Balance, StabilityPoolEventHandle {
         repay_internal<C>(account, amount);
         let account_addr = signer::address_of(account);
         event::emit_event<RepayEvent>(
@@ -1083,12 +1083,12 @@ module leizd::stability_pool {
         let emission_per_sec = 10;
         let duration = 30;
         timestamp::update_global_time_for_test((last_updated_per_sec + 30 + duration) * 1000 * 1000); // + 30 sec
-        let pre_calcurated_index = emission_per_sec * duration * PRECISION / total_staked;
+        let pre_calculated_index = emission_per_sec * duration * PRECISION / total_staked;
         let pre_setted_index = (emission_per_sec * duration * 5)  * PRECISION / (total_staked * 5);
-        assert!(pre_calcurated_index == pre_setted_index, 0); // check condition
+        assert!(pre_calculated_index == pre_setted_index, 0); // check condition
         distribution_config.index = pre_setted_index;
         let index_2 = update_asset_state(&mut distribution_config, total_staked);
-        assert!(index_2 == pre_calcurated_index, 0);
+        assert!(index_2 == pre_calculated_index, 0);
         assert!(distribution_config.last_updated == last_updated_per_sec + 30 + duration, 0);
         assert!(event::counter<UpdateStateEvent>(&borrow_global<StabilityPoolEventHandle>(owner_address).update_state_event) == 0, 0);
 

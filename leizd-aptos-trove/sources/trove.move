@@ -45,7 +45,7 @@ module leizd_aptos_trove::trove {
         usdz::initialize(owner);
     }
 
-    public(friend) entry fun add_supported_coin<C>(owner: &signer) {
+    public(friend) fun add_supported_coin<C>(owner: &signer) {
         add_supported_coin_internal<C>(owner);
     }
 
@@ -68,11 +68,11 @@ module leizd_aptos_trove::trove {
     }
     
 
-    public(friend) entry fun open_trove<C>(account: &signer, amount: u64) acquires Trove, TroveEventHandle {
+    public(friend) fun open_trove<C>(account: &signer, amount: u64) acquires Trove, TroveEventHandle {
         open_trove_internal<C>(account, amount, borrowable_usdz<C>(amount));
     }
 
-    public(friend) entry fun redeem<C>(account: &signer, target_account: address, amount: u64) acquires Trove{
+    public(friend) fun redeem<C>(account: &signer, target_account: address, amount: u64) acquires Trove{
         redeem_internal<C>(account, target_account, amount)
     }
 
@@ -110,11 +110,11 @@ module leizd_aptos_trove::trove {
         exists<SupportedCoin<C>>(permission::owner_address())
     }
 
-    public(friend) entry fun close_trove<C>(account: &signer) acquires Trove, TroveEventHandle {
+    public(friend) fun close_trove<C>(account: &signer) acquires Trove, TroveEventHandle {
         close_trove_internal<C>(account);
     }
 
-    public(friend) entry fun repay<C>(account: &signer, collateral_amount: u64) acquires Trove, TroveEventHandle {
+    public(friend) fun repay<C>(account: &signer, collateral_amount: u64) acquires Trove, TroveEventHandle {
         repay_internal<C>(account, collateral_amount);
     }
 

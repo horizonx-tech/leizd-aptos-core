@@ -22,7 +22,7 @@ module leizd::shadow_pool {
 
     const E_NOT_AVAILABLE_STATUS: u64 = 4;
     const E_AMOUNT_ARG_IS_ZERO: u64 = 11;
-    const E_EXCEED_BORRAWABLE_AMOUNT: u64 = 12;
+    const E_EXCEED_BORROWABLE_AMOUNT: u64 = 12;
 
     struct Pool has key {
         shadow: coin::Coin<USDZ>
@@ -328,7 +328,7 @@ module leizd::shadow_pool {
         let total_liquidity = total_liquidity_internal(pool_ref, storage_ref);
 
         // check liquidity
-        assert!((amount_with_entry_fee as u128) <= if(stability_pool::is_supported<C>()) total_liquidity + stability_pool::left() else total_liquidity, error::invalid_argument(E_EXCEED_BORRAWABLE_AMOUNT));
+        assert!((amount_with_entry_fee as u128) <= if(stability_pool::is_supported<C>()) total_liquidity + stability_pool::left() else total_liquidity, error::invalid_argument(E_EXCEED_BORROWABLE_AMOUNT));
 
         if ((amount_with_entry_fee as u128) > total_liquidity) {
             // use stability pool
@@ -419,7 +419,7 @@ module leizd::shadow_pool {
         amount
     }
 
-   public(friend) entry fun liquidate<C>(
+   public(friend) fun liquidate<C>(
         liquidator_addr: address,
         target_addr: address,
         liquidated: u64,
