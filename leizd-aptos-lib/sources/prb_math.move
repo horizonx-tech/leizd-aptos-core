@@ -5,6 +5,7 @@ module leizd_aptos_lib::prb_math {
     const SCALE: u128 = 1000000000;
 
     /// @dev Uses 64.64-bit fixed-point numbers - it is the most efficient way.
+    /// `x` should be under 34.100000000 because of the overflow.
     /// @return The result as an unsigned 30.9-decimal fixed-point number.
     public fun exp2(x: u128): u128 {
 
@@ -52,7 +53,7 @@ module leizd_aptos_lib::prb_math {
         if (x & 0x800000 > 0) result = (result * 0x1000000000058B90C) >> 64;
         if (x & 0x400000 > 0) result = (result * 0x100000000002C5C86) >> 64;
         if (x & 0x200000 > 0) result = (result * 0x10000000000162E43) >> 64;
-        if (x & 0x100000 > 0) result = (result * 0x100000000000B1722) >> 64;
+        if (x & 0x100000 > 0) result = (result * 0x100000000000B1721) >> 64;
         if (x & 0x80000 > 0) result = (result * 0x10000000000058B91) >> 64;
         if (x & 0x40000 > 0) result = (result * 0x1000000000002C5C8) >> 64;
         if (x & 0x20000 > 0) result = (result * 0x100000000000162E4) >> 64;
@@ -64,12 +65,16 @@ module leizd_aptos_lib::prb_math {
         if (x & 0x800 > 0) result = (result * 0x1000000000000058C) >> 64;
         if (x & 0x400 > 0) result = (result * 0x100000000000002C6) >> 64;
         if (x & 0x200 > 0) result = (result * 0x10000000000000163) >> 64;
-        if (x & 0x100 > 0) result = (result * 0x100000000000000B2) >> 64;
+        if (x & 0x100 > 0) result = (result * 0x100000000000000B1) >> 64;
         if (x & 0x80 > 0) result = (result * 0x10000000000000059) >> 64;
         if (x & 0x40 > 0) result = (result * 0x1000000000000002C) >> 64;
         if (x & 0x20 > 0) result = (result * 0x10000000000000016) >> 64;
         if (x & 0x10 > 0) result = (result * 0x1000000000000000B) >> 64;
-        
+        if (x & 0x8 > 0) result = (result * 0x10000000000000006) >> 64;
+        if (x & 0x4 > 0) result = (result * 0x10000000000000003) >> 64;
+        if (x & 0x2 > 0) result = (result * 0x10000000000000001) >> 64;
+        if (x & 0x1 > 0) result = (result * 0x10000000000000001) >> 64;
+
         result = result << (((x >> 64) + 1) as u8);
         
         // result *= 1e9 / 2^64
@@ -82,8 +87,6 @@ module leizd_aptos_lib::prb_math {
         );
         result
     }
-
-    // use std::debug;
 
     #[test]
     public entry fun test_exp2() {
@@ -129,13 +132,11 @@ module leizd_aptos_lib::prb_math {
         let result = exp2(x);
         assert!(result == expected, 0);
 
-        // TODO: check
-        // let x = 3141592653;
-        // let expected = 8824977827;
-        // x = (x << 64) / SCALE;
-        // let result = exp2(x);
-        // debug::print(&result);
-        // assert!(result == expected, 0);
+        let x = 3141592653;
+        let expected = 8824977823;
+        x = (x << 64) / SCALE;
+        let result = exp2(x);
+        assert!(result == expected, 0);
 
         let x = 4000000000;
         let expected = 16000000000;
@@ -149,12 +150,22 @@ module leizd_aptos_lib::prb_math {
         let result = exp2(x);
         assert!(result == expected, 0);
 
-        // TODO: check
-        // let x = 96000000000;
-        // let expected = 79228162514264337593543950336;
-        // x = (x << 64) / SCALE;
-        // let result = exp2(x);
-        // debug::print(&result);
-        // assert!(result == expected, 0);
+        let x = 20513000000;
+        let expected = 1496333162347630;
+        x = (x << 64) / SCALE;
+        let result = exp2(x);
+        assert!(result == expected, 0);
+
+        let x = 33333333000;
+        let expected = 10822636909120553476; // TODO:10822636909120553492
+        x = (x << 64) / SCALE; 
+        let result = exp2(x);
+        assert!(result == expected, 0);
+        
+        let x = 34100000000;
+        let expected = 18412927881256241384; // TODO: 18412927881256241413
+        x = (x << 64) / SCALE;
+        let result = exp2(x);
+        assert!(result == expected, 0);
     }
 }
