@@ -1272,6 +1272,26 @@ module leizd::account_position {
 
         assert!(event::counter<UpdatePositionEvent>(&borrow_global<AccountPositionEventHandle<ShadowToAsset>>(account1_addr).update_position_event) == 7, 0);
     }
+    #[test(owner = @leizd, account = @0x111)]
+    #[expected_failure(abort_code = 3)]
+    fun test_rebalance_shadow_if_no_position_key1(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle {
+        setup_for_test_to_initialize_coins(owner);
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+        
+        deposit_internal<UNI,Shadow>(account, account_addr, 100, false);
+        rebalance_shadow<WETH, UNI>(account_addr);
+    }
+    #[expected_failure(abort_code = 3)]
+    #[test(owner = @leizd, account = @0x111)]
+    fun test_rebalance_shadow_if_no_position_key2(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle {
+        setup_for_test_to_initialize_coins(owner);
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+        
+        deposit_internal<WETH,Shadow>(account, account_addr, 100, false);
+        rebalance_shadow<WETH, UNI>(account_addr);
+    }
     #[test(owner=@leizd,account1=@0x111)]
     public entry fun test_borrow_and_rebalance(owner: &signer, account1: &signer) acquires Position, AccountPositionEventHandle {
         setup_for_test_to_initialize_coins(owner);
