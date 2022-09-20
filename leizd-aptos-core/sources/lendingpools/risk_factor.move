@@ -333,9 +333,8 @@ module leizd::risk_factor {
 
         assert!(*new_ltv == DEFAULT_LTV, 0);
         assert!(*new_lt == DEFAULT_THRESHOLD, 0);
-        let event_handle = borrow_global<RepositoryAssetEventHandle>(owner_addr);
-        assert!(event::counter(&event_handle.update_config_event) == 0, 0);
     }
+    
     #[test(owner = @leizd, account = @0x111)]
     public entry fun test_new_asset_without_owner(owner: &signer, account: &signer) acquires Config, RepositoryAssetEventHandle {
         let owner_addr = signer::address_of(owner);
