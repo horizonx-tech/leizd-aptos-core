@@ -154,8 +154,8 @@ module leizd_aptos_external::price_oracle_prod {
         assert!(price_of(&type_info::type_name<WETH>()) == 3, 0);
     }
     #[test_only] // for leizd-aptos-core
-    public fun initialize_for_test(owner: &signer) {
-        aggregator::new_test(owner, 1, 0, false); // TODO: changeable
+    public fun initialize_for_test(owner: &signer, value: u128, dec: u8) {
+        aggregator::new_test(owner, value, dec, false);
         initialize(owner);
     }
     #[test_only] // for leizd-aptos-core
@@ -164,7 +164,7 @@ module leizd_aptos_external::price_oracle_prod {
     }
     #[test_only]
     fun initialize_with_fixed_price_for_test(owner: &signer) acquires AggregatorStorage {
-        initialize_for_test(owner);
+        initialize_for_test(owner, 1, 0);
         let owner_address = signer::address_of(owner);
         add_aggregator<USDC>(owner, owner_address);
         add_aggregator<WETH>(owner, owner_address);
