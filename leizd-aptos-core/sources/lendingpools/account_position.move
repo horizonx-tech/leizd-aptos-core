@@ -146,7 +146,7 @@ module leizd::account_position {
         let key = generate_key<C>();
         let position_ref = borrow_global_mut<Position<AssetToShadow>>(signer::address_of(account));
         assert!(vector::contains<String>(&position_ref.coins, &key), ENOT_EXISTED);
-        assert!(!simple_map::contains_key<String,bool>(&position_ref.protected_coins, &key), EALREADY_PROTECTED);
+        assert!(!is_protected_internal(&position_ref.protected_coins, key), EALREADY_PROTECTED);
 
         simple_map::add<String,bool>(&mut position_ref.protected_coins, key, true);
     }
@@ -155,9 +155,18 @@ module leizd::account_position {
         let key = generate_key<C>();
         let position_ref = borrow_global_mut<Position<AssetToShadow>>(signer::address_of(account));
         assert!(vector::contains<String>(&position_ref.coins, &key), ENOT_EXISTED);
-        assert!(simple_map::contains_key<String,bool>(&position_ref.protected_coins, &key), EALREADY_PROTECTED);
+        assert!(is_protected_internal(&position_ref.protected_coins, key), EALREADY_PROTECTED);
 
         simple_map::remove<String,bool>(&mut position_ref.protected_coins, &key);
+    }
+
+    public fun is_protected<C>(account_addr: address): bool acquires Position {
+        let key = generate_key<C>();
+        let position_ref = borrow_global<Position<AssetToShadow>>(account_addr);
+        is_protected_internal(&position_ref.protected_coins, key)
+    }
+    fun is_protected_internal(protected_coins: &simple_map::SimpleMap<String,bool>, key: String): bool {
+        simple_map::contains_key<String,bool>(protected_coins, &key)
     }
 
     public(friend) fun deposit<C,P>(account: &signer, depositor_addr: address, amount: u64, is_collateral_only: bool) acquires Position, AccountPositionEventHandle {
@@ -304,8 +313,8 @@ module leizd::account_position {
         let position_ref = borrow_global<Position<ShadowToAsset>>(addr);
         assert!(vector::contains<String>(&position_ref.coins, &key1), ENOT_EXISTED);
         assert!(vector::contains<String>(&position_ref.coins, &key2), ENOT_EXISTED);
-        assert!(!simple_map::contains_key<String,bool>(&position_ref.protected_coins, &key1), EALREADY_PROTECTED);
-        assert!(!simple_map::contains_key<String,bool>(&position_ref.protected_coins, &key2), EALREADY_PROTECTED);
+        assert!(!is_protected_internal(&position_ref.protected_coins, key1), EALREADY_PROTECTED);
+        assert!(!is_protected_internal(&position_ref.protected_coins, key2), EALREADY_PROTECTED);
 
         // extra in key1
         let borrowed = borrowed_volume<ShadowToAsset>(addr, key1);
@@ -353,8 +362,8 @@ module leizd::account_position {
         let position2_ref = borrow_global<Position<ShadowToAsset>>(addr);
         assert!(vector::contains<String>(&position1_ref.coins, &key1), ENOT_EXISTED);
         assert!(vector::contains<String>(&position2_ref.coins, &key2), ENOT_EXISTED);
-        assert!(!simple_map::contains_key<String,bool>(&position1_ref.protected_coins, &key1), EALREADY_PROTECTED);
-        assert!(!simple_map::contains_key<String,bool>(&position2_ref.protected_coins, &key2), EALREADY_PROTECTED);
+        assert!(!is_protected_internal(&position1_ref.protected_coins, key1), EALREADY_PROTECTED);
+        assert!(!is_protected_internal(&position2_ref.protected_coins, key2), EALREADY_PROTECTED);
 
         // extra in key1
         let borrowed = borrowed_volume<AssetToShadow>(addr, key1);
@@ -577,13 +586,13 @@ module leizd::account_position {
         account::create_account_for_test(account_addr);
         initialize_if_necessary(account);
         new_position<AssetToShadow>(account_addr, 0, false, key);
-        assert!(!simple_map::contains_key<String,bool>(&borrow_global<Position<AssetToShadow>>(account_addr).protected_coins, &key), 0);
+        assert!(!is_protected<WETH>(account_addr), 0);
 
         protect_coin<WETH>(account);
-        assert!(simple_map::contains_key<String,bool>(&borrow_global<Position<AssetToShadow>>(account_addr).protected_coins, &key), 0);
+        assert!(is_protected<WETH>(account_addr), 0);
 
         unprotect_coin<WETH>(account);
-        assert!(!simple_map::contains_key<String,bool>(&borrow_global<Position<AssetToShadow>>(account_addr).protected_coins, &key), 0);
+        assert!(!is_protected<WETH>(account_addr), 0);
     }
     #[test(owner=@leizd,account=@0x111)]
     public entry fun test_deposit_weth(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle {
