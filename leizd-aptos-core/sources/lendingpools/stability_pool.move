@@ -1083,12 +1083,12 @@ module leizd::stability_pool {
         let emission_per_sec = 10;
         let duration = 30;
         timestamp::update_global_time_for_test((last_updated_per_sec + 30 + duration) * 1000 * 1000); // + 30 sec
-        let pre_calcurated_index = emission_per_sec * duration * PRECISION / total_staked;
+        let pre_calculated_index = emission_per_sec * duration * PRECISION / total_staked;
         let pre_setted_index = (emission_per_sec * duration * 5)  * PRECISION / (total_staked * 5);
-        assert!(pre_calcurated_index == pre_setted_index, 0); // check condition
+        assert!(pre_calculated_index == pre_setted_index, 0); // check condition
         distribution_config.index = pre_setted_index;
         let index_2 = update_asset_state(&mut distribution_config, total_staked);
-        assert!(index_2 == pre_calcurated_index, 0);
+        assert!(index_2 == pre_calculated_index, 0);
         assert!(distribution_config.last_updated == last_updated_per_sec + 30 + duration, 0);
         assert!(event::counter<UpdateStateEvent>(&borrow_global<StabilityPoolEventHandle>(owner_address).update_state_event) == 0, 0);
 

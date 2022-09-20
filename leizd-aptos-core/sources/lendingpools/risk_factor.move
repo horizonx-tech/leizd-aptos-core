@@ -64,7 +64,7 @@ module leizd::risk_factor {
 
     public entry fun initialize(owner: &signer) {
         permission::assert_owner(signer::address_of(owner));
-        assert_liquidation_threashold(DEFAULT_LTV, DEFAULT_THRESHOLD);
+        assert_liquidation_threshold(DEFAULT_LTV, DEFAULT_THRESHOLD);
 
         let ltv = table::new<string::String,u64>();
         let lt = table::new<string::String,u64>();
@@ -130,7 +130,7 @@ module leizd::risk_factor {
 
         let _config = borrow_global_mut<Config>(owner_address);
         let name = type_info::type_name<T>();
-        assert_liquidation_threashold(new_ltv, new_lt);
+        assert_liquidation_threshold(new_ltv, new_lt);
 
         table::upsert<string::String,u64>(&mut _config.ltv, name, new_ltv);
         table::upsert<string::String,u64>(&mut _config.lt, name, new_lt);
@@ -145,7 +145,7 @@ module leizd::risk_factor {
         )
     }
 
-    fun assert_liquidation_threashold(ltv: u64, lt: u64) {
+    fun assert_liquidation_threshold(ltv: u64, lt: u64) {
         assert!(lt <= PRECISION, error::invalid_argument(EINVALID_THRESHOLD));
         assert!(ltv != 0 && ltv < lt, error::invalid_argument(EINVALID_LTV));
     }
@@ -419,7 +419,7 @@ module leizd::risk_factor {
         update_config<TestAsset>(owner, PRECISION / 100 * 50, PRECISION / 100 * 50);
     }
     #[test(owner = @leizd)]
-    fun test_calcurate_entry_fee(owner: &signer) acquires ProtocolFees {
+    fun test_calculate_entry_fee(owner: &signer) acquires ProtocolFees {
         account::create_account_for_test(signer::address_of(owner));
         initialize(owner);
 
