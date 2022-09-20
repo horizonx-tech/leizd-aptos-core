@@ -93,8 +93,8 @@ module leizd_aptos_external::price_oracle {
     //     assert!(price_of(&type_info::type_name<WETH>()) == 3, 0);
     // }
     #[test_only] // for leizd-aptos-core
-    public fun initialize_for_test(owner: &signer) {
-        // aggregator::new_test(owner, 1, 0, false); // TODO: changeable
+    public fun initialize_for_test(owner: &signer, _value: u128, _dec: u8) {
+        // aggregator::new_test(owner, value, dec, false);
         initialize(owner);
     }
     #[test_only] // for leizd-aptos-core
