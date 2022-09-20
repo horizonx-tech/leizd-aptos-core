@@ -1,4 +1,4 @@
-module leizd_aptos_external::price_oracle {
+module leizd_aptos_external::price_oracle_prod {
 
     use std::signer;
     use std::string;
@@ -8,12 +8,17 @@ module leizd_aptos_external::price_oracle {
     use switchboard::math;
     use leizd_aptos_common::permission;
 
+    struct Config has key {
+        isMockedPrice: bool
+    }
+
     struct AggregatorStorage has key {
         aggregators: simple_map::SimpleMap<string::String, address>
     }
 
     public entry fun initialize(owner: &signer) {
         permission::assert_owner(signer::address_of(owner));
+        move_to(owner, Config { isMockedPrice: false });
         move_to(owner, AggregatorStorage { aggregators: simple_map::create<string::String, address>() });
     }
 
@@ -53,11 +58,13 @@ module leizd_aptos_external::price_oracle {
     }
 
     #[test_only]
-    use leizd_aptos_external::test_coin_in_external::{USDC, WETH, UNI, USDT};
+    use leizd_aptos_common::test_coin::{USDC, WETH, UNI, USDT};
     #[test(owner = @leizd_aptos_external)]
     fun test_initialize(owner: &signer) {
         initialize(owner);
-        assert!(exists<AggregatorStorage>(signer::address_of(owner)), 0);
+        let owner_addr = signer::address_of(owner);
+        assert!(exists<Config>(owner_addr), 0);
+        assert!(exists<AggregatorStorage>(owner_addr), 0);
     }
     #[test(account = @0x111)]
     #[expected_failure(abort_code = 1)]
