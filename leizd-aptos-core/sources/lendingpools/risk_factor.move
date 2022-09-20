@@ -88,10 +88,10 @@ module leizd::risk_factor {
         });
     }
 
-    public(friend) fun new_asset<C>(account: &signer) acquires Config {
+    public(friend) fun new_asset<C>(account: &signer) acquires Config, RepositoryAssetEventHandle {
         new_asset_internal<C>(account);
     }
-    fun new_asset_internal<C>(_account: &signer) acquires Config {
+    fun new_asset_internal<C>(_account: &signer) acquires Config, RepositoryAssetEventHandle {
         let owner_address = permission::owner_address();
 
         let config_ref = borrow_global_mut<Config>(owner_address);
@@ -99,6 +99,15 @@ module leizd::risk_factor {
         assert!(!table::contains<string::String, u64>(&config_ref.ltv, name), error::invalid_argument(EALREADY_ADDED_ASSET));
         table::upsert<string::String,u64>(&mut config_ref.ltv, name, DEFAULT_LTV);
         table::upsert<string::String,u64>(&mut config_ref.lt, name, DEFAULT_THRESHOLD);
+        event::emit_event<UpdateConfigEvent>(
+            &mut borrow_global_mut<RepositoryAssetEventHandle>(owner_address).update_config_event,
+            UpdateConfigEvent {
+                caller: owner_address,
+                key: name,
+                ltv: DEFAULT_LTV,
+                lt: DEFAULT_THRESHOLD,
+            }
+        )
     }
 
     public entry fun update_protocol_fees(owner: &signer, fees: ProtocolFees) acquires ProtocolFees, RepositoryEventHandle {
@@ -216,7 +225,7 @@ module leizd::risk_factor {
         DEFAULT_LIQUIDATION_FEE
     }
     #[test_only]
-    public fun new_asset_for_test<C>(account: &signer) acquires Config {
+    public fun new_asset_for_test<C>(account: &signer) acquires Config, RepositoryAssetEventHandle {
         new_asset_internal<C>(account);
     }
     #[test(owner = @leizd)]
@@ -238,7 +247,7 @@ module leizd::risk_factor {
         initialize(&account);
     }
     #[test(owner=@leizd,account1=@0x111)]
-    public entry fun test_update_protocol_fees(owner: signer, account1: signer) acquires Config, ProtocolFees, RepositoryEventHandle {
+    public entry fun test_update_protocol_fees(owner: signer, account1: signer) acquires Config, ProtocolFees, RepositoryEventHandle, RepositoryAssetEventHandle {
         let owner_addr = signer::address_of(&owner);
         let account1_addr = signer::address_of(&account1);
         account::create_account_for_test(owner_addr);
@@ -265,7 +274,7 @@ module leizd::risk_factor {
     }
     #[test(owner=@leizd)]
     #[expected_failure(abort_code = 65541)]
-    public entry fun test_update_protocol_fees_when_share_fee_is_greater_than_100(owner: signer) acquires Config, ProtocolFees, RepositoryEventHandle {
+    public entry fun test_update_protocol_fees_when_share_fee_is_greater_than_100(owner: signer) acquires Config, ProtocolFees, RepositoryEventHandle, RepositoryAssetEventHandle {
         let owner_addr = signer::address_of(&owner);
         account::create_account_for_test(owner_addr);
         initialize(&owner);
@@ -280,7 +289,7 @@ module leizd::risk_factor {
     }
     #[test(owner=@leizd)]
     #[expected_failure(abort_code = 65542)]
-    public entry fun test_update_protocol_fees_when_liquidation_fee_is_greater_than_100(owner: signer) acquires Config, ProtocolFees, RepositoryEventHandle {
+    public entry fun test_update_protocol_fees_when_liquidation_fee_is_greater_than_100(owner: signer) acquires Config, ProtocolFees, RepositoryEventHandle, RepositoryAssetEventHandle {
         let owner_addr = signer::address_of(&owner);
         account::create_account_for_test(owner_addr);
         initialize(&owner);
@@ -295,7 +304,7 @@ module leizd::risk_factor {
     }
     #[test(owner=@leizd)]
     #[expected_failure(abort_code = 65540)]
-    public entry fun test_update_protocol_fees_when_entry_fee_is_greater_than_100(owner: signer) acquires Config, ProtocolFees, RepositoryEventHandle {
+    public entry fun test_update_protocol_fees_when_entry_fee_is_greater_than_100(owner: signer) acquires Config, ProtocolFees, RepositoryEventHandle, RepositoryAssetEventHandle {
         let owner_addr = signer::address_of(&owner);
         account::create_account_for_test(owner_addr);
         initialize(&owner);
@@ -324,11 +333,10 @@ module leizd::risk_factor {
 
         assert!(*new_ltv == DEFAULT_LTV, 0);
         assert!(*new_lt == DEFAULT_THRESHOLD, 0);
-        let event_handle = borrow_global<RepositoryAssetEventHandle>(owner_addr);
-        assert!(event::counter(&event_handle.update_config_event) == 0, 0);
     }
+
     #[test(owner = @leizd, account = @0x111)]
-    public entry fun test_new_asset_without_owner(owner: &signer, account: &signer) acquires Config {
+    public entry fun test_new_asset_without_owner(owner: &signer, account: &signer) acquires Config, RepositoryAssetEventHandle {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
         initialize(owner);
@@ -344,7 +352,7 @@ module leizd::risk_factor {
     }
     #[test(owner = @leizd)]
     #[expected_failure(abort_code = 65537)]
-    public entry fun test_new_asset_twice(owner: &signer) acquires Config {
+    public entry fun test_new_asset_twice(owner: &signer) acquires Config, RepositoryAssetEventHandle {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
         initialize(owner);
@@ -369,7 +377,7 @@ module leizd::risk_factor {
         assert!(lt<TestAsset>() == PRECISION / 100 * 90, 0);
         assert!(lt_of(name) == PRECISION / 100 * 90, 0);
         let event_handle = borrow_global<RepositoryAssetEventHandle>(owner_addr);
-        assert!(event::counter(&event_handle.update_config_event) == 1, 0);
+        assert!(event::counter(&event_handle.update_config_event) == 2, 0);
     }
     #[test(owner=@leizd)]
     public entry fun test_update_config_with_usdz(owner: &signer) acquires Config, RepositoryAssetEventHandle {
