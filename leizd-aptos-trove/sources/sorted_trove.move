@@ -39,7 +39,7 @@ module leizd_aptos_trove::sorted_trove {
         borrow_global<Data<C>>(permission::owner_address()).size
     }
 
-    public(friend) entry fun initialize<C>(owner: &signer) {
+    public(friend) fun initialize<C>(owner: &signer) {
         initialize_internal<C>(owner, constant::u64_max());
     }
 
@@ -108,7 +108,7 @@ module leizd_aptos_trove::sorted_trove {
         simple_map::contains_key<address, Node>(&borrow_global<Data<C>>(permission::owner_address()).nodes, &id)
     }
 
-    public(friend) entry fun remove<C>(id: address) acquires Data {
+    public(friend) fun remove<C>(id: address) acquires Data {
         remove_internal<C>(id);
     }
 

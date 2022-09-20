@@ -419,7 +419,7 @@ module leizd::shadow_pool {
         amount
     }
 
-   public(friend) entry fun liquidate<C>(
+   public(friend) fun liquidate<C>(
         liquidator_addr: address,
         target_addr: address,
         liquidated: u64,

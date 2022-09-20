@@ -253,7 +253,7 @@ module leizd::stability_pool {
         );
     }
 
-    public(friend) entry fun borrow<C>(addr: address, amount: u64): coin::Coin<USDZ> acquires StabilityPool, Config, Balance, StabilityPoolEventHandle {
+    public(friend) fun borrow<C>(addr: address, amount: u64): coin::Coin<USDZ> acquires StabilityPool, Config, Balance, StabilityPoolEventHandle {
         assert!(is_supported<C>(), error::invalid_argument(ENOT_SUPPORTED_COIN));
         // TODO:
         // if (!exists<UserDistribution>(signer::address_of(account))) {
@@ -293,7 +293,7 @@ module leizd::stability_pool {
         borrow_global<Config>(permission::owner_address()).entry_fee
     }
 
-    public(friend) entry fun repay<C>(account: &signer, amount: u64) acquires StabilityPool, Balance, StabilityPoolEventHandle {
+    public(friend) fun repay<C>(account: &signer, amount: u64) acquires StabilityPool, Balance, StabilityPoolEventHandle {
         repay_internal<C>(account, amount);
         let account_addr = signer::address_of(account);
         event::emit_event<RepayEvent>(

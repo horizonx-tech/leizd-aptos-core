@@ -320,7 +320,7 @@ module leizd::asset_pool {
         amount
     }
 
-    public(friend) entry fun liquidate<C>(
+    public(friend) fun liquidate<C>(
         liquidator_addr: address,
         target_addr: address,
         liquidated: u64,

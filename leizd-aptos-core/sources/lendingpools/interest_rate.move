@@ -65,7 +65,7 @@ module leizd::interest_rate {
         set_config_event: event::EventHandle<SetConfigEvent>,
     }
 
-    public(friend) entry fun initialize<C>(owner: &signer) {
+    public(friend) fun initialize<C>(owner: &signer) {
         let config = default_config<C>();
         assert_config(config);
 
