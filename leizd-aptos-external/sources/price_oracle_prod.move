@@ -51,22 +51,23 @@ module leizd_aptos_external::price_oracle_prod {
         let (value, _, _) = math::unpack(latest_value);
         value / math::pow_10(9) // TODO: modify scaling (currently, temp)
     }
-    fun price_internal(aggregator_key: string::String): u128 acquires AggregatorStorage {
+    fun price_internal(aggregator_key: string::String): u128 acquires Config, AggregatorStorage {
+        if (is_enabled_mocked_price()) return 1;
         let aggrs = &borrow_global<AggregatorStorage>(permission::owner_address()).aggregators;
         let aggregator_addr = simple_map::borrow<string::String, address>(aggrs, &aggregator_key);
         price_from_aggregator(*aggregator_addr)
     }
-    public fun price<C>(): u64 acquires AggregatorStorage {
+    public fun price<C>(): u64 acquires Config, AggregatorStorage {
         (price_internal(type_info::type_name<C>()) as u64)
     }
-    public fun price_of(name: &string::String): u64 acquires AggregatorStorage {
+    public fun price_of(name: &string::String): u64 acquires Config, AggregatorStorage {
         (price_internal(*name) as u64)
     }
 
-    public fun volume(name: &string::String, amount: u64): u64 acquires AggregatorStorage {
+    public fun volume(name: &string::String, amount: u64): u64 acquires Config, AggregatorStorage {
         amount * price_of(name)
     }
-    public fun amount(name: &string::String, volume: u64): u64 acquires AggregatorStorage {
+    public fun amount(name: &string::String, volume: u64): u64 acquires Config, AggregatorStorage {
         volume / price_of(name)
     }
 
@@ -122,8 +123,22 @@ module leizd_aptos_external::price_oracle_prod {
         initialize(owner);
         add_aggregator<USDC>(account, @0x111AAA);
     }
+    #[test(owner = @leizd_aptos_external, usdc_aggr_holder = @0x111AAA)]
+    fun test_price_with_changing_using_mocked(owner: &signer, usdc_aggr_holder: &signer) acquires Config, AggregatorStorage {
+        aggregator::new_test(usdc_aggr_holder, 100, 0, false);
+        initialize(owner);
+        add_aggregator<USDC>(owner, signer::address_of(usdc_aggr_holder));
+
+        assert!(price<USDC>() == 100, 0);
+        assert!(price_of(&type_info::type_name<USDC>()) == 100, 0);
+
+        enable_mocked_price(owner);
+
+        assert!(price<USDC>() == 1, 0);
+        assert!(price_of(&type_info::type_name<USDC>()) == 1, 0);
+    }
     #[test(owner = @leizd_aptos_external, usdc_aggr = @0x111AAA, weth_aggr = @0x222AAA)]
-    fun test_end_to_end(owner: &signer, usdc_aggr: &signer, weth_aggr: &signer) acquires AggregatorStorage {
+    fun test_end_to_end(owner: &signer, usdc_aggr: &signer, weth_aggr: &signer) acquires Config, AggregatorStorage {
         aggregator::new_test(usdc_aggr, 2, 0, false);
         aggregator::new_test(weth_aggr, 3, 0, false);
 
@@ -157,7 +172,7 @@ module leizd_aptos_external::price_oracle_prod {
         add_aggregator<USDT>(owner, owner_address);
     }
     #[test(leizd = @leizd_aptos_external)]
-    fun test_price_after_initialize_with_fixed_price_for_test(leizd: &signer) acquires AggregatorStorage {
+    fun test_price_after_initialize_with_fixed_price_for_test(leizd: &signer) acquires Config, AggregatorStorage {
         initialize_with_fixed_price_for_test(leizd);
         assert!(price<USDC>() == 1, 0);
         assert!(price<WETH>() == 1, 0);
@@ -165,7 +180,7 @@ module leizd_aptos_external::price_oracle_prod {
         assert!(price<USDT>() == 1, 0);
     }
     #[test(leizd = @leizd_aptos_external)]
-    fun test_price_of_after_initialize_with_fixed_price_for_test(leizd: &signer) acquires AggregatorStorage {
+    fun test_price_of_after_initialize_with_fixed_price_for_test(leizd: &signer) acquires Config, AggregatorStorage {
         initialize_with_fixed_price_for_test(leizd);
         assert!(price_of(&type_info::type_name<USDC>()) == 1, 0);
         assert!(price_of(&type_info::type_name<WETH>()) == 1, 0);
