@@ -23,26 +23,44 @@ module leizd_aptos_external::price_oracle {
         table::add<string::String, address>(aggrs, key, aggregator)
     }
 
-    fun price_internal(aggregator: address): u128 {
-        aggregator;
-        1
+    fun price_from_aggregator(aggregator_addr: address): (u128, u8) {
+        // let latest_value = aggregator::latest_value(aggregator_addr);
+        // let (value, dec, _) = math::unpack(latest_value);
+        // (value, dec) // TODO: use neg in struct SwitchboardDecimal
+        aggregator_addr;
+        (1000000000, 9)
     }
-
-    public fun price<C>(): u64 {
-        1
+    fun price_internal(aggregator_key: string::String): (u128, u8) {
+        // if (is_enabled_mocked_price()) return (1, 0);
+        // let aggrs = &borrow_global<AggregatorStorage>(permission::owner_address()).aggregators;
+        // let aggregator_addr = simple_map::borrow<string::String, address>(aggrs, &aggregator_key);
+        // price_from_aggregator(*aggregator_addr)
+        aggregator_key;
+        (1000000000, 9)
     }
-
-    public fun price_of(name: &string::String): u64 {
-        name;
-        1
+    public fun price<C>(): (u128, u8) {
+        let (value, dec) = price_internal(type_info::type_name<C>());
+        (value, dec)
+    }
+    public fun price_of(name: &string::String): (u128, u8) {
+        let (value, dec) = price_internal(*name);
+        (value, dec)
     }
 
     public fun volume(name: &string::String, amount: u64): u64 {
-        amount * price_of(name)
+        // let (value, dec) = price_of(name);
+        // let result = (amount as u128) * value / math::pow_10(dec);
+        // (result as u64) // TODO: use u128
+        name;
+        amount * 1
     }
 
     public fun amount(name: &string::String, volume: u64): u64 {
-        volume / price_of(name)
+        // let (value, dec) = price_of(name);
+        // let result = (volume as u128) * math::pow_10(dec) / value;
+        // (result as u64) // TODO: use u128
+        name;
+        volume / 1
     }
 
     #[test_only]
@@ -114,17 +132,33 @@ module leizd_aptos_external::price_oracle {
     #[test(leizd = @leizd_aptos_external)]
     fun test_price_after_initialize_with_fixed_price_for_test(leizd: &signer) acquires AggregatorStorage {
         initialize_with_fixed_price_for_test(leizd);
-        assert!(price<USDC>() == 1, 0);
-        assert!(price<WETH>() == 1, 0);
-        assert!(price<UNI>() == 1, 0);
-        assert!(price<USDT>() == 1, 0);
+
+        // let (value, dec) = price<USDC>();
+        // assert!(value / math::pow_10(dec) == 1, 0);
+
+        // let (value, dec) = price<WETH>();
+        // assert!(value / math::pow_10(dec) == 1, 0);
+
+        // let (value, dec) = price<UNI>();
+        // assert!(value / math::pow_10(dec) == 1, 0);
+
+        // let (value, dec) = price<USDT>();
+        // assert!(value / math::pow_10(dec) == 1, 0);
     }
     #[test(leizd = @leizd_aptos_external)]
     fun test_price_of_after_initialize_with_fixed_price_for_test(leizd: &signer) acquires AggregatorStorage {
         initialize_with_fixed_price_for_test(leizd);
-        assert!(price_of(&type_info::type_name<USDC>()) == 1, 0);
-        assert!(price_of(&type_info::type_name<WETH>()) == 1, 0);
-        assert!(price_of(&type_info::type_name<UNI>()) == 1, 0);
-        assert!(price_of(&type_info::type_name<USDT>()) == 1, 0);
+
+        // let (value, dec) = price_of(&type_info::type_name<USDC>());
+        // assert!(value / math::pow_10(dec) == 1, 0);
+
+        // let (value, dec) = price_of(&type_info::type_name<WETH>());
+        // assert!(value / math::pow_10(dec) == 1, 0);
+
+        // let (value, dec) = price_of(&type_info::type_name<UNI>());
+        // assert!(value / math::pow_10(dec) == 1, 0);
+
+        // let (value, dec) =  price_of(&type_info::type_name<USDT>());
+        // assert!(value / math::pow_10(dec) == 1, 0);
     }
 }
