@@ -99,6 +99,15 @@ module leizd::risk_factor {
         assert!(!table::contains<string::String, u64>(&config_ref.ltv, name), error::invalid_argument(EALREADY_ADDED_ASSET));
         table::upsert<string::String,u64>(&mut config_ref.ltv, name, DEFAULT_LTV);
         table::upsert<string::String,u64>(&mut config_ref.lt, name, DEFAULT_THRESHOLD);
+        event::emit_event<UpdateConfigEvent>(
+            &mut borrow_global_mut<RepositoryAssetEventHandle>(owner_address).update_config_event,
+            UpdateConfigEvent {
+                caller: owner_address,
+                key: name,
+                ltv: config_ref.ltv,
+                lt: config_ref.lt,
+            }
+        )
     }
 
     public entry fun update_protocol_fees(owner: &signer, fees: ProtocolFees) acquires ProtocolFees, RepositoryEventHandle {
