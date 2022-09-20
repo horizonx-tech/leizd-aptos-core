@@ -59,7 +59,6 @@ module leizd_aptos_external::price_oracle_prod {
     public fun price<C>(): u64 acquires AggregatorStorage {
         (price_internal(type_info::type_name<C>()) as u64)
     }
-
     public fun price_of(name: &string::String): u64 acquires AggregatorStorage {
         (price_internal(*name) as u64)
     }
@@ -67,7 +66,6 @@ module leizd_aptos_external::price_oracle_prod {
     public fun volume(name: &string::String, amount: u64): u64 acquires AggregatorStorage {
         amount * price_of(name)
     }
-
     public fun amount(name: &string::String, volume: u64): u64 acquires AggregatorStorage {
         volume / price_of(name)
     }
