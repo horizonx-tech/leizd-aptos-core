@@ -397,7 +397,7 @@ module leizd::risk_factor {
         assert!(lt_of(name) == PRECISION / 100 * 40, 0);
         assert!(lt_of_shadow() == PRECISION / 100 * 40, 0);
         let event_handle = borrow_global<RepositoryAssetEventHandle>(owner_addr);
-        assert!(event::counter(&event_handle.update_config_event) == 2, 0);
+        assert!(event::counter(&event_handle.update_config_event) == 1, 0);
     }
     #[test(owner=@leizd)]
     #[expected_failure(abort_code = 65538)]
