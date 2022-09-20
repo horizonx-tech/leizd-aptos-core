@@ -334,7 +334,7 @@ module leizd::risk_factor {
         assert!(*new_ltv == DEFAULT_LTV, 0);
         assert!(*new_lt == DEFAULT_THRESHOLD, 0);
     }
-    
+
     #[test(owner = @leizd, account = @0x111)]
     public entry fun test_new_asset_without_owner(owner: &signer, account: &signer) acquires Config, RepositoryAssetEventHandle {
         let owner_addr = signer::address_of(owner);
@@ -377,7 +377,7 @@ module leizd::risk_factor {
         assert!(lt<TestAsset>() == PRECISION / 100 * 90, 0);
         assert!(lt_of(name) == PRECISION / 100 * 90, 0);
         let event_handle = borrow_global<RepositoryAssetEventHandle>(owner_addr);
-        assert!(event::counter(&event_handle.update_config_event) == 1, 0);
+        assert!(event::counter(&event_handle.update_config_event) == 2, 0);
     }
     #[test(owner=@leizd)]
     public entry fun test_update_config_with_usdz(owner: &signer) acquires Config, RepositoryAssetEventHandle {
@@ -397,7 +397,7 @@ module leizd::risk_factor {
         assert!(lt_of(name) == PRECISION / 100 * 40, 0);
         assert!(lt_of_shadow() == PRECISION / 100 * 40, 0);
         let event_handle = borrow_global<RepositoryAssetEventHandle>(owner_addr);
-        assert!(event::counter(&event_handle.update_config_event) == 1, 0);
+        assert!(event::counter(&event_handle.update_config_event) == 2, 0);
     }
     #[test(owner=@leizd)]
     #[expected_failure(abort_code = 65538)]
