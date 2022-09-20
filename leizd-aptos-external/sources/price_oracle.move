@@ -46,7 +46,7 @@ module leizd_aptos_external::price_oracle {
     }
 
     #[test_only]
-    use leizd_aptos_external::test_coin_in_external::{USDC, WETH, UNI, USDT};
+    use leizd_aptos_common::test_coin::{USDC, WETH, UNI, USDT};
     #[test(owner = @leizd_aptos_external)]
     fun test_initialize(owner: &signer) {
         initialize(owner);
