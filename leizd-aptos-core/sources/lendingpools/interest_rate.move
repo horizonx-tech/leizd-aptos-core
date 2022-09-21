@@ -163,27 +163,9 @@ module leizd::interest_rate {
 
         let slopei = calc_slope_i(cref.ki, u, cref.uopt);
         
-        let rp; // possibly negative
+        let rp = calc_rp(u, cref.ucrit, cref.ulow, cref.kcrit, cref.klow, tcrit);
         let slope = calc_slope(slopei, u, cref.ucrit, cref.kcrit, cref.beta);
-        
-        if (u > cref.ucrit) {
-            rp = i128::from(cref.kcrit * (PRECISION + cref.tcrit) / PRECISION * (u - cref.ucrit) / PRECISION);
-            tcrit = tcrit + cref.beta * time;
-        } else {
-            // _l.rp = _min(0, _c.klow * (_l.u - _c.ulow) / _DP);
-            rp = if (u >= cref.ulow) i128::zero() else i128::div(
-                &i128::mul(
-                    &i128::from(cref.klow),
-                    &i128::sub(
-                        &i128::from(cref.ulow),
-                        &i128::from(u)
-                    )
-                ),
-                &i128::from(PRECISION)
-            );
-            // Tcrit = _max(0, Tcrit - _c.beta * _l.T);
-            tcrit = if (tcrit >= cref.beta * time) tcrit - cref.beta * time else 0;
-        };
+        tcrit = calc_tcrit(tcrit, u, cref.ucrit, cref.beta, time);
         
         let rlin = i128::from(cref.klin * u / PRECISION); // rlin:positive
         let ri = i128::from(math128::max(ri_u128, cref.klin * u / PRECISION)); // ri:positive
@@ -212,6 +194,33 @@ module leizd::interest_rate {
         };
 
         (rcomp, i128::as_u128(&ri), !i128::is_neg(&ri), tcrit, overflow)
+    }
+
+    fun calc_rp(u: u128, ucrit: u128, ulow: u128, kcrit: u128, klow: u128, tcrit: u128): i128::I128 {
+        if (u > ucrit) {
+            i128::from(kcrit * (PRECISION + tcrit) / PRECISION * (u - ucrit) / PRECISION)
+        } else {
+            // _l.rp = _min(0, _c.klow * (_l.u - _c.ulow) / _DP);
+            if (u >= ulow) i128::zero() 
+            else i128::div(
+                &i128::mul(
+                    &i128::from(klow),
+                    &i128::sub(
+                        &i128::from(u),
+                        &i128::from(ulow)
+                    )
+                ),
+                &i128::from(PRECISION)
+            )
+        }
+    }
+
+    fun calc_tcrit(tcrit: u128, u: u128, ucrit: u128, beta: u128, time: u128): u128 {
+        if (u > ucrit) {
+            tcrit + beta * time
+        } else {
+            if (tcrit > beta * time) tcrit - beta * time else 0
+        }
     }
 
     fun calc_slope(slopei: i128::I128, u: u128, ucrit: u128, kcrit: u128, beta: u128): i128::I128 {
@@ -359,7 +368,7 @@ module leizd::interest_rate {
         PRECISION
     }
 
-    // use std::debug;
+    use std::debug;
 
     #[test]
     public entry fun test_calc__rcomp() {
@@ -448,5 +457,23 @@ module leizd::interest_rate {
         let beta = 277778;
         let slope = calc_slope(slopei, u, ucrit, kcrit, beta);
         assert!(i128::as_u128(&i128::abs(&slope)) == 39747374, 0);
+    }
+
+    #[test]
+    public entry fun test_calc_tcrit() {
+        let tcrit = 3600;
+        let u = 500000000; // 50%
+        let ucrit = 850000000; // 85%
+        let beta = 277778;
+        let time = 360000;
+        let tcrit = calc_tcrit(tcrit, u, ucrit, beta, time);
+        debug::print(&tcrit);
+
+        // TODO
+    }
+
+    #[test]
+    public entry fun test_calc_rp() {
+        // TODO
     }
 }
