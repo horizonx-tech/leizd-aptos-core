@@ -156,18 +156,18 @@ module leizd::money_market {
     /// Switch the deposited position.
     /// If a user want to switch the collateral to the collateral_only to protect it or vice versa
     /// without the liquidation risk, the user should call this function.
-    /// `is_collateral_only` should be true if the user wants to switch it to the collateral_only.
-    /// `is_collateral_only` should be false if the user wants to switch it to the borrowable collateral.
-    public entry fun switch_deposited_position<C,P>(account: &signer, is_collateral_only: bool) {
+    /// `to_collateral_only` should be true if the user wants to switch it to the collateral_only.
+    /// `to_collateral_only` should be false if the user wants to switch it to the borrowable collateral.
+    public entry fun switch_collateral<C,P>(account: &signer, to_collateral_only: bool) {
         pool_type::assert_pool_type<P>();
 
         let addr = signer::address_of(account);
-        let amount = account_position::switch_deposited_position<C,P>(addr, is_collateral_only);
+        let amount = account_position::switch_collateral<C,P>(addr, to_collateral_only);
         let is_shadow = pool_type::is_type_shadow<P>();
         if (is_shadow) {
-            shadow_pool::switch_deposited_position(amount, is_collateral_only);
+            shadow_pool::switch_collateral(amount, to_collateral_only);
         } else {
-            asset_pool::switch_deposited_position<C>(amount, is_collateral_only);
+            asset_pool::switch_collateral<C>(amount, to_collateral_only);
         };
     }
 

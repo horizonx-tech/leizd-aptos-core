@@ -391,7 +391,7 @@ module leizd::account_position {
         insufficient
     }
 
-    public(friend) fun switch_deposited_position<C,P>(addr: address, to_collateral_only: bool): u64 acquires Position, AccountPositionEventHandle {
+    public(friend) fun switch_collateral<C,P>(addr: address, to_collateral_only: bool): u64 acquires Position, AccountPositionEventHandle {
         let deposited;
         if (pool_type::is_type_asset<P>()) {
             if (to_collateral_only) {

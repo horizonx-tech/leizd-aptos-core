@@ -345,11 +345,11 @@ module leizd::asset_pool {
         );
     }
 
-    public(friend) fun switch_deposited_position<C>(amount: u64, is_collateral_only: bool) acquires Storage {
-        switch_deposited_position_internal<C>(amount, is_collateral_only);
+    public(friend) fun switch_collateral<C>(amount: u64, is_collateral_only: bool) acquires Storage {
+        switch_collateral_internal<C>(amount, is_collateral_only);
     }
 
-    fun switch_deposited_position_internal<C>(amount: u64, is_collateral_only: bool) acquires Storage {
+    fun switch_collateral_internal<C>(amount: u64, is_collateral_only: bool) acquires Storage {
         let owner_address = permission::owner_address();
         let storage_ref = borrow_global_mut<Storage<C>>(owner_address);
         if (is_collateral_only) {

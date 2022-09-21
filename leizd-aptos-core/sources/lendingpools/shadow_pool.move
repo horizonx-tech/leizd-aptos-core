@@ -447,11 +447,11 @@ module leizd::shadow_pool {
         );
     }
 
-    public(friend) fun switch_deposited_position(amount: u64, is_collateral_only: bool) acquires Storage {
-        switch_deposited_position_internal(amount, is_collateral_only);
+    public(friend) fun switch_collateral(amount: u64, is_collateral_only: bool) acquires Storage {
+        switch_collateral_internal(amount, is_collateral_only);
     }
 
-    fun switch_deposited_position_internal(amount: u64, is_collateral_only: bool) acquires Storage {
+    fun switch_collateral_internal(amount: u64, is_collateral_only: bool) acquires Storage {
         let owner_address = permission::owner_address();
         let storage_ref = borrow_global_mut<Storage>(owner_address);
         if (is_collateral_only) {
