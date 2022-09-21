@@ -200,7 +200,7 @@ module leizd::stability_pool {
         while (i > 0) {
             i = i - 1;
             if (*vector::borrow<String>(supported_pools, i) == key) {
-                return
+                break
             }
         };
         vector::remove<String>(supported_pools, i);
