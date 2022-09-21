@@ -65,7 +65,7 @@ module leizd::interest_rate {
         set_config_event: event::EventHandle<SetConfigEvent>,
     }
 
-    public(friend) fun initialize<C>(owner: &signer) {
+    public(friend) fun initialize<C>(owner: &signer) acquires InterestRateEventHandle {
         let config = default_config<C>();
         assert_config(config);
 
@@ -73,6 +73,23 @@ module leizd::interest_rate {
         move_to(owner, InterestRateEventHandle<C> {
             set_config_event: account::new_event_handle<SetConfigEvent>(owner)
         });
+        let owner_address = signer::address_of(owner);
+        event::emit_event<SetConfigEvent>(
+            &mut borrow_global_mut<InterestRateEventHandle<C>>(owner_address).set_config_event,
+            SetConfigEvent {
+                caller: owner_address,
+                uopt: config.uopt,
+                ucrit: config.ucrit,
+                ulow: config.ulow,
+                ki: config.ki,
+                kcrit: config.kcrit,
+                klow: config.klow,
+                klin: config.klin,
+                beta: config.beta,
+                ri: config.ri,
+                tcrit: config.tcrit,
+            }
+        )
     }
     
     public fun default_config<C>(): Config<C> {
