@@ -384,7 +384,7 @@ module leizd::account_position {
         insufficient
     }
 
-    fun deposited_volume<P>(addr: address, key: String): u64 acquires Position {
+    fun deposited_volume<P>(addr: address, key: String): u128 acquires Position {
         let position_ref = borrow_global_mut<Position<P>>(addr);
         if (vector::contains<String>(&position_ref.coins, &key)) {
             let deposited = simple_map::borrow<String,Balance>(&position_ref.balance, &key).deposited;
@@ -394,7 +394,7 @@ module leizd::account_position {
         }
     }
 
-    fun borrowed_volume<P>(addr: address, key: String): u64 acquires Position {
+    fun borrowed_volume<P>(addr: address, key: String): u128 acquires Position {
         let position_ref = borrow_global_mut<Position<P>>(addr);
         if (vector::contains<String>(&position_ref.coins, &key)) {
             let borrowed = simple_map::borrow<String,Balance>(&position_ref.balance, &key).borrowed;
@@ -535,14 +535,14 @@ module leizd::account_position {
         !vector::contains<String>(&position_ref.coins, &key)
     }
 
-    fun utilization_of<P>(position_ref: &Position<P>, key: String): u64 {
+    fun utilization_of<P>(position_ref: &Position<P>, key: String): u128 {
         if (vector::contains<String>(&position_ref.coins, &key)) {
             let deposited = simple_map::borrow<String,Balance>(&position_ref.balance, &key).deposited;
             if (deposited == 0) { 
                 return 0 
             };
             let borrowed = simple_map::borrow<String,Balance>(&position_ref.balance, &key).borrowed;
-            price_oracle::volume(&key, borrowed) * risk_factor::precision() / price_oracle::volume(&key, deposited)
+            price_oracle::volume(&key, borrowed) * (risk_factor::precision() as u64) / price_oracle::volume(&key, deposited)
         } else {
             0
         }

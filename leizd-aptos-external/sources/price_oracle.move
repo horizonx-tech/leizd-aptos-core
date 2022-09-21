@@ -47,20 +47,20 @@ module leizd_aptos_external::price_oracle {
         (value, dec)
     }
 
-    public fun volume(name: &string::String, amount: u64): u64 {
+    public fun volume(name: &string::String, amount: u64): u128 {
         // let (value, dec) = price_of(name);
         // let result = (amount as u128) * value / math::pow_10(dec);
         // (result as u64) // TODO: use u128
         name;
-        amount * 1
+        (amount as u128) * 1
     }
 
-    public fun amount(name: &string::String, volume: u64): u64 {
+    public fun amount(name: &string::String, volume: u64): u128 {
         // let (value, dec) = price_of(name);
         // let result = (volume as u128) * math::pow_10(dec) / value;
         // (result as u64) // TODO: use u128
         name;
-        volume / 1
+        (volume as u128) / 1
     }
 
     #[test_only]

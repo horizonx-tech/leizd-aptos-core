@@ -66,15 +66,15 @@ module leizd_aptos_external::price_oracle_prod {
         (value, dec)
     }
 
-    public fun volume(name: &string::String, amount: u64): u64 acquires Config, AggregatorStorage {
+    public fun volume(name: &string::String, amount: u64): u128 acquires Config, AggregatorStorage {
         let (value, dec) = price_of(name);
         let result = (amount as u128) * value / math::pow_10(dec);
-        (result as u64) // TODO: use u128
+        result
     }
-    public fun amount(name: &string::String, volume: u64): u64 acquires Config, AggregatorStorage {
+    public fun amount(name: &string::String, volume: u64): u128 acquires Config, AggregatorStorage {
         let (value, dec) = price_of(name);
         let result = (volume as u128) * math::pow_10(dec) / value;
-        (result as u64) // TODO: use u128
+        result
     }
 
     #[test_only]
