@@ -578,6 +578,10 @@ module leizd::account_position {
             update_on_borrow<C,AssetToShadow>(borrower_addr, amount);
         };
     }
+    #[test_only]
+    public fun initialize_if_necessary_for_test(account: &signer) {
+        initialize_if_necessary(account);
+    }
 
     #[test(account=@0x111)]
     public fun test_protect_coin_and_unprotect_coin(account: &signer) acquires Position, AccountPositionEventHandle {

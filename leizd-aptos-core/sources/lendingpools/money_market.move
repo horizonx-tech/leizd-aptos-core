@@ -150,6 +150,8 @@ module leizd::money_market {
     #[test_only]
     use aptos_framework::account;
     #[test_only]
+    use aptos_framework::coin;
+    #[test_only]
     use aptos_framework::managed_coin;
     #[test_only]
     use aptos_framework::timestamp;
@@ -192,7 +194,7 @@ module leizd::money_market {
         managed_coin::register<USDZ>(account);
     }
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
-    fun test_deposit_asset(owner: &signer, account: &signer, aptos_framework: &signer) {
+    fun test_deposit_with_asset(owner: &signer, account: &signer, aptos_framework: &signer) {
         initialize_lending_pool_for_test(owner, aptos_framework);
         setup_account_for_test(account);
         let account_addr = signer::address_of(account);
@@ -200,11 +202,12 @@ module leizd::money_market {
 
         deposit<WETH, Asset>(account, 100, false);
 
+        assert!(coin::balance<WETH>(account_addr) == 0, 0);
         assert!(asset_pool::total_deposited<WETH>() == 100, 0);
         assert!(account_position::deposited_asset<WETH>(account_addr) == 100, 0);
     }
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
-    fun test_deposit_shadow(owner: &signer, account: &signer, aptos_framework: &signer) {
+    fun test_deposit_with_shadow(owner: &signer, account: &signer, aptos_framework: &signer) {
         initialize_lending_pool_for_test(owner, aptos_framework);
         setup_account_for_test(account);
         let account_addr = signer::address_of(account);
@@ -212,7 +215,42 @@ module leizd::money_market {
 
         deposit<WETH, Shadow>(account, 100, false);
 
+        assert!(coin::balance<WETH>(account_addr) == 0, 0);
         assert!(shadow_pool::deposited<WETH>() == 100, 0);
         assert!(account_position::deposited_shadow<WETH>(account_addr) == 100, 0);
+    }
+    #[test(owner=@leizd,account=@0x111,for=@0x222,aptos_framework=@aptos_framework)]
+    fun test_deposit_for_with_asset(owner: &signer, account: &signer, for: &signer, aptos_framework: &signer) {
+        initialize_lending_pool_for_test(owner, aptos_framework);
+        setup_account_for_test(account);
+        let account_addr = signer::address_of(account);
+        managed_coin::mint<WETH>(owner, account_addr, 100);
+
+        setup_account_for_test(for);
+        account_position::initialize_if_necessary_for_test(for); // NOTE: fail deposit_for if Position resource is initialized
+
+        let for_addr = signer::address_of(for);
+        deposit_for<WETH, Asset>(account, for_addr, 100, false);
+
+        assert!(coin::balance<WETH>(account_addr) == 0, 0);
+        assert!(asset_pool::total_deposited<WETH>() == 100, 0);
+        assert!(account_position::deposited_asset<WETH>(for_addr) == 100, 0);
+    }
+    #[test(owner=@leizd,account=@0x111,for=@0x222,aptos_framework=@aptos_framework)]
+    fun test_deposit_for_with_shadow(owner: &signer, account: &signer, for: &signer, aptos_framework: &signer) {
+        initialize_lending_pool_for_test(owner, aptos_framework);
+        setup_account_for_test(account);
+        let account_addr = signer::address_of(account);
+        usdz::mint_for_test(account_addr, 100);
+
+        setup_account_for_test(for);
+        account_position::initialize_if_necessary_for_test(for); // NOTE: fail deposit_for if Position resource is initialized
+
+        let for_addr = signer::address_of(for);
+        deposit_for<WETH, Shadow>(account, for_addr, 100, false);
+
+        assert!(coin::balance<WETH>(account_addr) == 0, 0);
+        assert!(shadow_pool::deposited<WETH>() == 100, 0);
+        assert!(account_position::deposited_shadow<WETH>(for_addr) == 100, 0);
     }
 }
