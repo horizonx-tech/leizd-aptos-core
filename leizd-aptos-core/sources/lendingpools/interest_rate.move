@@ -81,7 +81,7 @@ module leizd::interest_rate {
             ucrit: 900000000, // 90%
             ulow: 500000000,  // 50%
             ki: 367011, // double scale 0.000367011
-            kcrit: 951, // 30%   -> 30  e9 / (365*24*3600)
+            kcrit: 951, // 30%   -> 30  e9 / (365*24*3600) // TODO: 28%
             klow: 10,   // 3%    -> 3   e9 / (365*24*3600)
             klin: 2,    // 0.05% -> 0.05e9 / (365*24*3600)
             beta: 277777777777778,
@@ -228,73 +228,8 @@ module leizd::interest_rate {
                 &i128::from(time)
             ),
         );
-        
-        let x; // x:possibly negative
-        // let x_positive;
-        if (i128::compare(&r0, &rlin) == GREATER_THAN && i128::compare(&r1, &rlin) == GREATER_THAN) {
-            // _l.x = (_l.r0 + _l.r1) * _l.T / 2;
-            x = i128::div(
-                &i128::mul(
-                    &i128::add(
-                        &r0,
-                        &r1
-                    ),
-                    &i128::from(time)
-                ),
-                &i128::from(2)
-            );
-        } else if (i128::compare(&r0, &rlin) == LESS_THAN && i128::compare(&r1, &rlin) == LESS_THAN) {
-            // _l.x = _l.rlin * _l.T;
-            x = i128::mul(&rlin, &i128::from(time));
-        } else if (i128::compare(&r0, &rlin) == GREATER_THAN && i128::compare(&r1, &rlin) == LESS_THAN) {
-            // _l.x = _l.rlin * _l.T - (_l.r0 - _l.rlin)**2 / _l.slope / 2;
-            x = i128::sub(
-                &i128::mul(
-                    &rlin, 
-                    &i128::from(time)
-                ),
-                &i128::div(
-                    &i128::div(
-                        &i128::mul(
-                            &i128::sub(
-                                &r0,
-                                &rlin
-                            ),
-                            &i128::sub(
-                                &r0,
-                                &rlin
-                            )
-                        ),
-                        &slope
-                    ),
-                    &i128::from(2)
-                )
-            );
-        } else {
-            // _l.x = _l.rlin * _l.T + (_l.r1 - _l.rlin)**2 / _l.slope / 2;
-            x = i128::add(
-                &i128::mul(
-                    &rlin, 
-                    &i128::from(time)
-                ),
-                &i128::div(
-                    &i128::div(
-                        &i128::mul(
-                            &i128::sub(
-                                &r0,
-                                &rlin
-                            ),
-                            &i128::sub(
-                                &r0,
-                                &rlin
-                            )
-                        ),
-                        &slope
-                    ),
-                    &i128::from(2)
-                )
-            );
-        };
+        let x = calc_x(r0, r1, rlin, slope, time);
+   
         ri = if (i128::compare(&i128::add(&ri, &i128::mul(&slopei, &i128::from(time))), &rlin) == GREATER_THAN) {
             i128::add(&ri, &i128::mul(&slopei, &i128::from(time)))
         } else {
@@ -311,26 +246,89 @@ module leizd::interest_rate {
         (rcomp, i128::as_u128(&ri), !i128::is_neg(&ri), tcrit, overflow)
     }
 
+    fun calc_x(r0: i128::I128, r1: i128::I128, rlin: i128::I128, slope: i128::I128, time: u128): (i128::I128) {
+        if (i128::compare(&r0, &rlin) == GREATER_THAN && i128::compare(&r1, &rlin) == GREATER_THAN) {
+            i128::div(
+                &i128::mul(
+                    &i128::add(
+                        &r0,
+                        &r1
+                    ),
+                    &i128::from(time)
+                ),
+                &i128::from(2)
+            )
+        } else if (i128::compare(&r0, &rlin) == LESS_THAN && i128::compare(&r1, &rlin) == LESS_THAN) {
+            i128::mul(&rlin, &i128::from(time))
+        } else if (i128::compare(&r0, &rlin) == GREATER_THAN && i128::compare(&r1, &rlin) == LESS_THAN) {
+            i128::sub(
+                &i128::mul(
+                    &rlin, 
+                    &i128::from(time)
+                ),
+                &i128::div(
+                    &i128::div(
+                        &i128::mul(
+                            &i128::sub(
+                                &r0,
+                                &rlin
+                            ),
+                            &i128::sub(
+                                &r0,
+                                &rlin
+                            )
+                        ),
+                        &slope
+                    ),
+                    &i128::from(2)
+                )
+            )
+        } else {
+            i128::add(
+                &i128::mul(
+                    &rlin, 
+                    &i128::from(time)
+                ),
+                &i128::div(
+                    &i128::div(
+                        &i128::mul(
+                            &i128::sub(
+                                &r0,
+                                &rlin
+                            ),
+                            &i128::sub(
+                                &r0,
+                                &rlin
+                            )
+                        ),
+                        &slope
+                    ),
+                    &i128::from(2)
+                )
+            )
+        }
+    }
+
+    fun calc__rcomp(x: i128::I128): (u128,bool) {
+        if (i128::compare(&x, &i128::from(X_MAX)) == GREATER_THAN) {
+            (RCOMP_MAX, true)
+        } else {
+            let expx = prb_math_30x9::exp(i128::as_u128(&x), !i128::is_neg(&x));
+            if (expx > PRECISION) {
+                (expx - PRECISION, false)
+            } else {
+                 (0, false)
+            }
+        }
+    }
+
     fun calc_rcomp(
         total_deposits: u128,
         total_borrows: u128,
         x: i128::I128): (u128,bool) 
     {
-        let rcomp;
-        let overflow = false;
-        if (i128::compare(&x, &i128::from(X_MAX)) == GREATER_THAN) {
-            rcomp = RCOMP_MAX;
-            overflow = true;
-        } else {
-            // rcompSigned = _x.exp() - int256(DP);
-            // rcomp = rcompSigned > 0 ? rcompSigned.toUint256() : 0;
-            let expx = prb_math_30x9::exp(i128::as_u128(&x), !i128::is_neg(&x));
-            if (expx > PRECISION) {
-                rcomp = expx - PRECISION
-            } else {
-                rcomp = 0;
-            };
-        };
+        let (rcomp, overflow) = calc__rcomp(x);
+
         let max_amount = if (total_deposits > total_borrows) total_deposits else total_borrows;
         if (max_amount >= ASSET_DATA_OVERFLOW_LIMIT) {
             return (0, true)
@@ -352,5 +350,50 @@ module leizd::interest_rate {
 
     public fun precision(): u128 {
         PRECISION
+    }
+
+    // use std::debug;
+
+    #[test]
+    public entry fun test_calc__rcomp() {
+        let (rcomp, overflow) = calc__rcomp(i128::from(X_MAX+1));
+        assert!(overflow, 0);
+        assert!(rcomp == RCOMP_MAX, 0);
+
+        let (rcomp, overflow) = calc__rcomp(i128::from(X_MAX));
+        assert!(!overflow, 0);
+        let exp_x = prb_math_30x9::exp(X_MAX, true);
+        assert!(rcomp == exp_x-PRECISION, 0);
+
+        let x = 321200000; // 0.3212
+        let (rcomp, overflow) = calc__rcomp(i128::from(x));
+        assert!(rcomp == 378781309, 0); // 0.378781309
+        assert!(!overflow, 0);
+
+        let x = 500000000; // 0.5
+        let (rcomp, overflow) = calc__rcomp(i128::from(x));
+        assert!(rcomp == 648721270, 0); // 0.648721270
+        assert!(!overflow, 0);
+
+        let x = 1000000000; // 1
+        let (rcomp, overflow) = calc__rcomp(i128::from(x));
+        assert!(rcomp == 1718281826, 0); // e = 2.718281826
+        assert!(!overflow, 0);
+
+        // TODO: add cases
+    }
+
+    #[test]
+    public entry fun test_calc_rcomp() {
+       let (rcomp, overflow) = calc_rcomp(10000000, 5000000, i128::from(1000000000));
+        assert!(rcomp == 1718281826, 0); // e = 2.718281826
+        assert!(!overflow, 0);
+
+        // TODO: add cases
+    }
+
+    #[test]
+    public entry fun test_calc_x() {
+        // TODO
     }
 }
