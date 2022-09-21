@@ -170,14 +170,7 @@ module leizd::interest_rate {
         let rlin = i128::from(cref.klin * u / PRECISION); // rlin:positive
         let ri = i128::from(math128::max(ri_u128, cref.klin * u / PRECISION)); // ri:positive
         let r0 = i128::add(&ri, &rp);
-        // r1 := r0 + slope *T # what interest rate would be at t1 ignoring lower bound
-        let r1 = i128::add(
-            &r0,
-            &i128::mul(
-                &slope,
-                &i128::from(time)
-            ),
-        );
+        let r1 = calc_r1(r0, slope, time);
         let x = calc_x(r0, r1, rlin, slope, time);
    
         ri = if (i128::compare(&i128::add(&ri, &i128::mul(&slopei, &i128::from(time))), &rlin) == GREATER_THAN) {
@@ -194,6 +187,17 @@ module leizd::interest_rate {
         };
 
         (rcomp, i128::as_u128(&ri), !i128::is_neg(&ri), tcrit, overflow)
+    }
+
+    fun calc_r1(r0: i128::I128, slope: i128::I128, time: u128): i128::I128 {
+        // r1 := r0 + slope *T # what interest rate would be at t1 ignoring lower bound
+        i128::add(
+            &r0,
+            &i128::mul(
+                &slope,
+                &i128::from(time)
+            ),
+        )
     }
 
     fun calc_rp(u: u128, ucrit: u128, ulow: u128, kcrit: u128, klow: u128, tcrit: u128): i128::I128 {
@@ -460,18 +464,18 @@ module leizd::interest_rate {
         assert!(i128::as_u128(&i128::abs(&slope)) == 39747374, 0);
     }
 
-    #[test]
-    public entry fun test_calc_tcrit() {
-        let tcrit = 3600;
-        let u = 500000000; // 50%
-        let ucrit = 850000000; // 85%
-        let beta = 277778;
-        let time = 360000;
-        let tcrit = calc_tcrit(tcrit, u, ucrit, beta, time);
-        debug::print(&tcrit);
+    // #[test]
+    // public entry fun test_calc_tcrit() {
+    //     let tcrit = 3600;
+    //     let u = 500000000; // 50%
+    //     let ucrit = 850000000; // 85%
+    //     let beta = 277778;
+    //     let time = 360000;
+    //     let tcrit = calc_tcrit(tcrit, u, ucrit, beta, time);
+    //     debug::print(&tcrit);
 
-        // TODO
-    }
+    //     // TODO
+    // }
 
     #[test]
     public entry fun test_calc_rp() {
@@ -506,6 +510,17 @@ module leizd::interest_rate {
         let tcrit = 0;
         let rp = calc_rp(u, ucrit, ulow, kcrit, klow, tcrit);
         let expected = klow * (ulow - u) / PRECISION;
+        debug::print(&expected);
         assert!(i128::as_u128(&i128::abs(&rp)) == expected, 0);
+    }
+
+    #[test]
+    public entry fun test_calc_r1() {
+        let r0 = i128::from(20);
+        let slope = i128::from(30);
+        let time = 10;
+        let r1 = calc_r1(r0, slope, time);
+        let expected = 20 + 30 * 10;
+        assert!(i128::as_u128(&i128::abs(&r1)) == expected, 0);
     }
 }
