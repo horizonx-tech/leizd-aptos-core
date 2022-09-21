@@ -1,5 +1,6 @@
 module leizd::pool_status {
     use std::error;
+    use std::account;
     use leizd_aptos_common::permission;
     use leizd::system_status;
     use aptos_std::event;
@@ -22,6 +23,9 @@ module leizd::pool_status {
             can_withdraw: true,
             can_borrow: true,
             can_repay: true
+        });
+        move_to(owner, PoolStatusEventHandle<C> {
+            pool_status_update_event: account::new_event_handle<PoolStatusUpdateEvent>(owner),
         });
         emit_current_pool_status<C>();
     }

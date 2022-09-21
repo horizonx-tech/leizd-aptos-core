@@ -2,6 +2,7 @@ module leizd::system_status {
 
     use std::signer;
     use std::event;
+    use std::account;
     use leizd_aptos_common::permission;
 
     friend leizd::system_administrator;
@@ -21,6 +22,9 @@ module leizd::system_status {
         let owner_address = signer::address_of(owner);
         permission::assert_owner(owner_address);
         move_to(owner, SystemStatus { is_active: true });
+        move_to(owner, SystemStatusEventHandle {
+            system_status_upadte_event: account::new_event_handle<SystemStatusUpdateEvent>(owner)
+        });
         emit_current_system_status();
     }
 
