@@ -149,7 +149,7 @@ module leizd::account_position {
         }
     }
 
-    public(friend) fun protect_coin<C>(account: &signer) acquires Position {
+    public(friend) fun enable_to_rebalance<C>(account: &signer) acquires Position {
         let key = generate_key<C>();
         let position_ref = borrow_global_mut<Position<ShadowToAsset>>(signer::address_of(account));
         // assert!(vector::contains<String>(&position_ref.coins, &key), ENOT_EXISTED); // TODO: temp
@@ -158,7 +158,7 @@ module leizd::account_position {
         simple_map::add<String,bool>(&mut position_ref.protected_coins, key, true);
     }
 
-    public(friend) fun unprotect_coin<C>(account: &signer) acquires Position {
+    public(friend) fun unable_to_rebalance<C>(account: &signer) acquires Position {
         let key = generate_key<C>();
         let position_ref = borrow_global_mut<Position<ShadowToAsset>>(signer::address_of(account));
         // assert!(vector::contains<String>(&position_ref.coins, &key), ENOT_EXISTED); // TODO: temp
@@ -391,6 +391,32 @@ module leizd::account_position {
         insufficient
     }
 
+    public(friend) fun switch_deposited_position<C,P>(addr: address, to_collateral_only: bool): u64 acquires Position, AccountPositionEventHandle {
+        let deposited;
+        if (pool_type::is_type_asset<P>()) {
+            if (to_collateral_only) {
+                deposited = deposited_asset<C>(addr);
+                update_on_withdraw<C,AssetToShadow>(addr, deposited, false);
+                update_on_deposit<C,AssetToShadow>(addr, deposited, true);
+            } else {
+                deposited = conly_deposited_asset<C>(addr);
+                update_on_withdraw<C,AssetToShadow>(addr, deposited, true);
+                update_on_deposit<C,AssetToShadow>(addr, deposited, false);
+            }
+        } else {
+            if (to_collateral_only) {
+                deposited = deposited_shadow<C>(addr);
+                update_on_withdraw<C,ShadowToAsset>(addr, deposited, false);
+                update_on_deposit<C,ShadowToAsset>(addr, deposited, true);
+            } else {
+                deposited = conly_deposited_shadow<C>(addr);
+                update_on_withdraw<C,ShadowToAsset>(addr, deposited, true);
+                update_on_deposit<C,ShadowToAsset>(addr, deposited, false);
+            }
+        };
+        deposited
+    }
+
     fun deposited_volume<P>(addr: address, key: String): u64 acquires Position {
         let position_ref = borrow_global_mut<Position<P>>(addr);
         if (vector::contains<String>(&position_ref.coins, &key)) {
@@ -599,10 +625,10 @@ module leizd::account_position {
         new_position<ShadowToAsset>(account_addr, 0, false, key);
         assert!(!is_protected<WETH>(account_addr), 0);
 
-        protect_coin<WETH>(account);
+        enable_to_rebalance<WETH>(account);
         assert!(is_protected<WETH>(account_addr), 0);
 
-        unprotect_coin<WETH>(account);
+        unable_to_rebalance<WETH>(account);
         assert!(!is_protected<WETH>(account_addr), 0);
     }
     #[test(owner=@leizd,account=@0x111)]
@@ -1472,7 +1498,7 @@ module leizd::account_position {
 
         deposit_internal<WETH,Shadow>(account, account_addr, 100, false);
         deposit_internal<UNI,Shadow>(account, account_addr, 100, false);
-        protect_coin<WETH>(account);
+        enable_to_rebalance<WETH>(account);
         rebalance_shadow<WETH, UNI>(account_addr);
     }
     #[test(owner = @leizd, account = @0x111)]
@@ -1484,7 +1510,7 @@ module leizd::account_position {
 
         deposit_internal<WETH,Shadow>(account, account_addr, 100, false);
         deposit_internal<UNI,Shadow>(account, account_addr, 100, false);
-        protect_coin<UNI>(account);
+        enable_to_rebalance<UNI>(account);
         rebalance_shadow<WETH, UNI>(account_addr);
     }
     #[test(owner=@leizd,account1=@0x111)]
@@ -1567,7 +1593,7 @@ module leizd::account_position {
         borrow_internal<WETH,Shadow>(account_addr, 1000);
         deposit_internal<UNI,Shadow>(account, account_addr, 1000, false);
         borrow_unsafe_for_test<UNI,Asset>(account_addr, 1500);
-        protect_coin<WETH>(account);
+        enable_to_rebalance<WETH>(account);
         borrow_and_rebalance<WETH, UNI>(account_addr, false);
     }
     #[test(owner = @leizd, account = @0x111)]
@@ -1581,7 +1607,7 @@ module leizd::account_position {
         borrow_internal<WETH,Shadow>(account_addr, 1000);
         deposit_internal<UNI,Shadow>(account, account_addr, 1000, false);
         borrow_unsafe_for_test<UNI,Asset>(account_addr, 1500);
-        protect_coin<UNI>(account);
+        enable_to_rebalance<UNI>(account);
         borrow_and_rebalance<WETH, UNI>(account_addr, false);
     }
     //// utils for rebalance

@@ -126,12 +126,12 @@ module leizd::money_market {
     }
 
     /// Control available coin to rebalance
-    public entry fun protect_coin<C>(account: &signer) {
-        account_position::protect_coin<C>(account);
+    public entry fun enable_to_rebalance<C>(account: &signer) {
+        account_position::enable_to_rebalance<C>(account);
     }
 
-    public entry fun unprotect_coin<C>(account: &signer) {
-        account_position::unprotect_coin<C>(account);
+    public entry fun unable_to_rebalance<C>(account: &signer) {
+        account_position::unable_to_rebalance<C>(account);
     }
 
     //// Liquidation
@@ -153,8 +153,24 @@ module leizd::money_market {
         };
     }
 
-    // #[test_only]
-    // use aptos_framework::debug;
+    /// Switch the deposited position.
+    /// If a user want to switch the collateral to the collateral_only to protect it or vice versa
+    /// without the liquidation risk, the user should call this function.
+    /// `is_collateral_only` should be true if the user wants to switch it to the collateral_only.
+    /// `is_collateral_only` should be false if the user wants to switch it to the borrowable collateral.
+    public entry fun switch_deposited_position<C,P>(account: &signer, is_collateral_only: bool) {
+        pool_type::assert_pool_type<P>();
+
+        let addr = signer::address_of(account);
+        let amount = account_position::switch_deposited_position<C,P>(addr, is_collateral_only);
+        let is_shadow = pool_type::is_type_shadow<P>();
+        if (is_shadow) {
+            shadow_pool::switch_deposited_position(amount, is_collateral_only);
+        } else {
+            asset_pool::switch_deposited_position<C>(amount, is_collateral_only);
+        };
+    }
+
     #[test_only]
     use aptos_framework::account;
     #[test_only]

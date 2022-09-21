@@ -345,6 +345,21 @@ module leizd::asset_pool {
         );
     }
 
+    public(friend) fun switch_deposited_position<C>(amount: u64, is_collateral_only: bool) acquires Storage {
+        switch_deposited_position_internal<C>(amount, is_collateral_only);
+    }
+
+    fun switch_deposited_position_internal<C>(amount: u64, is_collateral_only: bool) acquires Storage {
+        let owner_address = permission::owner_address();
+        let storage_ref = borrow_global_mut<Storage<C>>(owner_address);
+        if (is_collateral_only) {
+            storage_ref.total_conly_deposited = storage_ref.total_conly_deposited + (amount as u128);
+        } else {
+            storage_ref.total_conly_deposited = storage_ref.total_conly_deposited - (amount as u128);
+        };
+        // TODO: event
+    }
+
     public fun is_pool_initialized<C>(): bool {
         exists<Pool<C>>(permission::owner_address())
     }
