@@ -77,14 +77,14 @@ module leizd::interest_rate {
     
     public fun default_config<C>(): Config<C> {
         Config<C> {
-            uopt: 800000000,  // 80%
-            ucrit: 900000000, // 90%
-            ulow: 500000000,  // 50%
-            ki: 367011, // double scale 0.000367011
-            kcrit: 951, // 30%   -> 30  e9 / (365*24*3600)
-            klow: 10,   // 3%    -> 3   e9 / (365*24*3600)
-            klin: 2,    // 0.05% -> 0.05e9 / (365*24*3600)
-            beta: 277777777777778,
+            uopt: 700000000,  // 0.70 -> 70%
+            ucrit: 850000000, // 0.85 -> 85%
+            ulow: 400000000,  // 0.40 -> 40%
+            ki: 367011,
+            kcrit: 919583967529, // 29%   -> 29  e9 / (365*24*3600)
+            klow: 95129375951,   // 3%    -> 3   e9 / (365*24*3600)
+            klin: 1585489599,    // 0.05% -> 0.05e9 / (365*24*3600)
+            beta: 277778, // 0.0277778,
             ri: 0,
             tcrit: 0,
         }
@@ -161,140 +161,18 @@ module leizd::interest_rate {
         let time = ((now - last_updated) as u128);
         let u = math128::utilization(PRECISION, total_deposits, total_borrows);
 
-        // let slopei = cref.ki * (u - cref.uopt) / PRECISION;
-        let slopei = i128::div(
-            &i128::mul(
-                &i128::from(cref.ki), 
-                &i128::sub(
-                    &i128::from(u), 
-                    &i128::from(cref.uopt)
-                )
-            ), 
-            &i128::from(DOUBLE_SCALE)
-        );
+        let slopei = calc_slope_i(cref.ki, u, cref.uopt);
         
-        let rp; // possibly negative
-        let slope; // possibly negative
-        
-        if (u > cref.ucrit) {
-            rp = i128::from(cref.kcrit * (PRECISION + cref.tcrit) / PRECISION * (u - cref.ucrit) / PRECISION);
-        
-            // _l.slope = _l.slopei + _c.kcrit * _c.beta / _DP * (_l.u - _c.ucrit) / _DP;
-            slope = i128::add(
-                &i128::from(cref.kcrit),
-                &i128::div(
-                    &i128::mul(
-                        &i128::div(
-                            &i128::mul(
-                                &i128::from(cref.kcrit), 
-                                &i128::from(cref.beta)
-                            ),
-                            &i128::from(PRECISION)
-                        ),
-                        &i128::sub(
-                            &i128::from(u),
-                            &i128::from(cref.ucrit)
-                        )
-                    ),
-                    &i128::from(PRECISION)
-                )
-            );
-            tcrit = tcrit + cref.beta * time;
-        } else {
-            // _l.rp = _min(0, _c.klow * (_l.u - _c.ulow) / _DP);
-            rp = if (u >= cref.ulow) i128::zero() else i128::div(
-                &i128::mul(
-                    &i128::from(cref.klow),
-                    &i128::sub(
-                        &i128::from(cref.ulow),
-                        &i128::from(u)
-                    )
-                ),
-                &i128::from(PRECISION)
-            );
-            slope = slopei;
-            // Tcrit = _max(0, Tcrit - _c.beta * _l.T);
-            tcrit = if (tcrit >= cref.beta * time) tcrit - cref.beta * time else 0;
-        };
+        let rp = calc_rp(u, cref.ucrit, cref.ulow, cref.kcrit, cref.klow, tcrit);
+        let slope = calc_slope(slopei, u, cref.ucrit, cref.kcrit, cref.beta);
+        tcrit = calc_tcrit(tcrit, u, cref.ucrit, cref.beta, time);
         
         let rlin = i128::from(cref.klin * u / PRECISION); // rlin:positive
         let ri = i128::from(math128::max(ri_u128, cref.klin * u / PRECISION)); // ri:positive
         let r0 = i128::add(&ri, &rp);
-        // r1 := r0 + slope *T # what interest rate would be at t1 ignoring lower bound
-        let r1 = i128::add(
-            &r0,
-            &i128::mul(
-                &slope,
-                &i128::from(time)
-            ),
-        );
-        
-        let x; // x:possibly negative
-        // let x_positive;
-        if (i128::compare(&r0, &rlin) == GREATER_THAN && i128::compare(&r1, &rlin) == GREATER_THAN) {
-            // _l.x = (_l.r0 + _l.r1) * _l.T / 2;
-            x = i128::div(
-                &i128::mul(
-                    &i128::add(
-                        &r0,
-                        &r1
-                    ),
-                    &i128::from(time)
-                ),
-                &i128::from(2)
-            );
-        } else if (i128::compare(&r0, &rlin) == LESS_THAN && i128::compare(&r1, &rlin) == LESS_THAN) {
-            // _l.x = _l.rlin * _l.T;
-            x = i128::mul(&rlin, &i128::from(time));
-        } else if (i128::compare(&r0, &rlin) == GREATER_THAN && i128::compare(&r1, &rlin) == LESS_THAN) {
-            // _l.x = _l.rlin * _l.T - (_l.r0 - _l.rlin)**2 / _l.slope / 2;
-            x = i128::sub(
-                &i128::mul(
-                    &rlin, 
-                    &i128::from(time)
-                ),
-                &i128::div(
-                    &i128::div(
-                        &i128::mul(
-                            &i128::sub(
-                                &r0,
-                                &rlin
-                            ),
-                            &i128::sub(
-                                &r0,
-                                &rlin
-                            )
-                        ),
-                        &slope
-                    ),
-                    &i128::from(2)
-                )
-            );
-        } else {
-            // _l.x = _l.rlin * _l.T + (_l.r1 - _l.rlin)**2 / _l.slope / 2;
-            x = i128::add(
-                &i128::mul(
-                    &rlin, 
-                    &i128::from(time)
-                ),
-                &i128::div(
-                    &i128::div(
-                        &i128::mul(
-                            &i128::sub(
-                                &r0,
-                                &rlin
-                            ),
-                            &i128::sub(
-                                &r0,
-                                &rlin
-                            )
-                        ),
-                        &slope
-                    ),
-                    &i128::from(2)
-                )
-            );
-        };
+        let r1 = calc_r1(r0, slope, time);
+        let x = calc_x(r0, r1, rlin, slope, time);
+   
         ri = if (i128::compare(&i128::add(&ri, &i128::mul(&slopei, &i128::from(time))), &rlin) == GREATER_THAN) {
             i128::add(&ri, &i128::mul(&slopei, &i128::from(time)))
         } else {
@@ -311,26 +189,167 @@ module leizd::interest_rate {
         (rcomp, i128::as_u128(&ri), !i128::is_neg(&ri), tcrit, overflow)
     }
 
+    fun calc_r1(r0: i128::I128, slope: i128::I128, time: u128): i128::I128 {
+        // r1 := r0 + slope *T # what interest rate would be at t1 ignoring lower bound
+        i128::add(
+            &r0,
+            &i128::mul(
+                &slope,
+                &i128::from(time)
+            ),
+        )
+    }
+
+    fun calc_rp(u: u128, ucrit: u128, ulow: u128, kcrit: u128, klow: u128, tcrit: u128): i128::I128 {
+        if (u > ucrit) {
+            // _l.rp = _c.kcrit * (_DP + Tcrit) / _DP * (_l.u - _c.ucrit) / _DP;
+            i128::from(kcrit * (PRECISION + tcrit) / PRECISION * (u - ucrit) / PRECISION)
+        } else {
+            // _l.rp = _min(0, _c.klow * (_l.u - _c.ulow) / _DP);
+            if (u >= ulow) i128::zero() 
+            else i128::div(
+                &i128::mul(
+                    &i128::from(klow),
+                    &i128::sub(
+                        &i128::from(u),
+                        &i128::from(ulow)
+                    )
+                ),
+                &i128::from(PRECISION)
+            )
+        }
+    }
+
+    fun calc_tcrit(tcrit: u128, u: u128, ucrit: u128, beta: u128, time: u128): u128 {
+        if (u > ucrit) {
+            tcrit + beta * time
+        } else {
+            if (tcrit > beta * time) tcrit - beta * time else 0
+        }
+    }
+
+    fun calc_slope(slopei: i128::I128, u: u128, ucrit: u128, kcrit: u128, beta: u128): i128::I128 {
+        if (u > ucrit) {
+            i128::add(
+                &slopei,
+                &i128::div(
+                    &i128::mul(
+                        &i128::div(
+                            &i128::mul(
+                                &i128::from(kcrit), 
+                                &i128::from(beta)
+                            ),
+                            &i128::from(PRECISION)
+                        ),
+                        &i128::sub(
+                            &i128::from(u),
+                            &i128::from(ucrit)
+                        )
+                    ),
+                    &i128::from(PRECISION)
+                )
+            )
+        } else {
+            slopei
+        }            
+    }
+
+    fun calc_slope_i(ki: u128, u: u128, uopt: u128): i128::I128 {
+        i128::div(
+            &i128::mul(
+                &i128::from(ki), 
+                &i128::sub(
+                    &i128::from(u), 
+                    &i128::from(uopt)
+                )
+            ), 
+            &i128::from(PRECISION)
+        )
+    }
+
+    fun calc_x(r0: i128::I128, r1: i128::I128, rlin: i128::I128, slope: i128::I128, time: u128): (i128::I128) {
+        if (i128::compare(&r0, &rlin) == GREATER_THAN && i128::compare(&r1, &rlin) == GREATER_THAN) {
+            i128::div(
+                &i128::mul(
+                    &i128::add(
+                        &r0,
+                        &r1
+                    ),
+                    &i128::from(time)
+                ),
+                &i128::from(2)
+            )
+        } else if (i128::compare(&r0, &rlin) == LESS_THAN && i128::compare(&r1, &rlin) == LESS_THAN) {
+            i128::mul(&rlin, &i128::from(time))
+        } else if (i128::compare(&r0, &rlin) == GREATER_THAN && i128::compare(&r1, &rlin) == LESS_THAN) {
+            i128::sub(
+                &i128::mul(
+                    &rlin, 
+                    &i128::from(time)
+                ),
+                &i128::div(
+                    &i128::div(
+                        &i128::mul(
+                            &i128::sub(
+                                &r0,
+                                &rlin
+                            ),
+                            &i128::sub(
+                                &r0,
+                                &rlin
+                            )
+                        ),
+                        &slope
+                    ),
+                    &i128::from(2)
+                )
+            )
+        } else {
+            i128::add(
+                &i128::mul(
+                    &rlin, 
+                    &i128::from(time)
+                ),
+                &i128::div(
+                    &i128::div(
+                        &i128::mul(
+                            &i128::sub(
+                                &r0,
+                                &rlin
+                            ),
+                            &i128::sub(
+                                &r0,
+                                &rlin
+                            )
+                        ),
+                        &slope
+                    ),
+                    &i128::from(2)
+                )
+            )
+        }
+    }
+
+    fun calc__rcomp(x: i128::I128): (u128,bool) {
+        if (i128::compare(&x, &i128::from(X_MAX)) == GREATER_THAN) {
+            (RCOMP_MAX, true)
+        } else {
+            let expx = prb_math_30x9::exp(i128::as_u128(&x), !i128::is_neg(&x));
+            if (expx > PRECISION) {
+                (expx - PRECISION, false)
+            } else {
+                 (0, false)
+            }
+        }
+    }
+
     fun calc_rcomp(
         total_deposits: u128,
         total_borrows: u128,
         x: i128::I128): (u128,bool) 
     {
-        let rcomp;
-        let overflow = false;
-        if (i128::compare(&x, &i128::from(X_MAX)) == GREATER_THAN) {
-            rcomp = RCOMP_MAX;
-            overflow = true;
-        } else {
-            // rcompSigned = _x.exp() - int256(DP);
-            // rcomp = rcompSigned > 0 ? rcompSigned.toUint256() : 0;
-            let expx = prb_math_30x9::exp(i128::as_u128(&x), !i128::is_neg(&x));
-            if (expx > PRECISION) {
-                rcomp = expx - PRECISION
-            } else {
-                rcomp = 0;
-            };
-        };
+        let (rcomp, overflow) = calc__rcomp(x);
+
         let max_amount = if (total_deposits > total_borrows) total_deposits else total_borrows;
         if (max_amount >= ASSET_DATA_OVERFLOW_LIMIT) {
             return (0, true)
@@ -352,5 +371,156 @@ module leizd::interest_rate {
 
     public fun precision(): u128 {
         PRECISION
+    }
+
+    use std::debug;
+
+    #[test]
+    public entry fun test_calc__rcomp() {
+        let (rcomp, overflow) = calc__rcomp(i128::from(X_MAX+1));
+        assert!(overflow, 0);
+        assert!(rcomp == RCOMP_MAX, 0);
+
+        let (rcomp, overflow) = calc__rcomp(i128::from(X_MAX));
+        assert!(!overflow, 0);
+        let exp_x = prb_math_30x9::exp(X_MAX, true);
+        assert!(rcomp == exp_x-PRECISION, 0);
+
+        let x = 321200000; // 0.3212
+        let (rcomp, overflow) = calc__rcomp(i128::from(x));
+        assert!(rcomp == 378781309, 0); // 0.378781309
+        assert!(!overflow, 0);
+
+        let x = 500000000; // 0.5
+        let (rcomp, overflow) = calc__rcomp(i128::from(x));
+        assert!(rcomp == 648721270, 0); // 0.648721270
+        assert!(!overflow, 0);
+
+        let x = 1000000000; // 1
+        let (rcomp, overflow) = calc__rcomp(i128::from(x));
+        assert!(rcomp == 1718281826, 0); // e = 2.718281826
+        assert!(!overflow, 0);
+
+        // TODO: add cases
+    }
+
+    #[test]
+    public entry fun test_calc_rcomp() {
+       let (rcomp, overflow) = calc_rcomp(10000000, 5000000, i128::from(1000000000));
+        assert!(rcomp == 1718281826, 0); // e = 2.718281826
+        assert!(!overflow, 0);
+
+        // TODO: add cases
+    }
+
+    #[test]
+    public entry fun test_calc_x() {
+        // TODO
+    }
+
+    #[test]
+    public entry fun test_calc_slope_i() {
+        let ki = 367011;
+        let uopt = 700000000;
+        let u = 500000000; // 50%
+        let slopei = calc_slope_i(ki, u, uopt);
+        assert!(i128::is_neg(&slopei), 0);
+        assert!(i128::as_u128(&i128::abs(&slopei)) == 73402, 0);
+
+        let ki = 367011;
+        let uopt = 700000000;
+        let u = 0; // 0%
+        let slopei = calc_slope_i(ki, u, uopt);
+        assert!(i128::is_neg(&slopei), 0);
+        assert!(i128::as_u128(&i128::abs(&slopei)) == 256907, 0);
+
+        let ki = 367011;
+        let uopt = 700000000;
+        let u = 1000000000; // 100%
+        let slopei = calc_slope_i(ki, u, uopt);
+        assert!(!i128::is_neg(&slopei), 0);
+        assert!(i128::as_u128(&i128::abs(&slopei)) == 110103, 0);
+    }
+
+    #[test]
+    public entry fun test_calc_slope() {
+
+        // ucrit > u
+        let slopei = i128::from(73402);
+        let u = 500000000; // 50%
+        let ucrit = 850000000; // 85%
+        let kcrit = 951293759513;
+        let beta = 277778;
+        let slope = calc_slope(slopei, u, ucrit, kcrit, beta);
+        assert!(i128::as_u128(&i128::abs(&slope)) == 73402, 0);
+
+        // u > ucrit
+        let slopei = i128::from(110103);
+        let u = 1000000000; // 100%
+        let ucrit = 850000000; // 85%
+        let kcrit = 951293759513;
+        let beta = 277778;
+        let slope = calc_slope(slopei, u, ucrit, kcrit, beta);
+        assert!(i128::as_u128(&i128::abs(&slope)) == 39747374, 0);
+    }
+
+    // #[test]
+    // public entry fun test_calc_tcrit() {
+    //     let tcrit = 3600;
+    //     let u = 500000000; // 50%
+    //     let ucrit = 850000000; // 85%
+    //     let beta = 277778;
+    //     let time = 360000;
+    //     let tcrit = calc_tcrit(tcrit, u, ucrit, beta, time);
+    //     debug::print(&tcrit);
+
+    //     // TODO
+    // }
+
+    #[test]
+    public entry fun test_calc_rp() {
+
+        // ucrit < u
+        let u = 1000000000; // 100%
+        let ucrit = 850000000; // 85%
+        let ulow = 400000000; // 40%
+        let kcrit = 919583967529; // 29%
+        let klow = 95129375951;   // 3%
+        let tcrit = 0;
+        let rp = calc_rp(u, ucrit, ulow, kcrit, klow, tcrit);
+        let expected = kcrit * (PRECISION + tcrit) / PRECISION * (u - ucrit) / PRECISION;
+        assert!(i128::as_u128(&i128::abs(&rp)) == expected, 0);
+
+        // ulow <= u < ucrit
+        let u = 500000000; // 50%
+        let ucrit = 850000000; // 85%
+        let ulow = 400000000; // 40%
+        let kcrit = 919583967529; // 29%
+        let klow = 95129375951;   // 3%
+        let tcrit = 0;
+        let rp = calc_rp(u, ucrit, ulow, kcrit, klow, tcrit);
+        assert!(i128::as_u128(&i128::abs(&rp)) == 0, 0);
+
+        // u < ulow
+        let u = 0; // 0%
+        let ucrit = 850000000; // 85%
+        let ulow = 400000000; // 40%
+        let kcrit = 919583967529; // 29%
+        let klow = 95129375951;   // 3%
+        let tcrit = 0;
+        let rp = calc_rp(u, ucrit, ulow, kcrit, klow, tcrit);
+        let expected = klow * (ulow - u) / PRECISION;
+        debug::print(&expected);
+        assert!(i128::as_u128(&i128::abs(&rp)) == expected, 0);
+    }
+
+    #[test]
+    public entry fun test_calc_r1() {
+        let r0 = i128::from(20);
+        let slope = i128::from(30);
+        let time = 10;
+        let r1 = calc_r1(r0, slope, time);
+        let expected = 20 + 30 * 10;
+        assert!(i128::as_u128(&i128::abs(&r1)) == expected, 0);
     }
 }
