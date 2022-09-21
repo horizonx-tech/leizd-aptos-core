@@ -143,4 +143,73 @@ module leizd::money_market {
             asset_pool::liquidate<C>(liquidator_addr, target_addr, liquidated, is_collateral_only);
         };
     }
+
+    #[test_only]
+    use aptos_framework::account;
+    #[test_only]
+    use aptos_framework::managed_coin;
+    #[test_only]
+    use aptos_framework::timestamp;
+    #[test_only]
+    use leizd_aptos_trove::usdz::{Self, USDZ};
+    #[test_only]
+    use leizd::pool_type::{Asset, Shadow};
+    #[test_only]
+    use leizd::initializer;
+    #[test_only]
+    use leizd::test_coin::{Self, USDC, USDT, WETH, UNI};
+    #[test_only]
+    fun initialize_lending_pool_for_test(owner: &signer, aptos_framework: &signer) {
+        timestamp::set_time_has_started_for_testing(aptos_framework);
+        timestamp::update_global_time_for_test(1648738800 * 1000 * 1000); // 20220401T00:00:00
+
+        account::create_account_for_test(signer::address_of(owner));
+
+        // initialize
+        initializer::initialize(owner);
+        shadow_pool::init_pool(owner);
+
+        // add_pool
+        test_coin::init_usdc(owner);
+        test_coin::init_usdt(owner);
+        test_coin::init_weth(owner);
+        test_coin::init_uni(owner);
+        asset_pool::init_pool<USDC>(owner);
+        asset_pool::init_pool<USDT>(owner);
+        asset_pool::init_pool<WETH>(owner);
+        asset_pool::init_pool<UNI>(owner);
+    }
+    #[test_only]
+    fun setup_account_for_test(account: &signer) {
+        account::create_account_for_test(signer::address_of(account));
+        managed_coin::register<USDC>(account);
+        managed_coin::register<USDT>(account);
+        managed_coin::register<WETH>(account);
+        managed_coin::register<UNI>(account);
+        managed_coin::register<USDZ>(account);
+    }
+    #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
+    fun test_deposit_asset(owner: &signer, account: &signer, aptos_framework: &signer) {
+        initialize_lending_pool_for_test(owner, aptos_framework);
+        setup_account_for_test(account);
+        let account_addr = signer::address_of(account);
+        managed_coin::mint<WETH>(owner, account_addr, 100);
+
+        deposit<WETH, Asset>(account, 100, false);
+
+        assert!(asset_pool::total_deposited<WETH>() == 100, 0);
+        assert!(account_position::deposited_asset<WETH>(account_addr) == 100, 0);
+    }
+    #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
+    fun test_deposit_shadow(owner: &signer, account: &signer, aptos_framework: &signer) {
+        initialize_lending_pool_for_test(owner, aptos_framework);
+        setup_account_for_test(account);
+        let account_addr = signer::address_of(account);
+        usdz::mint_for_test(account_addr, 100);
+
+        deposit<WETH, Shadow>(account, 100, false);
+
+        assert!(shadow_pool::deposited<WETH>() == 100, 0);
+        assert!(account_position::deposited_shadow<WETH>(account_addr) == 100, 0);
+    }
 }

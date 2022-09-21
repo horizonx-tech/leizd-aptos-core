@@ -10,7 +10,6 @@ module leizd::test_initializer {
     use leizd::stability_pool;
     use leizd::test_coin;
 
-
     /// Called only once by the owner.
     public entry fun initialize(owner: &signer) {
         system_status::initialize(owner);
