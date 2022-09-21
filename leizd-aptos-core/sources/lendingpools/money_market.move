@@ -72,6 +72,7 @@ module leizd::money_market {
         account_position::withdraw<C,P>(depositor_addr, amount, is_collateral_only);
     }
 
+    /// Borrow an asset or a shadow from the pool.
     public entry fun borrow<C,P>(account: &signer, amount: u64) {
         borrow_for<C,P>(account, signer::address_of(account), amount);
     }
@@ -89,8 +90,9 @@ module leizd::money_market {
         account_position::borrow<C,P>(borrower_addr, amount);
     }
 
-    // Borrow from the best pool
+    // TODO: Borrow from the best pool
 
+    /// Repay an asset or a shadow from the pool.
     public entry fun repay<C,P>(account: &signer, amount: u64) {
         pool_type::assert_pool_type<P>();
 
@@ -122,6 +124,7 @@ module leizd::money_market {
         shadow_pool::borrow_and_rebalance<C1,C2>(amount, false);
     }
 
+    /// Control available coin to rebalance
     public entry fun protect_coin<C>(account: &signer) {
         account_position::protect_coin<C>(account);
     }
@@ -130,7 +133,7 @@ module leizd::money_market {
         account_position::unprotect_coin<C>(account);
     }
 
-    // Liquidation
+    //// Liquidation
     public entry fun liquidate<C,P>(account: &signer, target_addr: address) {
         pool_type::assert_pool_type<P>();
 
