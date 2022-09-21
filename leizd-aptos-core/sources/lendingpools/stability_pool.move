@@ -177,24 +177,29 @@ module leizd::stability_pool {
 
     public fun is_supported<C>(): bool acquires StabilityPool {
         let key = generate_key<C>();
-        let supported_pools = borrow_global<StabilityPool>(permission::owner_address()).supported_pools;
-        vector::contains<String>(&supported_pools, &key)
+        let pool = borrow_global<StabilityPool>(permission::owner_address());
+        is_supported_internal(pool, key)
+    }
+    fun is_supported_internal(pool: &StabilityPool, key: String): bool {
+        vector::contains<String>(&pool.supported_pools, &key)
     }
 
     public entry fun add_supported_pool<C>(owner: &signer) acquires StabilityPool {
-        assert!(!is_supported<C>(), error::invalid_argument(EALREADY_ADDED_COIN));
+        let owner_addr = signer::address_of(owner);
+        permission::assert_owner(owner_addr);
         assert!(coin::is_coin_initialized<C>(), error::invalid_argument(ENOT_INITIALIZED_COIN));
-        permission::assert_owner(signer::address_of(owner));
+        assert!(!is_supported<C>(), error::invalid_argument(EALREADY_ADDED_COIN));
         let key = generate_key<C>();
-        let supported_pools = &mut borrow_global_mut<StabilityPool>(permission::owner_address()).supported_pools;
+        let supported_pools = &mut borrow_global_mut<StabilityPool>(owner_addr).supported_pools;
         vector::push_back<String>(supported_pools, key);
     }
 
     public entry fun remove_supported_pool<C>(owner: &signer) acquires StabilityPool {
+        let owner_addr = signer::address_of(owner);
+        permission::assert_owner(owner_addr);
         assert!(is_supported<C>(), error::invalid_argument(ENOT_ADDED_COIN));
-        permission::assert_owner(signer::address_of(owner));
         let key = generate_key<C>();
-        let supported_pools = &mut borrow_global_mut<StabilityPool>(permission::owner_address()).supported_pools;
+        let supported_pools = &mut borrow_global_mut<StabilityPool>(owner_addr).supported_pools;
 
         let i = vector::length<String>(supported_pools);
         while (i > 0) {
@@ -459,10 +464,21 @@ module leizd::stability_pool {
     #[test_only]
     use leizd_aptos_trove::trove_manager;
     #[test_only]
-    use leizd::test_coin::{Self,WETH};
+    use leizd::test_coin::{Self,WETH,USDC};
     #[test_only]
     public fun default_entry_fee(): u64 {
         DEFAULT_ENTRY_FEE
+    }
+    #[test_only]
+    fun initialize_for_test_to_use_coin(owner: &signer) {
+        let owner_addr = signer::address_of(owner);
+        account::create_account_for_test(owner_addr);
+
+        trove_manager::initialize(owner);
+        initialize(owner);
+
+        test_coin::init_weth(owner);
+        init_pool<WETH>(owner);
     }
     // related initialize
     #[test(owner=@leizd)]
@@ -506,17 +522,72 @@ module leizd::stability_pool {
     public entry fun test_initialize_without_owner(account: &signer) {
         initialize(account);
     }
-
-    #[test_only]
-    fun initialize_for_test_to_use_coin(owner: &signer) {
+    #[test(owner = @leizd)]
+    fun test_is_supported(owner: &signer) acquires StabilityPool {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
-
         trove_manager::initialize(owner);
         initialize(owner);
 
         test_coin::init_weth(owner);
-        init_pool<WETH>(owner);
+        test_coin::init_usdc(owner);
+        assert!(!is_supported<WETH>(), 0);
+        assert!(!is_supported<USDC>(), 0);
+
+        add_supported_pool<WETH>(owner);
+        assert!(is_supported<WETH>(), 0);
+        assert!(!is_supported<USDC>(), 0);
+
+        remove_supported_pool<WETH>(owner);
+        assert!(!is_supported<WETH>(), 0);
+        assert!(!is_supported<USDC>(), 0);
+
+        add_supported_pool<WETH>(owner);
+        add_supported_pool<USDC>(owner);
+        assert!(is_supported<WETH>(), 0);
+        assert!(is_supported<USDC>(), 0);
+
+        remove_supported_pool<WETH>(owner);
+        remove_supported_pool<USDC>(owner);
+        assert!(!is_supported<WETH>(), 0);
+        assert!(!is_supported<USDC>(), 0);
+    }
+    #[test(account = @0x111)]
+    #[expected_failure(abort_code = 1)]
+    fun test_add_supported_pool_with_not_owner(account: &signer) acquires StabilityPool {
+        add_supported_pool<WETH>(account)
+    }
+    #[test(owner = @leizd)]
+    #[expected_failure(abort_code = 65543)]
+    fun test_add_supported_pool_with_not_initialized_coin(owner: &signer) acquires StabilityPool {
+        let owner_addr = signer::address_of(owner);
+        account::create_account_for_test(owner_addr);
+        trove_manager::initialize(owner);
+        initialize(owner);
+
+        add_supported_pool<WETH>(owner);
+    }
+    #[test(owner = @leizd)]
+    #[expected_failure(abort_code = 65542)]
+    fun test_add_supported_pool_if_already_added(owner: &signer) acquires StabilityPool {
+        initialize_for_test_to_use_coin(owner);
+        assert!(!is_supported<WETH>(), 0);
+
+        add_supported_pool<WETH>(owner);
+        add_supported_pool<WETH>(owner);
+    }
+    #[test(account = @0x111)]
+    #[expected_failure(abort_code = 1)]
+    fun test_remove_supported_pool_with_not_owner(account: &signer) acquires StabilityPool {
+        remove_supported_pool<WETH>(account)
+    }
+    #[test(owner = @leizd)]
+    #[expected_failure(abort_code = 65544)]
+    fun test_add_supported_pool_if_already_removed(owner: &signer) acquires StabilityPool {
+        initialize_for_test_to_use_coin(owner);
+        assert!(!is_supported<WETH>(), 0);
+
+        remove_supported_pool<WETH>(owner);
     }
     // for deposit
     #[test(owner=@leizd,account=@0x111)]
