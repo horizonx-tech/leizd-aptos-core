@@ -77,10 +77,10 @@ module leizd::interest_rate {
     
     public fun default_config<C>(): Config<C> {
         Config<C> {
-            uopt: 800000000,  // 80%
-            ucrit: 900000000, // 90%
-            ulow: 500000000,  // 50%
-            ki: 367011, // double scale 0.000367011
+            uopt: 700000000,  // 0.70 -> 70%
+            ucrit: 850000000, // 0.85 -> 85%
+            ulow: 400000000,  // 0.40 -> 40%
+            ki: 367011,
             kcrit: 951, // 30%   -> 30  e9 / (365*24*3600) // TODO: 28%
             klow: 10,   // 3%    -> 3   e9 / (365*24*3600)
             klin: 2,    // 0.05% -> 0.05e9 / (365*24*3600)
@@ -161,17 +161,7 @@ module leizd::interest_rate {
         let time = ((now - last_updated) as u128);
         let u = math128::utilization(PRECISION, total_deposits, total_borrows);
 
-        // let slopei = cref.ki * (u - cref.uopt) / PRECISION;
-        let slopei = i128::div(
-            &i128::mul(
-                &i128::from(cref.ki), 
-                &i128::sub(
-                    &i128::from(u), 
-                    &i128::from(cref.uopt)
-                )
-            ), 
-            &i128::from(DOUBLE_SCALE)
-        );
+        let slopei = calc_slope_i(cref.ki, u, cref.uopt);
         
         let rp; // possibly negative
         let slope; // possibly negative
@@ -244,6 +234,19 @@ module leizd::interest_rate {
         };
 
         (rcomp, i128::as_u128(&ri), !i128::is_neg(&ri), tcrit, overflow)
+    }
+
+    fun calc_slope_i(ki: u128, u: u128, uopt: u128): (i128::I128) {
+        i128::div(
+            &i128::mul(
+                &i128::from(ki), 
+                &i128::sub(
+                    &i128::from(u), 
+                    &i128::from(uopt)
+                )
+            ), 
+            &i128::from(PRECISION)
+        )
     }
 
     fun calc_x(r0: i128::I128, r1: i128::I128, rlin: i128::I128, slope: i128::I128, time: u128): (i128::I128) {
@@ -395,5 +398,29 @@ module leizd::interest_rate {
     #[test]
     public entry fun test_calc_x() {
         // TODO
+    }
+
+    #[test]
+    public entry fun test_calc_slope_i() {
+        let ki = 367011;
+        let uopt = 700000000;
+        let u = 500000000; // 50%
+        let slopei = calc_slope_i(ki, u, uopt);
+        assert!(i128::is_neg(&slopei), 0);
+        assert!(i128::as_u128(&i128::abs(&slopei)) == 73402, 0);
+
+        let ki = 367011;
+        let uopt = 700000000;
+        let u = 0; // 0%
+        let slopei = calc_slope_i(ki, u, uopt);
+        assert!(i128::is_neg(&slopei), 0);
+        assert!(i128::as_u128(&i128::abs(&slopei)) == 256907, 0);
+
+        let ki = 367011;
+        let uopt = 700000000;
+        let u = 1000000000; // 100%
+        let slopei = calc_slope_i(ki, u, uopt);
+        assert!(!i128::is_neg(&slopei), 0);
+        assert!(i128::as_u128(&i128::abs(&slopei)) == 110103, 0);
     }
 }
