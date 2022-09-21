@@ -789,6 +789,19 @@ module leizd::stability_pool {
         assert!(event::counter<BorrowEvent>(&borrow_global<StabilityPoolEventHandle>(signer::address_of(owner)).borrow_event) == 1, 0);
     }
     #[test(owner=@leizd, account=@0x111)]
+    #[expected_failure(abort_code = 65545)]
+    public entry fun test_borrow_with_not_supported_coin(owner: &signer, account: &signer) acquires StabilityPool, Config, Balance, StabilityPoolEventHandle {
+        account::create_account_for_test(signer::address_of(owner));
+        trove_manager::initialize(owner);
+        initialize(owner);
+
+        let account_addr = signer::address_of(account);
+        let coin = borrow<WETH>(account_addr, 0);
+
+        // post_process
+        coin::deposit(account_addr, coin);
+    }
+    #[test(owner=@leizd, account=@0x111)]
     #[expected_failure(abort_code = 65539)]
     public entry fun test_borrow_with_no_amount(owner: &signer, account: &signer) acquires StabilityPool, Config, Balance, StabilityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
