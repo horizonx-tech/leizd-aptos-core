@@ -21,6 +21,7 @@ module leizd::shadow_pool {
     friend leizd::money_market;
 
     const E_NOT_AVAILABLE_STATUS: u64 = 4;
+    const E_NOT_INITIALIZED_COIN: u64 = 5;
     const E_AMOUNT_ARG_IS_ZERO: u64 = 11;
     const E_EXCEED_BORROWABLE_AMOUNT: u64 = 12;
 
@@ -175,8 +176,8 @@ module leizd::shadow_pool {
         let key_to = generate_coin_key<C2>();
         let owner_addr = permission::owner_address();
         let storage_ref = borrow_global_mut<Storage>(owner_addr);
-        assert!(simple_map::contains_key<String,u64>(&storage_ref.deposited, &key_from), 0);
-        assert!(simple_map::contains_key<String,u64>(&storage_ref.deposited, &key_to), 0);
+        assert!(simple_map::contains_key<String,u64>(&storage_ref.deposited, &key_from), error::invalid_argument(E_NOT_INITIALIZED_COIN));
+        assert!(simple_map::contains_key<String,u64>(&storage_ref.deposited, &key_to), error::invalid_argument(E_NOT_INITIALIZED_COIN));
 
         let deposited = simple_map::borrow_mut<String,u64>(&mut storage_ref.deposited, &key_from);
         *deposited = *deposited - amount;
@@ -1654,7 +1655,7 @@ module leizd::shadow_pool {
         assert!(conly_deposited<UNI>() == 20000, 0);
     }
     #[test(owner=@leizd,aptos_framework=@aptos_framework)]
-    #[expected_failure(abort_code = 0)]
+    #[expected_failure(abort_code = 65541)]
     public entry fun test_rebalance_shadow_to_set_not_added_coin_key_to_from(owner: &signer, aptos_framework: &signer) acquires Storage, PoolEventHandle {
         timestamp::set_time_has_started_for_testing(aptos_framework);
         let owner_addr = signer::address_of(owner);
@@ -1668,7 +1669,7 @@ module leizd::shadow_pool {
         rebalance_shadow<UNI,WETH>(5000, true, true);
     }
     #[test(owner=@leizd,aptos_framework=@aptos_framework)]
-    #[expected_failure(abort_code = 0)]
+    #[expected_failure(abort_code = 65541)]
     public entry fun test_rebalance_shadow_to_set_not_added_coin_key_to_to(owner: &signer, aptos_framework: &signer) acquires Storage, PoolEventHandle {
         timestamp::set_time_has_started_for_testing(aptos_framework);
         let owner_addr = signer::address_of(owner);
