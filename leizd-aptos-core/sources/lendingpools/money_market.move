@@ -493,4 +493,35 @@ module leizd::money_market {
         unprotect_coin<WETH>(account);
         assert!(!account_position::is_protected<WETH>(account_addr), 0);
     }
+    #[test(owner=@leizd,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
+    fun test_rebalance_shadow(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) {
+        initialize_lending_pool_for_test(owner, aptos_framework);
+        setup_liquidity_provider_for_test(owner, lp);
+        setup_account_for_test(account);
+        let account_addr = signer::address_of(account);
+        usdz::mint_for_test(account_addr, 200);
+
+        // prerequisite
+        deposit<UNI, Asset>(lp, 200, false);
+        //// check risk_factor
+        assert!(risk_factor::lt<WETH>() == risk_factor::default_lt(), 0);
+        assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
+
+        // execute
+        deposit<WETH, Shadow>(account, 100, false);
+        deposit<UNI, Shadow>(account, 100, false);
+        borrow<UNI, Asset>(account, 99);
+        assert!(shadow_pool::deposited<WETH>() == 100, 0);
+        assert!(shadow_pool::deposited<UNI>() == 100, 0);
+        assert!(account_position::deposited_shadow<WETH>(account_addr) == 100, 0);
+        assert!(account_position::deposited_shadow<UNI>(account_addr) == 100, 0);
+
+        risk_factor::update_config<USDZ>(owner, 1000000000 / 100 * 75, 1000000000 / 100 * 80); // 75% / 80%
+
+        rebalance_shadow<WETH, UNI>(account_addr);
+        assert!(shadow_pool::deposited<WETH>() < 100, 0);
+        assert!(shadow_pool::deposited<UNI>() > 100, 0);
+        assert!(account_position::deposited_shadow<WETH>(account_addr) < 100, 0);
+        assert!(account_position::deposited_shadow<UNI>(account_addr) > 100, 0);
+    }
 }
