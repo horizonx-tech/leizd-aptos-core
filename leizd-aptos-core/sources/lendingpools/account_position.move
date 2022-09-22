@@ -1271,11 +1271,47 @@ module leizd::account_position {
         assert!(borrowed_asset<WETH>(account1_addr) == 50000, 0);
         assert!(borrowed_asset<UNI>(account1_addr) == 110000, 0);
 
-        rebalance_shadow_internal(account1_addr, generate_key<WETH>(), generate_key<UNI>());
+        let (insufficient, is_collateral_only_C1, is_collateral_only_C2) = rebalance_shadow_internal(account1_addr, generate_key<WETH>(), generate_key<UNI>());
+        assert!(insufficient == 10000, 0);
+        assert!(is_collateral_only_C1 == false, 0);
+        assert!(is_collateral_only_C2 == false, 0);
         assert!(deposited_shadow<WETH>(account1_addr) == 90000, 0);
         assert!(deposited_shadow<UNI>(account1_addr) == 110000, 0);
 
         assert!(event::counter<UpdatePositionEvent>(&borrow_global<AccountPositionEventHandle<ShadowToAsset>>(account1_addr).update_position_event) == 7, 0);
+    }
+    #[test(owner=@leizd, account1=@0x111, account2=@0x222)]
+    public entry fun test_rebalance_shadow_with_patterns_collateral_only_or_borrowable(owner: &signer, account1: &signer, account2: &signer) acquires Position, AccountPositionEventHandle {
+        setup_for_test_to_initialize_coins(owner);
+        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+
+        // collateral only & borrowable
+        let account1_addr = signer::address_of(account1);
+        account::create_account_for_test(account1_addr);
+        deposit_internal<WETH, Shadow>(account1, account1_addr, 1000, true);
+        deposit_internal<UNI, Shadow>(account1, account1_addr, 1000, false);
+        borrow_unsafe_for_test<UNI, Asset>(account1_addr, 1200);
+        let (insufficient, is_collateral_only_C1, is_collateral_only_C2) = rebalance_shadow<WETH, UNI>(account1_addr);
+        assert!(insufficient == 200, 0);
+        assert!(is_collateral_only_C1, 0);
+        assert!(!is_collateral_only_C2, 0);
+        assert!(deposited_shadow<WETH>(account1_addr) == 800, 0);
+        assert!(deposited_shadow<UNI>(account1_addr) == 1200, 0);
+
+        // borrowable & borrowable
+        let account2_addr = signer::address_of(account2);
+        account::create_account_for_test(account2_addr);
+        deposit_internal<WETH, Shadow>(account2, account2_addr, 2000, false);
+        borrow<WETH, Asset>(account2_addr, 1800);
+        deposit_internal<UNI, Shadow>(account2, account2_addr, 1000, false);
+        borrow_unsafe_for_test<UNI, Asset>(account2_addr, 1200);
+        let (insufficient, is_collateral_only_C1, is_collateral_only_C2) = rebalance_shadow<WETH, UNI>(account2_addr);
+        assert!(insufficient == 200, 0);
+        assert!(!is_collateral_only_C1, 0);
+        assert!(!is_collateral_only_C2, 0);
+        assert!(deposited_shadow<WETH>(account2_addr) == 1800, 0);
+        assert!(deposited_shadow<UNI>(account2_addr) == 1200, 0);
+
     }
     #[test(owner = @leizd, account = @0x111)]
     #[expected_failure(abort_code = 3)]
