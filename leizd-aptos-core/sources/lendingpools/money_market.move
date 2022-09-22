@@ -100,11 +100,11 @@ module leizd::money_market {
         let is_shadow = pool_type::is_type_shadow<P>();
         // HACK: check repayable amount by account_position::repay & use this amount to xxx_pool::repay. Better not to calculate here. (because of just an entry module)
         if (is_shadow) {
-            let debt_amount = account_position::borrowed_asset<C>(repayer);
+            let debt_amount = account_position::borrowed_shadow<C>(repayer);
             if (amount >= debt_amount) amount = debt_amount;
             amount = shadow_pool::repay<C>(account, amount);
         } else {
-            let debt_amount = account_position::borrowed_shadow<C>(repayer);
+            let debt_amount = account_position::borrowed_asset<C>(repayer);
             if (amount >= debt_amount) amount = debt_amount;
             amount = asset_pool::repay<C>(account, amount);
         };
@@ -399,7 +399,7 @@ module leizd::money_market {
 
         assert!(coin::balance<USDZ>(account_addr) == 0, 0);
         assert!(coin::balance<USDZ>(for_addr) == 69, 0);
-        assert!(shadow_pool::borrowed<WETH>() > 69, 0);
+        assert!(shadow_pool::borrowed<WETH>() == 70, 0); // NOTE: amount + fee
         assert!(account_position::borrowed_shadow<WETH>(account_addr) > 0, 0); // TODO: check
         assert!(account_position::borrowed_shadow<WETH>(for_addr) == 0, 0);
     }
@@ -426,8 +426,54 @@ module leizd::money_market {
 
         assert!(coin::balance<WETH>(account_addr) == 0, 0);
         assert!(coin::balance<WETH>(for_addr) == 99, 0);
-        assert!(asset_pool::total_borrowed<WETH>() > 99, 0);
+        assert!(asset_pool::total_borrowed<WETH>() == 100, 0); // NOTE: amount + fee
         assert!(account_position::borrowed_asset<WETH>(account_addr) > 0, 0);  // TODO: check
         assert!(account_position::borrowed_asset<WETH>(for_addr) == 0, 0);
+    }
+    #[test(owner=@leizd,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
+    fun test_repay_with_shadow(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) {
+        initialize_lending_pool_for_test(owner, aptos_framework);
+        setup_liquidity_provider_for_test(owner, lp);
+        setup_account_for_test(account);
+        let account_addr = signer::address_of(account);
+        managed_coin::mint<WETH>(owner, account_addr, 100);
+
+        // prerequisite
+        deposit<WETH, Shadow>(lp, 200, false);
+        //// check risk_factor
+        assert!(risk_factor::lt<WETH>() == risk_factor::default_lt(), 0);
+        assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
+
+        // execute
+        deposit<WETH, Asset>(account, 100, false);
+        borrow<WETH, Shadow>(account, 69);
+        repay<WETH, Shadow>(account, 50);
+
+        assert!(coin::balance<USDZ>(account_addr) == 19, 0);
+        assert!(shadow_pool::borrowed<WETH>() == 20, 0);
+        assert!(account_position::borrowed_shadow<WETH>(account_addr) > 0, 0); // TODO: check
+    }
+    #[test(owner=@leizd,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
+    fun test_repay_with_asset(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) {
+        initialize_lending_pool_for_test(owner, aptos_framework);
+        setup_liquidity_provider_for_test(owner, lp);
+        setup_account_for_test(account);
+        let account_addr = signer::address_of(account);
+        usdz::mint_for_test(account_addr, 100);
+
+        // prerequisite
+        deposit<WETH, Asset>(lp, 200, false);
+        //// check risk_factor
+        assert!(risk_factor::lt<WETH>() == risk_factor::default_lt(), 0);
+        assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
+
+        // execute
+        deposit<WETH, Shadow>(account, 100, false);
+        borrow<WETH, Asset>(account, 99);
+        repay<WETH, Asset>(account, 50);
+
+        assert!(coin::balance<WETH>(account_addr) == 49, 0);
+        assert!(asset_pool::total_borrowed<WETH>() == 50, 0);
+        assert!(account_position::borrowed_asset<WETH>(account_addr) > 0, 0);  // TODO: check
     }
 }
