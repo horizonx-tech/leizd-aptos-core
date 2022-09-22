@@ -79,6 +79,7 @@ module leizd::account_position {
 
     public fun borrowed_asset<C>(addr: address): u64 acquires Position {
         let key = generate_key<C>();
+        if (!exists<Position<ShadowToAsset>>(addr)) return 0;
         let position_ref = borrow_global<Position<ShadowToAsset>>(addr);
         if (simple_map::contains_key<String,Balance>(&position_ref.balance, &key)) {
             simple_map::borrow<String,Balance>(&position_ref.balance, &key).borrowed
@@ -113,6 +114,7 @@ module leizd::account_position {
 
     public fun borrowed_shadow<C>(addr: address): u64 acquires Position {
         let key = generate_key<C>();
+        if (!exists<Position<AssetToShadow>>(addr)) return 0;
         let position_ref = borrow_global<Position<AssetToShadow>>(addr);
         if (simple_map::contains_key<String,Balance>(&position_ref.balance, &key)) {
             simple_map::borrow<String,Balance>(&position_ref.balance, &key).borrowed
@@ -577,6 +579,10 @@ module leizd::account_position {
         } else {
             update_on_borrow<C,AssetToShadow>(borrower_addr, amount);
         };
+    }
+    #[test_only]
+    public fun initialize_if_necessary_for_test(account: &signer) {
+        initialize_if_necessary(account);
     }
 
     #[test(account=@0x111)]

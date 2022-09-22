@@ -213,6 +213,14 @@ module leizd::risk_factor {
     #[test_only]
     use leizd::test_coin::{Self,WETH};
     #[test_only]
+    public fun default_lt(): u64 {
+        DEFAULT_THRESHOLD
+    }
+    #[test_only]
+    public fun default_lt_of_shadow(): u64 {
+        SHADOW_LT
+    }
+    #[test_only]
     public fun default_entry_fee(): u64 {
         DEFAULT_ENTRY_FEE
     }
