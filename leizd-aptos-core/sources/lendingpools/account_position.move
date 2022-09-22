@@ -17,9 +17,8 @@ module leizd::account_position {
 
     friend leizd::money_market;
 
-    const ENO_SAFE_POSITION: u64 = 0;
-    // const ENO_UNSAFE_POSITION: u64 = 1;
-    // const ENOT_ENOUGH_SHADOW: u64 = 2;
+    const ENO_POSITION_RESOURCE: u64 = 1;
+    const ENO_SAFE_POSITION: u64 = 2;
     const ENOT_EXISTED: u64 = 3;
     const EALREADY_PROTECTED: u64 = 4;
     const EOVER_DEPOSITED_AMOUNT: u64 = 5;
@@ -177,7 +176,7 @@ module leizd::account_position {
 
     fun deposit_internal<C,P>(account: &signer, depositor_addr: address, amount: u64, is_collateral_only: bool) acquires Position, AccountPositionEventHandle {
         initialize_if_necessary(account);
-        assert!(exists<Position<AssetToShadow>>(depositor_addr), 0);
+        assert!(exists<Position<AssetToShadow>>(depositor_addr), error::invalid_argument(ENO_POSITION_RESOURCE));
 
         if (pool_type::is_type_asset<P>()) {
             assert_invalid_deposit_asset<C>(depositor_addr, is_collateral_only);
@@ -839,7 +838,7 @@ module leizd::account_position {
         assert!(lt - utilization == (7000 - borrow_amount) * risk_factor::precision() / deposit_amount, 0);
     }
     #[test(owner=@leizd,account=@0x111)]
-    #[expected_failure(abort_code = 196608)]
+    #[expected_failure(abort_code = 196610)]
     public entry fun test_borrow_asset_when_over_borrowable(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle {
         setup_for_test_to_initialize_coins(owner);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
@@ -855,7 +854,7 @@ module leizd::account_position {
         borrow_internal<WETH,Asset>(account_addr, 10000);
     }
     #[test(owner=@leizd,account=@0x111)]
-    #[expected_failure(abort_code = 196608)]
+    #[expected_failure(abort_code = 196610)]
     public entry fun test_borrow_shadow_when_over_borrowable(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle {
         setup_for_test_to_initialize_coins(owner);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
