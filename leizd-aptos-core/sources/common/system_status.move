@@ -51,12 +51,14 @@ module leizd::system_status {
 
     #[test(owner = @leizd)]
     fun test_initialize(owner: &signer) acquires SystemStatus, SystemStatusEventHandle {
+        account::create_account_for_test(signer::address_of(owner));
         initialize(owner);
         assert!(exists<SystemStatus>(@leizd), 0);
     }
     #[test(account = @0x111)]
     #[expected_failure(abort_code = 1)]
     fun test_initialize_with_not_owner(account: &signer) acquires SystemStatus, SystemStatusEventHandle {
+        account::create_account_for_test(signer::address_of(account));
         initialize(account);
     }
 }

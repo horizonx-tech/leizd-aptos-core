@@ -121,9 +121,13 @@ module leizd::pool_status {
     }
 
     #[test_only]
+    use std::signer;
+
+    #[test_only]
     struct DummyStruct {}
     #[test(owner = @leizd)]
-    fun test_end_to_end(owner: &signer) acquires Status, PoolStatusEventHandle{
+    fun test_end_to_end(owner: &signer) acquires Status, PoolStatusEventHandle {
+        account::create_account_for_test(signer::address_of(owner));
         system_status::initialize(owner);
         initialize<DummyStruct>(owner);
         assert!(can_deposit<DummyStruct>(), 0);

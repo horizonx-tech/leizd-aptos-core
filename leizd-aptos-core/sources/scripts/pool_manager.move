@@ -92,7 +92,7 @@ module leizd::pool_manager {
   #[test_only]
   use leizd::risk_factor;
   #[test_only]
-  use leizd::test_coin::{Self, WETH, USDC, USDT};
+  use leizd::test_coin::{Self, WETH};
   #[test_only]
   use leizd_aptos_treasury::treasury;
   #[test_only]
@@ -137,53 +137,56 @@ module leizd::pool_manager {
     initialize(owner);
     add_pool<WETH>(owner);
   }
-  #[test(owner = @leizd, account = @0x111)]
-  fun test_add_pool_from_not_owner(owner: &signer, account: &signer) acquires PoolList, PoolManagerEventHandle {
-    set_up(owner);
-    initialize(owner);
-    account::create_account_for_test(signer::address_of(account));
-    add_pool<USDC>(account);
-  }
-  #[test(owner = @leizd, account = @0x111)]
-  fun test_add_pool_more_than_once(owner: &signer, account: &signer) acquires PoolList, PoolManagerEventHandle {
-    let account_addr = signer::address_of(account);
-    let owner_addr = signer::address_of(owner);
-    account::create_account_for_test(account_addr);
-    set_up(owner);
-    initialize(owner);
-    add_pool<WETH>(account);
-    add_pool<USDC>(owner);
-    add_pool<USDT>(account);
-
-    let (account_address, module_name, struct_name, holder) = borrow_pool_info<WETH>();
-    assert!(account_address == @leizd, 0);
-    assert!(module_name == b"test_coin", 0);
-    assert!(struct_name == b"WETH", 0);
-    assert!(holder == account_addr, 0);
-    let (account_address, module_name, struct_name, holder) = borrow_pool_info<USDC>();
-    assert!(account_address == @leizd, 0);
-    assert!(module_name == b"test_coin", 0);
-    assert!(struct_name == b"USDC", 0);
-    assert!(holder == owner_addr, 0);
-  let (account_address, module_name, struct_name, holder) = borrow_pool_info<USDT>();
-    assert!(account_address == @leizd, 0);
-    assert!(module_name == b"test_coin", 0);
-    assert!(struct_name == b"USDT", 0);
-    assert!(holder == account_addr, 0);
-  }
-  #[test(owner = @leizd, account = @0x111)]
-  #[expected_failure(abort_code = 65538)]
-  fun test_add_pool_with_same_coins(owner: &signer, account: &signer) acquires PoolList, PoolManagerEventHandle {
-    account::create_account_for_test(signer::address_of(owner));
-    account::create_account_for_test(signer::address_of(account));
-    test_coin::init_weth(owner);
-    risk_factor::initialize(owner);
-    treasury::initialize(owner);
-
-    initialize(owner);
-    add_pool<WETH>(account);
-    add_pool<WETH>(account);
-  }
+  // TODO: permissionless
+  //#[test(owner = @leizd, account = @0x111)]
+  //fun test_add_pool_from_not_owner(owner: &signer, account: &signer) acquires PoolList, PoolManagerEventHandle {
+  //  set_up(owner);
+  //  initialize(owner);
+  //  account::create_account_for_test(signer::address_of(account));
+  //  add_pool<USDC>(account);
+  //}
+  // TODO: add pool permission less
+  //#[test(owner = @leizd, account = @0x111)]
+  //fun test_add_pool_more_than_once(owner: &signer, account: &signer) acquires PoolList, PoolManagerEventHandle {
+  //  let account_addr = signer::address_of(account);
+  //  let owner_addr = signer::address_of(owner);
+  //  account::create_account_for_test(account_addr);
+  //  set_up(owner);
+  //  initialize(owner);
+  //  add_pool<WETH>(account);
+  //  add_pool<USDC>(owner);
+  //  add_pool<USDT>(account);
+  //
+  //  let (account_address, module_name, struct_name, holder) = borrow_pool_info<WETH>();
+  //  assert!(account_address == @leizd, 0);
+  //  assert!(module_name == b"test_coin", 0);
+  //  assert!(struct_name == b"WETH", 0);
+  //  assert!(holder == account_addr, 0);
+  //  let (account_address, module_name, struct_name, holder) = borrow_pool_info<USDC>();
+  //  assert!(account_address == @leizd, 0);
+  //  assert!(module_name == b"test_coin", 0);
+  //  assert!(struct_name == b"USDC", 0);
+  //  assert!(holder == owner_addr, 0);
+  //let (account_address, module_name, struct_name, holder) = borrow_pool_info<USDT>();
+  //  assert!(account_address == @leizd, 0);
+  //  assert!(module_name == b"test_coin", 0);
+  //  assert!(struct_name == b"USDT", 0);
+  //  assert!(holder == account_addr, 0);
+  //}
+  // TODO: permissionless
+  //#[test(owner = @leizd, account = @0x111)]
+  //#[expected_failure(abort_code = 65538)]
+  //fun test_add_pool_with_same_coins(owner: &signer, account: &signer) acquires PoolList, PoolManagerEventHandle {
+  //  account::create_account_for_test(signer::address_of(owner));
+  //  account::create_account_for_test(signer::address_of(account));
+  //  test_coin::init_weth(owner);
+  //  risk_factor::initialize(owner);
+  //  treasury::initialize(owner);
+  //
+  //  initialize(owner);
+  //  add_pool<WETH>(account);
+  //  add_pool<WETH>(account);
+  //}
   #[test(owner = @leizd, account = @0x111)]
   #[expected_failure(abort_code = 65539)]
   fun test_add_pool_with_not_initilized_coin(owner: &signer, account: &signer) acquires PoolList, PoolManagerEventHandle {
