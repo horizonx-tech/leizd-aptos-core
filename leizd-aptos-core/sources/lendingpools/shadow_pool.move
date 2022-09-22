@@ -328,7 +328,11 @@ module leizd::shadow_pool {
         let total_liquidity = total_liquidity_internal(pool_ref, storage_ref);
 
         // check liquidity
-        assert!((amount_with_entry_fee as u128) <= if(stability_pool::is_supported<C>()) total_liquidity + stability_pool::left() else total_liquidity, error::invalid_argument(E_EXCEED_BORROWABLE_AMOUNT));
+        if (stability_pool::is_supported<C>()) {
+            assert!((amount_with_entry_fee as u128) <= total_liquidity + stability_pool::left(), error::invalid_argument(E_EXCEED_BORROWABLE_AMOUNT));
+        } else {
+            assert!((amount_with_entry_fee as u128) <= total_liquidity, error::invalid_argument(E_EXCEED_BORROWABLE_AMOUNT));
+        };
 
         if ((amount_with_entry_fee as u128) > total_liquidity) {
             // use stability pool
