@@ -1397,6 +1397,28 @@ module leizd::account_position {
         assert!(event::counter<UpdatePositionEvent>(&borrow_global<AccountPositionEventHandle<AssetToShadow>>(account1_addr).update_position_event) == 3, 0);
         assert!(event::counter<UpdatePositionEvent>(&borrow_global<AccountPositionEventHandle<ShadowToAsset>>(account1_addr).update_position_event) == 4, 0);
     }
+    #[test(owner=@leizd,account1=@0x111)]
+    public entry fun test_borrow_and_rebalance_2(owner: &signer, account1: &signer) acquires Position, AccountPositionEventHandle {
+        setup_for_test_to_initialize_coins(owner);
+        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+        let account1_addr = signer::address_of(account1);
+        account::create_account_for_test(account1_addr);
+
+        deposit_internal<WETH,Asset>(account1, account1_addr, 10000, false);
+        deposit_internal<UNI,Shadow>(account1, account1_addr, 10000, false);
+        borrow_unsafe_for_test<UNI,Asset>(account1_addr, 15000);
+        assert!(deposited_asset<WETH>(account1_addr) == 10000, 0);
+        assert!(borrowed_shadow<WETH>(account1_addr) == 0, 0);
+        assert!(deposited_shadow<UNI>(account1_addr) == 10000, 0);
+        assert!(borrowed_asset<UNI>(account1_addr) == 15000, 0);
+
+        borrow_and_rebalance_internal<WETH,UNI>(account1_addr, false);
+        assert!(deposited_asset<WETH>(account1_addr) == 10000, 0);
+        assert!(borrowed_shadow<WETH>(account1_addr) == 5000, 0);
+        assert!(deposited_shadow<UNI>(account1_addr) == 15000, 0);
+        assert!(borrowed_asset<UNI>(account1_addr) == 15000, 0);
+
+    }
     #[test(owner = @leizd, account = @0x111)]
     #[expected_failure(abort_code = 3)]
     fun test_borrow_and_rebalance_if_no_position_of_key1_coin(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle {
