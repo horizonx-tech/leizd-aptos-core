@@ -91,7 +91,22 @@ module leizd::money_market {
         account_position::borrow<C,P>(borrower_addr, borrowed_amount);
     }
 
-    // TODO: Borrow from the best pool
+    // TODO
+    /// Borrow the coin C with the shadow that is collected from the best pool.
+    /// If there is enough shadow on the pool a user want to borrow, it would be
+    /// the same action as the `borrow` function above.
+    // public entry fun borrow_asset_from_the_best_shadow<C>(account: &signer, amount: u64) {
+    //     borrow_asset_from_the_best_shadow_for<C>(account, signer::address_of(account), amount);
+    // }
+
+    // public entry fun borrow_asset_from_the_best_shadow_for<C>(account: &signer, receiver_addr: address, amount: u64) {
+    //     let borrower_addr = signer::address_of(account);
+    //     // TODO: 
+    //     let (key, amount) = account_position::borrow<C,P>(borrower_addr, amount);
+
+    //     shadow_pool::deposit_for<C>(borrower_addr, receiver_addr, amount);
+    //     asset_pool::borrow_for<C>(borrower_addr, receiver_addr, amount);
+    // }
 
     /// Repay an asset or a shadow from the pool.
     public entry fun repay<C,P>(account: &signer, amount: u64) {
