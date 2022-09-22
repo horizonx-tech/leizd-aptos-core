@@ -1396,4 +1396,69 @@ module leizd::account_position {
         protect_coin<UNI>(account);
         borrow_and_rebalance<WETH, UNI>(account_addr, false);
     }
+    //// utils for rebalance
+    ////// can_rebalance_shadow_between
+    #[test(owner = @leizd, account = @0x111)]
+    fun test_can_rebalance_shadow_between(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle {
+        setup_for_test_to_initialize_coins(owner);
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+
+        deposit_internal<WETH, Shadow>(account, account_addr, 1000, false);
+        deposit_internal<UNI, Shadow>(account, account_addr, 1000, false);
+        borrow_unsafe_for_test<UNI, Asset>(account_addr, 1200);
+        let (can_rebalance, extra, insufficient) = can_rebalance_shadow_between(account_addr, generate_key<WETH>(), generate_key<UNI>());
+        assert!(can_rebalance, 0);
+        assert!(extra == 1000, 0);
+        assert!(insufficient == 200, 0);
+    }
+    #[test(owner = @leizd, account = @0x111)]
+    fun test_can_rebalance_shadow_between_with_insufficient_extra(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle {
+        setup_for_test_to_initialize_coins(owner);
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+
+        deposit_internal<WETH, Shadow>(account, account_addr, 1000, false);
+        deposit_internal<UNI, Shadow>(account, account_addr, 1000, false);
+        borrow_unsafe_for_test<UNI, Asset>(account_addr, 2500);
+        let (can_rebalance, extra, insufficient) = can_rebalance_shadow_between(account_addr, generate_key<WETH>(), generate_key<UNI>());
+        assert!(!can_rebalance, 0);
+        assert!(extra == 1000, 0);
+        assert!(insufficient == 1500, 0);
+    }
+    #[test(owner = @leizd, account = @0x111)]
+    fun test_can_rebalance_shadow_between_with_no_extra(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle {
+        setup_for_test_to_initialize_coins(owner);
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+
+        deposit_internal<WETH, Shadow>(account, account_addr, 1000, false);
+        borrow_unsafe_for_test<WETH, Asset>(account_addr, 1001);
+        deposit_internal<UNI, Shadow>(account, account_addr, 1, false);
+        let (can_rebalance, extra, insufficient) = can_rebalance_shadow_between(account_addr, generate_key<WETH>(), generate_key<UNI>());
+        assert!(!can_rebalance, 0);
+        assert!(extra == 0, 0);
+        assert!(insufficient == 0, 0);
+    }
+    #[test(owner = @leizd, account = @0x111)]
+    fun test_can_rebalance_shadow_between_with_no_insufficient(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle {
+        setup_for_test_to_initialize_coins(owner);
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+
+        deposit_internal<WETH, Shadow>(account, account_addr, 1000, false);
+        deposit_internal<UNI, Shadow>(account, account_addr, 1, false);
+        let (can_rebalance, extra, insufficient) = can_rebalance_shadow_between(account_addr, generate_key<WETH>(), generate_key<UNI>());
+        assert!(!can_rebalance, 0);
+        assert!(extra == 0, 0);
+        assert!(insufficient == 0, 0);
+    }
+    #[test(account = @0x111)]
+    fun test_can_rebalance_shadow_between_with_same_coins(account: &signer) acquires Position {
+        let key = generate_key<WETH>();
+        let (can_rebalance, extra, insufficient) = can_rebalance_shadow_between(signer::address_of(account), key, key);
+        assert!(!can_rebalance, 0);
+        assert!(extra == 0, 0);
+        assert!(insufficient == 0, 0);
+    }
 }
