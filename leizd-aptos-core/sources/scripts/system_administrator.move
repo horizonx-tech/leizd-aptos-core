@@ -139,6 +139,7 @@ module leizd::system_administrator {
     }
     #[test(owner = @leizd)]
     fun test_operate_system_status(owner: &signer) {
+        account::create_account_for_test(signer::address_of(owner));
         system_status::initialize(owner);
         assert!(system_status::status(), 0);
         pause_protocol(owner);
