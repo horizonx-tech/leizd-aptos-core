@@ -1606,6 +1606,82 @@ module leizd::shadow_pool {
         let event_handle = borrow_global<PoolEventHandle>(signer::address_of(owner));
         assert!(event::counter<RebalanceEvent>(&event_handle.rebalance_event) == 1, 0);
     }
+    #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
+    public entry fun test_rebalance_shadow_with_all_pattern(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+        managed_coin::register<WETH>(account);
+        managed_coin::register<UNI>(account);
+        managed_coin::register<USDZ>(account);
+
+        usdz::mint_for_test(account_addr, 50000);
+        deposit_for_internal<WETH>(account, account_addr, 10000, false);
+        deposit_for_internal<WETH>(account, account_addr, 10000, true);
+        deposit_for_internal<UNI>(account, account_addr, 10000, false);
+        deposit_for_internal<UNI>(account, account_addr, 10000, true);
+        assert!(deposited<WETH>() == 20000, 0);
+        assert!(conly_deposited<WETH>() == 10000, 0);
+        assert!(deposited<UNI>() == 20000, 0);
+        assert!(conly_deposited<UNI>() == 10000, 0);
+
+        // borrowable & borrowable
+        rebalance_shadow<WETH,UNI>(5000, false, false);
+        assert!(deposited<WETH>() == 15000, 0);
+        assert!(conly_deposited<WETH>() == 10000, 0);
+        assert!(deposited<UNI>() == 25000, 0);
+        assert!(conly_deposited<UNI>() == 10000, 0);
+
+        // collateral only & collateral only
+        rebalance_shadow<WETH,UNI>(5000, true, true);
+        assert!(deposited<WETH>() == 10000, 0);
+        assert!(conly_deposited<WETH>() == 5000, 0);
+        assert!(deposited<UNI>() == 30000, 0);
+        assert!(conly_deposited<UNI>() == 15000, 0);
+
+        // borrowable & collateral only
+        rebalance_shadow<WETH,UNI>(5000, false, true);
+        assert!(deposited<WETH>() == 5000, 0);
+        assert!(conly_deposited<WETH>() == 5000, 0);
+        assert!(deposited<UNI>() == 35000, 0);
+        assert!(conly_deposited<UNI>() == 20000, 0);
+
+        // collateral only & borrowable
+        rebalance_shadow<WETH,UNI>(5000, true, false);
+        assert!(deposited<WETH>() == 0, 0);
+        assert!(conly_deposited<WETH>() == 0, 0);
+        assert!(deposited<UNI>() == 40000, 0);
+        assert!(conly_deposited<UNI>() == 20000, 0);
+    }
+    #[test(owner=@leizd,aptos_framework=@aptos_framework)]
+    #[expected_failure(abort_code = 0)]
+    public entry fun test_rebalance_shadow_to_set_not_added_coin_key_to_from(owner: &signer, aptos_framework: &signer) acquires Storage, PoolEventHandle {
+        timestamp::set_time_has_started_for_testing(aptos_framework);
+        let owner_addr = signer::address_of(owner);
+        account::create_account_for_test(owner_addr);
+        initializer::initialize(owner);
+        test_coin::init_weth(owner);
+        test_coin::init_uni(owner);
+        init_pool_internal(owner);
+        pool_manager::add_pool<WETH>(owner);
+
+        rebalance_shadow<UNI,WETH>(5000, true, true);
+    }
+    #[test(owner=@leizd,aptos_framework=@aptos_framework)]
+    #[expected_failure(abort_code = 0)]
+    public entry fun test_rebalance_shadow_to_set_not_added_coin_key_to_to(owner: &signer, aptos_framework: &signer) acquires Storage, PoolEventHandle {
+        timestamp::set_time_has_started_for_testing(aptos_framework);
+        let owner_addr = signer::address_of(owner);
+        account::create_account_for_test(owner_addr);
+        initializer::initialize(owner);
+        test_coin::init_weth(owner);
+        test_coin::init_uni(owner);
+        init_pool_internal(owner);
+        pool_manager::add_pool<WETH>(owner);
+
+        rebalance_shadow<WETH,UNI>(5000, true, true);
+    }
+
     #[test(owner=@leizd,account1=@0x111,aptos_framework=@aptos_framework)]
     public entry fun test_borrow_and_rebalance(owner: &signer, account1: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
