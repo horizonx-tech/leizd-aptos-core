@@ -296,7 +296,7 @@ module leizd::money_market {
         assert!(shadow_pool::deposited<WETH>() == 25, 0);
         assert!(account_position::deposited_shadow<WETH>(account_addr) == 25, 0);
     }
-        #[test(owner=@leizd,account=@0x111,for=@0x222,aptos_framework=@aptos_framework)]
+    #[test(owner=@leizd,account=@0x111,for=@0x222,aptos_framework=@aptos_framework)]
     fun test_withdraw_for_with_asset(owner: &signer, account: &signer, for: &signer, aptos_framework: &signer) {
         initialize_lending_pool_for_test(owner, aptos_framework);
         setup_account_for_test(account);
@@ -375,5 +375,59 @@ module leizd::money_market {
         assert!(coin::balance<WETH>(account_addr) == 99, 0);
         assert!(asset_pool::total_borrowed<WETH>() > 99, 0);
         assert!(account_position::borrowed_asset<WETH>(account_addr) > 0, 0);  // TODO: check
+    }
+    #[test(owner=@leizd,lp=@0x111,account=@0x222,for=@0x333,aptos_framework=@aptos_framework)]
+    fun test_borrow_for_with_shadow_from_asset(owner: &signer, lp: &signer, account: &signer, for: &signer, aptos_framework: &signer) {
+        initialize_lending_pool_for_test(owner, aptos_framework);
+        setup_liquidity_provider_for_test(owner, lp);
+        setup_account_for_test(account);
+        let account_addr = signer::address_of(account);
+        managed_coin::mint<WETH>(owner, account_addr, 100);
+
+        setup_account_for_test(for);
+
+        // prerequisite
+        deposit<WETH, Shadow>(lp, 200, false);
+        //// check risk_factor
+        assert!(risk_factor::lt<WETH>() == risk_factor::default_lt(), 0);
+        assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
+
+        // execute
+        deposit<WETH, Asset>(account, 100, false);
+        let for_addr = signer::address_of(for);
+        borrow_for<WETH, Shadow>(account, for_addr, 69);
+
+        assert!(coin::balance<USDZ>(account_addr) == 0, 0);
+        assert!(coin::balance<USDZ>(for_addr) == 69, 0);
+        assert!(shadow_pool::borrowed<WETH>() > 69, 0);
+        assert!(account_position::borrowed_shadow<WETH>(account_addr) > 0, 0); // TODO: check
+        assert!(account_position::borrowed_shadow<WETH>(for_addr) == 0, 0);
+    }
+    #[test(owner=@leizd,lp=@0x111,account=@0x222,for=@0x333,aptos_framework=@aptos_framework)]
+    fun test_borrow_for_with_asset_from_shadow(owner: &signer, lp: &signer, account: &signer, for: &signer, aptos_framework: &signer) {
+        initialize_lending_pool_for_test(owner, aptos_framework);
+        setup_liquidity_provider_for_test(owner, lp);
+        setup_account_for_test(account);
+        let account_addr = signer::address_of(account);
+        usdz::mint_for_test(account_addr, 100);
+
+        setup_account_for_test(for);
+
+        // prerequisite
+        deposit<WETH, Asset>(lp, 200, false);
+        //// check risk_factor
+        assert!(risk_factor::lt<WETH>() == risk_factor::default_lt(), 0);
+        assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
+
+        // execute
+        deposit<WETH, Shadow>(account, 100, false);
+        let for_addr = signer::address_of(for);
+        borrow_for<WETH, Asset>(account, for_addr, 99);
+
+        assert!(coin::balance<WETH>(account_addr) == 0, 0);
+        assert!(coin::balance<WETH>(for_addr) == 99, 0);
+        assert!(asset_pool::total_borrowed<WETH>() > 99, 0);
+        assert!(account_position::borrowed_asset<WETH>(account_addr) > 0, 0);  // TODO: check
+        assert!(account_position::borrowed_asset<WETH>(for_addr) == 0, 0);
     }
 }
