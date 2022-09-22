@@ -147,8 +147,8 @@ module leizd::money_market {
         };
     }
 
-    #[test_only]
-    use aptos_framework::debug;
+    // #[test_only]
+    // use aptos_framework::debug;
     #[test_only]
     use aptos_framework::account;
     #[test_only]
@@ -161,6 +161,8 @@ module leizd::money_market {
     use leizd_aptos_trove::usdz::{Self, USDZ};
     #[test_only]
     use leizd::pool_type::{Asset, Shadow};
+    #[test_only]
+    use leizd::risk_factor;
     #[test_only]
     use leizd::initializer;
     #[test_only]
@@ -338,14 +340,16 @@ module leizd::money_market {
         let account_addr = signer::address_of(account);
         managed_coin::mint<WETH>(owner, account_addr, 100);
 
+        // prerequisite
         deposit<WETH, Shadow>(lp, 200, false);
+        //// check risk_factor
+        assert!(risk_factor::lt<WETH>() == risk_factor::default_lt(), 0);
+        assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
 
+        // execute
         deposit<WETH, Asset>(account, 100, false);
-        // TODO: check risk_factor
         borrow<WETH, Shadow>(account, 69);
 
-        debug::print(&shadow_pool::borrowed<WETH>());
-        debug::print(&account_position::borrowed_shadow<WETH>(account_addr));
         assert!(coin::balance<USDZ>(account_addr) == 69, 0);
         assert!(shadow_pool::borrowed<WETH>() > 69, 0);
         assert!(account_position::borrowed_shadow<WETH>(account_addr) > 0, 0); // TODO: check
@@ -358,14 +362,16 @@ module leizd::money_market {
         let account_addr = signer::address_of(account);
         usdz::mint_for_test(account_addr, 100);
 
+        // prerequisite
         deposit<WETH, Asset>(lp, 200, false);
+        //// check risk_factor
+        assert!(risk_factor::lt<WETH>() == risk_factor::default_lt(), 0);
+        assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
 
+        // execute
         deposit<WETH, Shadow>(account, 100, false);
-        // TODO: check risk_factor
         borrow<WETH, Asset>(account, 99);
 
-        debug::print(&asset_pool::total_borrowed<WETH>());
-        debug::print(&account_position::borrowed_asset<WETH>(account_addr));
         assert!(coin::balance<WETH>(account_addr) == 99, 0);
         assert!(asset_pool::total_borrowed<WETH>() > 99, 0);
         assert!(account_position::borrowed_asset<WETH>(account_addr) > 0, 0);  // TODO: check
