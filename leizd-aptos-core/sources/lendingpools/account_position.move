@@ -26,6 +26,7 @@ module leizd::account_position {
     const EPOSITION_EXISTED: u64 = 7;
     const EALREADY_DEPOSITED_AS_NORMAL: u64 = 8;
     const EALREADY_DEPOSITED_AS_COLLATERAL_ONLY: u64 = 9;
+    const ECANNOT_REBALANCE: u64 = 10;
 
     /// P: The position type - AssetToShadow or ShadowToAsset.
     struct Position<phantom P> has key {
@@ -54,6 +55,7 @@ module leizd::account_position {
 
     public fun deposited_asset<C>(addr: address): u64 acquires Position {
         let key = generate_key<C>();
+        if (!exists<Position<AssetToShadow>>(addr)) return 0;
         let position_ref = borrow_global<Position<AssetToShadow>>(addr);
         if (simple_map::contains_key<String,Balance>(&position_ref.balance, &key)) {
             simple_map::borrow<String,Balance>(&position_ref.balance, &key).deposited
@@ -68,6 +70,7 @@ module leizd::account_position {
     }
 
     public fun conly_deposited_asset_with(addr: address, key: String): u64 acquires Position {
+        if (!exists<Position<AssetToShadow>>(addr)) return 0;
         let position_ref = borrow_global<Position<AssetToShadow>>(addr);
         if (simple_map::contains_key<String,Balance>(&position_ref.balance, &key)) {
             simple_map::borrow<String,Balance>(&position_ref.balance, &key).conly_deposited
@@ -89,6 +92,7 @@ module leizd::account_position {
 
     public fun deposited_shadow<C>(addr: address): u64 acquires Position {
         let key = generate_key<C>();
+        if (!exists<Position<ShadowToAsset>>(addr)) return 0;
         let position_ref = borrow_global<Position<ShadowToAsset>>(addr);
         if (simple_map::contains_key<String,Balance>(&position_ref.balance, &key)) {
             simple_map::borrow<String,Balance>(&position_ref.balance, &key).deposited
@@ -103,6 +107,7 @@ module leizd::account_position {
     }
 
     public fun conly_deposited_shadow_with(addr: address, key: String): u64 acquires Position {
+        if (!exists<Position<ShadowToAsset>>(addr)) return 0;
         let position_ref = borrow_global<Position<ShadowToAsset>>(addr);
         if (simple_map::contains_key<String,Balance>(&position_ref.balance, &key)) {
             simple_map::borrow<String,Balance>(&position_ref.balance, &key).conly_deposited
@@ -295,7 +300,7 @@ module leizd::account_position {
         let is_collateral_only_C2 = conly_deposited_shadow_with(addr, key2) > 0;
         let (can_rebalance,_,insufficient) = can_rebalance_shadow_between(addr, key1, key2);
 
-        assert!(can_rebalance, 0);
+        assert!(can_rebalance, error::invalid_argument(ECANNOT_REBALANCE));
         update_position_for_withdraw<ShadowToAsset>(key1, addr, insufficient, is_collateral_only_C1);
         update_position_for_deposit<ShadowToAsset>(key2, addr, insufficient, is_collateral_only_C2);
 
@@ -1311,7 +1316,17 @@ module leizd::account_position {
         assert!(!is_collateral_only_C2, 0);
         assert!(deposited_shadow<WETH>(account2_addr) == 1800, 0);
         assert!(deposited_shadow<UNI>(account2_addr) == 1200, 0);
+    }
+    #[test(owner = @leizd, account = @0x111)]
+    #[expected_failure(abort_code = 65546)]
+    fun test_rebalance_shadow_with_no_need_to_rebalance(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle {
+        setup_for_test_to_initialize_coins(owner);
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
 
+        deposit_internal<WETH, Shadow>(account, account_addr, 1, false);
+        deposit_internal<UNI, Shadow>(account, account_addr, 1, false);
+        rebalance_shadow<WETH, UNI>(account_addr);
     }
     #[test(owner = @leizd, account = @0x111)]
     #[expected_failure(abort_code = 3)]
