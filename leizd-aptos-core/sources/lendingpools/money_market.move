@@ -524,4 +524,50 @@ module leizd::money_market {
         assert!(account_position::deposited_shadow<WETH>(account_addr) < 100, 0);
         assert!(account_position::deposited_shadow<UNI>(account_addr) > 100, 0);
     }
+    #[test(owner=@leizd,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
+    fun test_borrow_and_rebalance(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) {
+        initialize_lending_pool_for_test(owner, aptos_framework);
+        setup_liquidity_provider_for_test(owner, lp);
+        setup_account_for_test(account);
+        let account_addr = signer::address_of(account);
+        managed_coin::mint<WETH>(owner, account_addr, 100);
+        usdz::mint_for_test(account_addr, 101);
+
+        // prerequisite
+        deposit<UNI, Asset>(lp, 200, false);
+        deposit<WETH, Shadow>(lp, 200, false);
+        //// temp: for adding key to Storage
+        deposit<WETH, Asset>(lp, 2, false);
+        borrow<WETH, Shadow>(lp, 1);
+        repay<WETH, Shadow>(lp, 2);
+        withdraw<WETH, Asset>(lp, 2, false);
+        let lp_addr = signer::address_of(lp);
+        assert!(asset_pool::total_deposited<WETH>() == 0, 0);
+        assert!(shadow_pool::borrowed<WETH>() == 1, 0); // TODO: bug fix - take fee to borrowed of user
+        assert!(account_position::borrowed_shadow<WETH>(lp_addr) == 0, 0);
+        //// check risk_factor
+        assert!(risk_factor::lt<WETH>() == risk_factor::default_lt(), 0);
+        assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
+
+        // execute
+        deposit<WETH, Asset>(account, 100, false);
+        deposit<UNI, Shadow>(account, 100, false);
+        borrow<UNI, Asset>(account, 99);
+        assert!(asset_pool::total_deposited<WETH>() == 100, 0);
+        assert!(shadow_pool::deposited<UNI>() == 100, 0);
+        assert!(shadow_pool::borrowed<WETH>() == 1, 0);
+        assert!(account_position::deposited_asset<WETH>(account_addr) == 100, 0);
+        assert!(account_position::deposited_shadow<UNI>(account_addr) == 100, 0);
+        assert!(account_position::borrowed_shadow<WETH>(account_addr) == 0, 0);
+
+        risk_factor::update_config<USDZ>(owner, 1000000000 / 100 * 80, 1000000000 / 100 * 80); // 80%
+
+        borrow_and_rebalance<WETH, UNI>(account_addr);
+        assert!(asset_pool::total_deposited<WETH>() == 100, 0);
+        assert!(shadow_pool::deposited<UNI>() > 100, 0);
+        assert!(shadow_pool::borrowed<WETH>() > 1, 0);
+        assert!(account_position::deposited_asset<WETH>(account_addr) == 100, 0);
+        assert!(account_position::deposited_shadow<UNI>(account_addr) > 100, 0);
+        assert!(account_position::borrowed_shadow<WETH>(account_addr) > 0, 0);
+    }
 }
