@@ -476,4 +476,21 @@ module leizd::money_market {
         assert!(asset_pool::total_borrowed<WETH>() == 50, 0);
         assert!(account_position::borrowed_asset<WETH>(account_addr) > 0, 0);  // TODO: check
     }
+    #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
+    fun test_enable_to_rebalance_and_unable_to_rebalance(owner: &signer, account: &signer, aptos_framework: &signer) {
+        initialize_lending_pool_for_test(owner, aptos_framework);
+        setup_account_for_test(account);
+
+        // prerequisite: create position by depositing some asset
+        let account_addr = signer::address_of(account);
+        managed_coin::mint<WETH>(owner, account_addr, 100);
+        deposit<WETH, Asset>(account, 100, false);
+
+        // execute
+        assert!(!account_position::is_protected<WETH>(account_addr), 0);
+        protect_coin<WETH>(account);
+        assert!(account_position::is_protected<WETH>(account_addr), 0);
+        unprotect_coin<WETH>(account);
+        assert!(!account_position::is_protected<WETH>(account_addr), 0);
+    }
 }
