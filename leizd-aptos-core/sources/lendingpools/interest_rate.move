@@ -373,7 +373,8 @@ module leizd::interest_rate {
         PRECISION
     }
 
-    use std::debug;
+    // #[test_only]
+    // use std::debug;
 
     #[test]
     public entry fun test_calc__rcomp() {
@@ -510,7 +511,7 @@ module leizd::interest_rate {
         let tcrit = 0;
         let rp = calc_rp(u, ucrit, ulow, kcrit, klow, tcrit);
         let expected = klow * (ulow - u) / PRECISION;
-        debug::print(&expected);
+        // debug::print(&expected);
         assert!(i128::as_u128(&i128::abs(&rp)) == expected, 0);
     }
 
