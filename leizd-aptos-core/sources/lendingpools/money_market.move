@@ -516,7 +516,7 @@ module leizd::money_market {
         assert!(account_position::deposited_shadow<WETH>(account_addr) == 100, 0);
         assert!(account_position::deposited_shadow<UNI>(account_addr) == 100, 0);
 
-        risk_factor::update_config<USDZ>(owner, 1000000000 / 100 * 75, 1000000000 / 100 * 80); // 75% / 80%
+        risk_factor::update_config<USDZ>(owner, 1000000000 / 100 * 80, 1000000000 / 100 * 80); // 80%
 
         rebalance_shadow<WETH, UNI>(account_addr);
         assert!(shadow_pool::deposited<WETH>() < 100, 0);

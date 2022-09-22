@@ -156,7 +156,7 @@ module leizd::risk_factor {
 
     fun assert_liquidation_threshold(ltv: u64, lt: u64) {
         assert!(lt <= PRECISION, error::invalid_argument(EINVALID_THRESHOLD));
-        assert!(ltv != 0 && ltv < lt, error::invalid_argument(EINVALID_LTV));
+        assert!(ltv != 0 && ltv <= lt, error::invalid_argument(EINVALID_LTV));
     }
 
     public fun ltv<C>(): u64 acquires Config {
@@ -426,13 +426,14 @@ module leizd::risk_factor {
         update_config<TestAsset>(owner, 0, PRECISION);
     }
     #[test(owner=@leizd)]
-    #[expected_failure(abort_code = 65539)]
     public entry fun test_update_config_when_ltv_is_equal_to_lt(owner: &signer) acquires Config, RepositoryAssetEventHandle {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
         initialize(owner);
         new_asset<TestAsset>(owner);
         update_config<TestAsset>(owner, PRECISION / 100 * 50, PRECISION / 100 * 50);
+        assert!(ltv<TestAsset>() == PRECISION / 100 * 50, 0);
+        assert!(lt<TestAsset>() == PRECISION / 100 * 50, 0);
     }
     #[test(owner = @leizd)]
     fun test_calculate_entry_fee(owner: &signer) acquires ProtocolFees {
