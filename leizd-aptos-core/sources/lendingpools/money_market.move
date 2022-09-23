@@ -601,7 +601,7 @@ module leizd::money_market {
 
         liquidate<WETH, Asset>(liquidator, borrower_addr);
         assert!(asset_pool::total_deposited<WETH>() == 0, 0);
-        assert!(shadow_pool::borrowed<WETH>() == 1000 + 5, 0);
+        assert!(shadow_pool::borrowed<WETH>() == 1000 + 5, 0); // TODO: to be removed
         assert!(account_position::deposited_asset<WETH>(borrower_addr) == 0, 0);
         assert!(account_position::borrowed_shadow<WETH>(borrower_addr) == 0, 0);
         // TODO: check about coin::balance and transfer fee
@@ -643,7 +643,7 @@ module leizd::money_market {
 
         liquidate<WETH, Shadow>(liquidator, borrower_addr);
         assert!(shadow_pool::deposited<WETH>() == 0, 0);
-        assert!(asset_pool::total_borrowed<WETH>() == 1000 + 5, 0);
+        assert!(asset_pool::total_borrowed<WETH>() == 1000 + 5, 0); // TODO: to be removed
         assert!(account_position::deposited_shadow<WETH>(borrower_addr) == 0, 0);
         assert!(account_position::borrowed_asset<WETH>(borrower_addr) == 0, 0);
         // TODO: check about coin::balance and transfer fee
