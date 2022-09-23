@@ -19,6 +19,7 @@ module leizd::stability_pool {
 
     const PRECISION: u64 = 1000000000;
     const DEFAULT_ENTRY_FEE: u64 = 1000000000 * 5 / 1000; // 0.5%
+    const DEFAULT_SUPPORT_FEE: u64 = 1000000000 * 1 / 1000; // 0.1%
 
     const EALREADY_INITIALIZED: u64 = 1;
     const EINVALID_ENTRY_FEE: u64 = 2;
@@ -29,6 +30,7 @@ module leizd::stability_pool {
     const ENOT_INITIALIZED_COIN: u64 = 7;
     const ENOT_ADDED_COIN: u64 = 8;
     const ENOT_SUPPORTED_COIN: u64 = 9;
+    const EINVALID_SUPPORT_FEE: u64 = 10;
 
     struct StabilityPool has key {
         left: coin::Coin<USDZ>,
@@ -46,6 +48,7 @@ module leizd::stability_pool {
 
     struct Config has key {
         entry_fee: u64, // One time protocol fee for opening a borrow position
+        support_fee: u64, // base fee obtained from supported pools
     }
 
     struct DistributionConfig has key {
@@ -98,6 +101,7 @@ module leizd::stability_pool {
     struct UpdateConfigEvent has store, drop {
         caller: address,
         entry_fee: u64,
+        support_fee: u64,
     }
     struct StabilityPoolEventHandle has key, store {
         deposit_event: event::EventHandle<DepositEvent>,
@@ -127,7 +131,8 @@ module leizd::stability_pool {
             uncollected_fee: simple_map::create<String,u128>(),
         });
         move_to(owner, Config {
-            entry_fee: DEFAULT_ENTRY_FEE
+            entry_fee: DEFAULT_ENTRY_FEE,
+            support_fee: DEFAULT_SUPPORT_FEE
         });
         move_to(owner, DistributionConfig {
             emission_per_sec: 0,
@@ -163,20 +168,23 @@ module leizd::stability_pool {
         }
     }
 
-    public entry fun update_config(owner: &signer, new_entry_fee: u64) acquires Config, StabilityPoolEventHandle {
+    public entry fun update_config(owner: &signer, new_entry_fee: u64, new_support_fee: u64) acquires Config, StabilityPoolEventHandle {
         assert!(new_entry_fee < PRECISION, error::invalid_argument(EINVALID_ENTRY_FEE));
+        assert!(new_support_fee < PRECISION, error::invalid_argument(EINVALID_SUPPORT_FEE));
         let owner_address = signer::address_of(owner);
         permission::assert_owner(owner_address);
 
         let config = borrow_global_mut<Config>(owner_address);
-        if(config.entry_fee == new_entry_fee) return;
+        if(config.entry_fee == new_entry_fee && config.support_fee == new_support_fee) return;
         config.entry_fee = new_entry_fee;
+        config.support_fee = new_support_fee;
 
         event::emit_event<UpdateConfigEvent>(
             &mut borrow_global_mut<StabilityPoolEventHandle>(owner_address).update_config_event,
             UpdateConfigEvent {
                 caller: owner_address,
                 entry_fee: new_entry_fee,
+                support_fee: new_support_fee,
             }
         );
     }
@@ -304,6 +312,14 @@ module leizd::stability_pool {
     }
     public fun entry_fee(): u64 acquires Config {
         borrow_global<Config>(permission::owner_address()).entry_fee
+    }
+    public fun calculate_support_fee(value: u64): u64 acquires Config {
+        let value_mul_by_fee = value * support_fee();
+        let result = value_mul_by_fee / PRECISION;
+        if (value_mul_by_fee % PRECISION != 0) result + 1 else result
+    }
+    public fun support_fee(): u64 acquires Config {
+        borrow_global<Config>(permission::owner_address()).support_fee
     }
 
     public(friend) fun repay(key: String, account: &signer, amount: u64) acquires StabilityPool, Balance, StabilityPoolEventHandle {
@@ -478,6 +494,10 @@ module leizd::stability_pool {
         DEFAULT_ENTRY_FEE
     }
     #[test_only]
+    public fun default_support_fee(): u64 {
+        DEFAULT_SUPPORT_FEE
+    }
+    #[test_only]
     fun initialize_for_test_to_use_coin(owner: &signer) acquires Balance {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
@@ -506,6 +526,7 @@ module leizd::stability_pool {
         assert!(exists<Config>(owner_addr), 0);
         let config_ref = borrow_global<Config>(owner_addr);
         assert!(config_ref.entry_fee == DEFAULT_ENTRY_FEE, 0);
+        assert!(config_ref.support_fee == DEFAULT_SUPPORT_FEE, 0);
 
         assert!(exists<DistributionConfig>(owner_addr), 0);
         let distribution_config_ref = borrow_global<DistributionConfig>(owner_addr);
@@ -1208,8 +1229,9 @@ module leizd::stability_pool {
     fun test_update_config(owner: &signer) acquires Balance, Config, StabilityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
 
-        update_config(owner, PRECISION * 10 / 1000);
+        update_config(owner, PRECISION * 10 / 1000, PRECISION * 10 / 1000);
         assert!(entry_fee() == PRECISION * 10 / 1000, 0);
+        assert!(support_fee() == PRECISION * 10 / 1000, 0);
 
         assert!(event::counter<UpdateConfigEvent>(&borrow_global<StabilityPoolEventHandle>(signer::address_of(owner)).update_config_event) == 1, 0);
     }
@@ -1217,13 +1239,19 @@ module leizd::stability_pool {
     #[expected_failure(abort_code = 1)]
     fun test_update_config_with_not_owner(owner: &signer, account: &signer) acquires Balance, Config, StabilityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
-        update_config(account, PRECISION * 10 / 1000);
+        update_config(account, PRECISION * 10 / 1000, PRECISION * 10 / 1000);
     }
     #[test(owner = @leizd)]
     #[expected_failure(abort_code = 65538)]
-    fun test_update_config_with_fee_as_equal_to_precision(owner: &signer) acquires Balance, Config, StabilityPoolEventHandle {
+    fun test_update_config_with_entry_fee_as_equal_to_precision(owner: &signer) acquires Balance, Config, StabilityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
-        update_config(owner, PRECISION);
+        update_config(owner, PRECISION, support_fee());
+    }
+    #[test(owner = @leizd)]
+    #[expected_failure(abort_code = 65546)]
+    fun test_update_config_with_support_fee_as_equal_to_precision(owner: &signer) acquires Balance, Config, StabilityPoolEventHandle {
+        initialize_for_test_to_use_coin(owner);
+        update_config(owner, entry_fee(), PRECISION);
     }
     #[test(owner = @leizd)]
     fun test_calculate_entry_fee(owner: &signer) acquires Balance, Config, StabilityPoolEventHandle {
@@ -1237,7 +1265,7 @@ module leizd::stability_pool {
         assert!(calculate_entry_fee(1) == 1, 0);
         assert!(calculate_entry_fee(0) == 0, 0);
 
-        update_config(owner, PRECISION * 7 / 1000);
+        update_config(owner, PRECISION * 7 / 1000, support_fee());
         assert!(calculate_entry_fee(100001) == 701, 0);
         assert!(calculate_entry_fee(100000) == 700, 0);
         assert!(calculate_entry_fee(99999) == 700, 0);
@@ -1246,9 +1274,34 @@ module leizd::stability_pool {
         assert!(calculate_entry_fee(1) == 1, 0);
         assert!(calculate_entry_fee(0) == 0, 0);
 
-        update_config(owner, 0);
+        update_config(owner, 0, 0);
         assert!(calculate_entry_fee(100000) == 0, 0);
         assert!(calculate_entry_fee(1) == 0, 0);
+    }
+    #[test(owner = @leizd)]
+    fun test_calculate_support_fee(owner: &signer) acquires Balance, Config, StabilityPoolEventHandle {
+        initialize_for_test_to_use_coin(owner);
+
+        assert!(calculate_support_fee(100000) == 100, 0);
+        assert!(calculate_support_fee(100001) == 101, 0);
+        assert!(calculate_support_fee(99999) == 100, 0);
+        assert!(calculate_support_fee(2000) == 2, 0);
+        assert!(calculate_support_fee(1990) == 2, 0);
+        assert!(calculate_support_fee(1) == 1, 0);
+        assert!(calculate_support_fee(0) == 0, 0);
+
+        update_config(owner, entry_fee(), PRECISION * 7 / 1000);
+        assert!(calculate_support_fee(100001) == 701, 0);
+        assert!(calculate_support_fee(100000) == 700, 0);
+        assert!(calculate_support_fee(99999) == 700, 0);
+        assert!(calculate_support_fee(143) == 2, 0);
+        assert!(calculate_support_fee(142) == 1, 0);
+        assert!(calculate_support_fee(1) == 1, 0);
+        assert!(calculate_support_fee(0) == 0, 0);
+
+        update_config(owner, 0, 0);
+        assert!(calculate_support_fee(100000) == 0, 0);
+        assert!(calculate_support_fee(1) == 0, 0);
     }
     #[test(owner = @leizd)]
     fun test_distribution_config(owner: &signer) acquires DistributionConfig {
