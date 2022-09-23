@@ -163,6 +163,8 @@ module leizd::money_market {
     use leizd::pool_type::{Asset, Shadow};
     #[test_only]
     use leizd::risk_factor;
+    // #[test_only]
+    // use leizd::treasury;
     #[test_only]
     use leizd::initializer;
     #[test_only]
@@ -569,5 +571,89 @@ module leizd::money_market {
         assert!(account_position::deposited_asset<WETH>(account_addr) == 100, 0);
         assert!(account_position::deposited_shadow<UNI>(account_addr) > 100, 0);
         assert!(account_position::borrowed_shadow<WETH>(account_addr) > 0, 0);
+    }
+    #[test(owner=@leizd,lp=@0x111,borrower=@0x222,liquidator=@0x333,target=@0x444,aptos_framework=@aptos_framework)]
+    fun test_liquidate_asset(owner: &signer, lp: &signer, borrower: &signer, liquidator: &signer, target: &signer, aptos_framework: &signer) {
+        initialize_lending_pool_for_test(owner, aptos_framework);
+        setup_liquidity_provider_for_test(owner, lp);
+        setup_account_for_test(borrower);
+        setup_account_for_test(liquidator);
+        setup_account_for_test(target);
+        let borrower_addr = signer::address_of(borrower);
+        // let liquidator_addr = signer::address_of(liquidator);
+        managed_coin::mint<WETH>(owner, borrower_addr, 2000);
+
+        // prerequisite
+        deposit<WETH, Shadow>(lp, 2000, false);
+        //// check risk_factor
+        assert!(risk_factor::lt<WETH>() == risk_factor::default_lt(), 0);
+        assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
+
+        // execute
+        deposit<WETH, Asset>(borrower, 2000, false);
+        borrow<WETH, Shadow>(borrower, 1000);
+        assert!(asset_pool::total_deposited<WETH>() == 2000, 0);
+        assert!(shadow_pool::borrowed<WETH>() == 1000 + 5, 0);
+        assert!(account_position::deposited_asset<WETH>(borrower_addr) == 2000, 0);
+        assert!(account_position::borrowed_shadow<WETH>(borrower_addr) == 1000, 0); // TODO: bug fix - take fee to borrowed of user
+
+        risk_factor::update_config<WETH>(owner, 1000000000 / 100 * 10, 1000000000 / 100 * 10); // 10%
+
+        liquidate<WETH, Asset>(liquidator, borrower_addr);
+        assert!(asset_pool::total_deposited<WETH>() == 0, 0);
+        assert!(shadow_pool::borrowed<WETH>() == 1000 + 5, 0);
+        assert!(account_position::deposited_asset<WETH>(borrower_addr) == 0, 0);
+        assert!(account_position::borrowed_shadow<WETH>(borrower_addr) == 0, 0);
+        // TODO: check about coin::balance and transfer fee
+        // debug::print(&asset_pool::total_deposited<WETH>());
+        // debug::print(&shadow_pool::borrowed<WETH>());
+        // debug::print(&account_position::deposited_asset<WETH>(borrower_addr));
+        // debug::print(&account_position::borrowed_shadow<WETH>(borrower_addr));
+        // debug::print(&coin::balance<WETH>(borrower_addr));
+        // debug::print(&coin::balance<USDZ>(borrower_addr));
+        // debug::print(&coin::balance<WETH>(liquidator_addr));
+        // debug::print(&treasury::balance_of_asset<WETH>()); // TODO: check differences with asset_pool
+    }
+    #[test(owner=@leizd,lp=@0x111,borrower=@0x222,liquidator=@0x333,target=@0x444,aptos_framework=@aptos_framework)]
+    fun test_liquidate_shadow(owner: &signer, lp: &signer, borrower: &signer, liquidator: &signer, target: &signer, aptos_framework: &signer) {
+        initialize_lending_pool_for_test(owner, aptos_framework);
+        setup_liquidity_provider_for_test(owner, lp);
+        setup_account_for_test(borrower);
+        setup_account_for_test(liquidator);
+        setup_account_for_test(target);
+        let borrower_addr = signer::address_of(borrower);
+        // let liquidator_addr = signer::address_of(liquidator);
+        usdz::mint_for_test(borrower_addr, 2000);
+
+        // prerequisite
+        deposit<WETH, Asset>(lp, 2000, false);
+        //// check risk_factor
+        assert!(risk_factor::lt<WETH>() == risk_factor::default_lt(), 0);
+        assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
+
+        // execute
+        deposit<WETH, Shadow>(borrower, 2000, false);
+        borrow<WETH, Asset>(borrower, 1000);
+        assert!(shadow_pool::deposited<WETH>() == 2000, 0);
+        assert!(asset_pool::total_borrowed<WETH>() == 1000 + 5, 0);
+        assert!(account_position::deposited_shadow<WETH>(borrower_addr) == 2000, 0);
+        assert!(account_position::borrowed_asset<WETH>(borrower_addr) == 1000, 0); // TODO: bug fix - take fee to borrowed of user
+
+        risk_factor::update_config<USDZ>(owner, 1000000000 / 100 * 10, 1000000000 / 100 * 10); // 10%
+
+        liquidate<WETH, Shadow>(liquidator, borrower_addr);
+        assert!(shadow_pool::deposited<WETH>() == 0, 0);
+        assert!(asset_pool::total_borrowed<WETH>() == 1000 + 5, 0);
+        assert!(account_position::deposited_shadow<WETH>(borrower_addr) == 0, 0);
+        assert!(account_position::borrowed_asset<WETH>(borrower_addr) == 0, 0);
+        // TODO: check about coin::balance and transfer fee
+        // debug::print(&shadow_pool::deposited<WETH>());
+        // debug::print(&asset_pool::total_borrowed<WETH>());
+        // debug::print(&account_position::deposited_shadow<WETH>(borrower_addr));
+        // debug::print(&account_position::borrowed_asset<WETH>(borrower_addr));
+        // debug::print(&coin::balance<USDZ>(borrower_addr));
+        // debug::print(&coin::balance<WETH>(borrower_addr));
+        // debug::print(&coin::balance<USDZ>(liquidator_addr));
+        // debug::print(&treasury::balance_of_asset<WETH>()); // TODO: check differences with asset_pool
     }
 }
