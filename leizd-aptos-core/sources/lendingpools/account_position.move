@@ -1124,6 +1124,33 @@ module leizd::account_position {
         assert!(event::counter<UpdatePositionEvent>(&borrow_global<AccountPositionEventHandle<ShadowToAsset>>(account_addr).update_position_event) == 4, 0);
     }
     #[test(owner=@leizd,account=@0x111)]
+    public entry fun test_liquidate_shadow_if_rebalance_should_be_done(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle {
+        setup_for_test_to_initialize_coins(owner);
+        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+
+        deposit_internal<WETH,Shadow>(account, account_addr, 100, false);
+        borrow_unsafe_for_test<WETH,Asset>(account_addr, 190);
+        deposit_internal<UNI,Shadow>(account, account_addr, 100, false);
+        assert!(deposited_shadow<WETH>(account_addr) == 100, 0);
+        assert!(deposited_shadow<UNI>(account_addr) == 100, 0);
+        assert!(conly_deposited_shadow<WETH>(account_addr) == 0, 0);
+        assert!(conly_deposited_shadow<UNI>(account_addr) == 0, 0);
+        assert!(borrowed_asset<WETH>(account_addr) == 190, 0);
+        assert!(borrowed_asset<UNI>(account_addr) == 0, 0);
+
+        let (deposited, is_collateral_only) = liquidate_internal<WETH,Shadow>(account_addr);
+        assert!(deposited == 0, 0);
+        assert!(!is_collateral_only, 0);
+        assert!(deposited_shadow<WETH>(account_addr) == 190, 0);
+        assert!(deposited_shadow<UNI>(account_addr) == 10, 0);
+        assert!(conly_deposited_shadow<WETH>(account_addr) == 0, 0);
+        assert!(conly_deposited_shadow<UNI>(account_addr) == 0, 0);
+        assert!(borrowed_asset<WETH>(account_addr) == 190, 0);
+        assert!(borrowed_asset<UNI>(account_addr) == 0, 0);
+    }
+    #[test(owner=@leizd,account=@0x111)]
     #[expected_failure(abort_code = 196610)]
     public entry fun test_liquidate_asset_if_safe(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle {
         setup_for_test_to_initialize_coins(owner);
