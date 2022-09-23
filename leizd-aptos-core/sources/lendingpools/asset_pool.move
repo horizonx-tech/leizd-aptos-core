@@ -78,6 +78,7 @@ module leizd::asset_pool {
     struct LiquidateEvent has store, drop {
         caller: address,
         target: address,
+        amount: u64,
     }
     struct PoolEventHandle<phantom C> has key, store {
         deposit_event: event::EventHandle<DepositEvent>,
@@ -346,6 +347,7 @@ module leizd::asset_pool {
             LiquidateEvent {
                 caller: liquidator_addr,
                 target: target_addr,
+                amount: liquidated
             }
         );
     }

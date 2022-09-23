@@ -71,6 +71,7 @@ module leizd::shadow_pool {
     struct LiquidateEvent has store, drop {
         caller: address,
         target: address,
+        amount: u64,
     }
 
     struct RebalanceEvent has store, drop {
@@ -450,6 +451,7 @@ module leizd::shadow_pool {
             LiquidateEvent {
                 caller: liquidator_addr,
                 target: target_addr,
+                amount: liquidated
             }
         );
     }
