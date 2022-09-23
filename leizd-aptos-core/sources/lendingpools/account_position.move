@@ -258,7 +258,7 @@ module leizd::account_position {
 
     fun liquidate_internal<C,P>(target_addr: address): (u64,bool) acquires Position, AccountPositionEventHandle {
         if (pool_type::is_type_asset<P>()) {
-            assert!(!is_safe<C,AssetToShadow>(target_addr), 0);
+            assert!(!is_safe<C,AssetToShadow>(target_addr), error::invalid_state(ENO_SAFE_POSITION));
             let deposited = deposited_asset<C>(target_addr);
             assert!(deposited != 0, 0);
             let is_collateral_only = conly_deposited_asset<C>(target_addr) > 0;
@@ -268,7 +268,7 @@ module leizd::account_position {
             assert!(is_zero_position<C,AssetToShadow>(target_addr), error::invalid_state(EPOSITION_EXISTED));
             (deposited, is_collateral_only)
         } else {
-            assert!(!is_safe<C,ShadowToAsset>(target_addr), 0);
+            assert!(!is_safe<C,ShadowToAsset>(target_addr), error::invalid_state(ENO_SAFE_POSITION));
             
             // rebalance shadow if possible
             let from_key = rebalance_shadow_from_key<C>(target_addr);
