@@ -367,7 +367,7 @@ module leizd::money_market {
         // prerequisite
         deposit<WETH, Asset>(lp, 200, false);
         //// check risk_factor
-        assert!(risk_factor::lt<WETH>() == risk_factor::default_lt(), 0);
+        assert!(risk_factor::lt_of_shadow() == risk_factor::default_lt_of_shadow(), 0);
         assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
 
         // execute
@@ -391,7 +391,7 @@ module leizd::money_market {
         // prerequisite
         deposit<WETH, Shadow>(lp, 200, false);
         //// check risk_factor
-        assert!(risk_factor::lt_of_shadow() == risk_factor::default_lt_of_shadow(), 0);
+        assert!(risk_factor::lt<WETH>() == risk_factor::default_lt(), 0);
         assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
 
         // execute
@@ -418,7 +418,7 @@ module leizd::money_market {
         // prerequisite
         deposit<WETH, Asset>(lp, 200, false);
         //// check risk_factor
-        assert!(risk_factor::lt<WETH>() == risk_factor::default_lt(), 0);
+        assert!(risk_factor::lt_of_shadow() == risk_factor::default_lt_of_shadow(), 0);
         assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
 
         // execute
@@ -466,7 +466,7 @@ module leizd::money_market {
         // prerequisite
         deposit<WETH, Asset>(lp, 200, false);
         //// check risk_factor
-        assert!(risk_factor::lt<WETH>() == risk_factor::default_lt(), 0);
+        assert!(risk_factor::lt_of_shadow() == risk_factor::default_lt_of_shadow(), 0);
         assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
 
         // execute
@@ -506,7 +506,7 @@ module leizd::money_market {
         // prerequisite
         deposit<UNI, Asset>(lp, 200, false);
         //// check risk_factor
-        assert!(risk_factor::lt<WETH>() == risk_factor::default_lt(), 0);
+        assert!(risk_factor::lt_of_shadow() == risk_factor::default_lt_of_shadow(), 0);
         assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
 
         // execute
@@ -548,7 +548,7 @@ module leizd::money_market {
         assert!(shadow_pool::borrowed<WETH>() == 1, 0); // TODO: bug fix - take fee to borrowed of user
         assert!(account_position::borrowed_shadow<WETH>(lp_addr) == 0, 0);
         //// check risk_factor
-        assert!(risk_factor::lt<WETH>() == risk_factor::default_lt(), 0);
+        assert!(risk_factor::lt_of_shadow() == risk_factor::default_lt_of_shadow(), 0);
         assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
 
         // execute
@@ -628,7 +628,7 @@ module leizd::money_market {
         // prerequisite
         deposit<WETH, Asset>(lp, 2000, false);
         //// check risk_factor
-        assert!(risk_factor::lt<WETH>() == risk_factor::default_lt(), 0);
+        assert!(risk_factor::lt_of_shadow() == risk_factor::default_lt_of_shadow(), 0);
         assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
 
         // execute
