@@ -180,28 +180,31 @@ module leizd::risk_factor {
         *table::borrow<string::String,u64>(&config.lt, type_info::type_name<USDZ>())
     }
 
+    // about fee
     public fun entry_fee(): u64 acquires ProtocolFees {
         borrow_global<ProtocolFees>(permission::owner_address()).entry_fee
     }
     public fun calculate_entry_fee(value: u64): u64 acquires ProtocolFees {
-        calculate_fee(value, entry_fee())
+        calculate_fee_with_round_up(value, entry_fee())
     }
     public fun share_fee(): u64 acquires ProtocolFees {
         borrow_global<ProtocolFees>(permission::owner_address()).share_fee
     }
     public fun calculate_share_fee(value: u64): u64 acquires ProtocolFees {
-        calculate_fee(value, share_fee())
+        calculate_fee_with_round_up(value, share_fee())
     }
+    //// for round up
+    fun calculate_fee_with_round_up(value: u64, fee: u64): u64 {
+        let value_mul_by_fee = value * fee;
+        let result = value_mul_by_fee / precision();
+        if (value_mul_by_fee % precision() != 0) result + 1 else result
+    }
+
     public fun liquidation_fee(): u64 acquires ProtocolFees {
         borrow_global<ProtocolFees>(permission::owner_address()).liquidation_fee
     }
     public fun calculate_liquidation_fee(value: u64): u64 acquires ProtocolFees {
-        calculate_fee(value, share_fee())
-    }
-    fun calculate_fee(value: u64, fee: u64): u64 {
-        let value_mul_by_fee = value * fee;
-        let result = value_mul_by_fee / precision();
-        if (value_mul_by_fee % precision() != 0) result + 1 else result
+        value * liquidation_fee() / precision() // round down
     }
 
     public entry fun precision(): u64 {
@@ -482,11 +485,11 @@ module leizd::risk_factor {
 
         // Execute
         assert!(calculate_liquidation_fee(100000) == 500, 0);
-        assert!(calculate_liquidation_fee(100001) == 501, 0);
-        assert!(calculate_liquidation_fee(99999) == 500, 0);
+        assert!(calculate_liquidation_fee(100001) == 500, 0);
+        assert!(calculate_liquidation_fee(99999) == 499, 0);
         assert!(calculate_liquidation_fee(200) == 1, 0);
-        assert!(calculate_liquidation_fee(199) == 1, 0);
-        assert!(calculate_liquidation_fee(1) == 1, 0);
+        assert!(calculate_liquidation_fee(199) == 0, 0);
+        assert!(calculate_liquidation_fee(1) == 0, 0);
         assert!(calculate_liquidation_fee(0) == 0, 0);
     }
 }

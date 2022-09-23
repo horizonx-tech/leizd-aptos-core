@@ -335,7 +335,7 @@ module leizd::asset_pool {
         liquidated: u64,
         is_collateral_only: bool,
     ) acquires Pool, Storage, PoolEventHandle {
-        let liquidation_fee = risk_factor::liquidation_fee() * liquidated / risk_factor::precision();
+        let liquidation_fee = risk_factor::calculate_liquidation_fee(liquidated);
         let owner_address = permission::owner_address();
         let storage_ref = borrow_global_mut<Storage<C>>(owner_address);
         accrue_interest<C>(storage_ref);
