@@ -27,6 +27,7 @@ module leizd::account_position {
     const EALREADY_DEPOSITED_AS_NORMAL: u64 = 8;
     const EALREADY_DEPOSITED_AS_COLLATERAL_ONLY: u64 = 9;
     const ECANNOT_REBALANCE: u64 = 10;
+    const ENO_DEPOSITED: u64 = 11;
 
     /// P: The position type - AssetToShadow or ShadowToAsset.
     struct Position<phantom P> has key {
@@ -260,7 +261,7 @@ module leizd::account_position {
         if (pool_type::is_type_asset<P>()) {
             assert!(!is_safe<C,AssetToShadow>(target_addr), error::invalid_state(ENO_SAFE_POSITION));
             let deposited = deposited_asset<C>(target_addr);
-            assert!(deposited != 0, 0);
+            assert!(deposited > 0, error::invalid_argument(ENO_DEPOSITED));
             let is_collateral_only = conly_deposited_asset<C>(target_addr) > 0;
             update_on_withdraw<C, AssetToShadow>(target_addr, deposited, is_collateral_only);
             let borrowed = borrowed_shadow<C>(target_addr);
@@ -279,7 +280,7 @@ module leizd::account_position {
             };
 
             let deposited = deposited_shadow<C>(target_addr);
-            assert!(deposited != 0, 0);
+            assert!(deposited > 0, error::invalid_argument(ENO_DEPOSITED));
             let is_collateral_only = conly_deposited_shadow<C>(target_addr) > 0;
             update_on_withdraw<C,ShadowToAsset>(target_addr, deposited, is_collateral_only);
             let borrowed = borrowed_asset<C>(target_addr);
