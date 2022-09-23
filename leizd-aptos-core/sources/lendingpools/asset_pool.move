@@ -1085,24 +1085,22 @@ module leizd::asset_pool {
         account::create_account_for_test(liquidator_addr);
         managed_coin::register<WETH>(depositor);
         managed_coin::register<WETH>(liquidator);
-        managed_coin::mint<WETH>(owner, depositor_addr, 1000);
-        assert!(coin::balance<WETH>(depositor_addr) == 1000, 0);
-        assert!(coin::balance<WETH>(liquidator_addr) == 0, 0);
+        managed_coin::mint<WETH>(owner, depositor_addr, 1001);
 
-        deposit_for_internal<WETH>(depositor, depositor_addr, 1000, false);
-        assert!(pool_asset_value<WETH>(owner_address) == 1000, 0);
-        assert!(total_deposited<WETH>() == 1000, 0);
+        deposit_for_internal<WETH>(depositor, depositor_addr, 1001, false);
+        assert!(pool_asset_value<WETH>(owner_address) == 1001, 0);
+        assert!(total_deposited<WETH>() == 1001, 0);
         assert!(total_conly_deposited<WETH>() == 0, 0);
         assert!(coin::balance<WETH>(depositor_addr) == 0, 0);
         assert!(coin::balance<WETH>(liquidator_addr) == 0, 0);
 
-        liquidate_internal<WETH>(liquidator_addr, liquidator_addr, 1000, false);
+        liquidate_internal<WETH>(liquidator_addr, liquidator_addr, 1001, false);
         assert!(pool_asset_value<WETH>(owner_address) == 0, 0);
         assert!(total_deposited<WETH>() == 0, 0);
         assert!(total_conly_deposited<WETH>() == 0, 0);
         assert!(coin::balance<WETH>(depositor_addr) == 0, 0);
         assert!(coin::balance<WETH>(liquidator_addr) == 995, 0);
-        assert!(treasury::balance_of_asset<WETH>() == 5, 0);
+        assert!(treasury::balance_of_asset<WETH>() == 6, 0);
 
         let event_handle = borrow_global<PoolEventHandle<WETH>>(signer::address_of(owner));
         assert!(event::counter<LiquidateEvent>(&event_handle.liquidate_event) == 1, 0);

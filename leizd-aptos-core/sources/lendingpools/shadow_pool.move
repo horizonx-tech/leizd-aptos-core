@@ -1215,22 +1215,22 @@ module leizd::shadow_pool {
         account::create_account_for_test(liquidator_addr);
         managed_coin::register<USDZ>(depositor);
         managed_coin::register<USDZ>(liquidator);
-        usdz::mint_for_test(depositor_addr, 1000);
+        usdz::mint_for_test(depositor_addr, 1001);
 
-        deposit_for_internal<WETH>(depositor, depositor_addr, 1000, false);
-        assert!(pool_shadow_value(owner_address) == 1000, 0);
-        assert!(total_deposited() == 1000, 0);
+        deposit_for_internal<WETH>(depositor, depositor_addr, 1001, false);
+        assert!(pool_shadow_value(owner_address) == 1001, 0);
+        assert!(total_deposited() == 1001, 0);
         assert!(total_conly_deposited() == 0, 0);
         assert!(coin::balance<USDZ>(depositor_addr) == 0, 0);
         assert!(coin::balance<USDZ>(liquidator_addr) == 0, 0);
 
-        liquidate_internal<WETH>(liquidator_addr, liquidator_addr, 1000, false);
+        liquidate_internal<WETH>(liquidator_addr, liquidator_addr, 1001, false);
         assert!(pool_shadow_value(owner_address) == 0, 0);
         assert!(total_deposited() == 0, 0);
         assert!(total_conly_deposited() == 0, 0);
         assert!(coin::balance<USDZ>(depositor_addr) == 0, 0);
         assert!(coin::balance<USDZ>(liquidator_addr) == 995, 0);
-        assert!(treasury::balance_of_shadow<WETH>() == 5, 0);
+        assert!(treasury::balance_of_shadow<WETH>() == 6, 0);
 
         let event_handle = borrow_global<PoolEventHandle>(signer::address_of(owner));
         assert!(event::counter<LiquidateEvent>(&event_handle.liquidate_event) == 1, 0);
