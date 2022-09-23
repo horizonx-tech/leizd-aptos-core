@@ -313,10 +313,10 @@ module leizd::stability_pool {
     public fun entry_fee(): u64 acquires Config {
         borrow_global<Config>(permission::owner_address()).entry_fee
     }
-    public fun calculate_support_fee(value: u64): u64 acquires Config {
-        let value_mul_by_fee = value * support_fee();
-        let result = value_mul_by_fee / PRECISION;
-        if (value_mul_by_fee % PRECISION != 0) result + 1 else result
+    public fun calculate_support_fee(value: u128): u128 acquires Config {
+        let value_mul_by_fee = value * (support_fee() as u128);
+        let result = value_mul_by_fee / (PRECISION as u128);
+        if (value_mul_by_fee % (PRECISION as u128) != 0) result + 1 else result
     }
     public fun support_fee(): u64 acquires Config {
         borrow_global<Config>(permission::owner_address()).support_fee
@@ -477,6 +477,17 @@ module leizd::stability_pool {
     public fun distribution_config(): (u64, u64, u64) acquires DistributionConfig {
         let config = borrow_global<DistributionConfig>(permission::owner_address());
         (config.emission_per_sec, config.last_updated, config.index)
+    }
+
+    public fun top_up_uncollected_fee<C>(amount: u128) acquires StabilityPool, Balance{
+        assert!(amount > 0, error::invalid_argument(EINVALID_AMOUNT));
+        let key = key<C>();
+        let owner_address = permission::owner_address();
+        let pool_ref = borrow_global_mut<StabilityPool>(owner_address);
+        let balance_ref = borrow_global_mut<Balance>(owner_address);
+        let uncollected_fee = simple_map::borrow_mut<String,u128>(&mut balance_ref.uncollected_fee, &key);
+        *uncollected_fee = *uncollected_fee + amount;
+        pool_ref.total_uncollected_fee = pool_ref.total_uncollected_fee + amount;
     }
 
     // #[test_only]

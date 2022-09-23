@@ -610,6 +610,15 @@ module leizd::shadow_pool {
         let new_protocol_fees = storage_ref.protocol_fees + (protocol_share as u64);
 
         let depositors_share = accrued_interest - protocol_share;
+
+        if(stability_pool::is_supported<C>()){
+            let stability_pool_support_fee = stability_pool::calculate_support_fee(accrued_interest);
+            depositors_share = accrued_interest - protocol_share - stability_pool_support_fee;
+            if(stability_pool_support_fee > 0) {
+                stability_pool::top_up_uncollected_fee<C>(stability_pool_support_fee);
+            }
+        };
+
         storage_ref.total_borrowed = storage_ref.total_borrowed + accrued_interest;
         storage_ref.total_deposited = storage_ref.total_deposited + depositors_share;
         storage_ref.protocol_fees = new_protocol_fees;
