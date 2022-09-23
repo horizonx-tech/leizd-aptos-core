@@ -1204,7 +1204,7 @@ module leizd::shadow_pool {
 
     // for liquidation
     #[test(owner=@leizd,depositor=@0x111,liquidator=@0x222,aptos_framework=@aptos_framework)]
-    public entry fun test_liquidate_shadow(owner: &signer, depositor: &signer, liquidator: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+    public entry fun test_liquidate(owner: &signer, depositor: &signer, liquidator: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
 
@@ -1214,17 +1214,23 @@ module leizd::shadow_pool {
         account::create_account_for_test(depositor_addr);
         account::create_account_for_test(liquidator_addr);
         managed_coin::register<USDZ>(depositor);
-        usdz::mint_for_test(depositor_addr, 500);
+        managed_coin::register<USDZ>(liquidator);
+        usdz::mint_for_test(depositor_addr, 1000);
 
-        deposit_for_internal<WETH>(depositor, depositor_addr, 100, false);
-        assert!(pool_shadow_value(owner_address) == 100, 0);
-        assert!(total_deposited() == 100, 0);
+        deposit_for_internal<WETH>(depositor, depositor_addr, 1000, false);
+        assert!(pool_shadow_value(owner_address) == 1000, 0);
+        assert!(total_deposited() == 1000, 0);
         assert!(total_conly_deposited() == 0, 0);
+        assert!(coin::balance<USDZ>(depositor_addr) == 0, 0);
+        assert!(coin::balance<USDZ>(liquidator_addr) == 0, 0);
 
-        liquidate_internal<WETH>(liquidator_addr, depositor_addr, 100, false);
+        liquidate_internal<WETH>(liquidator_addr, liquidator_addr, 1000, false);
         assert!(pool_shadow_value(owner_address) == 0, 0);
         assert!(total_deposited() == 0, 0);
         assert!(total_conly_deposited() == 0, 0);
+        assert!(coin::balance<USDZ>(depositor_addr) == 0, 0);
+        assert!(coin::balance<USDZ>(liquidator_addr) == 995, 0);
+        assert!(treasury::balance_of_shadow<WETH>() == 5, 0);
 
         let event_handle = borrow_global<PoolEventHandle>(signer::address_of(owner));
         assert!(event::counter<LiquidateEvent>(&event_handle.liquidate_event) == 1, 0);
