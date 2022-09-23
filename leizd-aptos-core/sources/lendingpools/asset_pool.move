@@ -342,7 +342,7 @@ module leizd::asset_pool {
         withdraw_for_internal<C>(liquidator_addr, target_addr, liquidated, is_collateral_only, liquidation_fee);
 
         event::emit_event<LiquidateEvent>(
-            &mut borrow_global_mut<PoolEventHandle<C>>(permission::owner_address()).liquidate_event,
+            &mut borrow_global_mut<PoolEventHandle<C>>(owner_address).liquidate_event,
             LiquidateEvent {
                 caller: liquidator_addr,
                 target: target_addr,
