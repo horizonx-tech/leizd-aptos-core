@@ -49,7 +49,7 @@ module leizd::asset_pool {
         total_borrowed: u128,
         last_updated: u64,
         protocol_fees: u64,
-        rcomp: u64,
+        rcomp: u128,
     }
 
     // Events
