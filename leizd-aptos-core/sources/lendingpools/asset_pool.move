@@ -49,6 +49,7 @@ module leizd::asset_pool {
         total_borrowed: u128,
         last_updated: u64,
         protocol_fees: u64,
+        rcomp: u64,
     }
 
     // Events
@@ -123,6 +124,7 @@ module leizd::asset_pool {
             total_borrowed: 0,
             last_updated: 0,
             protocol_fees: 0,
+            rcomp: 0,
         }
     }
 
@@ -384,6 +386,7 @@ module leizd::asset_pool {
         storage_ref.total_deposited = storage_ref.total_deposited + depositors_share;
         storage_ref.protocol_fees = new_protocol_fees;
         storage_ref.last_updated = now;
+        storage_ref.rcomp = rcomp;
     }
 
     fun collect_asset_fee<C>(pool_ref: &mut Pool<C>, fee: u64) {
