@@ -4,7 +4,7 @@ module leizd::account_position {
     use std::signer;
     use std::vector;
     use std::option::{Self,Option};
-    use std::string::{String};
+    use std::string::{Self,String};
     use aptos_std::event;
     use aptos_std::comparator;
     use aptos_std::simple_map;
@@ -244,6 +244,37 @@ module leizd::account_position {
             assert!(is_safe<C,AssetToShadow>(borrower_addr), error::invalid_state(ENO_SAFE_POSITION));
         };
     }
+
+    public(friend) fun borrow_asset_with_rebalance<C>(borrower_addr: address, amount: u64): (u64,Option<String>) acquires Position, AccountPositionEventHandle {
+        update_on_borrow<C,ShadowToAsset>(borrower_addr, amount);
+        if (is_safe<C,ShadowToAsset>(borrower_addr)) {
+            let empty_str = string::try_utf8(b"");
+            return (0,empty_str)
+        };
+            
+        // try to rebalance between pools
+        let from_key = rebalance_shadow_from_key<C>(borrower_addr);
+        if (option::is_some(&from_key)) {
+            // rebalance
+            let (rebalanced,_,_) = rebalance_shadow_internal(borrower_addr, *option::borrow<String>(&from_key), generate_key<C>());
+            return (rebalanced, from_key)
+        };
+        
+        // try to borrow and rebalance shadow
+        let position_ref = borrow_global<Position<ShadowToAsset>>(borrower_addr);
+        let coins = position_ref.coins;
+        let i = vector::length<String>(&coins);
+        while (i > 0) {
+            // TODO
+        };
+
+        // abort if neither has not been done
+        abort 0
+    }
+
+    // public fun optimize_shadow_balance(account: &signer) acquires Position {
+    //     // TODO
+    // }
 
     public(friend) fun repay<C,P>(addr: address, amount: u64) acquires Position, AccountPositionEventHandle {
         if (pool_type::is_type_asset<P>()) {

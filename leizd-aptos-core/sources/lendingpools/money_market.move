@@ -9,10 +9,13 @@
 module leizd::money_market {
 
     use std::signer;
+    use std::option;
+    use std::string::{String};
     use leizd_aptos_common::pool_type;
     use leizd::asset_pool;
     use leizd::shadow_pool;
     use leizd::account_position;
+    use aptos_framework::type_info;
 
     /// Deposits an asset or a shadow to the pool.
     /// If a user wants to protect the asset, it's possible that it can be used only for the collateral.
@@ -95,18 +98,21 @@ module leizd::money_market {
     /// Borrow the coin C with the shadow that is collected from the best pool.
     /// If there is enough shadow on the pool a user want to borrow, it would be
     /// the same action as the `borrow` function above.
-    // public entry fun borrow_asset_from_the_best_shadow<C>(account: &signer, amount: u64) {
-    //     borrow_asset_from_the_best_shadow_for<C>(account, signer::address_of(account), amount);
-    // }
+    public entry fun borrow_asset_with_rebalance<C>(account: &signer, amount: u64) {
+        borrow_asset_for_with_rebalance<C>(account, signer::address_of(account), amount);
+    }
 
-    // public entry fun borrow_asset_from_the_best_shadow_for<C>(account: &signer, receiver_addr: address, amount: u64) {
-    //     let borrower_addr = signer::address_of(account);
-    //     // TODO: 
-    //     let (key, amount) = account_position::borrow<C,P>(borrower_addr, amount);
-
-    //     shadow_pool::deposit_for<C>(borrower_addr, receiver_addr, amount);
-    //     asset_pool::borrow_for<C>(borrower_addr, receiver_addr, amount);
-    // }
+    public entry fun borrow_asset_for_with_rebalance<C>(account: &signer, receiver_addr: address, amount: u64) {
+        let borrower_addr = signer::address_of(account);
+        let (rebalanced, from_key) = account_position::borrow_asset_with_rebalance<C>(borrower_addr, amount);
+        if (option::is_some(&from_key)) {
+            let key1 = *option::borrow<String>(&from_key);
+            let key2 = type_info::type_name<C>();
+            shadow_pool::withdraw_for_with(key1, borrower_addr, borrower_addr, rebalanced, false, 0);
+            shadow_pool::deposit_for_with(key2, account, borrower_addr, rebalanced, false);
+        };
+        asset_pool::borrow_for<C>(borrower_addr, receiver_addr, amount);
+    }
 
     /// Repay an asset or a shadow from the pool.
     public entry fun repay<C,P>(account: &signer, amount: u64) {
@@ -527,9 +533,9 @@ module leizd::money_market {
 
         // execute
         assert!(!account_position::is_protected<WETH>(account_addr), 0);
-        protect_coin<WETH>(account);
+        enable_to_rebalance<WETH>(account);
         assert!(account_position::is_protected<WETH>(account_addr), 0);
-        unprotect_coin<WETH>(account);
+        unable_to_rebalance<WETH>(account);
         assert!(!account_position::is_protected<WETH>(account_addr), 0);
     }
     #[test(owner=@leizd,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
