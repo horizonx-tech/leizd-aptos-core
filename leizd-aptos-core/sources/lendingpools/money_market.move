@@ -94,7 +94,6 @@ module leizd::money_market {
         account_position::borrow<C,P>(borrower_addr, borrowed_amount);
     }
 
-    // TODO
     /// Borrow the coin C with the shadow that is collected from the best pool.
     /// If there is enough shadow on the pool a user want to borrow, it would be
     /// the same action as the `borrow` function above.
@@ -752,5 +751,30 @@ module leizd::money_market {
 
         managed_coin::mint<WETH>(owner, liquidator_addr, 1004);
         liquidate<WETH, Shadow>(liquidator, borrower_addr);
+    }
+    #[test(owner=@leizd,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
+    fun test_switch_collateral(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) {
+        initialize_lending_pool_for_test(owner, aptos_framework);
+        setup_liquidity_provider_for_test(owner, lp);
+        setup_account_for_test(account);
+        let account_addr = signer::address_of(account);
+        managed_coin::mint<WETH>(owner, account_addr, 100);
+
+        // prerequisite
+        deposit<WETH, Shadow>(lp, 200, false);
+        //// check risk_factor
+        assert!(risk_factor::lt<WETH>() == risk_factor::default_lt(), 0);
+        assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
+
+        // execute
+        deposit<WETH, Asset>(account, 100, false);
+        borrow<WETH, Shadow>(account, 69);
+        switch_collateral<WETH, Asset>(account, true);
+
+        assert!(asset_pool::total_deposited<WETH>() == 100, 0);
+        assert!(asset_pool::total_conly_deposited<WETH>() == 100, 0);
+        assert!(shadow_pool::total_borrowed() == 70, 0); // 69+fee
+        assert!(account_position::deposited_asset<WETH>(account_addr) == 100, 0);
+        assert!(account_position::conly_deposited_asset<WETH>(account_addr) == 100, 0);
     }
 }
