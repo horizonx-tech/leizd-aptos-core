@@ -362,6 +362,15 @@ module leizd::shadow_pool {
         (withdrawn_amount as u64)
     }
 
+    public(friend) fun borrow_for<C>(
+        borrower_addr: address,
+        receiver_addr: address,
+        amount: u64
+    ): u64 acquires Pool, Storage, PoolEventHandle {
+        let key = key<C>();
+        borrow_for_internal(key, borrower_addr, receiver_addr, amount)
+    }
+
     public(friend) fun borrow_for_with(
         key: String,
         borrower_addr: address,
@@ -448,31 +457,33 @@ module leizd::shadow_pool {
         amount_with_total_fee
     }
 
-    public(friend) fun borrow_for<C>(
-        borrower_addr: address,
-        receiver_addr: address,
-        amount: u64
-    ): u64 acquires Pool, Storage, PoolEventHandle {
-        let key = key<C>();
-        borrow_for_internal(key, borrower_addr, receiver_addr, amount)
-    }
-
     public(friend) fun repay<C>(
         account: &signer,
         amount: u64
     ): u64 acquires Pool, Storage, PoolEventHandle {
-        assert!(pool_status::can_repay<C>(), error::invalid_state(E_NOT_AVAILABLE_STATUS));
+        repay_internal(key<C>(), account, amount)
+    }
+
+    public(friend) fun repay_with(
+        key: String,
+        account: &signer,
+        amount: u64
+    ): u64 acquires Pool, Storage, PoolEventHandle {
+        repay_internal(key, account, amount)
+    }
+
+    fun repay_internal(key: String, account: &signer, amount: u64): u64 acquires Pool, Storage, PoolEventHandle {
+        assert!(pool_status::can_repay_with(key), error::invalid_state(E_NOT_AVAILABLE_STATUS));
         assert!(amount > 0, error::invalid_argument(E_AMOUNT_ARG_IS_ZERO));
 
         let owner_address = permission::owner_address();
         let storage_ref = borrow_global_mut<Storage>(owner_address);
         let pool_ref = borrow_global_mut<Pool>(owner_address);
 
-        let key = key<C>();
         accrue_interest(key, storage_ref);
 
         // at first, repay to stability_pool
-        let repayed_to_stability_pool = repay_to_stability_pool<C>(account, amount);
+        let repayed_to_stability_pool = repay_to_stability_pool(key, account, amount);
         let to_shadow_pool = amount - repayed_to_stability_pool;
         if (to_shadow_pool > 0) {
             let withdrawn = coin::withdraw<USDZ>(account, to_shadow_pool);
@@ -559,15 +570,15 @@ module leizd::shadow_pool {
     /// Repays the shadow to the stability pool
     /// use when shadow has already borrowed from this pool.
     /// @return repaid amount
-    fun repay_to_stability_pool<C>(account: &signer, amount: u64): u64 {
-        let borrowed = stability_pool::borrowed<C>();
+    fun repay_to_stability_pool(key: String, account: &signer, amount: u64): u64 {
+        let borrowed = stability_pool::borrowed(key);
         if (borrowed == 0) {
             return 0
         } else if (borrowed >= (amount as u128)) {
-            stability_pool::repay<C>(account, amount);
+            stability_pool::repay(key, account, amount);
             return amount
         } else {
-            stability_pool::repay<C>(account, (borrowed as u64));
+            stability_pool::repay(key, account, (borrowed as u64));
             return (borrowed as u64)
         }
     }
@@ -1351,14 +1362,14 @@ module leizd::shadow_pool {
         deposit_for_internal(key<UNI>(), depositor, depositor_addr, 10000 + 50, false);
         assert!(pool_shadow_value(owner_addr) == 10050, 0);
         assert!(borrowed<UNI>() == 0, 0);
-        assert!(stability_pool::borrowed<UNI>() == 0, 0);
+        assert!(stability_pool::borrowed(key<UNI>()) == 0, 0);
         assert!(stability_pool::left() == 50000, 0);
         assert!(usdz::balance_of(borrower_addr) == 0, 0);
         //// from only shadow_pool
         borrow_for<UNI>(borrower_addr, borrower_addr, 5000);
         assert!(pool_shadow_value(owner_addr) == 10050 - (5000 + 25), 0);
         assert!(borrowed<UNI>() == 5025, 0);
-        assert!(stability_pool::borrowed<UNI>() == 0, 0);
+        assert!(stability_pool::borrowed(key<UNI>()) == 0, 0);
         assert!(stability_pool::left() == 50000, 0);
         assert!(usdz::balance_of(borrower_addr) == 5000, 0);
         //// from both
@@ -1366,7 +1377,7 @@ module leizd::shadow_pool {
         let from_shadow = 5025;
         let from_stability = 10050 - from_shadow;
         assert!(pool_shadow_value(owner_addr) == 0, 0);
-        assert!(stability_pool::borrowed<UNI>() == (from_shadow + 26 as u128), 0); // from_shadow + fee calculated by from_shadow
+        assert!(stability_pool::borrowed(key<UNI>()) == (from_shadow + 26 as u128), 0); // from_shadow + fee calculated by from_shadow
         assert!(stability_pool::left() == (50000 - from_shadow as u128) , 0);
         assert!(borrowed<UNI>() == 5025 + from_shadow + from_stability + 26, 0);
         assert!(usdz::balance_of(borrower_addr) == 15000, 0);
@@ -1374,7 +1385,7 @@ module leizd::shadow_pool {
         borrow_for<UNI>(borrower_addr, borrower_addr, 15000);
         assert!(pool_shadow_value(owner_addr) == 0, 0);
         assert!(borrowed<UNI>() == 15101 + ((15000 + 75) + 76), 0); // (borrowed + fee) + fee calculated by (borrowed + fee)
-        assert!(stability_pool::borrowed<UNI>() == 5051 + ((15000 + 75) + 76), 0); // previous + this time
+        assert!(stability_pool::borrowed(key<UNI>()) == 5051 + ((15000 + 75) + 76), 0); // previous + this time
         assert!(stability_pool::left() == (50000 - 5025 - 15075 as u128), 0); // initial - previous - this time
         assert!(usdz::balance_of(borrower_addr) == 30000, 0);
     }
@@ -1402,7 +1413,7 @@ module leizd::shadow_pool {
         deposit_for_internal(key<UNI>(), depositor, depositor_addr, 10000 + 50, false);
         assert!(pool_shadow_value(owner_addr) == 10050, 0);
         assert!(borrowed<UNI>() == 0, 0);
-        assert!(stability_pool::borrowed<UNI>() == 0, 0);
+        assert!(stability_pool::borrowed(key<UNI>()) == 0, 0);
         assert!(stability_pool::left() == 50000, 0);
         // borrow the amount more than internal_liquidity even though stability pool does not support UNI
         borrow_for<UNI>(borrower_addr, borrower_addr, 20000);
@@ -1455,7 +1466,7 @@ module leizd::shadow_pool {
         deposit_for_internal(key<UNI>(), depositor, depositor_addr, 10000 + 50, false);
         assert!(pool_shadow_value(owner_addr) == 10050, 0);
         assert!(borrowed<UNI>() == 0, 0);
-        assert!(stability_pool::borrowed<UNI>() == 0, 0);
+        assert!(stability_pool::borrowed(key<UNI>()) == 0, 0);
         assert!(stability_pool::left() == 50000, 0);
         assert!(usdz::balance_of(borrower_addr) == 0, 0);
         //// from only shadow_pool
@@ -1463,7 +1474,7 @@ module leizd::shadow_pool {
         borrow_for<UNI>(borrower_addr, borrower_addr, 5000);
         assert!(pool_shadow_value(owner_addr) == 10050 - (5000 + 25), 0);
         assert!(borrowed<UNI>() == 5025, 0);
-        assert!(stability_pool::borrowed<UNI>() == 0, 0);
+        assert!(stability_pool::borrowed(key<UNI>()) == 0, 0);
         assert!(stability_pool::left() == 50000, 0);
         assert!(usdz::balance_of(borrower_addr) == 5000, 0);
         //// from both
@@ -1471,7 +1482,7 @@ module leizd::shadow_pool {
         borrow_for<UNI>(borrower_addr, borrower_addr, 10000);
         assert!(pool_shadow_value(owner_addr) == 0, 0);
         assert!(borrowed<UNI>() == 5025 + (5000 + 25) + (5000 + 25 + 26), 0);
-        assert!(stability_pool::borrowed<UNI>() == (5000 + 25 + 26), 0);
+        assert!(stability_pool::borrowed(key<UNI>()) == (5000 + 25 + 26), 0);
         assert!(stability_pool::left() == 50000 - 5025, 0);
         assert!(usdz::balance_of(borrower_addr) == 15000, 0);
         //// from only stability_pool
@@ -1479,7 +1490,7 @@ module leizd::shadow_pool {
         borrow_for<UNI>(borrower_addr, borrower_addr, 15000);
         assert!(pool_shadow_value(owner_addr) == 0, 0);
         assert!(borrowed<UNI>() == 5025 + (5000 + 25) + (5000 + 25 + 26) + (15000 + 75 + 76), 0);
-        assert!(stability_pool::borrowed<UNI>() == (5000 + 25 + 26) + (15000 + 75 + 76), 0);
+        assert!(stability_pool::borrowed(key<UNI>()) == (5000 + 25 + 26) + (15000 + 75 + 76), 0);
         assert!(stability_pool::left() == 50000 - 5025 - 15075, 0);
         assert!(usdz::balance_of(borrower_addr) == 30000, 0);
     }
@@ -1505,28 +1516,28 @@ module leizd::shadow_pool {
         borrow_for<UNI>(borrower_addr, borrower_addr, 3000);
         assert!(pool_shadow_value(owner_addr) == 0, 0);
         assert!(borrowed<UNI>() == (1000 + 5) + (2000 + 10 + 11), 0);
-        assert!(stability_pool::borrowed<UNI>() == 5 + 2000 + 10 + 11, 0);
+        assert!(stability_pool::borrowed(key<UNI>()) == 5 + 2000 + 10 + 11, 0);
         assert!(stability_pool::left() == 5000 - (5 + 2000 + 10), 0);
         assert!(usdz::balance_of(borrower_addr) == 3000, 0);
         //// from only stability_pool
         repay<UNI>(borrower, 1800);
         assert!(pool_shadow_value(owner_addr) == 0, 0);
         assert!(borrowed<UNI>() == ((1000 + 5) + (2000 + 10 + 11)) - 1800, 0);
-        assert!(stability_pool::borrowed<UNI>() == (5 + 2000 + 10 + 11) - 1800, 0);
+        assert!(stability_pool::borrowed(key<UNI>()) == (5 + 2000 + 10 + 11) - 1800, 0);
         assert!(stability_pool::left() == 5000 - (5 + 2000 + 10) + (1800 - 11), 0);
         assert!(usdz::balance_of(borrower_addr) == 1200, 0);
         //// from both
         repay<UNI>(borrower, 1000);
         assert!(pool_shadow_value(owner_addr) == 1000 - 226, 0);
         assert!(borrowed<UNI>() == ((1000 + 5) + (2000 + 10 + 11)) - 1800 - 1000, 0);
-        assert!(stability_pool::borrowed<UNI>() == 0, 0);
+        assert!(stability_pool::borrowed(key<UNI>()) == 0, 0);
         assert!(stability_pool::left() == 5000, 0);
         assert!(usdz::balance_of(borrower_addr) == 200, 0);
         //// from only shadow_pool
         repay<UNI>(borrower, 200);
         assert!(pool_shadow_value(owner_addr) == 1000 - 26, 0);
         assert!(borrowed<UNI>() == 5 + 10 + 11, 0);
-        assert!(stability_pool::borrowed<UNI>() == 0, 0);
+        assert!(stability_pool::borrowed(key<UNI>()) == 0, 0);
         assert!(stability_pool::left() == 5000, 0);
         assert!(usdz::balance_of(borrower_addr) == 0, 0);
     }
@@ -1557,7 +1568,7 @@ module leizd::shadow_pool {
         borrow_for<UNI>(borrower_addr, borrower_addr, 3000);
         assert!(pool_shadow_value(owner_addr) == 0, 0);
         assert!(borrowed<UNI>() == (1000 + 5) + (2000 + 10 + 11), 0);
-        assert!(stability_pool::borrowed<UNI>() == 5 + 2000 + 10 + 11, 0);
+        assert!(stability_pool::borrowed(key<UNI>()) == 5 + 2000 + 10 + 11, 0);
         assert!(stability_pool::left() == 5000 - (5 + 2000 + 10), 0);
         assert!(usdz::balance_of(borrower_addr) == 3000, 0);
         //// from only stability_pool
@@ -1565,7 +1576,7 @@ module leizd::shadow_pool {
         repay<UNI>(borrower, 1800);
         assert!(pool_shadow_value(owner_addr) == 0, 0);
         assert!(borrowed<UNI>() == ((1000 + 5) + (2000 + 10 + 11)) - 1800, 0);
-        assert!(stability_pool::borrowed<UNI>() == (5 + 2000 + 10 + 11) - 1800, 0);
+        assert!(stability_pool::borrowed(key<UNI>()) == (5 + 2000 + 10 + 11) - 1800, 0);
         assert!(stability_pool::left() == 5000 - (5 + 2000 + 10) + (1800 - 11), 0);
         assert!(usdz::balance_of(borrower_addr) == 1200, 0);
         //// from both
@@ -1573,7 +1584,7 @@ module leizd::shadow_pool {
         repay<UNI>(borrower, 1000);
         assert!(pool_shadow_value(owner_addr) == 1000 - 226, 0);
         assert!(borrowed<UNI>() == ((1000 + 5) + (2000 + 10 + 11)) - 1800 - 1000, 0);
-        assert!(stability_pool::borrowed<UNI>() == 0, 0);
+        assert!(stability_pool::borrowed(key<UNI>()) == 0, 0);
         assert!(stability_pool::left() == 5000, 0);
         assert!(usdz::balance_of(borrower_addr) == 200, 0);
         //// from only shadow_pool
@@ -1581,7 +1592,7 @@ module leizd::shadow_pool {
         repay<UNI>(borrower, 200);
         assert!(pool_shadow_value(owner_addr) == 1000 - 26, 0);
         assert!(borrowed<UNI>() == 5 + 10 + 11, 0);
-        assert!(stability_pool::borrowed<UNI>() == 0, 0);
+        assert!(stability_pool::borrowed(key<UNI>()) == 0, 0);
         assert!(stability_pool::left() == 5000, 0);
         assert!(usdz::balance_of(borrower_addr) == 0, 0);
     }
@@ -1610,7 +1621,7 @@ module leizd::shadow_pool {
         borrow_for<UNI>(borrower_addr, borrower_addr, 5000);
         usdz::mint_for_test(borrower_addr, 25 + 26); // fee in shadow + fee in stability
         repay<UNI>(borrower, 5000 + 25 + 26);
-        assert!(stability_pool::borrowed<UNI>() == 0, 0);
+        assert!(stability_pool::borrowed(key<UNI>()) == 0, 0);
         assert!(stability_pool::uncollected_fee<UNI>() == 0, 0);
         //// 2nd
         borrow_for<UNI>(borrower_addr, borrower_addr, 10000);
@@ -1619,7 +1630,7 @@ module leizd::shadow_pool {
         usdz::mint_for_test(borrower_addr, 50 + 51); // fee in shadow + fee in stability for 10000
         repay<UNI>(borrower, 20000 + 100 + 101);
         repay<UNI>(borrower, 10000 + 50 + 51);
-        assert!(stability_pool::borrowed<UNI>() == 0, 0);
+        assert!(stability_pool::borrowed(key<UNI>()) == 0, 0);
         //// 3rd
         borrow_for<UNI>(borrower_addr, borrower_addr, 10);
         repay<UNI>(borrower, 10);
@@ -1630,10 +1641,10 @@ module leizd::shadow_pool {
         repay<UNI>(borrower, 10);
         usdz::mint_for_test(borrower_addr, 6);
         repay<UNI>(borrower, 6);
-        assert!(stability_pool::borrowed<UNI>() == 0, 0);
+        assert!(stability_pool::borrowed(key<UNI>()) == 0, 0);
         //// still open position
         borrow_for<UNI>(borrower_addr, borrower_addr, 5000);
-        assert!(stability_pool::borrowed<UNI>() == 5051, 0);
+        assert!(stability_pool::borrowed(key<UNI>()) == 5051, 0);
     }
     #[test(owner=@leizd,depositor=@0x111,borrower1=@0x222,borrower2=@0x333,aptos_framework=@aptos_framework)]
     public entry fun test_with_stability_pool_to_open_multi_position(owner: &signer, depositor: &signer, borrower1: &signer, borrower2: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
@@ -1659,23 +1670,23 @@ module leizd::shadow_pool {
         //// borrow
         borrow_for<WETH>(borrower1_addr, borrower1_addr, 3000);
         assert!(stability_pool::left() == 10000 - (500 + 15), 0);
-        assert!(stability_pool::borrowed<WETH>() == (500 + 15) + 3, 0);
-        assert!(stability_pool::borrowed<UNI>() == 0, 0);
+        assert!(stability_pool::borrowed(key<WETH>()) == (500 + 15) + 3, 0);
+        assert!(stability_pool::borrowed(key<UNI>()) == 0, 0);
         borrow_for<WETH>(borrower2_addr, borrower2_addr, 2000);
         assert!(stability_pool::left() == 10000 - (500 + 15) - (2000 + 10), 0);
-        assert!(stability_pool::borrowed<WETH>() == (500 + 15) + 3 + (2000 + 10) + 11, 0);
-        assert!(stability_pool::borrowed<UNI>() == 0, 0);
+        assert!(stability_pool::borrowed(key<WETH>()) == (500 + 15) + 3 + (2000 + 10) + 11, 0);
+        assert!(stability_pool::borrowed(key<UNI>()) == 0, 0);
         borrow_for<UNI>(borrower2_addr, borrower2_addr, 4000);
         assert!(stability_pool::left() == 10000 - (500 + 15) - (2000 + 10) - (4000 + 20), 0);
-        assert!(stability_pool::borrowed<WETH>() == (500 + 15) + 3 + (2000 + 10) + 11, 0);
-        assert!(stability_pool::borrowed<UNI>() == (4000 + 20) + 21, 0);
+        assert!(stability_pool::borrowed(key<WETH>()) == (500 + 15) + 3 + (2000 + 10) + 11, 0);
+        assert!(stability_pool::borrowed(key<UNI>()) == (4000 + 20) + 21, 0);
         //// repay
         repay<UNI>(depositor, 4041);
-        assert!(stability_pool::borrowed<WETH>() == (500 + 15) + 3 + (2000 + 10) + 11, 0);
-        assert!(stability_pool::borrowed<UNI>() == 0, 0);
+        assert!(stability_pool::borrowed(key<WETH>()) == (500 + 15) + 3 + (2000 + 10) + 11, 0);
+        assert!(stability_pool::borrowed(key<UNI>()) == 0, 0);
         repay<WETH>(depositor, 2539);
-        assert!(stability_pool::borrowed<WETH>() == 0, 0);
-        assert!(stability_pool::borrowed<UNI>() == 0, 0);
+        assert!(stability_pool::borrowed(key<WETH>()) == 0, 0);
+        assert!(stability_pool::borrowed(key<UNI>()) == 0, 0);
     }
 
     // rebalance shadow
