@@ -138,13 +138,23 @@ module leizd::money_market {
     public entry fun liquidate<C,P>(account: &signer, target_addr: address) {
         pool_type::assert_pool_type<P>();
 
-        let liquidator_addr = signer::address_of(account);
-        let (liquidated, is_collateral_only) = account_position::liquidate<C,P>(target_addr);
+        let (deposited, borrowed, is_collateral_only) = account_position::liquidate<C,P>(target_addr);
         let is_shadow = pool_type::is_type_shadow<P>();
         if (is_shadow) {
-            shadow_pool::liquidate<C>(liquidator_addr, target_addr, liquidated, is_collateral_only);
+            liquidate_for_pool<C,P>(account, target_addr, deposited, borrowed, is_collateral_only);
         } else {
-            asset_pool::liquidate<C>(liquidator_addr, target_addr, liquidated, is_collateral_only);
+            liquidate_for_pool<C,P>(account, target_addr, deposited, borrowed, is_collateral_only);
+        };
+    }
+    fun liquidate_for_pool<C,P>(liquidator: &signer, target_addr: address, deposited: u64, borrowed: u64, is_collateral_only: bool) {
+        let liquidator_addr = signer::address_of(liquidator);
+        let is_shadow = pool_type::is_type_shadow<P>();
+        if (is_shadow) {
+            asset_pool::repay<C>(liquidator, borrowed);
+            shadow_pool::liquidate<C>(liquidator_addr, target_addr, deposited, is_collateral_only);
+        } else {
+            shadow_pool::repay<C>(liquidator, borrowed);
+            asset_pool::liquidate<C>(liquidator_addr, target_addr, deposited, is_collateral_only);
         };
     }
 
@@ -581,7 +591,7 @@ module leizd::money_market {
         setup_account_for_test(liquidator);
         setup_account_for_test(target);
         let borrower_addr = signer::address_of(borrower);
-        // let liquidator_addr = signer::address_of(liquidator);
+        let liquidator_addr = signer::address_of(liquidator);
         managed_coin::mint<WETH>(owner, borrower_addr, 2000);
 
         // prerequisite
@@ -600,9 +610,10 @@ module leizd::money_market {
 
         risk_factor::update_config<WETH>(owner, 1000000000 / 100 * 10, 1000000000 / 100 * 10); // 10%
 
+        usdz::mint_for_test(liquidator_addr, 1005);
         liquidate<WETH, Asset>(liquidator, borrower_addr);
         assert!(asset_pool::total_deposited<WETH>() == 0, 0);
-        assert!(shadow_pool::borrowed<WETH>() == 1000 + 5, 0); // TODO: to be removed
+        assert!(shadow_pool::borrowed<WETH>() == 0, 0);
         assert!(account_position::deposited_asset<WETH>(borrower_addr) == 0, 0);
         assert!(account_position::borrowed_shadow<WETH>(borrower_addr) == 0, 0);
         // TODO: check about coin::balance and transfer fee
@@ -623,7 +634,7 @@ module leizd::money_market {
         setup_account_for_test(liquidator);
         setup_account_for_test(target);
         let borrower_addr = signer::address_of(borrower);
-        // let liquidator_addr = signer::address_of(liquidator);
+        let liquidator_addr = signer::address_of(liquidator);
         usdz::mint_for_test(borrower_addr, 2000);
 
         // prerequisite
@@ -642,9 +653,10 @@ module leizd::money_market {
 
         risk_factor::update_config<USDZ>(owner, 1000000000 / 100 * 10, 1000000000 / 100 * 10); // 10%
 
+        managed_coin::mint<WETH>(owner, liquidator_addr, 1005);
         liquidate<WETH, Shadow>(liquidator, borrower_addr);
         assert!(shadow_pool::deposited<WETH>() == 0, 0);
-        assert!(asset_pool::total_borrowed<WETH>() == 1000 + 5, 0); // TODO: to be removed
+        assert!(asset_pool::total_borrowed<WETH>() == 0, 0);
         assert!(account_position::deposited_shadow<WETH>(borrower_addr) == 0, 0);
         assert!(account_position::borrowed_asset<WETH>(borrower_addr) == 0, 0);
         // TODO: check about coin::balance and transfer fee
