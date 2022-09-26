@@ -50,10 +50,17 @@ module leizd::system_status {
     }
 
     #[test(owner = @leizd)]
-    fun test_initialize(owner: &signer) acquires SystemStatus, SystemStatusEventHandle {
-        account::create_account_for_test(signer::address_of(owner));
+    fun test_end_to_end(owner: &signer) acquires SystemStatus, SystemStatusEventHandle {
+        let owner_addr = signer::address_of(owner);
+        account::create_account_for_test(owner_addr);
         initialize(owner);
         assert!(exists<SystemStatus>(@leizd), 0);
+        assert!(status(), 0);
+        assert!(event::counter<SystemStatusUpdateEvent>(&borrow_global<SystemStatusEventHandle>(owner_addr).system_status_update_event) == 1, 0);
+
+        update_status(false);        
+        assert!(!status(), 0);
+        assert!(event::counter<SystemStatusUpdateEvent>(&borrow_global<SystemStatusEventHandle>(owner_addr).system_status_update_event) == 2, 0);
     }
     #[test(account = @0x111)]
     #[expected_failure(abort_code = 1)]
