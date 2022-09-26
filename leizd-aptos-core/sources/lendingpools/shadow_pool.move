@@ -446,7 +446,7 @@ module leizd::shadow_pool {
         let owner_address = permission::owner_address();
         let storage_ref = borrow_global_mut<Storage>(owner_address);
         accrue_interest<C>(storage_ref);
-        withdraw_for_internal<C>(liquidator_addr, target_addr, liquidated, is_collateral_only, liquidation_fee);
+        withdraw_for_internal<C>(liquidator_addr, liquidator_addr, liquidated, is_collateral_only, liquidation_fee);
 
         event::emit_event<LiquidateEvent>(
             &mut borrow_global_mut<PoolEventHandle>(owner_address).liquidate_event,
