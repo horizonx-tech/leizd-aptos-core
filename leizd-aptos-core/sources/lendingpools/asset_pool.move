@@ -102,7 +102,7 @@ module leizd::asset_pool {
         treasury::add_coin<C>(owner);
         risk_factor::new_asset<C>(owner);
         interest_rate::initialize<C>(owner);
-        stability_pool::init_pool<C>(owner);
+        stability_pool::init_pool<C>();
         pool_status::initialize<C>(owner);
 
         move_to(owner, Pool<C> {

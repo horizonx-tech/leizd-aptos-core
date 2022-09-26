@@ -147,8 +147,8 @@ module leizd::stability_pool {
         exists<StabilityPool>(permission::owner_address())
     }
 
-    public(friend) fun init_pool<C>(owner: &signer) acquires Balance {
-        let balance = borrow_global_mut<Balance>(signer::address_of(owner));
+    public(friend) fun init_pool<C>() acquires Balance {
+        let balance = borrow_global_mut<Balance>(permission::owner_address());
         simple_map::add<String,u128>(&mut balance.borrowed, generate_key<C>(), 0);
         simple_map::add<String,u128>(&mut balance.uncollected_fee, generate_key<C>(), 0);
     }
@@ -488,7 +488,7 @@ module leizd::stability_pool {
         initialize(owner);
 
         test_coin::init_weth(owner);
-        init_pool<WETH>(owner);
+        init_pool<WETH>();
     }
     // related initialize
     #[test(owner=@leizd)]
