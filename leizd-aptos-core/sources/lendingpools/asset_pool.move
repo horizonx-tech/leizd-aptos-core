@@ -1063,9 +1063,8 @@ module leizd::asset_pool {
         assert!(repaid_amount == 300, 0);
         assert!(pool_asset_value<UNI>(owner_address) == 600, 0);
         assert!(coin::balance<UNI>(borrower_addr) == 400, 0);
-
         // timestamp::update_global_time_for_test((initial_sec + 400) * 1000 * 1000); // + 80 sec
-        // let repaid_amount = repay_internal<UNI>(borrower, 400); // TODO: fail here
+        // let repaid_amount = repay_internal<UNI>(borrower, 400); // TODO: fail here because of ARITHMETIC_ERROR in accrue_interest (Cannot cast u128 to u64)
         // assert!(repaid_amount == 400, 0);
         // assert!(pool_asset_value<UNI>(owner_address) == 1000, 0);
         // assert!(coin::balance<UNI>(borrower_addr) == 0, 0);
