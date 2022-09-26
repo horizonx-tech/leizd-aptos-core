@@ -71,7 +71,6 @@ module leizd::shadow_pool {
     struct LiquidateEvent has store, drop {
         caller: address,
         target: address,
-        amount: u64,
     }
 
     struct RebalanceEvent has store, drop {
@@ -427,33 +426,23 @@ module leizd::shadow_pool {
         amount
     }
 
-   public(friend) fun liquidate<C>(
+    public(friend) fun withdraw_for_liquidation<C>(
         liquidator_addr: address,
         target_addr: address,
-        liquidated: u64,
+        withdrawing: u64,
         is_collateral_only: bool,
     ) acquires Pool, Storage, PoolEventHandle {
-        liquidate_internal<C>(liquidator_addr, target_addr, liquidated, is_collateral_only);
-    }
-
-    fun liquidate_internal<C>(
-        liquidator_addr: address,
-        target_addr: address,
-        liquidated: u64,
-        is_collateral_only: bool,
-    ) acquires Pool, Storage, PoolEventHandle {
-        let liquidation_fee = risk_factor::calculate_liquidation_fee(liquidated);
         let owner_address = permission::owner_address();
         let storage_ref = borrow_global_mut<Storage>(owner_address);
         accrue_interest<C>(storage_ref);
-        withdraw_for_internal<C>(liquidator_addr, target_addr, liquidated, is_collateral_only, liquidation_fee);
+        let liquidation_fee = risk_factor::calculate_liquidation_fee(withdrawing);
+        withdraw_for_internal<C>(liquidator_addr, liquidator_addr, withdrawing, is_collateral_only, liquidation_fee);
 
         event::emit_event<LiquidateEvent>(
             &mut borrow_global_mut<PoolEventHandle>(owner_address).liquidate_event,
             LiquidateEvent {
                 caller: liquidator_addr,
                 target: target_addr,
-                amount: liquidated
             }
         );
     }
@@ -1214,7 +1203,7 @@ module leizd::shadow_pool {
 
     // for liquidation
     #[test(owner=@leizd,depositor=@0x111,liquidator=@0x222,aptos_framework=@aptos_framework)]
-    public entry fun test_liquidate(owner: &signer, depositor: &signer, liquidator: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+    public entry fun test_withdraw_for_liquidation(owner: &signer, depositor: &signer, liquidator: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
 
@@ -1234,7 +1223,7 @@ module leizd::shadow_pool {
         assert!(coin::balance<USDZ>(depositor_addr) == 0, 0);
         assert!(coin::balance<USDZ>(liquidator_addr) == 0, 0);
 
-        liquidate_internal<WETH>(liquidator_addr, liquidator_addr, 1001, false);
+        withdraw_for_liquidation<WETH>(liquidator_addr, liquidator_addr, 1001, false);
         assert!(pool_shadow_value(owner_address) == 0, 0);
         assert!(total_deposited() == 0, 0);
         assert!(total_conly_deposited() == 0, 0);
