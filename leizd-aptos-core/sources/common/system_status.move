@@ -15,7 +15,7 @@ module leizd::system_status {
         is_active: bool,
     }
     struct SystemStatusEventHandle has key, store {
-        system_status_upadte_event: event::EventHandle<SystemStatusUpdateEvent>,
+        system_status_update_event: event::EventHandle<SystemStatusUpdateEvent>,
     }
 
     public fun initialize(owner: &signer) acquires SystemStatus, SystemStatusEventHandle {
@@ -23,7 +23,7 @@ module leizd::system_status {
         permission::assert_owner(owner_address);
         move_to(owner, SystemStatus { is_active: true });
         move_to(owner, SystemStatusEventHandle {
-            system_status_upadte_event: account::new_event_handle<SystemStatusUpdateEvent>(owner)
+            system_status_update_event: account::new_event_handle<SystemStatusUpdateEvent>(owner)
         });
         emit_current_system_status();
     }
@@ -32,7 +32,7 @@ module leizd::system_status {
         let owner_address = permission::owner_address();
         let status = borrow_global<SystemStatus>(owner_address);
         event::emit_event<SystemStatusUpdateEvent>(
-            &mut borrow_global_mut<SystemStatusEventHandle>(owner_address).system_status_upadte_event,
+            &mut borrow_global_mut<SystemStatusEventHandle>(owner_address).system_status_update_event,
                 SystemStatusUpdateEvent {
                     is_active: status.is_active,
             },
