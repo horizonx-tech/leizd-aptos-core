@@ -169,8 +169,8 @@ module leizd::money_market {
     use leizd::pool_type::{Asset, Shadow};
     #[test_only]
     use leizd::risk_factor;
-    // #[test_only]
-    // use leizd::treasury;
+    #[test_only]
+    use leizd::treasury;
     #[test_only]
     use leizd::initializer;
     #[test_only]
@@ -602,6 +602,10 @@ module leizd::money_market {
         assert!(shadow_pool::borrowed<WETH>() == 1000 + 5, 0);
         assert!(account_position::deposited_asset<WETH>(borrower_addr) == 2000, 0);
         assert!(account_position::borrowed_shadow<WETH>(borrower_addr) == 1005, 0);
+        assert!(coin::balance<WETH>(borrower_addr) == 0, 0);
+        assert!(coin::balance<USDZ>(borrower_addr) == 1000 ,0);
+        assert!(coin::balance<WETH>(liquidator_addr) == 0, 0);
+        assert!(treasury::balance_of_asset<WETH>() == 0, 0);
 
         risk_factor::update_config<WETH>(owner, 1000000000 / 100 * 10, 1000000000 / 100 * 10); // 10%
 
@@ -611,15 +615,10 @@ module leizd::money_market {
         assert!(shadow_pool::borrowed<WETH>() == 0, 0);
         assert!(account_position::deposited_asset<WETH>(borrower_addr) == 0, 0);
         assert!(account_position::borrowed_shadow<WETH>(borrower_addr) == 0, 0);
-        // TODO: check about coin::balance and transfer fee
-        // debug::print(&asset_pool::total_deposited<WETH>());
-        // debug::print(&shadow_pool::borrowed<WETH>());
-        // debug::print(&account_position::deposited_asset<WETH>(borrower_addr));
-        // debug::print(&account_position::borrowed_shadow<WETH>(borrower_addr));
-        // debug::print(&coin::balance<WETH>(borrower_addr));
-        // debug::print(&coin::balance<USDZ>(borrower_addr));
-        // debug::print(&coin::balance<WETH>(liquidator_addr));
-        // debug::print(&treasury::balance_of_asset<WETH>()); // TODO: check differences with asset_pool
+        assert!(coin::balance<WETH>(borrower_addr) == 0, 0);
+        assert!(coin::balance<USDZ>(borrower_addr) == 1000 ,0);
+        assert!(coin::balance<WETH>(liquidator_addr) == 1990, 0);
+        assert!(treasury::balance_of_asset<WETH>() == 10, 0);
     }
     #[test(owner=@leizd,lp=@0x111,borrower=@0x222,liquidator=@0x333,target=@0x444,aptos_framework=@aptos_framework)]
     fun test_liquidate_shadow(owner: &signer, lp: &signer, borrower: &signer, liquidator: &signer, target: &signer, aptos_framework: &signer) {
@@ -645,6 +644,10 @@ module leizd::money_market {
         assert!(asset_pool::total_borrowed<WETH>() == 1000 + 5, 0);
         assert!(account_position::deposited_shadow<WETH>(borrower_addr) == 2000, 0);
         assert!(account_position::borrowed_asset<WETH>(borrower_addr) == 1005, 0);
+        assert!(coin::balance<USDZ>(borrower_addr) == 0, 0);
+        assert!(coin::balance<WETH>(borrower_addr) == 1000, 0);
+        assert!(coin::balance<USDZ>(liquidator_addr) == 0, 0);
+        assert!(treasury::balance_of_shadow<WETH>() == 0, 0);
 
         risk_factor::update_config<USDZ>(owner, 1000000000 / 100 * 10, 1000000000 / 100 * 10); // 10%
 
@@ -654,14 +657,9 @@ module leizd::money_market {
         assert!(asset_pool::total_borrowed<WETH>() == 0, 0);
         assert!(account_position::deposited_shadow<WETH>(borrower_addr) == 0, 0);
         assert!(account_position::borrowed_asset<WETH>(borrower_addr) == 0, 0);
-        // TODO: check about coin::balance and transfer fee
-        // debug::print(&shadow_pool::deposited<WETH>());
-        // debug::print(&asset_pool::total_borrowed<WETH>());
-        // debug::print(&account_position::deposited_shadow<WETH>(borrower_addr));
-        // debug::print(&account_position::borrowed_asset<WETH>(borrower_addr));
-        // debug::print(&coin::balance<USDZ>(borrower_addr));
-        // debug::print(&coin::balance<WETH>(borrower_addr));
-        // debug::print(&coin::balance<USDZ>(liquidator_addr));
-        // debug::print(&treasury::balance_of_asset<WETH>()); // TODO: check differences with asset_pool
+        assert!(coin::balance<USDZ>(borrower_addr) == 0, 0);
+        assert!(coin::balance<WETH>(borrower_addr) == 1000, 0);
+        assert!(coin::balance<USDZ>(liquidator_addr) == 1990, 0);
+        assert!(treasury::balance_of_shadow<WETH>() == 10, 0);
     }
 }
