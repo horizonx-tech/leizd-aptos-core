@@ -621,6 +621,33 @@ module leizd::money_market {
         assert!(treasury::balance_of_asset<WETH>() == 10, 0);
     }
     #[test(owner=@leizd,lp=@0x111,borrower=@0x222,liquidator=@0x333,target=@0x444,aptos_framework=@aptos_framework)]
+    #[expected_failure(abort_code = 65542)]
+    fun test_liquidate_asset_with_insufficient_amount(owner: &signer, lp: &signer, borrower: &signer, liquidator: &signer, target: &signer, aptos_framework: &signer) {
+        initialize_lending_pool_for_test(owner, aptos_framework);
+        setup_liquidity_provider_for_test(owner, lp);
+        setup_account_for_test(borrower);
+        setup_account_for_test(liquidator);
+        setup_account_for_test(target);
+        let borrower_addr = signer::address_of(borrower);
+        let liquidator_addr = signer::address_of(liquidator);
+        managed_coin::mint<WETH>(owner, borrower_addr, 2000);
+
+        // prerequisite
+        deposit<WETH, Shadow>(lp, 2000, false);
+        //// check risk_factor
+        assert!(risk_factor::lt<WETH>() == risk_factor::default_lt(), 0);
+        assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
+
+        // execute
+        deposit<WETH, Asset>(borrower, 2000, false);
+        borrow<WETH, Shadow>(borrower, 1000);
+
+        risk_factor::update_config<WETH>(owner, 1000000000 / 100 * 10, 1000000000 / 100 * 10); // 10%
+
+        usdz::mint_for_test(liquidator_addr, 1004);
+        liquidate<WETH, Asset>(liquidator, borrower_addr);
+    }
+    #[test(owner=@leizd,lp=@0x111,borrower=@0x222,liquidator=@0x333,target=@0x444,aptos_framework=@aptos_framework)]
     fun test_liquidate_shadow(owner: &signer, lp: &signer, borrower: &signer, liquidator: &signer, target: &signer, aptos_framework: &signer) {
         initialize_lending_pool_for_test(owner, aptos_framework);
         setup_liquidity_provider_for_test(owner, lp);
@@ -661,5 +688,32 @@ module leizd::money_market {
         assert!(coin::balance<WETH>(borrower_addr) == 1000, 0);
         assert!(coin::balance<USDZ>(liquidator_addr) == 1990, 0);
         assert!(treasury::balance_of_shadow<WETH>() == 10, 0);
+    }
+    #[test(owner=@leizd,lp=@0x111,borrower=@0x222,liquidator=@0x333,target=@0x444,aptos_framework=@aptos_framework)]
+    #[expected_failure(abort_code = 65542)]
+    fun test_liquidate_shadow_insufficient_amount(owner: &signer, lp: &signer, borrower: &signer, liquidator: &signer, target: &signer, aptos_framework: &signer) {
+        initialize_lending_pool_for_test(owner, aptos_framework);
+        setup_liquidity_provider_for_test(owner, lp);
+        setup_account_for_test(borrower);
+        setup_account_for_test(liquidator);
+        setup_account_for_test(target);
+        let borrower_addr = signer::address_of(borrower);
+        let liquidator_addr = signer::address_of(liquidator);
+        usdz::mint_for_test(borrower_addr, 2000);
+
+        // prerequisite
+        deposit<WETH, Asset>(lp, 2000, false);
+        //// check risk_factor
+        assert!(risk_factor::lt_of_shadow() == risk_factor::default_lt_of_shadow(), 0);
+        assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
+
+        // execute
+        deposit<WETH, Shadow>(borrower, 2000, false);
+        borrow<WETH, Asset>(borrower, 1000);
+
+        risk_factor::update_config<USDZ>(owner, 1000000000 / 100 * 10, 1000000000 / 100 * 10); // 10%
+
+        managed_coin::mint<WETH>(owner, liquidator_addr, 1004);
+        liquidate<WETH, Shadow>(liquidator, borrower_addr);
     }
 }
