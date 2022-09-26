@@ -72,11 +72,13 @@ module leizd::stability_pool {
         amount: u64
     }
     struct BorrowEvent has store, drop {
+        key: String,
         caller: address,
         target_account: address,
         amount: u64
     }
     struct RepayEvent has store, drop {
+        key: String,
         caller: address,
         target_account: address,
         amount: u64
@@ -271,6 +273,7 @@ module leizd::stability_pool {
         event::emit_event<BorrowEvent>(
             &mut borrow_global_mut<StabilityPoolEventHandle>(permission::owner_address()).borrow_event,
             BorrowEvent {
+                key,
                 caller: addr,
                 target_account: addr,
                 amount
@@ -310,6 +313,7 @@ module leizd::stability_pool {
         event::emit_event<RepayEvent>(
             &mut borrow_global_mut<StabilityPoolEventHandle>(permission::owner_address()).repay_event,
             RepayEvent {
+                key,
                 caller: account_addr,
                 target_account: account_addr,
                 amount: amount

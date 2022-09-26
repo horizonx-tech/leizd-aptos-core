@@ -138,16 +138,16 @@ module leizd::risk_factor {
         let owner_address = signer::address_of(owner);
 
         let _config = borrow_global_mut<Config>(owner_address);
-        let name = key<C>();
+        let key = key<C>();
         assert_liquidation_threshold(new_ltv, new_lt);
 
-        table::upsert<string::String,u64>(&mut _config.ltv, name, new_ltv);
-        table::upsert<string::String,u64>(&mut _config.lt, name, new_lt);
+        table::upsert<string::String,u64>(&mut _config.ltv, key, new_ltv);
+        table::upsert<string::String,u64>(&mut _config.lt, key, new_lt);
         event::emit_event<UpdateConfigEvent>(
             &mut borrow_global_mut<RepositoryAssetEventHandle>(owner_address).update_config_event,
             UpdateConfigEvent {
                 caller: owner_address,
-                key: name,
+                key,
                 ltv: new_ltv,
                 lt: new_lt,
             }

@@ -21,6 +21,7 @@ module leizd::pool_status {
     }
 
     struct PoolStatusUpdateEvent has store, drop {
+        key: String,
         can_deposit: bool,
         can_withdraw: bool,
         can_borrow: bool,
@@ -38,6 +39,7 @@ module leizd::pool_status {
         event::emit_event<PoolStatusUpdateEvent>(
             &mut borrow_global_mut<PoolStatusEventHandle>(owner_address).pool_status_update_event,
                 PoolStatusUpdateEvent {
+                    key,
                     can_deposit: *simple_map::borrow<String,bool>(&pool_status_ref.can_deposit, &key),
                     can_withdraw: *simple_map::borrow<String,bool>(&pool_status_ref.can_withdraw, &key),
                     can_borrow: *simple_map::borrow<String,bool>(&pool_status_ref.can_borrow, &key),

@@ -42,6 +42,7 @@ module leizd::shadow_pool {
 
     // Events
     struct DepositEvent has store, drop {
+        key: String,
         caller: address,
         receiver: address,
         amount: u64,
@@ -49,6 +50,7 @@ module leizd::shadow_pool {
     }
 
     struct WithdrawEvent has store, drop {
+        key: String,
         caller: address,
         receiver: address,
         amount: u64,
@@ -56,6 +58,7 @@ module leizd::shadow_pool {
     }
 
     struct BorrowEvent has store, drop {
+        key: String,
         caller: address,
         borrower: address,
         receiver: address,
@@ -63,12 +66,14 @@ module leizd::shadow_pool {
     }
 
     struct RepayEvent has store, drop {
+        key: String,
         caller: address,
         repay_target: address,
         amount: u64,
     }
 
     struct LiquidateEvent has store, drop {
+        key: String,
         caller: address,
         target: address,
     }
@@ -170,6 +175,7 @@ module leizd::shadow_pool {
         event::emit_event<DepositEvent>(
             &mut borrow_global_mut<PoolEventHandle>(owner_address).deposit_event,
             DepositEvent {
+                key,
                 caller: signer::address_of(account),
                 receiver: for_address,
                 amount,
@@ -323,6 +329,7 @@ module leizd::shadow_pool {
         event::emit_event<WithdrawEvent>(
             &mut borrow_global_mut<PoolEventHandle>(owner_address).withdraw_event,
             WithdrawEvent {
+                key,
                 caller: depositor_addr,
                 receiver: receiver_addr,
                 amount,
@@ -409,6 +416,7 @@ module leizd::shadow_pool {
         event::emit_event<BorrowEvent>(
             &mut borrow_global_mut<PoolEventHandle>(owner_address).borrow_event,
             BorrowEvent {
+                key,
                 caller: borrower_addr,
                 borrower: borrower_addr,
                 receiver: receiver_addr,
@@ -457,6 +465,7 @@ module leizd::shadow_pool {
         event::emit_event<RepayEvent>(
             &mut borrow_global_mut<PoolEventHandle>(owner_address).repay_event,
             RepayEvent {
+                key,
                 caller: account_addr,
                 repay_target: account_addr,
                 amount,
@@ -481,6 +490,7 @@ module leizd::shadow_pool {
         event::emit_event<LiquidateEvent>(
             &mut borrow_global_mut<PoolEventHandle>(owner_address).liquidate_event,
             LiquidateEvent {
+                key,
                 caller: liquidator_addr,
                 target: target_addr,
             }
