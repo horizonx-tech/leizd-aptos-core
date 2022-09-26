@@ -36,11 +36,10 @@ module leizd::money_market {
     ) {
         pool_type::assert_pool_type<P>();
 
-        let is_shadow = pool_type::is_type_shadow<P>();
-        if (is_shadow) {
-            shadow_pool::deposit_for<C>(account, depositor_addr, amount, is_collateral_only);
-        } else {
+        if (pool_type::is_type_asset<P>()) {
             asset_pool::deposit_for<C>(account, depositor_addr, amount, is_collateral_only);
+        } else {
+            shadow_pool::deposit_for<C>(account, depositor_addr, amount, is_collateral_only);
         };
         account_position::deposit<C,P>(account, depositor_addr, amount, is_collateral_only);
     }
@@ -63,11 +62,10 @@ module leizd::money_market {
         pool_type::assert_pool_type<P>();
 
         let depositor_addr = signer::address_of(account);
-        let is_shadow = pool_type::is_type_shadow<P>();
-        if (is_shadow) {
-            amount = shadow_pool::withdraw_for<C>(depositor_addr, receiver_addr, amount, is_collateral_only, 0);
-        } else {
+        if (pool_type::is_type_asset<P>()) {
             amount = asset_pool::withdraw_for<C>(depositor_addr, receiver_addr, amount, is_collateral_only);
+        } else {
+            amount = shadow_pool::withdraw_for<C>(depositor_addr, receiver_addr, amount, is_collateral_only, 0);
         };
         account_position::withdraw<C,P>(depositor_addr, amount, is_collateral_only);
     }
@@ -81,12 +79,11 @@ module leizd::money_market {
         pool_type::assert_pool_type<P>();
 
         let borrower_addr = signer::address_of(account);
-        let is_shadow = pool_type::is_type_shadow<P>();
         let borrowed_amount: u64;
-        if (is_shadow) {
-            borrowed_amount = shadow_pool::borrow_for<C>(borrower_addr, receiver_addr, amount);
-        } else {
+        if (pool_type::is_type_asset<P>()) {
             borrowed_amount = asset_pool::borrow_for<C>(borrower_addr, receiver_addr, amount);
+        } else {
+            borrowed_amount = shadow_pool::borrow_for<C>(borrower_addr, receiver_addr, amount);
         };
         account_position::borrow<C,P>(borrower_addr, borrowed_amount);
     }
@@ -98,16 +95,15 @@ module leizd::money_market {
         pool_type::assert_pool_type<P>();
 
         let repayer = signer::address_of(account);
-        let is_shadow = pool_type::is_type_shadow<P>();
         // HACK: check repayable amount by account_position::repay & use this amount to xxx_pool::repay. Better not to calculate here. (because of just an entry module)
-        if (is_shadow) {
-            let debt_amount = account_position::borrowed_shadow<C>(repayer);
-            if (amount >= debt_amount) amount = debt_amount;
-            amount = shadow_pool::repay<C>(account, amount);
-        } else {
+        if (pool_type::is_type_asset<P>()) {
             let debt_amount = account_position::borrowed_asset<C>(repayer);
             if (amount >= debt_amount) amount = debt_amount;
             amount = asset_pool::repay<C>(account, amount);
+        } else {
+            let debt_amount = account_position::borrowed_shadow<C>(repayer);
+            if (amount >= debt_amount) amount = debt_amount;
+            amount = shadow_pool::repay<C>(account, amount);
         };
         account_position::repay<C,P>(repayer, amount);
     }
@@ -143,13 +139,12 @@ module leizd::money_market {
     }
     fun liquidate_for_pool<C,P>(liquidator: &signer, target_addr: address, deposited: u64, borrowed: u64, is_collateral_only: bool) {
         let liquidator_addr = signer::address_of(liquidator);
-        let is_shadow = pool_type::is_type_shadow<P>();
-        if (is_shadow) {
-            asset_pool::repay<C>(liquidator, borrowed);
-            shadow_pool::withdraw_for_liquidation<C>(liquidator_addr, target_addr, deposited, is_collateral_only);
-        } else {
+        if (pool_type::is_type_asset<P>()) {
             shadow_pool::repay<C>(liquidator, borrowed);
             asset_pool::withdraw_for_liquidation<C>(liquidator_addr, target_addr, deposited, is_collateral_only);
+        } else {
+            asset_pool::repay<C>(liquidator, borrowed);
+            shadow_pool::withdraw_for_liquidation<C>(liquidator_addr, target_addr, deposited, is_collateral_only);
         };
     }
 

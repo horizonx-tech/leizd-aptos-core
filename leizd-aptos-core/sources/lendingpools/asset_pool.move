@@ -149,7 +149,7 @@ module leizd::asset_pool {
 
     fun deposit_for_internal<C>(
         account: &signer,
-        for_address: address, // TODO: use to control target deposited
+        for_address: address, // only use for event
         amount: u64,
         is_collateral_only: bool,
     ) acquires Pool, Storage, PoolEventHandle {
@@ -860,12 +860,12 @@ module leizd::asset_pool {
         account::create_account_for_test(borrower_addr);
         managed_coin::register<UNI>(depositor);
         managed_coin::register<UNI>(borrower);
-        managed_coin::mint<UNI>(owner, depositor_addr, 100);
+        managed_coin::mint<UNI>(owner, depositor_addr, 100 + 4);
 
         let initial_sec = 1648738800; // 20220401T00:00:00
         // deposit UNI
         timestamp::update_global_time_for_test(initial_sec * 1000 * 1000);
-        deposit_for_internal<UNI>(depositor, depositor_addr, 100, false);
+        deposit_for_internal<UNI>(depositor, depositor_addr, 100 + 4, false);
         // borrow UNI
         timestamp::update_global_time_for_test((initial_sec + 250) * 1000 * 1000); // + 250 sec
         borrow_for_internal<UNI>(borrower_addr, borrower_addr, 10);
@@ -873,12 +873,12 @@ module leizd::asset_pool {
         timestamp::update_global_time_for_test((initial_sec + 500) * 1000 * 1000); // + 250 sec
         borrow_for_internal<UNI>(borrower_addr, borrower_addr, 20);
         assert!(coin::balance<UNI>(borrower_addr) == 30, 0);
-        // timestamp::update_global_time_for_test((initial_sec + 750) * 1000 * 1000); // + 250 sec
-        // borrow_for_internal<UNI>(borrower_addr, borrower_addr, 30); // TODO: fail here
-        // assert!(coin::balance<UNI>(borrower_addr) == 60, 0);
-        // timestamp::update_global_time_for_test((initial_sec + 1000) * 1000 * 1000); // + 250 sec
-        // borrow_for_internal<UNI>(borrower_addr, borrower_addr, 40);
-        // assert!(coin::balance<UNI>(borrower_addr) == 100, 0);
+        timestamp::update_global_time_for_test((initial_sec + 750) * 1000 * 1000); // + 250 sec
+        borrow_for_internal<UNI>(borrower_addr, borrower_addr, 30);
+        assert!(coin::balance<UNI>(borrower_addr) == 60, 0);
+        timestamp::update_global_time_for_test((initial_sec + 1000) * 1000 * 1000); // + 250 sec
+        borrow_for_internal<UNI>(borrower_addr, borrower_addr, 40);
+        assert!(coin::balance<UNI>(borrower_addr) == 100, 0);
     }
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
     #[expected_failure(abort_code = 65548)]
@@ -1063,9 +1063,8 @@ module leizd::asset_pool {
         assert!(repaid_amount == 300, 0);
         assert!(pool_asset_value<UNI>(owner_address) == 600, 0);
         assert!(coin::balance<UNI>(borrower_addr) == 400, 0);
-
         // timestamp::update_global_time_for_test((initial_sec + 400) * 1000 * 1000); // + 80 sec
-        // let repaid_amount = repay_internal<UNI>(borrower, 400); // TODO: fail here
+        // let repaid_amount = repay_internal<UNI>(borrower, 400); // TODO: fail here because of ARITHMETIC_ERROR in accrue_interest (Cannot cast u128 to u64)
         // assert!(repaid_amount == 400, 0);
         // assert!(pool_asset_value<UNI>(owner_address) == 1000, 0);
         // assert!(coin::balance<UNI>(borrower_addr) == 0, 0);
