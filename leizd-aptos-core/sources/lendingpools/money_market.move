@@ -82,12 +82,13 @@ module leizd::money_market {
 
         let borrower_addr = signer::address_of(account);
         let is_shadow = pool_type::is_type_shadow<P>();
+        let borrowed_amount: u64;
         if (is_shadow) {
-            shadow_pool::borrow_for<C>(borrower_addr, receiver_addr, amount);
+            borrowed_amount = shadow_pool::borrow_for<C>(borrower_addr, receiver_addr, amount);
         } else {
-            asset_pool::borrow_for<C>(borrower_addr, receiver_addr, amount);
+            borrowed_amount = asset_pool::borrow_for<C>(borrower_addr, receiver_addr, amount);
         };
-        account_position::borrow<C,P>(borrower_addr, amount);
+        account_position::borrow<C,P>(borrower_addr, borrowed_amount);
     }
 
     // TODO: Borrow from the best pool

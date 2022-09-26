@@ -314,7 +314,7 @@ module leizd::shadow_pool {
         borrower_addr: address,
         receiver_addr: address,
         amount: u64
-    ) acquires Pool, Storage, PoolEventHandle {
+    ): u64 acquires Pool, Storage, PoolEventHandle {
         assert!(pool_status::can_borrow<C>(), error::invalid_state(E_NOT_AVAILABLE_STATUS));
         assert!(amount > 0, error::invalid_argument(E_AMOUNT_ARG_IS_ZERO));
 
@@ -387,6 +387,8 @@ module leizd::shadow_pool {
                 amount,
             },
         );
+
+        amount_with_total_fee
     }
 
     public(friend) fun repay<C>(

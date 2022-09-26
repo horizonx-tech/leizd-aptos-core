@@ -247,15 +247,15 @@ module leizd::asset_pool {
         borrower_addr: address,
         receiver_addr: address,
         amount: u64,
-    ) acquires Pool, Storage, PoolEventHandle {
-        borrow_for_internal<C>(borrower_addr, receiver_addr, amount);
+    ): u64 acquires Pool, Storage, PoolEventHandle {
+        borrow_for_internal<C>(borrower_addr, receiver_addr, amount)
     }
 
     fun borrow_for_internal<C>(
         borrower_addr: address,
         receiver_addr: address,
         amount: u64,
-    ) acquires Pool, Storage, PoolEventHandle {
+    ): u64 acquires Pool, Storage, PoolEventHandle {
         assert!(pool_status::can_borrow<C>(), error::invalid_state(E_NOT_AVAILABLE_STATUS));
         assert!(amount > 0, error::invalid_argument(E_AMOUNT_ARG_IS_ZERO));
 
@@ -281,9 +281,11 @@ module leizd::asset_pool {
                 caller: borrower_addr,
                 borrower: borrower_addr,
                 receiver: receiver_addr,
-                amount,
+                amount: amount_with_fee,
             },
         );
+
+        amount_with_fee
     }
 
     /// Repays an asset or a shadow for the borrowed position.
