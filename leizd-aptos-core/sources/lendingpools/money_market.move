@@ -139,22 +139,17 @@ module leizd::money_market {
         pool_type::assert_pool_type<P>();
 
         let (deposited, borrowed, is_collateral_only) = account_position::liquidate<C,P>(target_addr);
-        let is_shadow = pool_type::is_type_shadow<P>();
-        if (is_shadow) {
-            liquidate_for_pool<C,P>(account, target_addr, deposited, borrowed, is_collateral_only);
-        } else {
-            liquidate_for_pool<C,P>(account, target_addr, deposited, borrowed, is_collateral_only);
-        };
+        liquidate_for_pool<C,P>(account, target_addr, deposited, borrowed, is_collateral_only);
     }
     fun liquidate_for_pool<C,P>(liquidator: &signer, target_addr: address, deposited: u64, borrowed: u64, is_collateral_only: bool) {
         let liquidator_addr = signer::address_of(liquidator);
         let is_shadow = pool_type::is_type_shadow<P>();
         if (is_shadow) {
             asset_pool::repay<C>(liquidator, borrowed);
-            shadow_pool::liquidate<C>(liquidator_addr, target_addr, deposited, is_collateral_only);
+            shadow_pool::withdraw_for_liquidation<C>(liquidator_addr, target_addr, deposited, is_collateral_only);
         } else {
             shadow_pool::repay<C>(liquidator, borrowed);
-            asset_pool::liquidate<C>(liquidator_addr, target_addr, deposited, is_collateral_only);
+            asset_pool::withdraw_for_liquidation<C>(liquidator_addr, target_addr, deposited, is_collateral_only);
         };
     }
 

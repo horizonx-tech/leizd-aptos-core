@@ -427,16 +427,7 @@ module leizd::shadow_pool {
         amount
     }
 
-   public(friend) fun liquidate<C>(
-        liquidator_addr: address,
-        target_addr: address,
-        liquidated: u64,
-        is_collateral_only: bool,
-    ) acquires Pool, Storage, PoolEventHandle {
-        liquidate_internal<C>(liquidator_addr, target_addr, liquidated, is_collateral_only);
-    }
-
-    fun liquidate_internal<C>(
+    public(friend) fun withdraw_for_liquidation<C>(
         liquidator_addr: address,
         target_addr: address,
         liquidated: u64,
@@ -1214,7 +1205,7 @@ module leizd::shadow_pool {
 
     // for liquidation
     #[test(owner=@leizd,depositor=@0x111,liquidator=@0x222,aptos_framework=@aptos_framework)]
-    public entry fun test_liquidate(owner: &signer, depositor: &signer, liquidator: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+    public entry fun test_withdraw_for_liquidation(owner: &signer, depositor: &signer, liquidator: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
 
@@ -1234,7 +1225,7 @@ module leizd::shadow_pool {
         assert!(coin::balance<USDZ>(depositor_addr) == 0, 0);
         assert!(coin::balance<USDZ>(liquidator_addr) == 0, 0);
 
-        liquidate_internal<WETH>(liquidator_addr, liquidator_addr, 1001, false);
+        withdraw_for_liquidation<WETH>(liquidator_addr, liquidator_addr, 1001, false);
         assert!(pool_shadow_value(owner_address) == 0, 0);
         assert!(total_deposited() == 0, 0);
         assert!(total_conly_deposited() == 0, 0);
