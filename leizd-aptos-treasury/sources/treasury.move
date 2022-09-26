@@ -25,8 +25,15 @@ module leizd_aptos_treasury::treasury {
     public fun initialize(owner: &signer) {
         permission::assert_owner(signer::address_of(owner));
         assert!(!initialized(), EALREADY_INITIALIZED);
+        
+        let map = simple_map::create<String, address>();
+        simple_map::add<String, address>(&mut map, type_info::type_name<USDZ>(), signer::address_of(owner));
         move_to(owner, SupportedTreasuries{
-            treasuries: simple_map::create<String, address>()
+            treasuries: map
+        });
+        move_to(owner, Treasury<USDZ> {
+            asset: coin::zero<USDZ>(),
+            shadow: coin::zero<USDZ>()
         });
     }
 

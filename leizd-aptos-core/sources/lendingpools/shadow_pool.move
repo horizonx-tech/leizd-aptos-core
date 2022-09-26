@@ -394,11 +394,10 @@ module leizd::shadow_pool {
             // not use stability pool
             let extracted = coin::extract(&mut pool_ref.shadow, amount);
             coin::deposit<USDZ>(receiver_addr, extracted);
-            // TODO: collect_shadow_fee<C>(pool_ref, entry_fee); // fee to treasury
+            collect_shadow_fee<USDZ>(pool_ref, entry_fee); // fee to treasury
         };
 
         // update borrowed stats
-        // let key = generate_coin_key<C>();
         let amount_with_total_fee = amount + total_fee;
         storage_ref.total_borrowed = storage_ref.total_borrowed + (amount_with_total_fee as u128);
         if (simple_map::contains_key<String,u64>(&storage_ref.borrowed, &key)) {
