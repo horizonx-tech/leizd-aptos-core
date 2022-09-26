@@ -241,14 +241,14 @@ module leizd::shadow_pool {
 
     public(friend) fun withdraw_for<C>(
         depositor_addr: address,
-        reciever_addr: address,
+        receiver_addr: address,
         amount: u64,
         is_collateral_only: bool,
         liquidation_fee: u64
     ): u64 acquires Pool, Storage, PoolEventHandle {
         withdraw_for_internal<C>(
             depositor_addr,
-            reciever_addr,
+            receiver_addr,
             amount,
             is_collateral_only,
             liquidation_fee
@@ -257,7 +257,7 @@ module leizd::shadow_pool {
 
     fun withdraw_for_internal<C>(
         depositor_addr: address,
-        reciever_addr: address,
+        receiver_addr: address,
         amount: u64,
         is_collateral_only: bool,
         liquidation_fee: u64
@@ -273,7 +273,7 @@ module leizd::shadow_pool {
         collect_shadow_fee<C>(pool_ref, liquidation_fee);
 
         let amount_to_transfer = amount - liquidation_fee;
-        coin::deposit<USDZ>(reciever_addr, coin::extract(&mut pool_ref.shadow, amount_to_transfer));
+        coin::deposit<USDZ>(receiver_addr, coin::extract(&mut pool_ref.shadow, amount_to_transfer));
         let withdrawn_amount;
         if (amount == constant::u64_max()) {
             if (is_collateral_only) {
@@ -302,7 +302,7 @@ module leizd::shadow_pool {
             &mut borrow_global_mut<PoolEventHandle>(owner_address).withdraw_event,
             WithdrawEvent {
                 caller: depositor_addr,
-                receiver: reciever_addr,
+                receiver: receiver_addr,
                 amount,
                 is_collateral_only,
             },

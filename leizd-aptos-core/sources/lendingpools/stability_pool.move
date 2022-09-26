@@ -933,7 +933,7 @@ module leizd::stability_pool {
         // post_process
         coin::deposit(owner_addr, borrowed);
     }
-    //// calcuration
+    //// calculation
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222)]
     public entry fun test_repay_for_confirming_priority(owner: &signer, depositor: &signer, borrower: &signer) acquires StabilityPool, Config, Balance, StabilityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
