@@ -432,10 +432,10 @@ module leizd::shadow_pool {
         withdrawing: u64,
         is_collateral_only: bool,
     ) acquires Pool, Storage, PoolEventHandle {
-        let liquidation_fee = risk_factor::calculate_liquidation_fee(withdrawing);
         let owner_address = permission::owner_address();
         let storage_ref = borrow_global_mut<Storage>(owner_address);
         accrue_interest<C>(storage_ref);
+        let liquidation_fee = risk_factor::calculate_liquidation_fee(withdrawing);
         withdraw_for_internal<C>(liquidator_addr, liquidator_addr, withdrawing, is_collateral_only, liquidation_fee);
 
         event::emit_event<LiquidateEvent>(
