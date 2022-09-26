@@ -79,7 +79,6 @@ module leizd::asset_pool {
     struct LiquidateEvent has store, drop {
         caller: address,
         target: address,
-        amount: u64,
     }
     struct PoolEventHandle<phantom C> has key, store {
         deposit_event: event::EventHandle<DepositEvent>,
@@ -328,21 +327,20 @@ module leizd::asset_pool {
     public(friend) fun withdraw_for_liquidation<C>(
         liquidator_addr: address,
         target_addr: address,
-        liquidated: u64,
+        withdrawing: u64,
         is_collateral_only: bool,
     ) acquires Pool, Storage, PoolEventHandle {
-        let liquidation_fee = risk_factor::calculate_liquidation_fee(liquidated);
+        let liquidation_fee = risk_factor::calculate_liquidation_fee(withdrawing);
         let owner_address = permission::owner_address();
         let storage_ref = borrow_global_mut<Storage<C>>(owner_address);
         accrue_interest<C>(storage_ref);
-        withdraw_for_internal<C>(liquidator_addr, liquidator_addr, liquidated, is_collateral_only, liquidation_fee);
+        withdraw_for_internal<C>(liquidator_addr, liquidator_addr, withdrawing, is_collateral_only, liquidation_fee);
 
         event::emit_event<LiquidateEvent>(
             &mut borrow_global_mut<PoolEventHandle<C>>(owner_address).liquidate_event,
             LiquidateEvent {
                 caller: liquidator_addr,
                 target: target_addr,
-                amount: liquidated
             }
         );
     }
