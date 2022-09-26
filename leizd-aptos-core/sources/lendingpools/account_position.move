@@ -198,9 +198,9 @@ module leizd::account_position {
         if (deposited > 0) {
             let conly_deposited = conly_deposited_asset<C>(depositor_addr);
             if (conly_deposited > 0) {
-                assert!(is_collateral_only, EALREADY_DEPOSITED_AS_COLLATERAL_ONLY);
+                assert!(is_collateral_only, error::invalid_argument(EALREADY_DEPOSITED_AS_COLLATERAL_ONLY));
             } else {
-                assert!(!is_collateral_only, EALREADY_DEPOSITED_AS_NORMAL);
+                assert!(!is_collateral_only, error::invalid_argument(EALREADY_DEPOSITED_AS_NORMAL));
             }
         }
     }
@@ -210,9 +210,9 @@ module leizd::account_position {
         if (deposited > 0) {
             let conly_deposited = conly_deposited_shadow<C>(depositor_addr);
             if (conly_deposited > 0) {
-                assert!(is_collateral_only, EALREADY_DEPOSITED_AS_COLLATERAL_ONLY);
+                assert!(is_collateral_only, error::invalid_argument(EALREADY_DEPOSITED_AS_COLLATERAL_ONLY));
             } else {
-                assert!(!is_collateral_only, EALREADY_DEPOSITED_AS_NORMAL);
+                assert!(!is_collateral_only, error::invalid_argument(EALREADY_DEPOSITED_AS_NORMAL));
             }
         }
     }
@@ -677,6 +677,46 @@ module leizd::account_position {
 
         assert!(event::counter<UpdatePositionEvent>(&borrow_global<AccountPositionEventHandle<AssetToShadow>>(account_addr).update_position_event) == 2, 0);
         assert!(event::counter<UpdatePositionEvent>(&borrow_global<AccountPositionEventHandle<ShadowToAsset>>(account_addr).update_position_event) == 2, 0);
+    }
+    #[test(owner=@leizd,account=@0x111)]
+    #[expected_failure(abort_code = 65544)]
+    fun test_deposit_asset_by_collateral_only_asset_after_depositing_normal(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle {
+        setup_for_test_to_initialize_coins(owner);
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+
+        deposit_internal<WETH,Asset>(account, account_addr, 1, false);
+        deposit_internal<WETH,Asset>(account, account_addr, 1, true);
+    }
+    #[test(owner=@leizd,account=@0x111)]
+    #[expected_failure(abort_code = 65545)]
+    fun test_deposit_asset_by_normal_after_depositing_collateral_only(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle {
+        setup_for_test_to_initialize_coins(owner);
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+
+        deposit_internal<WETH,Asset>(account, account_addr, 1, true);
+        deposit_internal<WETH,Asset>(account, account_addr, 1, false);
+    }
+    #[test(owner=@leizd,account=@0x111)]
+    #[expected_failure(abort_code = 65544)]
+    fun test_deposit_shadow_by_collateral_only_asset_after_depositing_normal(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle {
+        setup_for_test_to_initialize_coins(owner);
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+
+        deposit_internal<WETH,Shadow>(account, account_addr, 1, false);
+        deposit_internal<WETH,Shadow>(account, account_addr, 1, true);
+    }
+    #[test(owner=@leizd,account=@0x111)]
+    #[expected_failure(abort_code = 65545)]
+    fun test_deposit_shadow_by_normal_after_depositing_collateral_only(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle {
+        setup_for_test_to_initialize_coins(owner);
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+
+        deposit_internal<WETH,Shadow>(account, account_addr, 1, true);
+        deposit_internal<WETH,Shadow>(account, account_addr, 1, false);
     }
 
     // for withdraw
