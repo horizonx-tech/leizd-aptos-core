@@ -21,6 +21,7 @@ module leizd::asset_pool {
     use leizd::pool_status;
     use leizd::risk_factor;
     use leizd::stability_pool;
+    use leizd::coin_key::{key};
     use leizd_aptos_treasury::treasury;
 
     friend leizd::money_market;
@@ -379,7 +380,8 @@ module leizd::asset_pool {
         };
 
         let protocol_share_fee = risk_factor::share_fee();
-        let rcomp = interest_rate::update_interest_rate<C>(
+        let rcomp = interest_rate::update_interest_rate(
+            key<C>(),
             storage_ref.total_deposited,
             storage_ref.total_borrowed,
             storage_ref.last_updated,

@@ -15,7 +15,7 @@ module leizd::money_market {
     use leizd::asset_pool;
     use leizd::shadow_pool;
     use leizd::account_position;
-    use aptos_framework::type_info;
+    use leizd::coin_key::{key};
 
     /// Deposits an asset or a shadow to the pool.
     /// If a user wants to protect the asset, it's possible that it can be used only for the collateral.
@@ -106,7 +106,7 @@ module leizd::money_market {
         let (rebalanced, borrowed_and_rebalanced, from_key) = account_position::borrow_asset_with_rebalance<C>(borrower_addr, amount);
         if (option::is_some(&from_key)) {
             let key1 = *option::borrow<String>(&from_key);
-            let key2 = type_info::type_name<C>();
+            let key2 = key<C>();
             if (rebalanced != 0) {
                 shadow_pool::withdraw_for_with(key1, borrower_addr, borrower_addr, rebalanced, false, 0);
                 shadow_pool::deposit_for_with(key2, account, borrower_addr, rebalanced, false);

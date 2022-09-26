@@ -4,11 +4,11 @@ module leizd::risk_factor {
     use std::signer;
     use std::string;
     use aptos_std::event;
-    use aptos_std::type_info;
     use aptos_framework::account;
     use aptos_framework::table;
     use leizd_aptos_common::permission;
     use leizd_aptos_trove::usdz::{USDZ};
+    use leizd::coin_key::{key};
 
     friend leizd::asset_pool;
 
@@ -68,7 +68,7 @@ module leizd::risk_factor {
 
         let ltv = table::new<string::String,u64>();
         let lt = table::new<string::String,u64>();
-        let usdz_name = type_info::type_name<USDZ>();
+        let usdz_name = key<USDZ>();
         table::add<string::String,u64>(&mut ltv, usdz_name, SHADOW_LTV);
         table::add<string::String,u64>(&mut lt, usdz_name, SHADOW_LT);
         move_to(owner, Config {
@@ -95,15 +95,15 @@ module leizd::risk_factor {
         let owner_address = permission::owner_address();
 
         let config_ref = borrow_global_mut<Config>(owner_address);
-        let name = type_info::type_name<C>();
-        assert!(!table::contains<string::String, u64>(&config_ref.ltv, name), error::invalid_argument(EALREADY_ADDED_ASSET));
-        table::upsert<string::String,u64>(&mut config_ref.ltv, name, DEFAULT_LTV);
-        table::upsert<string::String,u64>(&mut config_ref.lt, name, DEFAULT_THRESHOLD);
+        let key = key<C>();
+        assert!(!table::contains<string::String, u64>(&config_ref.ltv, key), error::invalid_argument(EALREADY_ADDED_ASSET));
+        table::upsert<string::String,u64>(&mut config_ref.ltv, key, DEFAULT_LTV);
+        table::upsert<string::String,u64>(&mut config_ref.lt, key, DEFAULT_THRESHOLD);
         event::emit_event<UpdateConfigEvent>(
             &mut borrow_global_mut<RepositoryAssetEventHandle>(owner_address).update_config_event,
             UpdateConfigEvent {
                 caller: owner_address,
-                key: name,
+                key: key,
                 ltv: DEFAULT_LTV,
                 lt: DEFAULT_THRESHOLD,
             }
@@ -133,12 +133,12 @@ module leizd::risk_factor {
         )
     }
 
-    public entry fun update_config<T>(owner: &signer, new_ltv: u64, new_lt: u64) acquires Config, RepositoryAssetEventHandle {
+    public entry fun update_config<C>(owner: &signer, new_ltv: u64, new_lt: u64) acquires Config, RepositoryAssetEventHandle {
         permission::assert_owner(signer::address_of(owner));
         let owner_address = signer::address_of(owner);
 
         let _config = borrow_global_mut<Config>(owner_address);
-        let name = type_info::type_name<T>();
+        let name = key<C>();
         assert_liquidation_threshold(new_ltv, new_lt);
 
         table::upsert<string::String,u64>(&mut _config.ltv, name, new_ltv);
@@ -160,14 +160,12 @@ module leizd::risk_factor {
     }
 
     public fun ltv<C>(): u64 acquires Config {
-        let name = type_info::type_name<C>();
         let config = borrow_global<Config>(permission::owner_address());
-        *table::borrow<string::String,u64>(&config.ltv, name)
+        *table::borrow<string::String,u64>(&config.ltv, key<C>())
     }
 
     public fun lt<C>(): u64 acquires Config {
-        let name = type_info::type_name<C>();
-        lt_of(name)
+        lt_of(key<C>())
     }
 
     public fun lt_of(name: string::String): u64 acquires Config {
@@ -177,7 +175,7 @@ module leizd::risk_factor {
 
     public fun lt_of_shadow(): u64 acquires Config {
         let config = borrow_global<Config>(permission::owner_address());
-        *table::borrow<string::String,u64>(&config.lt, type_info::type_name<USDZ>())
+        *table::borrow<string::String,u64>(&config.lt, key<USDZ>())
     }
 
     // about fee
@@ -336,7 +334,7 @@ module leizd::risk_factor {
         initialize(owner);
         new_asset<TestAsset>(owner);
 
-        let name = type_info::type_name<TestAsset>();
+        let name = key<TestAsset>();
         let config = borrow_global<Config>(owner_addr);
         let new_ltv = table::borrow<string::String,u64>(&config.ltv, name);
         let new_lt = table::borrow<string::String,u64>(&config.lt, name);
@@ -352,7 +350,7 @@ module leizd::risk_factor {
         initialize(owner);
         new_asset<TestAsset>(account);
 
-        let key = type_info::type_name<TestAsset>();
+        let key = key<TestAsset>();
         let config = borrow_global<Config>(owner_addr);
         let new_ltv = table::borrow<string::String,u64>(&config.ltv, key);
         let new_lt = table::borrow<string::String,u64>(&config.lt, key);
@@ -376,7 +374,7 @@ module leizd::risk_factor {
         initialize(owner);
         new_asset<TestAsset>(owner);
 
-        let name = type_info::type_name<TestAsset>();
+        let name = key<TestAsset>();
         update_config<TestAsset>(owner, PRECISION / 100 * 70, PRECISION / 100 * 90);
         let config = borrow_global<Config>(permission::owner_address());
         let new_ltv = table::borrow<string::String,u64>(&config.ltv, name);
@@ -397,7 +395,7 @@ module leizd::risk_factor {
 
         update_config<USDZ>(owner, PRECISION / 100 * 20, PRECISION / 100 * 40);
         let config = borrow_global<Config>(permission::owner_address());
-        let name = type_info::type_name<USDZ>();
+        let name = key<USDZ>();
         let new_ltv = table::borrow<string::String,u64>(&config.ltv, name);
         let new_lt = table::borrow<string::String,u64>(&config.lt, name);
         assert!(*new_ltv == PRECISION / 100 * 20, 0);

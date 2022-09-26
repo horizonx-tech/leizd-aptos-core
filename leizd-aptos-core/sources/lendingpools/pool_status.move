@@ -3,10 +3,10 @@ module leizd::pool_status {
     use std::account;
     use std::string::{String};
     use aptos_std::simple_map;
-    use aptos_framework::type_info;
     use leizd_aptos_common::permission;
     use leizd::system_status;
     use aptos_std::event;
+    use leizd::coin_key::{key};
 
     friend leizd::system_administrator;
     friend leizd::asset_pool;
@@ -47,7 +47,7 @@ module leizd::pool_status {
     }
 
     public(friend) fun initialize<C>(owner: &signer) acquires Status {
-        let key = type_info::type_name<C>();
+        let key = key<C>();
         let owner_address = permission::owner_address();
         if (exists<Status>(owner_address)) {
             let status = borrow_global_mut<Status>(owner_address);
@@ -84,7 +84,7 @@ module leizd::pool_status {
     }
 
     public fun can_deposit<C>(): bool acquires Status {
-        let key = type_info::type_name<C>();
+        let key = key<C>();
         can_deposit_with(key)
     }
 
@@ -98,7 +98,7 @@ module leizd::pool_status {
     }
 
     public fun can_withdraw<C>(): bool acquires Status {
-        let key = type_info::type_name<C>();
+        let key = key<C>();
         can_withdraw_with(key)
     }
 
@@ -112,7 +112,7 @@ module leizd::pool_status {
     }
 
     public fun can_borrow<C>(): bool acquires Status {
-        let key = type_info::type_name<C>();
+        let key = key<C>();
         can_borrow_with(key)
     }
 
@@ -126,7 +126,7 @@ module leizd::pool_status {
     }
 
     public fun can_repay<C>(): bool acquires Status {
-        let key = type_info::type_name<C>();
+        let key = key<C>();
         can_repay_with(key)
     }
 
@@ -140,7 +140,7 @@ module leizd::pool_status {
     }
 
     public(friend) fun update_deposit_status<C>(active: bool) acquires Status, PoolStatusEventHandle {
-        let key = type_info::type_name<C>();
+        let key = key<C>();
         update_deposit_status_with(key, active);
     }
 
@@ -155,7 +155,7 @@ module leizd::pool_status {
     }
 
     public(friend) fun update_withdraw_status<C>(active: bool) acquires Status, PoolStatusEventHandle {
-        let key = type_info::type_name<C>();
+        let key = key<C>();
         update_withdraw_status_with(key, active);
     }
 
@@ -170,7 +170,7 @@ module leizd::pool_status {
     }
 
     public(friend) fun update_borrow_status<C>(active: bool) acquires Status, PoolStatusEventHandle {
-        let key = type_info::type_name<C>();
+        let key = key<C>();
         update_borrow_status_with(key, active);
     }
 
@@ -185,7 +185,7 @@ module leizd::pool_status {
     }
 
     public(friend) fun update_repay_status<C>(active: bool) acquires Status, PoolStatusEventHandle {
-        let key = type_info::type_name<C>();
+        let key = key<C>();
         update_repay_status_with(key, active);
     }
 
