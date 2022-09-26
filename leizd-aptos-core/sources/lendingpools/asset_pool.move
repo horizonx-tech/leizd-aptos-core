@@ -149,7 +149,7 @@ module leizd::asset_pool {
 
     fun deposit_for_internal<C>(
         account: &signer,
-        for_address: address, // TODO: use to control target deposited
+        for_address: address, // only use for event
         amount: u64,
         is_collateral_only: bool,
     ) acquires Pool, Storage, PoolEventHandle {

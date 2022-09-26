@@ -114,7 +114,7 @@ module leizd::shadow_pool {
 
     public(friend) fun deposit_for<C>(
         account: &signer,
-        for_address: address, // TODO: use to control target deposited
+        for_address: address, // only use for event
         amount: u64,
         is_collateral_only: bool
     ) acquires Pool, Storage, PoolEventHandle {
@@ -214,7 +214,6 @@ module leizd::shadow_pool {
         assert!(simple_map::contains_key<String,u64>(&storage_ref.borrowed, &key_from), 0);
         assert!(simple_map::contains_key<String,u64>(&storage_ref.deposited, &key_to), 0);
 
-        // TODO: consider fee
         let borrowed = simple_map::borrow_mut<String,u64>(&mut storage_ref.borrowed, &key_from);
         *borrowed = *borrowed + amount;
         let deposited = simple_map::borrow_mut<String,u64>(&mut storage_ref.deposited, &key_to);
@@ -1709,7 +1708,7 @@ module leizd::shadow_pool {
         assert!(deposited<UNI>() == 100000, 0);
 
         borrow_and_rebalance<WETH,UNI>(10000, false);
-        assert!(borrowed<WETH>() == 60000 + 250, 0); // TODO: check to charge fee in rebalance (maybe 300)
+        assert!(borrowed<WETH>() == 60000 + 250, 0); // WANT: check to charge fee in rebalance (maybe 300)
         assert!(deposited<UNI>() == 110000, 0);
 
         let event_handle = borrow_global<PoolEventHandle>(owner_addr);
