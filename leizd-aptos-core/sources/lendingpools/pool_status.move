@@ -46,7 +46,7 @@ module leizd::pool_status {
         );
     }
 
-    public(friend) fun initialize<C>(owner: &signer) acquires Status {
+    public(friend) fun initialize<C>(owner: &signer) acquires Status, PoolStatusEventHandle {
         let key = key<C>();
         let owner_address = permission::owner_address();
         if (exists<Status>(owner_address)) {
@@ -67,7 +67,11 @@ module leizd::pool_status {
             simple_map::add<String,bool>(&mut status.can_borrow, key, true);
             simple_map::add<String,bool>(&mut status.can_repay, key, true);
             move_to(owner, status);
-        }
+            move_to(owner, PoolStatusEventHandle {
+                pool_status_update_event: account::new_event_handle<PoolStatusUpdateEvent>(owner),
+            });
+        };
+        emit_current_pool_status(key);
     }
 
     fun is_initialized(owner_address: address, key: String): bool acquires Status {

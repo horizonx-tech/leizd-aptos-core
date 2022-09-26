@@ -466,27 +466,27 @@ module leizd::shadow_pool {
         amount
     }
 
-    // TODO
-    // public(friend) fun withdraw_for_liquidation<C>(
-    //     liquidator_addr: address,
-    //     target_addr: address,
-    //     withdrawing: u64,
-    //     is_collateral_only: bool,
-    // ) acquires Pool, Storage, PoolEventHandle {
-    //     let owner_address = permission::owner_address();
-    //     let storage_ref = borrow_global_mut<Storage>(owner_address);
-    //     let key = key<C>();
-    //     accrue_interest(key, storage_ref);
-    //     withdraw_for_internal(key, liquidator_addr, target_addr, liquidated, is_collateral_only, liquidation_fee);
+    public(friend) fun withdraw_for_liquidation<C>(
+        liquidator_addr: address,
+        target_addr: address,
+        withdrawing: u64,
+        is_collateral_only: bool,
+    ) acquires Pool, Storage, PoolEventHandle {
+        let owner_address = permission::owner_address();
+        let storage_ref = borrow_global_mut<Storage>(owner_address);
+        let key = key<C>();
+        accrue_interest(key, storage_ref);
+        let liquidation_fee = risk_factor::calculate_liquidation_fee(withdrawing);
+        withdraw_for_internal(key, liquidator_addr, target_addr, withdrawing, is_collateral_only, liquidation_fee);
 
-    //     event::emit_event<LiquidateEvent>(
-    //         &mut borrow_global_mut<PoolEventHandle>(owner_address).liquidate_event,
-    //         LiquidateEvent {
-    //             caller: liquidator_addr,
-    //             target: target_addr,
-    //         }
-    //     );
-    // }
+        event::emit_event<LiquidateEvent>(
+            &mut borrow_global_mut<PoolEventHandle>(owner_address).liquidate_event,
+            LiquidateEvent {
+                caller: liquidator_addr,
+                target: target_addr,
+            }
+        );
+    }
 
     public(friend) fun switch_collateral(amount: u64, is_collateral_only: bool) acquires Storage {
         switch_collateral_internal(amount, is_collateral_only);
@@ -1275,17 +1275,16 @@ module leizd::shadow_pool {
         assert!(coin::balance<USDZ>(depositor_addr) == 0, 0);
         assert!(coin::balance<USDZ>(liquidator_addr) == 0, 0);
 
-        // TODO
-        // withdraw_for_liquidation<WETH>(liquidator_addr, liquidator_addr, 1001, false);
-        // assert!(pool_shadow_value(owner_address) == 0, 0);
-        // assert!(total_deposited() == 0, 0);
-        // assert!(total_conly_deposited() == 0, 0);
-        // assert!(coin::balance<USDZ>(depositor_addr) == 0, 0);
-        // assert!(coin::balance<USDZ>(liquidator_addr) == 995, 0);
-        // assert!(treasury::balance_of_shadow<WETH>() == 6, 0);
+        withdraw_for_liquidation<WETH>(liquidator_addr, liquidator_addr, 1001, false);
+        assert!(pool_shadow_value(owner_address) == 0, 0);
+        assert!(total_deposited() == 0, 0);
+        assert!(total_conly_deposited() == 0, 0);
+        assert!(coin::balance<USDZ>(depositor_addr) == 0, 0);
+        assert!(coin::balance<USDZ>(liquidator_addr) == 995, 0);
+        assert!(treasury::balance<USDZ>() == 6, 0);
 
-        // let event_handle = borrow_global<PoolEventHandle>(signer::address_of(owner));
-        // assert!(event::counter<LiquidateEvent>(&event_handle.liquidate_event) == 1, 0);
+        let event_handle = borrow_global<PoolEventHandle>(signer::address_of(owner));
+        assert!(event::counter<LiquidateEvent>(&event_handle.liquidate_event) == 1, 0);
     }
 
     // for with stability_pool

@@ -74,6 +74,7 @@ module leizd::interest_rate {
 
     public(friend) fun initialize<C>(owner: &signer) acquires ConfigKey, InterestRateEventHandle {
         let config = default_config();
+        let owner_address = signer::address_of(owner);
         assert_config(config);
         if (!exists<ConfigKey>(signer::address_of(owner))) {
             move_to(owner, ConfigKey {
@@ -86,7 +87,7 @@ module leizd::interest_rate {
         let config_ref = borrow_global_mut<ConfigKey>(signer::address_of(owner));
         simple_map::add<String,Config>(&mut config_ref.config, key<C>(), config);
         event::emit_event<SetConfigEvent>(
-            &mut borrow_global_mut<InterestRateEventHandle<C>>(owner_address).set_config_event,
+            &mut borrow_global_mut<InterestRateEventHandle>(owner_address).set_config_event,
             SetConfigEvent {
                 caller: owner_address,
                 uopt: config.uopt,

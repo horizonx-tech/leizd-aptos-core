@@ -646,7 +646,7 @@ module leizd::money_market {
         assert!(coin::balance<WETH>(borrower_addr) == 0, 0);
         assert!(coin::balance<USDZ>(borrower_addr) == 1000 ,0);
         assert!(coin::balance<WETH>(liquidator_addr) == 0, 0);
-        assert!(treasury::balance_of_asset<WETH>() == 0, 0);
+        assert!(treasury::balance<WETH>() == 0, 0);
 
         risk_factor::update_config<WETH>(owner, 1000000000 / 100 * 10, 1000000000 / 100 * 10); // 10%
 
@@ -659,7 +659,7 @@ module leizd::money_market {
         assert!(coin::balance<WETH>(borrower_addr) == 0, 0);
         assert!(coin::balance<USDZ>(borrower_addr) == 1000 ,0);
         assert!(coin::balance<WETH>(liquidator_addr) == 1990, 0);
-        assert!(treasury::balance_of_asset<WETH>() == 10, 0);
+        assert!(treasury::balance<WETH>() == 10, 0);
     }
     #[test(owner=@leizd,lp=@0x111,borrower=@0x222,liquidator=@0x333,target=@0x444,aptos_framework=@aptos_framework)]
     #[expected_failure(abort_code = 65542)]
@@ -715,7 +715,7 @@ module leizd::money_market {
         assert!(coin::balance<USDZ>(borrower_addr) == 0, 0);
         assert!(coin::balance<WETH>(borrower_addr) == 1000, 0);
         assert!(coin::balance<USDZ>(liquidator_addr) == 0, 0);
-        assert!(treasury::balance_of_shadow<WETH>() == 0, 0);
+        assert!(treasury::balance<USDZ>() == 0, 0);
 
         risk_factor::update_config<USDZ>(owner, 1000000000 / 100 * 10, 1000000000 / 100 * 10); // 10%
 
@@ -725,10 +725,9 @@ module leizd::money_market {
         assert!(asset_pool::total_borrowed<WETH>() == 0, 0);
         assert!(account_position::deposited_shadow<WETH>(borrower_addr) == 0, 0);
         assert!(account_position::borrowed_asset<WETH>(borrower_addr) == 0, 0);
-        assert!(coin::balance<USDZ>(borrower_addr) == 0, 0);
         assert!(coin::balance<WETH>(borrower_addr) == 1000, 0);
-        assert!(coin::balance<USDZ>(liquidator_addr) == 1990, 0);
-        assert!(treasury::balance_of_shadow<WETH>() == 10, 0);
+        assert!(coin::balance<USDZ>(liquidator_addr) == 0, 0);
+        assert!(treasury::balance<WETH>() == 5, 0);
     }
     #[test(owner=@leizd,lp=@0x111,borrower=@0x222,liquidator=@0x333,target=@0x444,aptos_framework=@aptos_framework)]
     #[expected_failure(abort_code = 65542)]
@@ -773,12 +772,12 @@ module leizd::money_market {
 
         // execute
         deposit<WETH, Asset>(account, 100, false);
-        borrow<WETH, Shadow>(account, 69);
+        borrow<WETH, Shadow>(account, 59);
         switch_collateral<WETH, Asset>(account, true);
 
         assert!(asset_pool::total_deposited<WETH>() == 100, 0);
         assert!(asset_pool::total_conly_deposited<WETH>() == 100, 0);
-        assert!(shadow_pool::total_borrowed() == 70, 0); // 69+fee
+        assert!(shadow_pool::total_borrowed() == 60, 0); // 59+fee
         assert!(account_position::deposited_asset<WETH>(account_addr) == 100, 0);
         assert!(account_position::conly_deposited_asset<WETH>(account_addr) == 100, 0);
     }

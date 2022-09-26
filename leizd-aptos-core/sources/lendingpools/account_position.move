@@ -1497,7 +1497,7 @@ module leizd::account_position {
         assert!(borrowed_asset<WETH>(account1_addr) == 50000, 0);
         assert!(borrowed_asset<UNI>(account1_addr) == 110000, 0);
 
-        let (insufficient, is_collateral_only_C1, is_collateral_only_C2) = rebalance_shadow_internal(account1_addr, generate_key<WETH>(), generate_key<UNI>());
+        let (insufficient, is_collateral_only_C1, is_collateral_only_C2) = rebalance_shadow_internal(account1_addr, key<WETH>(), key<UNI>());
         assert!(insufficient == 10000, 0);
         assert!(is_collateral_only_C1 == false, 0);
         assert!(is_collateral_only_C2 == false, 0);
@@ -1634,7 +1634,7 @@ module leizd::account_position {
         assert!(deposited_shadow<UNI>(account1_addr) == 10000, 0);
         assert!(borrowed_asset<UNI>(account1_addr) == 15000, 0);
 
-        borrow_and_rebalance_internal(account1_addr, generate_key<WETH>(), generate_key<UNI>(), false);
+        borrow_and_rebalance_internal(account1_addr, key<WETH>(), key<UNI>(), false);
         assert!(deposited_asset<WETH>(account1_addr) == 10000, 0);
         assert!(borrowed_shadow<WETH>(account1_addr) == 5000, 0);
         assert!(deposited_shadow<UNI>(account1_addr) == 15000, 0);
@@ -1702,7 +1702,7 @@ module leizd::account_position {
         deposit_internal<WETH, Shadow>(account, account_addr, 1000, false);
         deposit_internal<UNI, Shadow>(account, account_addr, 1000, false);
         borrow_unsafe_for_test<UNI, Asset>(account_addr, 1200);
-        let (can_rebalance, extra, insufficient) = can_rebalance_shadow_between(account_addr, generate_key<WETH>(), generate_key<UNI>());
+        let (can_rebalance, extra, insufficient) = can_rebalance_shadow_between(account_addr, key<WETH>(), key<UNI>());
         assert!(can_rebalance, 0);
         assert!(extra == 1000, 0);
         assert!(insufficient == 200, 0);
@@ -1716,7 +1716,7 @@ module leizd::account_position {
         deposit_internal<WETH, Shadow>(account, account_addr, 1000, false);
         deposit_internal<UNI, Shadow>(account, account_addr, 1000, false);
         borrow_unsafe_for_test<UNI, Asset>(account_addr, 2500);
-        let (can_rebalance, extra, insufficient) = can_rebalance_shadow_between(account_addr, generate_key<WETH>(), generate_key<UNI>());
+        let (can_rebalance, extra, insufficient) = can_rebalance_shadow_between(account_addr, key<WETH>(), key<UNI>());
         assert!(!can_rebalance, 0);
         assert!(extra == 1000, 0);
         assert!(insufficient == 1500, 0);
@@ -1730,7 +1730,7 @@ module leizd::account_position {
         deposit_internal<WETH, Shadow>(account, account_addr, 1000, false);
         borrow_unsafe_for_test<WETH, Asset>(account_addr, 1001);
         deposit_internal<UNI, Shadow>(account, account_addr, 1, false);
-        let (can_rebalance, extra, insufficient) = can_rebalance_shadow_between(account_addr, generate_key<WETH>(), generate_key<UNI>());
+        let (can_rebalance, extra, insufficient) = can_rebalance_shadow_between(account_addr, key<WETH>(), key<UNI>());
         assert!(!can_rebalance, 0);
         assert!(extra == 0, 0);
         assert!(insufficient == 0, 0);
@@ -1743,14 +1743,14 @@ module leizd::account_position {
 
         deposit_internal<WETH, Shadow>(account, account_addr, 1000, false);
         deposit_internal<UNI, Shadow>(account, account_addr, 1, false);
-        let (can_rebalance, extra, insufficient) = can_rebalance_shadow_between(account_addr, generate_key<WETH>(), generate_key<UNI>());
+        let (can_rebalance, extra, insufficient) = can_rebalance_shadow_between(account_addr, key<WETH>(), key<UNI>());
         assert!(!can_rebalance, 0);
         assert!(extra == 0, 0);
         assert!(insufficient == 0, 0);
     }
     #[test(account = @0x111)]
     fun test_can_rebalance_shadow_between_with_same_coins(account: &signer) acquires Position {
-        let key = generate_key<WETH>();
+        let key = key<WETH>();
         let (can_rebalance, extra, insufficient) = can_rebalance_shadow_between(signer::address_of(account), key, key);
         assert!(!can_rebalance, 0);
         assert!(extra == 0, 0);

@@ -1119,7 +1119,7 @@ module leizd::asset_pool {
         assert!(total_conly_deposited<WETH>() == 0, 0);
         assert!(coin::balance<WETH>(depositor_addr) == 0, 0);
         assert!(coin::balance<WETH>(liquidator_addr) == 995, 0);
-        assert!(treasury::balance_of_asset<WETH>() == 6, 0);
+        assert!(treasury::balance<WETH>() == 6, 0);
 
         let event_handle = borrow_global<PoolEventHandle<WETH>>(signer::address_of(owner));
         assert!(event::counter<LiquidateEvent>(&event_handle.liquidate_event) == 1, 0);
