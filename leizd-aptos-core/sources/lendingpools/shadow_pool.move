@@ -860,7 +860,8 @@ module leizd::shadow_pool {
         deposit_for_internal<UNI>(depositor, depositor_addr, 800000, false);
 
         // borrow
-        borrow_for<UNI>(borrower_addr, borrower_addr, 100000);
+        let borrowed = borrow_for<UNI>(borrower_addr, borrower_addr, 100000);
+        assert!(borrowed == 100500, 0);
         assert!(coin::balance<USDZ>(borrower_addr) == 100000, 0);
         assert!(total_deposited() == 800000, 0);
         assert!(deposited<UNI>() == 800000, 0);
@@ -894,7 +895,8 @@ module leizd::shadow_pool {
         deposit_for_internal<UNI>(depositor, depositor_addr, 1005, false);
 
         // borrow
-        borrow_for<UNI>(borrower_addr, borrower_addr, 1000);
+        let borrowed = borrow_for<UNI>(borrower_addr, borrower_addr, 1000);
+        assert!(borrowed == 1005, 0);
         assert!(coin::balance<USDZ>(borrower_addr) == 1000, 0);
         assert!(total_deposited() == 1005, 0);
         assert!(deposited<UNI>() == 1005, 0);
@@ -948,16 +950,20 @@ module leizd::shadow_pool {
         //// deposit UNI
         deposit_for_internal<UNI>(depositor, depositor_addr, 10000 + 5 * 10, false);
         //// borrow UNI
-        borrow_for<UNI>(borrower_addr, borrower_addr, 1000);
+        let borrowed = borrow_for<UNI>(borrower_addr, borrower_addr, 1000);
+        assert!(borrowed == 1005, 0);
         assert!(coin::balance<USDZ>(borrower_addr) == 1000, 0);
         assert!(borrowed<UNI>() == 1000 + 5 * 1, 0);
-        borrow_for<UNI>(borrower_addr, borrower_addr, 2000);
+        let borrowed = borrow_for<UNI>(borrower_addr, borrower_addr, 2000);
+        assert!(borrowed == 2010, 0);
         assert!(coin::balance<USDZ>(borrower_addr) == 3000, 0);
         assert!(borrowed<UNI>() == 3000 + 5 * 3, 0);
-        borrow_for<UNI>(borrower_addr, borrower_addr, 3000);
+        let borrowed = borrow_for<UNI>(borrower_addr, borrower_addr, 3000);
+        assert!(borrowed == 3015, 0);
         assert!(coin::balance<USDZ>(borrower_addr) == 6000, 0);
         assert!(borrowed<UNI>() == 6000 + 5 * 6, 0);
-        borrow_for<UNI>(borrower_addr, borrower_addr, 4000);
+        let borrowed = borrow_for<UNI>(borrower_addr, borrower_addr, 4000);
+        assert!(borrowed == 4020, 0);
         assert!(coin::balance<USDZ>(borrower_addr) == 10000, 0);
         assert!(borrowed<UNI>() == 10000 + 5 * 10, 0);
     }
