@@ -256,7 +256,7 @@ module leizd::risk_factor {
         assert!(protocol_fees.share_fee == DEFAULT_SHARE_FEE, 0);
         assert!(protocol_fees.liquidation_fee == DEFAULT_LIQUIDATION_FEE, 0);
         let event_handle = borrow_global<RepositoryEventHandle>(owner_addr);
-        assert!(event::counter(&event_handle.update_protocol_fees_event) == 0, 0);
+        assert!(event::counter(&event_handle.update_protocol_fees_event) == 1, 0);
     }
     #[test(account = @0x111)]
     #[expected_failure(abort_code = 1)]
@@ -287,7 +287,7 @@ module leizd::risk_factor {
         assert!(fees.share_fee == PRECISION / 1000 * 7, 0);
         assert!(fees.liquidation_fee == PRECISION / 1000 * 6, 0);
         let event_handle = borrow_global<RepositoryEventHandle>(owner_addr);
-        assert!(event::counter(&event_handle.update_protocol_fees_event) == 1, 0);
+        assert!(event::counter(&event_handle.update_protocol_fees_event) == 2, 0);
     }
     #[test(owner=@leizd)]
     #[expected_failure(abort_code = 65541)]
