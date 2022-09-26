@@ -1803,4 +1803,44 @@ module leizd::account_position {
         // assert!(event::counter<UpdatePositionEvent>(&borrow_global<AccountPositionEventHandle<AssetToShadow>>(account1_addr).update_position_event) == 3, 0);
         // assert!(event::counter<UpdatePositionEvent>(&borrow_global<AccountPositionEventHandle<ShadowToAsset>>(account1_addr).update_position_event) == 4, 0);
     }
+
+    // switch collateral
+    #[test(account1=@0x111)]
+    public entry fun test_switch_collateral_with_asset(account1: &signer) acquires Position, AccountPositionEventHandle {
+        let account1_addr = signer::address_of(account1);
+        account::create_account_for_test(account1_addr);
+        deposit_internal<WETH,Asset>(account1, account1_addr, 10000, false);
+        assert!(deposited_asset<WETH>(account1_addr) == 10000, 0);
+        assert!(conly_deposited_asset<WETH>(account1_addr) == 0, 0);
+
+        let deposited = switch_collateral<WETH,Asset>(account1_addr, true);
+        assert!(deposited == 10000, 0);
+        assert!(deposited_asset<WETH>(account1_addr) == 10000, 0);
+        assert!(conly_deposited_asset<WETH>(account1_addr) == 10000, 0);
+
+        deposit_internal<WETH,Asset>(account1, account1_addr, 30000, true);
+        let deposited = switch_collateral<WETH,Asset>(account1_addr, false);
+        assert!(deposited == 40000, 0);
+        assert!(deposited_asset<WETH>(account1_addr) == 40000, 0);
+        assert!(conly_deposited_asset<WETH>(account1_addr) == 0, 0);
+    }
+    #[test(account1=@0x111)]
+    public entry fun test_switch_collateral_with_shadow(account1: &signer) acquires Position, AccountPositionEventHandle {
+        let account1_addr = signer::address_of(account1);
+        account::create_account_for_test(account1_addr);
+        deposit_internal<WETH,Shadow>(account1, account1_addr, 10000, true);
+        assert!(deposited_shadow<WETH>(account1_addr) == 10000, 0);
+        assert!(conly_deposited_shadow<WETH>(account1_addr) == 10000, 0);
+
+        let deposited = switch_collateral<WETH,Shadow>(account1_addr, false);
+        assert!(deposited == 10000, 0);
+        assert!(deposited_shadow<WETH>(account1_addr) == 10000, 0);
+        assert!(conly_deposited_shadow<WETH>(account1_addr) == 0, 0);
+
+        deposit_internal<WETH,Shadow>(account1, account1_addr, 30000, false);
+        let deposited = switch_collateral<WETH,Shadow>(account1_addr, true);
+        assert!(deposited == 40000, 0);
+        assert!(deposited_shadow<WETH>(account1_addr) == 40000, 0);
+        assert!(conly_deposited_shadow<WETH>(account1_addr) == 40000, 0);
+    }
 }
