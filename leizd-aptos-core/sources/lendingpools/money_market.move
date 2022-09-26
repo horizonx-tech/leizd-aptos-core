@@ -351,11 +351,11 @@ module leizd::money_market {
 
         // execute
         deposit<WETH, Asset>(account, 100, false);
-        borrow<WETH, Shadow>(account, 69);
+        borrow<WETH, Shadow>(account, 68);
 
-        assert!(coin::balance<USDZ>(account_addr) == 69, 0);
-        assert!(shadow_pool::borrowed<WETH>() > 69, 0);
-        assert!(account_position::borrowed_shadow<WETH>(account_addr) > 0, 0); // TODO: check
+        assert!(coin::balance<USDZ>(account_addr) == 68, 0);
+        assert!(shadow_pool::borrowed<WETH>() == 69, 0); // NOTE: amount + fee
+        assert!(account_position::borrowed_shadow<WETH>(account_addr) == 69, 0);
     }
     #[test(owner=@leizd,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
     fun test_borrow_with_asset_from_shadow(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) {
@@ -373,11 +373,11 @@ module leizd::money_market {
 
         // execute
         deposit<WETH, Shadow>(account, 100, false);
-        borrow<WETH, Asset>(account, 99);
+        borrow<WETH, Asset>(account, 98);
 
-        assert!(coin::balance<WETH>(account_addr) == 99, 0);
-        assert!(asset_pool::total_borrowed<WETH>() > 99, 0);
-        assert!(account_position::borrowed_asset<WETH>(account_addr) > 0, 0);  // TODO: check
+        assert!(coin::balance<WETH>(account_addr) == 98, 0);
+        assert!(asset_pool::total_borrowed<WETH>() == 99, 0); // NOTE: amount + fee
+        assert!(account_position::borrowed_asset<WETH>(account_addr) == 99, 0);
     }
     #[test(owner=@leizd,lp=@0x111,account=@0x222,for=@0x333,aptos_framework=@aptos_framework)]
     fun test_borrow_for_with_shadow_from_asset(owner: &signer, lp: &signer, account: &signer, for: &signer, aptos_framework: &signer) {
@@ -398,12 +398,12 @@ module leizd::money_market {
         // execute
         deposit<WETH, Asset>(account, 100, false);
         let for_addr = signer::address_of(for);
-        borrow_for<WETH, Shadow>(account, for_addr, 69);
+        borrow_for<WETH, Shadow>(account, for_addr, 68);
 
         assert!(coin::balance<USDZ>(account_addr) == 0, 0);
-        assert!(coin::balance<USDZ>(for_addr) == 69, 0);
-        assert!(shadow_pool::borrowed<WETH>() == 70, 0); // NOTE: amount + fee
-        assert!(account_position::borrowed_shadow<WETH>(account_addr) > 0, 0); // TODO: check
+        assert!(coin::balance<USDZ>(for_addr) == 68, 0);
+        assert!(shadow_pool::borrowed<WETH>() == 69, 0); // NOTE: amount + fee
+        assert!(account_position::borrowed_shadow<WETH>(account_addr) == 69, 0);
         assert!(account_position::borrowed_shadow<WETH>(for_addr) == 0, 0);
     }
     #[test(owner=@leizd,lp=@0x111,account=@0x222,for=@0x333,aptos_framework=@aptos_framework)]
@@ -425,12 +425,12 @@ module leizd::money_market {
         // execute
         deposit<WETH, Shadow>(account, 100, false);
         let for_addr = signer::address_of(for);
-        borrow_for<WETH, Asset>(account, for_addr, 99);
+        borrow_for<WETH, Asset>(account, for_addr, 98);
 
         assert!(coin::balance<WETH>(account_addr) == 0, 0);
-        assert!(coin::balance<WETH>(for_addr) == 99, 0);
-        assert!(asset_pool::total_borrowed<WETH>() == 100, 0); // NOTE: amount + fee
-        assert!(account_position::borrowed_asset<WETH>(account_addr) > 0, 0);  // TODO: check
+        assert!(coin::balance<WETH>(for_addr) == 98, 0);
+        assert!(asset_pool::total_borrowed<WETH>() == 99, 0); // NOTE: amount + fee
+        assert!(account_position::borrowed_asset<WETH>(account_addr) == 99, 0);
         assert!(account_position::borrowed_asset<WETH>(for_addr) == 0, 0);
     }
     #[test(owner=@leizd,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
@@ -449,12 +449,12 @@ module leizd::money_market {
 
         // execute
         deposit<WETH, Asset>(account, 100, false);
-        borrow<WETH, Shadow>(account, 69);
-        repay<WETH, Shadow>(account, 50);
+        borrow<WETH, Shadow>(account, 68);
+        repay<WETH, Shadow>(account, 49);
 
         assert!(coin::balance<USDZ>(account_addr) == 19, 0);
         assert!(shadow_pool::borrowed<WETH>() == 20, 0);
-        assert!(account_position::borrowed_shadow<WETH>(account_addr) > 0, 0); // TODO: check
+        assert!(account_position::borrowed_shadow<WETH>(account_addr) == 20, 0);
     }
     #[test(owner=@leizd,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
     fun test_repay_with_asset(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) {
@@ -472,12 +472,12 @@ module leizd::money_market {
 
         // execute
         deposit<WETH, Shadow>(account, 100, false);
-        borrow<WETH, Asset>(account, 99);
-        repay<WETH, Asset>(account, 50);
+        borrow<WETH, Asset>(account, 98);
+        repay<WETH, Asset>(account, 49);
 
         assert!(coin::balance<WETH>(account_addr) == 49, 0);
         assert!(asset_pool::total_borrowed<WETH>() == 50, 0);
-        assert!(account_position::borrowed_asset<WETH>(account_addr) > 0, 0);  // TODO: check
+        assert!(account_position::borrowed_asset<WETH>(account_addr) == 50, 0);
     }
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
     fun test_enable_to_rebalance_and_unable_to_rebalance(owner: &signer, account: &signer, aptos_framework: &signer) {
@@ -513,7 +513,7 @@ module leizd::money_market {
         // execute
         deposit<WETH, Shadow>(account, 100, false);
         deposit<UNI, Shadow>(account, 100, false);
-        borrow<UNI, Asset>(account, 99);
+        borrow<UNI, Asset>(account, 98);
         assert!(shadow_pool::deposited<WETH>() == 100, 0);
         assert!(shadow_pool::deposited<UNI>() == 100, 0);
         assert!(account_position::deposited_shadow<WETH>(account_addr) == 100, 0);
@@ -540,13 +540,13 @@ module leizd::money_market {
         deposit<UNI, Asset>(lp, 200, false);
         deposit<WETH, Shadow>(lp, 200, false);
         //// temp: for adding key to Storage
-        deposit<WETH, Asset>(lp, 2, false);
+        deposit<WETH, Asset>(lp, 3, false);
         borrow<WETH, Shadow>(lp, 1);
         repay<WETH, Shadow>(lp, 2);
-        withdraw<WETH, Asset>(lp, 2, false);
+        withdraw<WETH, Asset>(lp, 3, false);
         let lp_addr = signer::address_of(lp);
         assert!(asset_pool::total_deposited<WETH>() == 0, 0);
-        assert!(shadow_pool::borrowed<WETH>() == 1, 0); // TODO: bug fix - take fee to borrowed of user
+        assert!(shadow_pool::borrowed<WETH>() == 0, 0);
         assert!(account_position::borrowed_shadow<WETH>(lp_addr) == 0, 0);
         //// check risk_factor
         assert!(risk_factor::lt_of_shadow() == risk_factor::default_lt_of_shadow(), 0);
@@ -555,10 +555,10 @@ module leizd::money_market {
         // execute
         deposit<WETH, Asset>(account, 100, false);
         deposit<UNI, Shadow>(account, 100, false);
-        borrow<UNI, Asset>(account, 99);
+        borrow<UNI, Asset>(account, 98);
         assert!(asset_pool::total_deposited<WETH>() == 100, 0);
         assert!(shadow_pool::deposited<UNI>() == 100, 0);
-        assert!(shadow_pool::borrowed<WETH>() == 1, 0);
+        assert!(shadow_pool::borrowed<WETH>() == 0, 0);
         assert!(account_position::deposited_asset<WETH>(account_addr) == 100, 0);
         assert!(account_position::deposited_shadow<UNI>(account_addr) == 100, 0);
         assert!(account_position::borrowed_shadow<WETH>(account_addr) == 0, 0);
@@ -596,7 +596,7 @@ module leizd::money_market {
         assert!(asset_pool::total_deposited<WETH>() == 2000, 0);
         assert!(shadow_pool::borrowed<WETH>() == 1000 + 5, 0);
         assert!(account_position::deposited_asset<WETH>(borrower_addr) == 2000, 0);
-        assert!(account_position::borrowed_shadow<WETH>(borrower_addr) == 1000, 0); // TODO: bug fix - take fee to borrowed of user
+        assert!(account_position::borrowed_shadow<WETH>(borrower_addr) == 1005, 0);
 
         risk_factor::update_config<WETH>(owner, 1000000000 / 100 * 10, 1000000000 / 100 * 10); // 10%
 
@@ -638,7 +638,7 @@ module leizd::money_market {
         assert!(shadow_pool::deposited<WETH>() == 2000, 0);
         assert!(asset_pool::total_borrowed<WETH>() == 1000 + 5, 0);
         assert!(account_position::deposited_shadow<WETH>(borrower_addr) == 2000, 0);
-        assert!(account_position::borrowed_asset<WETH>(borrower_addr) == 1000, 0); // TODO: bug fix - take fee to borrowed of user
+        assert!(account_position::borrowed_asset<WETH>(borrower_addr) == 1005, 0);
 
         risk_factor::update_config<USDZ>(owner, 1000000000 / 100 * 10, 1000000000 / 100 * 10); // 10%
 
