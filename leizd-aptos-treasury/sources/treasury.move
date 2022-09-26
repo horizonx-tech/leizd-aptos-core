@@ -14,8 +14,7 @@ module leizd_aptos_treasury::treasury {
     const EALREADY_ADDED: u64 = 2;
 
     struct Treasury<phantom C> has key {
-        asset: coin::Coin<C>,
-        shadow: coin::Coin<USDZ>,
+        coin: coin::Coin<C>,
     }
 
     struct SupportedTreasuries has key {
@@ -25,8 +24,14 @@ module leizd_aptos_treasury::treasury {
     public fun initialize(owner: &signer) {
         permission::assert_owner(signer::address_of(owner));
         assert!(!initialized(), EALREADY_INITIALIZED);
+        
+        let map = simple_map::create<String, address>();
+        simple_map::add<String, address>(&mut map, type_info::type_name<USDZ>(), signer::address_of(owner));
         move_to(owner, SupportedTreasuries{
-            treasuries: simple_map::create<String, address>()
+            treasuries: map
+        });
+        move_to(owner, Treasury<USDZ> {
+            coin: coin::zero<USDZ>(),
         });
     }
 
@@ -49,23 +54,16 @@ module leizd_aptos_treasury::treasury {
     public fun add_coin<C>(owner: &signer) acquires SupportedTreasuries {
         assert!(!is_coin_supported<C>(), EALREADY_ADDED);
         move_to(owner, Treasury<C> {
-            asset: coin::zero<C>(),
-            shadow: coin::zero<USDZ>()
+            coin: coin::zero<C>(),
         });
         let treasuries = borrow_global_mut<SupportedTreasuries>(permission::owner_address());
         simple_map::add<String, address>(&mut treasuries.treasuries, treasury_key<C>(), signer::address_of(owner));
     }
 
-    public entry fun collect_asset_fee<C>(coin: coin::Coin<C>) acquires Treasury, SupportedTreasuries {
+    public entry fun collect_fee<C>(coin: coin::Coin<C>) acquires Treasury, SupportedTreasuries {
         assert_coin_supported<C>();
         let treasury_ref = borrow_global_mut<Treasury<C>>(permission::owner_address());
-        coin::merge<C>(&mut treasury_ref.asset, coin);
-    }
-
-    public entry fun collect_shadow_fee<C>(coin: coin::Coin<USDZ>) acquires Treasury, SupportedTreasuries {
-        assert_coin_supported<C>();
-        let treasury_ref = borrow_global_mut<Treasury<C>>(permission::owner_address());
-        coin::merge<USDZ>(&mut treasury_ref.shadow, coin);
+        coin::merge<C>(&mut treasury_ref.coin, coin);
     }
 
     fun assert_coin_supported<C>() acquires SupportedTreasuries {
@@ -77,35 +75,20 @@ module leizd_aptos_treasury::treasury {
         option::is_some(&owner)
     }
 
-    public entry fun withdraw_asset_fee<C>(owner: &signer, amount: u64) acquires Treasury, SupportedTreasuries {
+    public entry fun withdraw_fee<C>(owner: &signer, amount: u64) acquires Treasury, SupportedTreasuries {
         assert_coin_supported<C>();
         let owner_address = signer::address_of(owner);
         permission::assert_owner(owner_address);
 
         let treasury_ref = borrow_global_mut<Treasury<C>>(owner_address);
-        let deposited = coin::extract(&mut treasury_ref.asset, amount);
+        let deposited = coin::extract(&mut treasury_ref.coin, amount);
         coin::deposit<C>(owner_address, deposited);
     }
 
-    public entry fun withdraw_shadow_fee<C>(owner: &signer, amount: u64) acquires Treasury, SupportedTreasuries {
-        assert_coin_supported<C>();
-        let owner_address = signer::address_of(owner);
-        permission::assert_owner(owner_address);
-
-        let treasury_ref = borrow_global_mut<Treasury<C>>(owner_address);
-        let deposited = coin::extract(&mut treasury_ref.shadow, amount);
-        coin::deposit<USDZ>(owner_address, deposited);
-    }
-
     #[test_only]
-    public fun balance_of_asset<C>(): u64 acquires Treasury {
+    public fun balance<C>(): u64 acquires Treasury {
         let treasury_ref = borrow_global_mut<Treasury<C>>(permission::owner_address());
-        coin::value<C>(&treasury_ref.asset)
-    }
-    #[test_only]
-    public fun balance_of_shadow<C>(): u64 acquires Treasury {
-        let treasury_ref = borrow_global_mut<Treasury<C>>(permission::owner_address());
-        coin::value<USDZ>(&treasury_ref.shadow)
+        coin::value<C>(&treasury_ref.coin)
     }
     #[test_only]
     use aptos_framework::account;
@@ -131,36 +114,36 @@ module leizd_aptos_treasury::treasury {
         usdz::mint_for_test(account_address, 500);
         initialize(owner);
         add_coin<WETH>(owner);
-        assert!(balance_of_asset<WETH>() == 0, 0);
-        assert!(balance_of_shadow<WETH>() == 0, 0);
+        assert!(balance<WETH>() == 0, 0);
+        assert!(balance<USDZ>() == 0, 0);
 
-        collect_asset_fee<WETH>(coin::withdraw<WETH>(account, 200));
-        assert!(balance_of_asset<WETH>() == 200, 0);
-        assert!(balance_of_shadow<WETH>() == 0, 0);
+        collect_fee<WETH>(coin::withdraw<WETH>(account, 200));
+        assert!(balance<WETH>() == 200, 0);
+        assert!(balance<USDZ>() == 0, 0);
         assert!(coin::balance<WETH>(account_address) == 800, 0);
         assert!(coin::balance<USDZ>(account_address) == 500, 0);
         assert!(coin::balance<WETH>(owner_address) == 0, 0);
         assert!(coin::balance<USDZ>(owner_address) == 0, 0);
 
-        collect_shadow_fee<WETH>(coin::withdraw<USDZ>(account, 100));
-        assert!(balance_of_asset<WETH>() == 200, 0);
-        assert!(balance_of_shadow<WETH>() == 100, 0);
+        collect_fee<USDZ>(coin::withdraw<USDZ>(account, 100));
+        assert!(balance<WETH>() == 200, 0);
+        assert!(balance<USDZ>() == 100, 0);
         assert!(coin::balance<WETH>(account_address) == 800, 0);
         assert!(coin::balance<USDZ>(account_address) == 400, 0);
         assert!(coin::balance<WETH>(owner_address) == 0, 0);
         assert!(coin::balance<USDZ>(owner_address) == 0, 0);
 
-        withdraw_asset_fee<WETH>(owner, 150);
-        assert!(balance_of_asset<WETH>() == 50, 0);
-        assert!(balance_of_shadow<WETH>() == 100, 0);
+        withdraw_fee<WETH>(owner, 150);
+        assert!(balance<WETH>() == 50, 0);
+        assert!(balance<USDZ>() == 100, 0);
         assert!(coin::balance<WETH>(account_address) == 800, 0);
         assert!(coin::balance<USDZ>(account_address) == 400, 0);
         assert!(coin::balance<WETH>(owner_address) == 150, 0);
         assert!(coin::balance<USDZ>(owner_address) == 0, 0);
 
-        withdraw_shadow_fee<WETH>(owner, 75);
-        assert!(balance_of_asset<WETH>() == 50, 0);
-        assert!(balance_of_shadow<WETH>() == 25, 0);
+        withdraw_fee<USDZ>(owner, 75);
+        assert!(balance<WETH>() == 50, 0);
+        assert!(balance<USDZ>() == 25, 0);
         assert!(coin::balance<WETH>(account_address) == 800, 0);
         assert!(coin::balance<USDZ>(account_address) == 400, 0);
         assert!(coin::balance<WETH>(owner_address) == 150, 0);
@@ -171,14 +154,14 @@ module leizd_aptos_treasury::treasury {
     fun test_withdraw_asset_fee_with_not_owner(account: &signer) acquires Treasury, SupportedTreasuries {
         initialize(account);
         add_coin<WETH>(account);
-        withdraw_asset_fee<WETH>(account, 0);
+        withdraw_fee<WETH>(account, 0);
     }
     #[test(account = @0x111)]
     #[expected_failure(abort_code = 1)]
     fun test_withdraw_shadow_fee_with_not_owner(account: &signer) acquires Treasury, SupportedTreasuries {
         initialize(account);
         add_coin<WETH>(account);
-        withdraw_shadow_fee<WETH>(account, 0);
+        withdraw_fee<WETH>(account, 0);
     }
 
     #[test(account = @0x1)]

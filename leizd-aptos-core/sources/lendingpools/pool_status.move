@@ -1,33 +1,23 @@
 module leizd::pool_status {
     use std::error;
     use std::account;
+    use std::string::{String};
+    use aptos_std::simple_map;
     use leizd_aptos_common::permission;
     use leizd::system_status;
     use aptos_std::event;
+    use leizd::coin_key::{key};
 
     friend leizd::system_administrator;
     friend leizd::asset_pool;
 
     const E_IS_NOT_EXISTED: u64 = 1;
 
-    struct Status<phantom C> has key {
-        can_deposit: bool,
-        can_withdraw: bool,
-        can_borrow: bool,
-        can_repay: bool
-    }
-
-    public(friend) fun initialize<C>(owner: &signer) acquires Status, PoolStatusEventHandle {
-        move_to(owner, Status<C> {
-            can_deposit: true,
-            can_withdraw: true,
-            can_borrow: true,
-            can_repay: true
-        });
-        move_to(owner, PoolStatusEventHandle<C> {
-            pool_status_update_event: account::new_event_handle<PoolStatusUpdateEvent>(owner),
-        });
-        emit_current_pool_status<C>();
+    struct Status has key {
+        can_deposit: simple_map::SimpleMap<String,bool>,
+        can_withdraw: simple_map::SimpleMap<String,bool>,
+        can_borrow: simple_map::SimpleMap<String,bool>,
+        can_repay: simple_map::SimpleMap<String,bool>,
     }
 
     struct PoolStatusUpdateEvent has store, drop {
@@ -38,86 +28,179 @@ module leizd::pool_status {
     }
 
 
-    struct PoolStatusEventHandle<phantom C> has key, store {
+    struct PoolStatusEventHandle has key, store {
         pool_status_update_event: event::EventHandle<PoolStatusUpdateEvent>
     }
 
-    fun emit_current_pool_status<C>() acquires Status, PoolStatusEventHandle{
+    fun emit_current_pool_status(key: String) acquires Status, PoolStatusEventHandle{
         let owner_address = permission::owner_address();
-        let pool_status_ref = borrow_global<Status<C>>(owner_address);
+        let pool_status_ref = borrow_global<Status>(owner_address);
         event::emit_event<PoolStatusUpdateEvent>(
-            &mut borrow_global_mut<PoolStatusEventHandle<C>>(owner_address).pool_status_update_event,
+            &mut borrow_global_mut<PoolStatusEventHandle>(owner_address).pool_status_update_event,
                 PoolStatusUpdateEvent {
-                    can_deposit: pool_status_ref.can_deposit,
-                    can_withdraw: pool_status_ref.can_withdraw,
-                    can_borrow: pool_status_ref.can_borrow,
-                    can_repay: pool_status_ref.can_repay
+                    can_deposit: *simple_map::borrow<String,bool>(&pool_status_ref.can_deposit, &key),
+                    can_withdraw: *simple_map::borrow<String,bool>(&pool_status_ref.can_withdraw, &key),
+                    can_borrow: *simple_map::borrow<String,bool>(&pool_status_ref.can_borrow, &key),
+                    can_repay: *simple_map::borrow<String,bool>(&pool_status_ref.can_repay, &key)
             },
-        );             
+        );
     }
 
-    fun assert_pool_status_initialized<C>(owner_address: address) {
-        assert!(exists<Status<C>>(owner_address), error::not_found(E_IS_NOT_EXISTED));
+    public(friend) fun initialize<C>(owner: &signer) acquires Status, PoolStatusEventHandle {
+        let key = key<C>();
+        let owner_address = permission::owner_address();
+        if (exists<Status>(owner_address)) {
+            let status = borrow_global_mut<Status>(owner_address);
+            simple_map::add<String,bool>(&mut status.can_deposit, key, true);
+            simple_map::add<String,bool>(&mut status.can_withdraw, key, true);
+            simple_map::add<String,bool>(&mut status.can_borrow, key, true);
+            simple_map::add<String,bool>(&mut status.can_repay, key, true);
+        } else {
+            let status = Status {
+                can_deposit: simple_map::create<String,bool>(),
+                can_withdraw: simple_map::create<String,bool>(),
+                can_borrow: simple_map::create<String,bool>(),
+                can_repay: simple_map::create<String,bool>(),
+            };
+            simple_map::add<String,bool>(&mut status.can_deposit, key, true);
+            simple_map::add<String,bool>(&mut status.can_withdraw, key, true);
+            simple_map::add<String,bool>(&mut status.can_borrow, key, true);
+            simple_map::add<String,bool>(&mut status.can_repay, key, true);
+            move_to(owner, status);
+            move_to(owner, PoolStatusEventHandle {
+                pool_status_update_event: account::new_event_handle<PoolStatusUpdateEvent>(owner),
+            });
+        };
+        emit_current_pool_status(key);
+    }
+
+    fun is_initialized(owner_address: address, key: String): bool acquires Status {
+        if (!exists<Status>(owner_address)) {
+            false
+        } else {
+            let status = borrow_global_mut<Status>(owner_address);
+            simple_map::contains_key<String,bool>(&status.can_deposit, &key)
+        }
+    }
+
+    fun assert_pool_status_initialized(owner_address: address, key: String) acquires Status {
+        assert!(is_initialized(owner_address, key), error::not_found(E_IS_NOT_EXISTED));
     }
 
     public fun can_deposit<C>(): bool acquires Status {
+        let key = key<C>();
+        can_deposit_with(key)
+    }
+
+    public fun can_deposit_with(key: String): bool acquires Status {
         let owner_address = permission::owner_address();
-        assert_pool_status_initialized<C>(owner_address);
-        let pool_status_ref = borrow_global<Status<C>>(owner_address);
-        system_status::status() && pool_status_ref.can_deposit
+        assert_pool_status_initialized(owner_address, key);
+        let pool_status_ref = borrow_global<Status>(owner_address);
+        if (!simple_map::contains_key<String,bool>(&pool_status_ref.can_deposit, &key)) return false;
+        let can_deposit = simple_map::borrow<String,bool>(&pool_status_ref.can_deposit, &key);
+        system_status::status() && *can_deposit
     }
 
     public fun can_withdraw<C>(): bool acquires Status {
+        let key = key<C>();
+        can_withdraw_with(key)
+    }
+
+    public fun can_withdraw_with(key: String): bool acquires Status {
         let owner_address = permission::owner_address();
-        assert_pool_status_initialized<C>(owner_address);
-        let pool_status_ref = borrow_global<Status<C>>(owner_address);
-        system_status::status() && pool_status_ref.can_withdraw
+        assert_pool_status_initialized(owner_address, key);
+        let pool_status_ref = borrow_global<Status>(owner_address);
+        if (!simple_map::contains_key<String,bool>(&pool_status_ref.can_withdraw, &key)) return false;
+        let can_withdraw = simple_map::borrow<String,bool>(&pool_status_ref.can_withdraw, &key);
+        system_status::status() && *can_withdraw
     }
 
     public fun can_borrow<C>(): bool acquires Status {
+        let key = key<C>();
+        can_borrow_with(key)
+    }
+
+    public fun can_borrow_with(key: String): bool acquires Status {
         let owner_address = permission::owner_address();
-        assert_pool_status_initialized<C>(owner_address);
-        let pool_status_ref = borrow_global<Status<C>>(owner_address);
-        system_status::status() && pool_status_ref.can_borrow
+        assert_pool_status_initialized(owner_address, key);
+        let pool_status_ref = borrow_global<Status>(owner_address);
+        if (!simple_map::contains_key<String,bool>(&pool_status_ref.can_borrow, &key)) return false;
+        let can_borrow = simple_map::borrow<String,bool>(&pool_status_ref.can_borrow, &key);
+        system_status::status() && *can_borrow
     }
 
     public fun can_repay<C>(): bool acquires Status {
+        let key = key<C>();
+        can_repay_with(key)
+    }
+
+    public fun can_repay_with(key: String): bool acquires Status {
         let owner_address = permission::owner_address();
-        assert_pool_status_initialized<C>(owner_address);
-        let pool_status_ref = borrow_global<Status<C>>(owner_address);
-        system_status::status() && pool_status_ref.can_repay
+        assert_pool_status_initialized(owner_address, key);
+        let pool_status_ref = borrow_global<Status>(owner_address);
+        if (!simple_map::contains_key<String,bool>(&pool_status_ref.can_repay, &key)) return false;
+        let can_repay = simple_map::borrow<String,bool>(&pool_status_ref.can_repay, &key);
+        system_status::status() && *can_repay
     }
 
     public(friend) fun update_deposit_status<C>(active: bool) acquires Status, PoolStatusEventHandle {
+        let key = key<C>();
+        update_deposit_status_with(key, active);
+    }
+
+    public(friend) fun update_deposit_status_with(key: String, active: bool) acquires Status, PoolStatusEventHandle {
         let owner_address = permission::owner_address();
-        assert_pool_status_initialized<C>(owner_address);
-        let pool_status_ref = borrow_global_mut<Status<C>>(owner_address);
-        pool_status_ref.can_deposit = active;
-        emit_current_pool_status<C>();
+        assert_pool_status_initialized(owner_address, key);
+        let pool_status_ref = borrow_global_mut<Status>(owner_address);
+        assert!(simple_map::contains_key<String,bool>(&pool_status_ref.can_deposit, &key), 0);
+        let can_deposit = simple_map::borrow_mut<String,bool>(&mut pool_status_ref.can_deposit, &key);
+        *can_deposit = active;
+        emit_current_pool_status(key);
     }
 
     public(friend) fun update_withdraw_status<C>(active: bool) acquires Status, PoolStatusEventHandle {
+        let key = key<C>();
+        update_withdraw_status_with(key, active);
+    }
+
+    public(friend) fun update_withdraw_status_with(key: String, active: bool) acquires Status, PoolStatusEventHandle {
         let owner_address = permission::owner_address();
-        assert_pool_status_initialized<C>(owner_address);
-        let pool_status_ref = borrow_global_mut<Status<C>>(owner_address);
-        pool_status_ref.can_withdraw = active;
-        emit_current_pool_status<C>();
+        assert_pool_status_initialized(owner_address, key);
+        let pool_status_ref = borrow_global_mut<Status>(owner_address);
+        assert!(simple_map::contains_key<String,bool>(&pool_status_ref.can_withdraw, &key), 0);
+        let can_withdraw = simple_map::borrow_mut<String,bool>(&mut pool_status_ref.can_withdraw, &key);
+        *can_withdraw = active;
+        emit_current_pool_status(key);
     }
 
     public(friend) fun update_borrow_status<C>(active: bool) acquires Status, PoolStatusEventHandle {
+        let key = key<C>();
+        update_borrow_status_with(key, active);
+    }
+
+    public(friend) fun update_borrow_status_with(key: String, active: bool) acquires Status, PoolStatusEventHandle {
         let owner_address = permission::owner_address();
-        assert_pool_status_initialized<C>(owner_address);
-        let pool_status_ref = borrow_global_mut<Status<C>>(owner_address);
-        pool_status_ref.can_borrow = active;
-        emit_current_pool_status<C>();
+        assert_pool_status_initialized(owner_address, key);
+        let pool_status_ref = borrow_global_mut<Status>(owner_address);
+        assert!(simple_map::contains_key<String,bool>(&pool_status_ref.can_borrow, &key), 0);
+        let can_borrow = simple_map::borrow_mut<String,bool>(&mut pool_status_ref.can_borrow, &key);
+        *can_borrow = active;
+        emit_current_pool_status(key);
     }
 
     public(friend) fun update_repay_status<C>(active: bool) acquires Status, PoolStatusEventHandle {
+        let key = key<C>();
+        update_repay_status_with(key, active);
+    }
+
+    public(friend) fun update_repay_status_with(key: String, active: bool) acquires Status , PoolStatusEventHandle{
         let owner_address = permission::owner_address();
-        assert_pool_status_initialized<C>(owner_address);
-        let pool_status_ref = borrow_global_mut<Status<C>>(owner_address);
-        pool_status_ref.can_repay = active;
-        emit_current_pool_status<C>();
+        assert_pool_status_initialized(owner_address, key);
+        let pool_status_ref = borrow_global_mut<Status>(owner_address);
+        assert!(simple_map::contains_key<String,bool>(&pool_status_ref.can_repay, &key), 0);
+        let can_repay = simple_map::borrow_mut<String,bool>(&mut pool_status_ref.can_repay, &key);
+        *can_repay = active;
+        emit_current_pool_status(key);
     }
 
     #[test_only]

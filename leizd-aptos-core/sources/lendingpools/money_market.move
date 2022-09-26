@@ -9,10 +9,13 @@
 module leizd::money_market {
 
     use std::signer;
+    use std::option;
+    use std::string::{String};
     use leizd_aptos_common::pool_type;
     use leizd::asset_pool;
     use leizd::shadow_pool;
     use leizd::account_position;
+    use leizd::coin_key::{key};
 
     /// Deposits an asset or a shadow to the pool.
     /// If a user wants to protect the asset, it's possible that it can be used only for the collateral.
@@ -88,7 +91,29 @@ module leizd::money_market {
         account_position::borrow<C,P>(borrower_addr, borrowed_amount);
     }
 
-    // TODO: Borrow from the best pool
+    /// Borrow the coin C with the shadow that is collected from the best pool.
+    /// If there is enough shadow on the pool a user want to borrow, it would be
+    /// the same action as the `borrow` function above.
+    public entry fun borrow_asset_with_rebalance<C>(account: &signer, amount: u64) {
+        borrow_asset_for_with_rebalance<C>(account, signer::address_of(account), amount);
+    }
+
+    public entry fun borrow_asset_for_with_rebalance<C>(account: &signer, receiver_addr: address, amount: u64) {
+        let borrower_addr = signer::address_of(account);
+        let (rebalanced, borrowed_and_rebalanced, from_key) = account_position::borrow_asset_with_rebalance<C>(borrower_addr, amount);
+        if (option::is_some(&from_key)) {
+            let key1 = *option::borrow<String>(&from_key);
+            let key2 = key<C>();
+            if (rebalanced != 0) {
+                shadow_pool::withdraw_for_with(key1, borrower_addr, borrower_addr, rebalanced, false, 0);
+                shadow_pool::deposit_for_with(key2, account, borrower_addr, rebalanced, false);
+            } else if (borrowed_and_rebalanced != 0) {
+                shadow_pool::borrow_for_with(key1, borrower_addr, borrower_addr, rebalanced);
+                shadow_pool::deposit_for_with(key2, account, borrower_addr, rebalanced, false);
+            };
+        };
+        asset_pool::borrow_for<C>(borrower_addr, receiver_addr, amount);
+    }
 
     /// Repay an asset or a shadow from the pool.
     public entry fun repay<C,P>(account: &signer, amount: u64) {
@@ -122,12 +147,12 @@ module leizd::money_market {
     }
 
     /// Control available coin to rebalance
-    public entry fun protect_coin<C>(account: &signer) {
-        account_position::protect_coin<C>(account);
+    public entry fun enable_to_rebalance<C>(account: &signer) {
+        account_position::enable_to_rebalance<C>(account);
     }
 
-    public entry fun unprotect_coin<C>(account: &signer) {
-        account_position::unprotect_coin<C>(account);
+    public entry fun unable_to_rebalance<C>(account: &signer) {
+        account_position::unable_to_rebalance<C>(account);
     }
 
     //// Liquidation
@@ -148,8 +173,24 @@ module leizd::money_market {
         };
     }
 
-    // #[test_only]
-    // use aptos_framework::debug;
+    /// Switch the deposited position.
+    /// If a user want to switch the collateral to the collateral_only to protect it or vice versa
+    /// without the liquidation risk, the user should call this function.
+    /// `to_collateral_only` should be true if the user wants to switch it to the collateral_only.
+    /// `to_collateral_only` should be false if the user wants to switch it to the borrowable collateral.
+    public entry fun switch_collateral<C,P>(account: &signer, to_collateral_only: bool) {
+        pool_type::assert_pool_type<P>();
+
+        let addr = signer::address_of(account);
+        let amount = account_position::switch_collateral<C,P>(addr, to_collateral_only);
+        let is_shadow = pool_type::is_type_shadow<P>();
+        if (is_shadow) {
+            shadow_pool::switch_collateral(amount, to_collateral_only);
+        } else {
+            asset_pool::switch_collateral<C>(amount, to_collateral_only);
+        };
+    }
+
     #[test_only]
     use aptos_framework::account;
     #[test_only]
@@ -491,9 +532,9 @@ module leizd::money_market {
 
         // execute
         assert!(!account_position::is_protected<WETH>(account_addr), 0);
-        protect_coin<WETH>(account);
+        enable_to_rebalance<WETH>(account);
         assert!(account_position::is_protected<WETH>(account_addr), 0);
-        unprotect_coin<WETH>(account);
+        unable_to_rebalance<WETH>(account);
         assert!(!account_position::is_protected<WETH>(account_addr), 0);
     }
     #[test(owner=@leizd,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
@@ -600,7 +641,7 @@ module leizd::money_market {
         assert!(coin::balance<WETH>(borrower_addr) == 0, 0);
         assert!(coin::balance<USDZ>(borrower_addr) == 1000 ,0);
         assert!(coin::balance<WETH>(liquidator_addr) == 0, 0);
-        assert!(treasury::balance_of_asset<WETH>() == 0, 0);
+        assert!(treasury::balance<WETH>() == 0, 0);
 
         risk_factor::update_config<WETH>(owner, 1000000000 / 100 * 10, 1000000000 / 100 * 10); // 10%
 
@@ -613,7 +654,7 @@ module leizd::money_market {
         assert!(coin::balance<WETH>(borrower_addr) == 0, 0);
         assert!(coin::balance<USDZ>(borrower_addr) == 1000 ,0);
         assert!(coin::balance<WETH>(liquidator_addr) == 1990, 0);
-        assert!(treasury::balance_of_asset<WETH>() == 10, 0);
+        assert!(treasury::balance<WETH>() == 10, 0);
     }
     #[test(owner=@leizd,lp=@0x111,borrower=@0x222,liquidator=@0x333,target=@0x444,aptos_framework=@aptos_framework)]
     #[expected_failure(abort_code = 65542)]
@@ -669,7 +710,7 @@ module leizd::money_market {
         assert!(coin::balance<USDZ>(borrower_addr) == 0, 0);
         assert!(coin::balance<WETH>(borrower_addr) == 1000, 0);
         assert!(coin::balance<USDZ>(liquidator_addr) == 0, 0);
-        assert!(treasury::balance_of_shadow<WETH>() == 0, 0);
+        assert!(treasury::balance<USDZ>() == 0, 0);
 
         risk_factor::update_config<USDZ>(owner, 1000000000 / 100 * 10, 1000000000 / 100 * 10); // 10%
 
@@ -679,10 +720,9 @@ module leizd::money_market {
         assert!(asset_pool::total_borrowed<WETH>() == 0, 0);
         assert!(account_position::deposited_shadow<WETH>(borrower_addr) == 0, 0);
         assert!(account_position::borrowed_asset<WETH>(borrower_addr) == 0, 0);
-        assert!(coin::balance<USDZ>(borrower_addr) == 0, 0);
         assert!(coin::balance<WETH>(borrower_addr) == 1000, 0);
-        assert!(coin::balance<USDZ>(liquidator_addr) == 1990, 0);
-        assert!(treasury::balance_of_shadow<WETH>() == 10, 0);
+        assert!(coin::balance<USDZ>(liquidator_addr) == 0, 0);
+        assert!(treasury::balance<WETH>() == 5, 0);
     }
     #[test(owner=@leizd,lp=@0x111,borrower=@0x222,liquidator=@0x333,target=@0x444,aptos_framework=@aptos_framework)]
     #[expected_failure(abort_code = 65542)]
@@ -710,5 +750,30 @@ module leizd::money_market {
 
         managed_coin::mint<WETH>(owner, liquidator_addr, 1004);
         liquidate<WETH, Shadow>(liquidator, borrower_addr);
+    }
+    #[test(owner=@leizd,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
+    fun test_switch_collateral(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) {
+        initialize_lending_pool_for_test(owner, aptos_framework);
+        setup_liquidity_provider_for_test(owner, lp);
+        setup_account_for_test(account);
+        let account_addr = signer::address_of(account);
+        managed_coin::mint<WETH>(owner, account_addr, 100);
+
+        // prerequisite
+        deposit<WETH, Shadow>(lp, 200, false);
+        //// check risk_factor
+        assert!(risk_factor::lt<WETH>() == risk_factor::default_lt(), 0);
+        assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
+
+        // execute
+        deposit<WETH, Asset>(account, 100, false);
+        borrow<WETH, Shadow>(account, 59);
+        switch_collateral<WETH, Asset>(account, true);
+
+        assert!(asset_pool::total_deposited<WETH>() == 100, 0);
+        assert!(asset_pool::total_conly_deposited<WETH>() == 100, 0);
+        assert!(shadow_pool::total_borrowed() == 60, 0); // 59+fee
+        assert!(account_position::deposited_asset<WETH>(account_addr) == 100, 0);
+        assert!(account_position::conly_deposited_asset<WETH>(account_addr) == 100, 0);
     }
 }

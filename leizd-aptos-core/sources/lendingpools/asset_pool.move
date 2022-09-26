@@ -21,6 +21,7 @@ module leizd::asset_pool {
     use leizd::pool_status;
     use leizd::risk_factor;
     use leizd::stability_pool;
+    use leizd::coin_key::{key};
     use leizd_aptos_treasury::treasury;
 
     friend leizd::money_market;
@@ -102,7 +103,7 @@ module leizd::asset_pool {
         treasury::add_coin<C>(owner);
         risk_factor::new_asset<C>(owner);
         interest_rate::initialize<C>(owner);
-        stability_pool::init_pool<C>(owner);
+        stability_pool::init_pool<C>();
         pool_status::initialize<C>(owner);
 
         move_to(owner, Pool<C> {
@@ -345,6 +346,21 @@ module leizd::asset_pool {
         );
     }
 
+    public(friend) fun switch_collateral<C>(amount: u64, is_collateral_only: bool) acquires Storage {
+        switch_collateral_internal<C>(amount, is_collateral_only);
+    }
+
+    fun switch_collateral_internal<C>(amount: u64, is_collateral_only: bool) acquires Storage {
+        let owner_address = permission::owner_address();
+        let storage_ref = borrow_global_mut<Storage<C>>(owner_address);
+        if (is_collateral_only) {
+            storage_ref.total_conly_deposited = storage_ref.total_conly_deposited + (amount as u128);
+        } else {
+            storage_ref.total_conly_deposited = storage_ref.total_conly_deposited - (amount as u128);
+        };
+        // TODO: event
+    }
+
     public fun is_pool_initialized<C>(): bool {
         exists<Pool<C>>(permission::owner_address())
     }
@@ -364,7 +380,8 @@ module leizd::asset_pool {
         };
 
         let protocol_share_fee = risk_factor::share_fee();
-        let rcomp = interest_rate::update_interest_rate<C>(
+        let rcomp = interest_rate::update_interest_rate(
+            key<C>(),
             storage_ref.total_deposited,
             storage_ref.total_borrowed,
             storage_ref.last_updated,
@@ -385,7 +402,7 @@ module leizd::asset_pool {
     fun collect_asset_fee<C>(pool_ref: &mut Pool<C>, fee: u64) {
         if (fee > 0) {
             let fee_extracted = coin::extract(&mut pool_ref.asset, fee);
-            treasury::collect_asset_fee<C>(fee_extracted);
+            treasury::collect_fee<C>(fee_extracted);
         };
     }
 
@@ -762,7 +779,7 @@ module leizd::asset_pool {
 
         // check about fee
         assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
-        assert!(treasury::balance_of_asset<UNI>() == 500, 0);
+        assert!(treasury::balance<UNI>() == 500, 0);
 
         let event_handle = borrow_global<PoolEventHandle<UNI>>(signer::address_of(owner));
         assert!(event::counter<BorrowEvent>(&event_handle.borrow_event) == 1, 0);
@@ -790,7 +807,7 @@ module leizd::asset_pool {
         let borrowed = borrow_for_internal<UNI>(borrower_addr, borrower_addr, 1000);
         assert!(borrowed == 1005, 0);
         assert!(coin::balance<UNI>(borrower_addr) == 1000, 0);
-        assert!(treasury::balance_of_asset<UNI>() == 5, 0);
+        assert!(treasury::balance<UNI>() == 5, 0);
         assert!(pool_asset_value<UNI>(signer::address_of(owner)) == 0, 0);
     }
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
@@ -1101,7 +1118,7 @@ module leizd::asset_pool {
         assert!(total_conly_deposited<WETH>() == 0, 0);
         assert!(coin::balance<WETH>(depositor_addr) == 0, 0);
         assert!(coin::balance<WETH>(liquidator_addr) == 995, 0);
-        assert!(treasury::balance_of_asset<WETH>() == 6, 0);
+        assert!(treasury::balance<WETH>() == 6, 0);
 
         let event_handle = borrow_global<PoolEventHandle<WETH>>(signer::address_of(owner));
         assert!(event::counter<LiquidateEvent>(&event_handle.liquidate_event) == 1, 0);

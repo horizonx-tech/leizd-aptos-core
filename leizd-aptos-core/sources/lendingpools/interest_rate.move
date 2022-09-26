@@ -1,12 +1,15 @@
 module leizd::interest_rate {
 
     use std::signer;
+    use std::string::{String};
     use aptos_std::event;
+    use aptos_std::simple_map;
     use aptos_framework::account;
     use leizd_aptos_common::permission;
     use leizd_aptos_lib::math128;
     use leizd_aptos_lib::prb_math_30x9;
     use leizd_aptos_lib::i128;
+    use leizd::coin_key::{key};
 
     friend leizd::asset_pool;
     friend leizd::shadow_pool;
@@ -34,7 +37,11 @@ module leizd::interest_rate {
 
     const E_INVALID_TIMESTAMP: u64 = 0;
 
-    struct Config<phantom C> has copy, drop, key {
+    struct ConfigKey has key {
+        config: simple_map::SimpleMap<String,Config>,
+    }
+
+    struct Config has copy, drop, store {
         uopt: u128,
         ucrit: u128,
         ulow: u128,
@@ -61,21 +68,26 @@ module leizd::interest_rate {
         tcrit: u128
     }
 
-    struct InterestRateEventHandle<phantom C> has key, store {
+    struct InterestRateEventHandle has key, store {
         set_config_event: event::EventHandle<SetConfigEvent>,
     }
 
-    public(friend) fun initialize<C>(owner: &signer) acquires InterestRateEventHandle {
-        let config = default_config<C>();
-        assert_config(config);
-
-        move_to(owner, config);
-        move_to(owner, InterestRateEventHandle<C> {
-            set_config_event: account::new_event_handle<SetConfigEvent>(owner)
-        });
+    public(friend) fun initialize<C>(owner: &signer) acquires ConfigKey, InterestRateEventHandle {
+        let config = default_config();
         let owner_address = signer::address_of(owner);
+        assert_config(config);
+        if (!exists<ConfigKey>(signer::address_of(owner))) {
+            move_to(owner, ConfigKey {
+                config: simple_map::create<String,Config>()
+            });
+            move_to(owner, InterestRateEventHandle {
+                set_config_event: account::new_event_handle<SetConfigEvent>(owner)
+            });
+        };
+        let config_ref = borrow_global_mut<ConfigKey>(signer::address_of(owner));
+        simple_map::add<String,Config>(&mut config_ref.config, key<C>(), config);
         event::emit_event<SetConfigEvent>(
-            &mut borrow_global_mut<InterestRateEventHandle<C>>(owner_address).set_config_event,
+            &mut borrow_global_mut<InterestRateEventHandle>(owner_address).set_config_event,
             SetConfigEvent {
                 caller: owner_address,
                 uopt: config.uopt,
@@ -92,8 +104,8 @@ module leizd::interest_rate {
         )
     }
     
-    public fun default_config<C>(): Config<C> {
-        Config<C> {
+    public fun default_config(): Config {
+        Config {
             uopt: 700000000,  // 0.70 -> 70%
             ucrit: 850000000, // 0.85 -> 85%
             ulow: 400000000,  // 0.40 -> 40%
@@ -107,11 +119,12 @@ module leizd::interest_rate {
         }
     }
 
-    public fun config<C>(): Config<C> acquires Config {
-        *borrow_global<Config<C>>(permission::owner_address())
+    public fun config(key: String): Config acquires ConfigKey {
+        let config_ref = borrow_global<ConfigKey>(permission::owner_address());
+        *simple_map::borrow<String,Config>(&config_ref.config, &key)
     }
 
-    fun assert_config<C>(config: Config<C>) {
+    fun assert_config(config: Config) {
         assert!(config.uopt > 0 && config.uopt < PRECISION, 0);
         assert!(config.ucrit > config.uopt && config.ucrit < PRECISION, 0);
         assert!(config.ulow > 0 && config.ulow < config.uopt, 0);
@@ -119,12 +132,12 @@ module leizd::interest_rate {
         assert!(config.kcrit > 0, 0);
     }
 
-    public fun set_config<C>(owner: &signer, config: Config<C>) acquires Config, InterestRateEventHandle {
+    public fun set_config(key: String, owner: &signer, config: Config) acquires ConfigKey, InterestRateEventHandle {
         let owner_address = signer::address_of(owner);
         permission::assert_owner(owner_address);
         assert_config(config);
 
-        let config_ref = borrow_global_mut<Config<C>>(owner_address);
+        let config_ref = simple_map::borrow_mut<String,Config>(&mut borrow_global_mut<ConfigKey>(owner_address).config, &key);
         config_ref.uopt = config.uopt;
         config_ref.ucrit = config.ucrit;
         config_ref.ulow = config.ulow;
@@ -136,7 +149,7 @@ module leizd::interest_rate {
         config_ref.ri = config.ri;
         config_ref.tcrit = config.tcrit;
         event::emit_event<SetConfigEvent>(
-            &mut borrow_global_mut<InterestRateEventHandle<C>>(owner_address).set_config_event,
+            &mut borrow_global_mut<InterestRateEventHandle>(owner_address).set_config_event,
             SetConfigEvent {
                 caller: owner_address,
                 uopt: config.uopt,
@@ -153,19 +166,21 @@ module leizd::interest_rate {
         )
     }
 
-    public(friend) fun update_interest_rate<C>(
+    public(friend) fun update_interest_rate(
+        key: String,
         total_deposits: u128,
         total_borrows: u128,
         last_updated: u64,
         now: u64
-    ): u128 acquires Config {
-        let config_ref = borrow_global_mut<Config<C>>(permission::owner_address());
-        let (rcomp,_,_,_,_) = calc_compound_interest_rate<C>(config_ref, total_deposits, total_borrows, last_updated, now);
+    ): u128 acquires ConfigKey {
+        let owner_address = permission::owner_address();
+        let config_ref = simple_map::borrow_mut<String,Config>(&mut borrow_global_mut<ConfigKey>(owner_address).config, &key);
+        let (rcomp,_,_,_,_) = calc_compound_interest_rate(config_ref, total_deposits, total_borrows, last_updated, now);
         rcomp
     }
 
-    public fun calc_compound_interest_rate<C>(
-        cref: &Config<C>,
+    public fun calc_compound_interest_rate(
+        cref: &Config,
         total_deposits: u128,
         total_borrows: u128,
         last_updated: u64,
