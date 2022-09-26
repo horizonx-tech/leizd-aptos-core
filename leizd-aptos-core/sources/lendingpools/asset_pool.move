@@ -402,7 +402,7 @@ module leizd::asset_pool {
     fun collect_asset_fee<C>(pool_ref: &mut Pool<C>, fee: u64) {
         if (fee > 0) {
             let fee_extracted = coin::extract(&mut pool_ref.asset, fee);
-            treasury::collect_asset_fee<C>(fee_extracted);
+            treasury::collect_fee<C>(fee_extracted);
         };
     }
 
@@ -779,7 +779,7 @@ module leizd::asset_pool {
 
         // check about fee
         assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
-        assert!(treasury::balance_of_asset<UNI>() == 500, 0);
+        assert!(treasury::balance<UNI>() == 500, 0);
 
         let event_handle = borrow_global<PoolEventHandle<UNI>>(signer::address_of(owner));
         assert!(event::counter<BorrowEvent>(&event_handle.borrow_event) == 1, 0);
@@ -807,7 +807,7 @@ module leizd::asset_pool {
         let borrowed = borrow_for_internal<UNI>(borrower_addr, borrower_addr, 1000);
         assert!(borrowed == 1005, 0);
         assert!(coin::balance<UNI>(borrower_addr) == 1000, 0);
-        assert!(treasury::balance_of_asset<UNI>() == 5, 0);
+        assert!(treasury::balance<UNI>() == 5, 0);
         assert!(pool_asset_value<UNI>(signer::address_of(owner)) == 0, 0);
     }
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]

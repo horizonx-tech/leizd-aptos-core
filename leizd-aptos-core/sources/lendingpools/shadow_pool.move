@@ -294,7 +294,7 @@ module leizd::shadow_pool {
         let storage_ref = borrow_global_mut<Storage>(owner_address);
 
         accrue_interest(key, storage_ref);
-        collect_shadow_fee<USDZ>(pool_ref, liquidation_fee);
+        collect_shadow_fee(pool_ref, liquidation_fee);
 
         let amount_to_transfer = amount - liquidation_fee;
         coin::deposit<USDZ>(receiver_addr, coin::extract(&mut pool_ref.shadow, amount_to_transfer));
@@ -378,7 +378,7 @@ module leizd::shadow_pool {
                 coin::merge(&mut extracted, borrowed_from_stability);
                 let for_entry_fee = coin::extract(&mut extracted, entry_fee);
                 coin::deposit<USDZ>(receiver_addr, extracted); // to receiver
-                treasury::collect_shadow_fee<USDZ>(for_entry_fee); // to treasury (collected fee)
+                treasury::collect_fee<USDZ>(for_entry_fee); // to treasury (collected fee)
 
                 total_fee = total_fee + stability_pool::calculate_entry_fee(borrowing_value_from_stability);
             } else {
@@ -386,7 +386,7 @@ module leizd::shadow_pool {
                 let borrowed_from_stability = borrow_from_stability_pool(key, receiver_addr, amount_with_entry_fee);
                 let for_entry_fee = coin::extract(&mut borrowed_from_stability, entry_fee);
                 coin::deposit<USDZ>(receiver_addr, borrowed_from_stability); // to receiver
-                treasury::collect_shadow_fee<USDZ>(for_entry_fee); // to treasury (collected fee)
+                treasury::collect_fee<USDZ>(for_entry_fee); // to treasury (collected fee)
 
                 total_fee = total_fee + stability_pool::calculate_entry_fee(amount_with_entry_fee);
             }
@@ -394,7 +394,7 @@ module leizd::shadow_pool {
             // not use stability pool
             let extracted = coin::extract(&mut pool_ref.shadow, amount);
             coin::deposit<USDZ>(receiver_addr, extracted);
-            collect_shadow_fee<USDZ>(pool_ref, entry_fee); // fee to treasury
+            collect_shadow_fee(pool_ref, entry_fee); // fee to treasury
         };
 
         // update borrowed stats
@@ -571,9 +571,9 @@ module leizd::shadow_pool {
         storage_ref.last_updated = now;
     }
 
-    fun collect_shadow_fee<C>(pool_ref: &mut Pool, liquidation_fee: u64) {
+    fun collect_shadow_fee(pool_ref: &mut Pool, liquidation_fee: u64) {
         let fee_extracted = coin::extract(&mut pool_ref.shadow, liquidation_fee);
-        treasury::collect_shadow_fee<C>(fee_extracted);
+        treasury::collect_fee<USDZ>(fee_extracted);
     }
 
     public entry fun total_deposited(): u128 acquires Storage {
@@ -914,7 +914,7 @@ module leizd::shadow_pool {
 
         // check about fee
         assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
-        assert!(treasury::balance_of_shadow<UNI>() == 500, 0);
+        assert!(treasury::balance<USDZ>() == 500, 0);
 
         let event_handle = borrow_global<PoolEventHandle>(signer::address_of(owner));
         assert!(event::counter<BorrowEvent>(&event_handle.borrow_event) == 1, 0);
@@ -949,7 +949,7 @@ module leizd::shadow_pool {
 
         // check about fee
         assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
-        assert!(treasury::balance_of_shadow<UNI>() == 5, 0);
+        assert!(treasury::balance<USDZ>() == 5, 0);
     }
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
     #[expected_failure(abort_code = 65548)]
