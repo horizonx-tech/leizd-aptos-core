@@ -103,12 +103,17 @@ module leizd::money_market {
 
     public entry fun borrow_asset_for_with_rebalance<C>(account: &signer, receiver_addr: address, amount: u64) {
         let borrower_addr = signer::address_of(account);
-        let (rebalanced, from_key) = account_position::borrow_asset_with_rebalance<C>(borrower_addr, amount);
+        let (rebalanced, borrowed_and_rebalanced, from_key) = account_position::borrow_asset_with_rebalance<C>(borrower_addr, amount);
         if (option::is_some(&from_key)) {
             let key1 = *option::borrow<String>(&from_key);
             let key2 = type_info::type_name<C>();
-            shadow_pool::withdraw_for_with(key1, borrower_addr, borrower_addr, rebalanced, false, 0);
-            shadow_pool::deposit_for_with(key2, account, borrower_addr, rebalanced, false);
+            if (rebalanced != 0) {
+                shadow_pool::withdraw_for_with(key1, borrower_addr, borrower_addr, rebalanced, false, 0);
+                shadow_pool::deposit_for_with(key2, account, borrower_addr, rebalanced, false);
+            } else if (borrowed_and_rebalanced != 0) {
+                shadow_pool::borrow_for_with(key1, borrower_addr, borrower_addr, rebalanced);
+                shadow_pool::deposit_for_with(key2, account, borrower_addr, rebalanced, false);
+            };
         };
         asset_pool::borrow_for<C>(borrower_addr, receiver_addr, amount);
     }

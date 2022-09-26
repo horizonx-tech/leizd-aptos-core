@@ -245,11 +245,12 @@ module leizd::account_position {
         };
     }
 
-    public(friend) fun borrow_asset_with_rebalance<C>(borrower_addr: address, amount: u64): (u64,Option<String>) acquires Position, AccountPositionEventHandle {
+    /// @return (rebalanced, borrowed_and_rebalanced, from_key)
+    public(friend) fun borrow_asset_with_rebalance<C>(borrower_addr: address, amount: u64): (u64,u64,Option<String>) acquires Position, AccountPositionEventHandle {
         update_on_borrow<C,ShadowToAsset>(borrower_addr, amount);
         if (is_safe<C,ShadowToAsset>(borrower_addr)) {
             let empty_str = string::try_utf8(b"");
-            return (0,empty_str)
+            return (0,0,empty_str)
         };
             
         // try to rebalance between pools
@@ -257,7 +258,7 @@ module leizd::account_position {
         if (option::is_some(&from_key)) {
             // rebalance
             let (rebalanced,_,_) = rebalance_shadow_internal(borrower_addr, *option::borrow<String>(&from_key), generate_key<C>());
-            return (rebalanced, from_key)
+            return (rebalanced, 0, from_key)
         };
         
         // try to borrow and rebalance shadow
@@ -265,15 +266,34 @@ module leizd::account_position {
         if (option::is_some(&from_key)) {
             // borrow and rebalance
             let rebalanced = borrow_and_rebalance_internal(borrower_addr, *option::borrow<String>(&from_key), generate_key<C>(), false);
-            return (rebalanced, from_key)
+            return (0, rebalanced, from_key)
         };
 
         // abort if neither has not been done
         abort 0
     }
 
+
     // public fun optimize_shadow_balance(account: &signer) acquires Position {
-    //     // TODO
+    //     let addr = signer::address_of(account);
+    //     let position_ref = borrow_global<Position<ShadowToAsset>>(addr);
+    //     let coins = position_ref.coins;
+
+    //     let i = vector::length<String>(&coins);
+    //     while (i > 0) {
+
+            
+    //     }
+
+    //     // while (i > 0) {
+    //     //     let key_coin = vector::borrow<String>(&coins, i-1);
+    //     //     let (can_rebalance,_,_) = can_rebalance_shadow_between(addr, *key_coin, key_insufficient);
+    //     //     if (can_rebalance) {
+    //     //         return option::some(*key_coin)
+    //     //     };
+    //     //     i = i - 1;
+    //     // };
+    //     // option::none()
     // }
 
     public(friend) fun repay<C,P>(addr: address, amount: u64) acquires Position, AccountPositionEventHandle {

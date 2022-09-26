@@ -333,19 +333,29 @@ module leizd::shadow_pool {
         (withdrawn_amount as u64)
     }
 
-    public(friend) fun borrow_for<C>(
+    public(friend) fun borrow_for_with(
+        key: String,
+        borrower_addr: address,
+        receiver_addr: address,
+        amount: u64
+    ) acquires Pool, Storage, PoolEventHandle {
+        borrow_for_internal(key, borrower_addr, receiver_addr, amount);
+    }
+
+    fun borrow_for_internal(
+        key: String,
         borrower_addr: address,
         receiver_addr: address,
         amount: u64
     ): u64 acquires Pool, Storage, PoolEventHandle {
-        assert!(pool_status::can_borrow<C>(), error::invalid_state(E_NOT_AVAILABLE_STATUS));
+        assert!(pool_status::can_borrow_with(key), error::invalid_state(E_NOT_AVAILABLE_STATUS));
         assert!(amount > 0, error::invalid_argument(E_AMOUNT_ARG_IS_ZERO));
 
         let owner_address = permission::owner_address();
         let pool_ref = borrow_global_mut<Pool>(owner_address);
         let storage_ref = borrow_global_mut<Storage>(owner_address);
 
-        accrue_interest<C>(storage_ref);
+        // TODO: accrue_interest<C>(storage_ref);
 
         let entry_fee = risk_factor::calculate_entry_fee(amount);
         let total_fee = entry_fee;
@@ -353,7 +363,7 @@ module leizd::shadow_pool {
         let total_liquidity = total_liquidity_internal(pool_ref, storage_ref);
 
         // check liquidity
-        let total_left = if (stability_pool::is_supported<C>()) total_liquidity + stability_pool::left() else total_liquidity;
+        let total_left = if (stability_pool::is_supported(key)) total_liquidity + stability_pool::left() else total_liquidity;
         assert!((amount_with_entry_fee as u128) <= total_left, error::invalid_argument(E_EXCEED_BORROWABLE_AMOUNT));
 
         if ((amount_with_entry_fee as u128) > total_liquidity) {
@@ -362,21 +372,21 @@ module leizd::shadow_pool {
                 // extract all from shadow_pool, supply the shortage to borrow from stability pool
                 let extracted = coin::extract_all(&mut pool_ref.shadow);
                 let borrowing_value_from_stability = amount_with_entry_fee - coin::value(&extracted);
-                let borrowed_from_stability = borrow_from_stability_pool<C>(receiver_addr, borrowing_value_from_stability);
+                let borrowed_from_stability = borrow_from_stability_pool(key, receiver_addr, borrowing_value_from_stability);
 
                 // merge coins extracted & distribute calculated values to receiver & shadow_pool
                 coin::merge(&mut extracted, borrowed_from_stability);
                 let for_entry_fee = coin::extract(&mut extracted, entry_fee);
                 coin::deposit<USDZ>(receiver_addr, extracted); // to receiver
-                treasury::collect_shadow_fee<C>(for_entry_fee); // to treasury (collected fee)
+                treasury::collect_shadow_fee<USDZ>(for_entry_fee); // to treasury (collected fee)
 
                 total_fee = total_fee + stability_pool::calculate_entry_fee(borrowing_value_from_stability);
             } else {
                 // when no liquidity in pool, borrow all from stability pool
-                let borrowed_from_stability = borrow_from_stability_pool<C>(receiver_addr, amount_with_entry_fee);
+                let borrowed_from_stability = borrow_from_stability_pool(key, receiver_addr, amount_with_entry_fee);
                 let for_entry_fee = coin::extract(&mut borrowed_from_stability, entry_fee);
                 coin::deposit<USDZ>(receiver_addr, borrowed_from_stability); // to receiver
-                treasury::collect_shadow_fee<C>(for_entry_fee); // to treasury (collected fee)
+                treasury::collect_shadow_fee<USDZ>(for_entry_fee); // to treasury (collected fee)
 
                 total_fee = total_fee + stability_pool::calculate_entry_fee(amount_with_entry_fee);
             }
@@ -384,11 +394,11 @@ module leizd::shadow_pool {
             // not use stability pool
             let extracted = coin::extract(&mut pool_ref.shadow, amount);
             coin::deposit<USDZ>(receiver_addr, extracted);
-            collect_shadow_fee<C>(pool_ref, entry_fee); // fee to treasury
+            // TODO: collect_shadow_fee<C>(pool_ref, entry_fee); // fee to treasury
         };
 
         // update borrowed stats
-        let key = generate_coin_key<C>();
+        // let key = generate_coin_key<C>();
         let amount_with_total_fee = amount + total_fee;
         storage_ref.total_borrowed = storage_ref.total_borrowed + (amount_with_total_fee as u128);
         if (simple_map::contains_key<String,u64>(&storage_ref.borrowed, &key)) {
@@ -409,6 +419,15 @@ module leizd::shadow_pool {
         );
 
         amount_with_total_fee
+    }
+
+    public(friend) fun borrow_for<C>(
+        borrower_addr: address,
+        receiver_addr: address,
+        amount: u64
+    ): u64 acquires Pool, Storage, PoolEventHandle {
+        let key = generate_coin_key<C>();
+        borrow_for_internal(key, borrower_addr, receiver_addr, amount);
     }
 
     public(friend) fun repay<C>(
@@ -498,8 +517,8 @@ module leizd::shadow_pool {
 
     /// Borrow the shadow from the stability pool
     /// use when shadow in this pool become insufficient.
-    fun borrow_from_stability_pool<C>(caller_addr: address, amount: u64): coin::Coin<USDZ> {
-        stability_pool::borrow<C>(caller_addr, amount)
+    fun borrow_from_stability_pool(key: String, caller_addr: address, amount: u64): coin::Coin<USDZ> {
+        stability_pool::borrow(key, caller_addr, amount)
     }
 
     /// Repays the shadow to the stability pool
@@ -1658,10 +1677,10 @@ module leizd::shadow_pool {
         managed_coin::register<USDZ>(account);
 
         usdz::mint_for_test(account_addr, 50000);
-        deposit_for_internal<WETH>(account, account_addr, 10000, false);
-        deposit_for_internal<WETH>(account, account_addr, 10000, true);
-        deposit_for_internal<UNI>(account, account_addr, 10000, false);
-        deposit_for_internal<UNI>(account, account_addr, 10000, true);
+        deposit_for_internal(generate_coin_key<WETH>(), account, account_addr, 10000, false);
+        deposit_for_internal(generate_coin_key<WETH>(), account, account_addr, 10000, true);
+        deposit_for_internal(generate_coin_key<UNI>(), account, account_addr, 10000, false);
+        deposit_for_internal(generate_coin_key<UNI>(), account, account_addr, 10000, true);
         assert!(deposited<WETH>() == 20000, 0);
         assert!(conly_deposited<WETH>() == 10000, 0);
         assert!(deposited<UNI>() == 20000, 0);

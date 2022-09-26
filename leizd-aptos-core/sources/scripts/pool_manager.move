@@ -10,7 +10,6 @@ module leizd::pool_manager {
   use aptos_framework::type_info::{Self, TypeInfo};
   use leizd_aptos_common::permission;
   use leizd::asset_pool;
-
   const ENOT_INITIALIZED: u64 = 1;
   const EALREADY_ADDED_COIN: u64 = 2;
   const ENOT_INITIALIZED_COIN: u64 = 3;
