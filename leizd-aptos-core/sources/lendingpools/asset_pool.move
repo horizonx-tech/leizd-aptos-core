@@ -441,8 +441,7 @@ module leizd::asset_pool {
             harvested_fee = liquidity;
         };
         storage_ref.harvested_protocol_fees = storage_ref.harvested_protocol_fees + (harvested_fee as u64);
-        let extracted = coin::extract(&mut pool_ref.asset, (harvested_fee as u64));
-        treasury::collect_asset_fee<C>(extracted);
+        collect_asset_fee<C>(pool_ref, (harvested_fee as u64));
     }
 
     public entry fun total_deposited<C>(): u128 acquires Storage {
@@ -1331,11 +1330,11 @@ module leizd::asset_pool {
         let total_protocol_fees = protocol_fees<UNI>();
         assert!(total_protocol_fees > 0, 0);
         assert!(harvested_protocol_fees<UNI>() == 0, 0);
-        let treasury_balance = treasury::balance_of_asset<UNI>();
+        let treasury_balance = treasury::balance<UNI>();
         harvest_protocol_fees<UNI>();
         assert!(protocol_fees<UNI>() == total_protocol_fees, 0);
         assert!(harvested_protocol_fees<UNI>() == total_protocol_fees, 0);
-        assert!(treasury::balance_of_asset<UNI>() == treasury_balance + total_protocol_fees, 0);
+        assert!(treasury::balance<UNI>() == treasury_balance + total_protocol_fees, 0);
         assert!(pool_asset_value<UNI>(owner_address) == 2999995 - total_protocol_fees, 0);
 
         let event_handle = borrow_global<PoolEventHandle<UNI>>(signer::address_of(owner));
@@ -1376,11 +1375,11 @@ module leizd::asset_pool {
         assert!(liquidity > 0, 0);
         assert!((total_protocol_fees as u128) > liquidity, 0);
         assert!(harvested_protocol_fees<UNI>() == 0, 0);
-        let treasury_balance = treasury::balance_of_asset<UNI>();
+        let treasury_balance = treasury::balance<UNI>();
         harvest_protocol_fees<UNI>();
         assert!(protocol_fees<UNI>() == total_protocol_fees, 0);
         assert!((harvested_protocol_fees<UNI>() as u128) == liquidity, 0);
-        assert!((treasury::balance_of_asset<UNI>() as u128) == (treasury_balance as u128) + liquidity, 0);
+        assert!((treasury::balance<UNI>() as u128) == (treasury_balance as u128) + liquidity, 0);
         assert!((pool_asset_value<UNI>(owner_address) as u128) == 299995 - liquidity, 0);
 
         let event_handle = borrow_global<PoolEventHandle<UNI>>(signer::address_of(owner));
@@ -1419,18 +1418,18 @@ module leizd::asset_pool {
         let total_protocol_fees = protocol_fees<UNI>();
         assert!(total_protocol_fees > 0, 0);
         assert!(harvested_protocol_fees<UNI>() == 0, 0);
-        let treasury_balance = treasury::balance_of_asset<UNI>();
+        let treasury_balance = treasury::balance<UNI>();
         harvest_protocol_fees<UNI>();
         assert!(protocol_fees<UNI>() == total_protocol_fees, 0);
         assert!(harvested_protocol_fees<UNI>() == total_protocol_fees, 0);
-        assert!(treasury::balance_of_asset<UNI>() == treasury_balance + total_protocol_fees, 0);
+        assert!(treasury::balance<UNI>() == treasury_balance + total_protocol_fees, 0);
         assert!(pool_asset_value<UNI>(owner_address) == 2999995 - total_protocol_fees, 0);
         // harvest again
-        treasury_balance = treasury::balance_of_asset<UNI>();
+        treasury_balance = treasury::balance<UNI>();
         let pool_balance = pool_asset_value<UNI>(owner_address);
         harvest_protocol_fees<UNI>();
         assert!(protocol_fees<UNI>() - harvested_protocol_fees<UNI>() == 0, 0);
-        assert!(treasury::balance_of_asset<UNI>() == treasury_balance, 0);
+        assert!(treasury::balance<UNI>() == treasury_balance, 0);
         assert!(pool_asset_value<UNI>(owner_address) == pool_balance, 0);
 
         let event_handle = borrow_global<PoolEventHandle<UNI>>(signer::address_of(owner));
