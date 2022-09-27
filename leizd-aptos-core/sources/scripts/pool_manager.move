@@ -8,6 +8,7 @@ module leizd::pool_manager {
   use aptos_framework::account;
   use aptos_framework::coin;
   use aptos_framework::type_info::{Self, TypeInfo};
+  use leizd_aptos_common::coin_key;
   use leizd_aptos_common::permission;
   use leizd::asset_pool;
   const ENOT_INITIALIZED: u64 = 1;
@@ -59,8 +60,7 @@ module leizd::pool_manager {
     let pool_list = borrow_global_mut<PoolList>(permission::owner_address());
     asset_pool::init_pool<C>(holder);
     
-    let key = type_info::type_name<C>();
-    simple_map::add<String, PoolInfo>(&mut pool_list.infos, key, PoolInfo {
+    simple_map::add<String, PoolInfo>(&mut pool_list.infos, coin_key::key<C>(), PoolInfo {
       type_info: type_info::type_of<C>(),
       holder: signer::address_of(holder)
     });
@@ -79,8 +79,7 @@ module leizd::pool_manager {
   }
 
   fun is_exist<C>(): bool acquires PoolList {
-    let key = type_info::type_name<C>();
-    is_exist_internal(key)
+    is_exist_internal(coin_key::key<C>())
   }
 
   fun is_exist_internal(key: String): bool acquires PoolList {
@@ -112,7 +111,7 @@ module leizd::pool_manager {
   
   #[test_only]
   fun borrow_pool_info<C>(): (address, vector<u8>, vector<u8>, address) acquires PoolList {
-    let key = type_info::type_name<C>();
+    let key = coin_key::key<C>();
     let pool_list = borrow_global<PoolList>(permission::owner_address());
     let info = simple_map::borrow<String, PoolInfo>(&pool_list.infos, &key);
     (type_info::account_address(&info.type_info), type_info::module_name(&info.type_info), type_info::struct_name(&info.type_info), info.holder)
