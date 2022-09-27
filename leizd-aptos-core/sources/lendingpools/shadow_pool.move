@@ -1777,6 +1777,38 @@ module leizd::shadow_pool {
         assert!(event::counter<RebalanceEvent>(&event_handle.rebalance_event) == 1, 0);
     }
 
+    // for switch_collateral
+    #[test(owner=@leizd, account=@0x111, aptos_framework=@aptos_framework)]
+    public entry fun test_switch_collateral(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+        managed_coin::register<USDZ>(account);
+        usdz::mint_for_test(account_addr, 1000);
+
+        deposit_for_internal(key<WETH>(), account, account_addr, 1000, false);
+        assert!(total_deposited() == 1000, 0);
+        assert!(total_liquidity() == 1000, 0);
+        assert!(total_conly_deposited() == 0, 0);
+        assert!(deposited<WETH>() == 1000, 0);
+        assert!(conly_deposited<WETH>() == 0, 0);
+
+        switch_collateral(800, true);
+        assert!(total_deposited() == 1000, 0);
+        assert!(total_liquidity() == 200, 0);
+        assert!(total_conly_deposited() == 800, 0);
+        // assert!(deposited<WETH>() == 200, 0);
+        // assert!(conly_deposited<WETH>() == 800, 0);
+
+        switch_collateral(400, false);
+        assert!(total_deposited() == 1000, 0);
+        assert!(total_liquidity() == 600, 0);
+        assert!(total_conly_deposited() == 400, 0);
+        // assert!(deposited<WETH>() == 600, 0);
+        // assert!(conly_deposited<WETH>() == 800, 0);
+    }
+
     // for common validations
     //// `amount` arg
     #[test(owner=@leizd, aptos_framework=@aptos_framework)]
