@@ -9,14 +9,13 @@
 module leizd::money_market {
 
     use std::signer;
-    use std::option;
     use std::vector;
     use std::string::{String};
-    use leizd_aptos_common::coin_key::{key};
     use leizd_aptos_common::pool_type;
     use leizd::asset_pool;
     use leizd::shadow_pool;
     use leizd::account_position;
+    use leizd::rebalance::{Self,Rebalance};
 
     /// Deposits an asset or a shadow to the pool.
     /// If a user wants to protect the asset, it's possible that it can be used only for the collateral.
@@ -101,18 +100,40 @@ module leizd::money_market {
 
     public entry fun borrow_asset_for_with_rebalance<C>(account: &signer, receiver_addr: address, amount: u64) {
         let borrower_addr = signer::address_of(account);
-        let (rebalanced, borrowed_and_rebalanced, from_key) = account_position::borrow_asset_with_rebalance<C>(borrower_addr, amount);
-        if (option::is_some(&from_key)) {
-            let key1 = *option::borrow<String>(&from_key);
-            let key2 = key<C>();
-            if (rebalanced != 0) {
-                shadow_pool::withdraw_for_with(key1, borrower_addr, borrower_addr, rebalanced, false, 0);
-                shadow_pool::deposit_for_with(key2, account, borrower_addr, rebalanced, false);
-            } else if (borrowed_and_rebalanced != 0) {
-                shadow_pool::borrow_for_with(key1, borrower_addr, borrower_addr, rebalanced);
-                shadow_pool::deposit_for_with(key2, account, borrower_addr, rebalanced, false);
-            };
+        let (deposits, withdraws, borrows, repays) = account_position::borrow_asset_with_rebalance<C>(borrower_addr, amount);
+
+        // deposit shadow
+        let i = vector::length<Rebalance>(&deposits);
+        while (i > 0) {
+            let rebalance = *vector::borrow<Rebalance>(&deposits, i-1);
+            shadow_pool::deposit_for_with(rebalance::key(rebalance), account, borrower_addr, rebalance::amount(rebalance), false);
+            i = i - 1;
         };
+
+        // withdraw shadow
+        let i = vector::length<Rebalance>(&withdraws);
+        while (i > 0) {
+            let rebalance = *vector::borrow<Rebalance>(&withdraws, i-1);
+            shadow_pool::withdraw_for_with(rebalance::key(rebalance), borrower_addr, borrower_addr, rebalance::amount(rebalance), false, 0);
+            i = i - 1;
+        };
+
+        // borrow shadow
+        let i = vector::length<Rebalance>(&borrows);
+        while (i > 0) {
+            let rebalance = *vector::borrow<Rebalance>(&borrows, i-1);
+            shadow_pool::borrow_for_with(rebalance::key(rebalance), borrower_addr, borrower_addr, rebalance::amount(rebalance));
+            i = i - 1;
+        };
+
+        // repay shadow
+        while (i > 0) {
+            let rebalance = *vector::borrow<Rebalance>(&repays, i-1);
+            shadow_pool::repay_with(rebalance::key(rebalance), account, rebalance::amount(rebalance));
+            i = i - 1;
+        };
+
+        // borrow asset
         asset_pool::borrow_for<C>(borrower_addr, receiver_addr, amount);
     }
 

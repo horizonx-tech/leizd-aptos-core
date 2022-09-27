@@ -483,8 +483,8 @@ module leizd::shadow_pool {
         accrue_interest(key, storage_ref);
 
         // at first, repay to stability_pool
-        let repayed_to_stability_pool = repay_to_stability_pool(key, account, amount);
-        let to_shadow_pool = amount - repayed_to_stability_pool;
+        let repaid_to_stability_pool = repay_to_stability_pool(key, account, amount);
+        let to_shadow_pool = amount - repaid_to_stability_pool;
         if (to_shadow_pool > 0) {
             let withdrawn = coin::withdraw<USDZ>(account, to_shadow_pool);
             coin::merge(&mut pool_ref.shadow, withdrawn);
