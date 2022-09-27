@@ -186,7 +186,7 @@ module leizd::money_market {
         if (pool_type::is_type_asset<P>()) {
             asset_pool::switch_collateral<C>(account_addr, amount, to_collateral_only);
         } else {
-            shadow_pool::switch_collateral<C>(amount, to_collateral_only);
+            shadow_pool::switch_collateral<C>(account_addr, amount, to_collateral_only);
         };
     }
 
