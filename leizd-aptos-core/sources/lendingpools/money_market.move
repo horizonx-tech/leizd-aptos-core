@@ -137,18 +137,6 @@ module leizd::money_market {
         asset_pool::borrow_for<C>(borrower_addr, receiver_addr, amount);
     }
 
-    public entry fun repay_shadow_with_rebalance<C>(account: &signer, amount: u64) {
-        let repayer_addr = signer::address_of(account);
-        let (keys, amounts) = account_position::repay_shadow_with_rebalance(repayer_addr, amount);
-        let i = vector::length<String>(&keys);
-        while (i > 0) {
-            let key = vector::borrow<String>(&keys, i-1);
-            let repay_amount = vector::borrow<u64>(&amounts, i-1);
-            shadow_pool::repay_with(*key, account, *repay_amount);
-            i = i - 1;
-        };
-    }
-
     /// Repay an asset or a shadow from the pool.
     public entry fun repay<C,P>(account: &signer, amount: u64) {
         pool_type::assert_pool_type<P>();
@@ -165,6 +153,18 @@ module leizd::money_market {
             amount = shadow_pool::repay<C>(account, amount);
         };
         account_position::repay<C,P>(repayer, amount);
+    }
+
+    public entry fun repay_shadow_with_rebalance<C>(account: &signer, amount: u64) {
+        let repayer_addr = signer::address_of(account);
+        let (keys, amounts) = account_position::repay_shadow_with_rebalance(repayer_addr, amount);
+        let i = vector::length<String>(&keys);
+        while (i > 0) {
+            let key = vector::borrow<String>(&keys, i-1);
+            let repay_amount = vector::borrow<u64>(&amounts, i-1);
+            shadow_pool::repay_with(*key, account, *repay_amount);
+            i = i - 1;
+        };
     }
 
     /// Rebalance shadow coin from C1 Pool to C2 Pool.
