@@ -11,6 +11,7 @@ module leizd::system_administrator {
         pool_status::update_withdraw_status<C>(true);
         pool_status::update_borrow_status<C>(true);
         pool_status::update_repay_status<C>(true);
+        pool_status::update_switch_collateral_status<C>(true);
     }
 
     public entry fun deactivate_pool<C>(owner: &signer) {
@@ -19,6 +20,7 @@ module leizd::system_administrator {
         pool_status::update_withdraw_status<C>(false);
         pool_status::update_borrow_status<C>(false);
         pool_status::update_repay_status<C>(false);
+        pool_status::update_switch_collateral_status<C>(false);
     }
 
     public entry fun freeze_pool<C>(owner: &signer) {
@@ -76,11 +78,13 @@ module leizd::system_administrator {
         assert!(pool_status::can_withdraw<WETH>(), 0);
         assert!(pool_status::can_borrow<WETH>(), 0);
         assert!(pool_status::can_repay<WETH>(), 0);
+        assert!(pool_status::can_switch_collateral<WETH>(), 0);
         deactivate_pool<WETH>(owner);
         assert!(!pool_status::can_deposit<WETH>(), 0);
         assert!(!pool_status::can_withdraw<WETH>(), 0);
         assert!(!pool_status::can_borrow<WETH>(), 0);
         assert!(!pool_status::can_repay<WETH>(), 0);
+        assert!(!pool_status::can_switch_collateral<WETH>(), 0);
     }
     #[test(owner = @leizd)]
     fun test_operate_pool_to_activate(owner: &signer) {
@@ -90,11 +94,13 @@ module leizd::system_administrator {
         assert!(!pool_status::can_withdraw<WETH>(), 0);
         assert!(!pool_status::can_borrow<WETH>(), 0);
         assert!(!pool_status::can_repay<WETH>(), 0);
+        assert!(!pool_status::can_switch_collateral<WETH>(), 0);
         activate_pool<WETH>(owner);
         assert!(pool_status::can_deposit<WETH>(), 0);
         assert!(pool_status::can_withdraw<WETH>(), 0);
         assert!(pool_status::can_borrow<WETH>(), 0);
         assert!(pool_status::can_repay<WETH>(), 0);
+        assert!(pool_status::can_switch_collateral<WETH>(), 0);
     }
     #[test(owner = @leizd)]
     fun test_operate_pool_to_freeze(owner: &signer) {
@@ -103,25 +109,29 @@ module leizd::system_administrator {
         assert!(pool_status::can_withdraw<WETH>(), 0);
         assert!(pool_status::can_borrow<WETH>(), 0);
         assert!(pool_status::can_repay<WETH>(), 0);
+        assert!(pool_status::can_switch_collateral<WETH>(), 0);
         freeze_pool<WETH>(owner);
         assert!(!pool_status::can_deposit<WETH>(), 0);
-        assert!(!pool_status::can_borrow<WETH>(), 0);
         assert!(pool_status::can_withdraw<WETH>(), 0);
+        assert!(!pool_status::can_borrow<WETH>(), 0);
         assert!(pool_status::can_repay<WETH>(), 0);
+        assert!(pool_status::can_switch_collateral<WETH>(), 0);
     }
     #[test(owner = @leizd)]
     fun test_operate_pool_to_unfreeze(owner: &signer) {
         prepare_for_test(owner);
         freeze_pool<WETH>(owner);
         assert!(!pool_status::can_deposit<WETH>(), 0);
-        assert!(!pool_status::can_borrow<WETH>(), 0);
         assert!(pool_status::can_withdraw<WETH>(), 0);
+        assert!(!pool_status::can_borrow<WETH>(), 0);
         assert!(pool_status::can_repay<WETH>(), 0);
+        assert!(pool_status::can_switch_collateral<WETH>(), 0);
         unfreeze_pool<WETH>(owner);
         assert!(pool_status::can_deposit<WETH>(), 0);
-        assert!(pool_status::can_borrow<WETH>(), 0);
         assert!(pool_status::can_withdraw<WETH>(), 0);
+        assert!(pool_status::can_borrow<WETH>(), 0);
         assert!(pool_status::can_repay<WETH>(), 0);
+        assert!(pool_status::can_switch_collateral<WETH>(), 0);
     }
     #[test(account = @0x111)]
     #[expected_failure(abort_code = 1)]
