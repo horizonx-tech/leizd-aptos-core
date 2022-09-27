@@ -346,14 +346,14 @@ module leizd::asset_pool {
         );
     }
 
-    public(friend) fun switch_collateral<C>(amount: u64, is_collateral_only: bool) acquires Storage {
-        switch_collateral_internal<C>(amount, is_collateral_only);
+    public(friend) fun switch_collateral<C>(amount: u64, to_collateral_only: bool) acquires Storage {
+        switch_collateral_internal<C>(amount, to_collateral_only);
     }
 
-    fun switch_collateral_internal<C>(amount: u64, is_collateral_only: bool) acquires Storage {
+    fun switch_collateral_internal<C>(amount: u64, to_collateral_only: bool) acquires Storage {
         let owner_address = permission::owner_address();
         let storage_ref = borrow_global_mut<Storage<C>>(owner_address);
-        if (is_collateral_only) {
+        if (to_collateral_only) {
             storage_ref.total_conly_deposited = storage_ref.total_conly_deposited + (amount as u128);
         } else {
             storage_ref.total_conly_deposited = storage_ref.total_conly_deposited - (amount as u128);
@@ -1122,6 +1122,31 @@ module leizd::asset_pool {
 
         let event_handle = borrow_global<PoolEventHandle<WETH>>(signer::address_of(owner));
         assert!(event::counter<LiquidateEvent>(&event_handle.liquidate_event) == 1, 0);
+    }
+
+    #[test(owner=@leizd, account=@0x111, aptos_framework=@aptos_framework)]
+    public entry fun test_switch_collateral(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+        managed_coin::register<WETH>(account);
+        managed_coin::mint<WETH>(owner, account_addr, 1000);
+
+        deposit_for_internal<WETH>(account, account_addr, 1000, false);
+        assert!(total_deposited<WETH>() == 1000, 0);
+        assert!(liquidity<WETH>() == 1000, 0);
+        assert!(total_conly_deposited<WETH>() == 0, 0);
+
+        switch_collateral<WETH>(800, true);
+        assert!(total_deposited<WETH>() == 1000, 0);
+        assert!(liquidity<WETH>() == 200, 0);
+        assert!(total_conly_deposited<WETH>() == 800, 0);
+
+        switch_collateral<WETH>(400, false);
+        assert!(total_deposited<WETH>() == 1000, 0);
+        assert!(liquidity<WETH>() == 600, 0);
+        assert!(total_conly_deposited<WETH>() == 400, 0);
     }
 
     // for common validations
