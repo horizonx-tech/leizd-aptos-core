@@ -24,6 +24,8 @@ module leizd::shadow_pool {
     const E_NOT_INITIALIZED_COIN: u64 = 5;
     const E_AMOUNT_ARG_IS_ZERO: u64 = 11;
     const E_EXCEED_BORROWABLE_AMOUNT: u64 = 12;
+    const E_INSUFFICIENT_LIQUIDITY: u64 = 13;
+    const E_INSUFFICIENT_CONLY_DEPOSITED: u64 = 14;
 
     struct Pool has key {
         shadow: coin::Coin<USDZ>
@@ -502,20 +504,25 @@ module leizd::shadow_pool {
     }
 
     fun switch_collateral_internal(key: String, amount: u64, to_collateral_only: bool) acquires Storage {
+        assert!(amount > 0, error::invalid_argument(E_AMOUNT_ARG_IS_ZERO));
+        // TODO: check pool_status
         let owner_address = permission::owner_address();
         let storage_ref = borrow_global_mut<Storage>(owner_address);
+        let amount_u128 = (amount as u128);
         if (to_collateral_only) {
-            storage_ref.total_conly_deposited = storage_ref.total_conly_deposited + (amount as u128);
+            assert!(amount <= deposited_internal(key, storage_ref) - conly_deposit_internal(key, storage_ref), error::invalid_argument(E_INSUFFICIENT_LIQUIDITY));
             if (simple_map::contains_key<String,u64>(&storage_ref.conly_deposited, &key)) {
                 let conly_deposited = simple_map::borrow_mut<String,u64>(&mut storage_ref.conly_deposited, &key);
                 *conly_deposited = *conly_deposited + amount;
             } else {
                 simple_map::add<String,u64>(&mut storage_ref.conly_deposited, key, amount);
             };
+            storage_ref.total_conly_deposited = storage_ref.total_conly_deposited + amount_u128;
         } else {
-            storage_ref.total_conly_deposited = storage_ref.total_conly_deposited - (amount as u128);
+            assert!(amount <= conly_deposit_internal(key, storage_ref), error::invalid_argument(E_INSUFFICIENT_CONLY_DEPOSITED));
             let conly_deposited = simple_map::borrow_mut<String,u64>(&mut storage_ref.conly_deposited, &key);
             *conly_deposited = *conly_deposited - amount;
+            storage_ref.total_conly_deposited = storage_ref.total_conly_deposited - amount_u128;
         };
         // TODO: event
     }
@@ -1815,6 +1822,45 @@ module leizd::shadow_pool {
         assert!(total_conly_deposited() == 400, 0);
         assert!(deposited<WETH>() == 1000, 0);
         assert!(conly_deposited<WETH>() == 400, 0);
+    }
+    #[test(owner=@leizd, account=@0x111, aptos_framework=@aptos_framework)]
+    #[expected_failure(abort_code = 65547)]
+    public entry fun test_switch_collateral_when_amount_is_zero(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+        managed_coin::register<USDZ>(account);
+        usdz::mint_for_test(account_addr, 1000);
+
+        deposit_for_internal(key<WETH>(), account, account_addr, 1000, false);
+        switch_collateral<WETH>(0, true);
+    }
+    #[test(owner=@leizd, account=@0x111, aptos_framework=@aptos_framework)]
+    #[expected_failure(abort_code = 65549)]
+    public entry fun test_switch_collateral_to_collateral_only_with_more_than_deposited_amount(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+        managed_coin::register<USDZ>(account);
+        usdz::mint_for_test(account_addr, 1000);
+
+        deposit_for_internal(key<WETH>(), account, account_addr, 1000, false);
+        switch_collateral<WETH>(1001, true);
+    }
+    #[test(owner=@leizd, account=@0x111, aptos_framework=@aptos_framework)]
+    #[expected_failure(abort_code = 65550)]
+    public entry fun test_switch_collateral_to_normal_with_more_than_deposited_amount(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+        managed_coin::register<USDZ>(account);
+        usdz::mint_for_test(account_addr, 1000);
+
+        deposit_for_internal(key<WETH>(), account, account_addr, 1000, true);
+        switch_collateral<WETH>(1001, false);
     }
 
     // for common validations
