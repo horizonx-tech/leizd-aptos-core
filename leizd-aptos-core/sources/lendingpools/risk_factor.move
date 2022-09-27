@@ -85,7 +85,7 @@ module leizd::risk_factor {
         });
         move_to(owner, RepositoryAssetEventHandle {
             update_config_event: account::new_event_handle<UpdateConfigEvent>(owner),
-        });        
+        });
         event::emit_event<UpdateProtocolFeesEvent>(
             &mut borrow_global_mut<RepositoryEventHandle>(signer::address_of(owner)).update_protocol_fees_event,
                 UpdateProtocolFeesEvent {
