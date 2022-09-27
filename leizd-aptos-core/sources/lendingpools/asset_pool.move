@@ -359,8 +359,8 @@ module leizd::asset_pool {
     }
 
     fun switch_collateral_internal<C>(caller: address, amount: u64, to_collateral_only: bool) acquires Pool, Storage, PoolEventHandle {
+        assert!(pool_status::can_switch_collateral<C>(), error::invalid_state(E_NOT_AVAILABLE_STATUS));
         assert!(amount > 0, error::invalid_argument(E_AMOUNT_ARG_IS_ZERO));
-        // TODO: check pool_status
         let owner_address = permission::owner_address();
         let storage_ref = borrow_global_mut<Storage<C>>(owner_address);
         let pool_ref = borrow_global<Pool<C>>(owner_address);

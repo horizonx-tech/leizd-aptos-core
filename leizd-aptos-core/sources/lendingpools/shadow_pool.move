@@ -513,8 +513,8 @@ module leizd::shadow_pool {
     }
 
     fun switch_collateral_internal(key: String, caller: address, amount: u64, to_collateral_only: bool) acquires Storage, PoolEventHandle {
+        assert!(pool_status::can_switch_collateral_with(key), error::invalid_state(E_NOT_AVAILABLE_STATUS));
         assert!(amount > 0, error::invalid_argument(E_AMOUNT_ARG_IS_ZERO));
-        // TODO: check pool_status
         let owner_address = permission::owner_address();
         let storage_ref = borrow_global_mut<Storage>(owner_address);
         let amount_u128 = (amount as u128);
