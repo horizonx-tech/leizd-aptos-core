@@ -18,8 +18,8 @@ module leizd::risk_factor {
     const DEFAULT_LIQUIDATION_FEE: u64 = 1000000000 / 1000 * 5; // 0.5%
     const DEFAULT_LTV: u64 = 1000000000 / 100 * 50; // 50%
     const DEFAULT_THRESHOLD: u64 = 1000000000 / 100 * 70 ; // 70%
-    const SHADOW_LTV: u64 = 1000000000 / 100 * 100; // 100%
-    const SHADOW_LT: u64 = 1000000000 / 100 * 100; // 100%
+    const SHADOW_LTV: u64 = 1000000000 / 100 * 100; // 100% // TODO: 90%
+    const SHADOW_LT: u64 = 1000000000 / 100 * 100; // 100% // TODO: 95%
 
     const EALREADY_ADDED_ASSET: u64 = 1;
     const EINVALID_THRESHOLD: u64 = 2;
@@ -170,8 +170,17 @@ module leizd::risk_factor {
     }
 
     public fun ltv<C>(): u64 acquires Config {
+        ltv_of(key<C>())
+    }
+
+    public fun ltv_of(name: string::String): u64 acquires Config {
         let config = borrow_global<Config>(permission::owner_address());
-        *table::borrow<string::String,u64>(&config.ltv, key<C>())
+        *table::borrow<string::String,u64>(&config.ltv, name)
+    } 
+
+    public fun ltv_of_shadow(): u64 acquires Config {
+        let config = borrow_global<Config>(permission::owner_address());
+        *table::borrow<string::String,u64>(&config.ltv, key<USDZ>())
     }
 
     public fun lt<C>(): u64 acquires Config {
