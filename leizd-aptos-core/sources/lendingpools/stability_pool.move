@@ -43,7 +43,8 @@ module leizd::stability_pool {
 
     struct Balance has key {
         borrowed: simple_map::SimpleMap<String,u128>,
-        uncollected_fee: simple_map::SimpleMap<String,u128>,
+        uncollected_entry_fee: simple_map::SimpleMap<String,u128>,
+        uncollected_support_fee: simple_map::SimpleMap<String,u128>,
     }
 
     struct Config has key {
@@ -128,7 +129,8 @@ module leizd::stability_pool {
         });
         move_to(owner, Balance {
             borrowed: simple_map::create<String,u128>(),
-            uncollected_fee: simple_map::create<String,u128>(),
+            uncollected_entry_fee: simple_map::create<String,u128>(),
+            uncollected_support_fee: simple_map::create<String,u128>(),
         });
         move_to(owner, Config {
             entry_fee: DEFAULT_ENTRY_FEE,
@@ -157,7 +159,8 @@ module leizd::stability_pool {
     public(friend) fun init_pool<C>() acquires Balance {
         let balance = borrow_global_mut<Balance>(permission::owner_address());
         simple_map::add<String,u128>(&mut balance.borrowed, key<C>(), 0);
-        simple_map::add<String,u128>(&mut balance.uncollected_fee, key<C>(), 0);
+        simple_map::add<String,u128>(&mut balance.uncollected_entry_fee, key<C>(), 0);
+        simple_map::add<String,u128>(&mut balance.uncollected_support_fee, key<C>(), 0);
     }
 
     public fun default_user_distribution(): UserDistribution {
@@ -298,9 +301,9 @@ module leizd::stability_pool {
 
         let fee = calculate_entry_fee(amount);
         let borrowed = simple_map::borrow_mut<String,u128>(&mut balance_ref.borrowed, &key);
-        let uncollected_fee = simple_map::borrow_mut<String,u128>(&mut balance_ref.uncollected_fee, &key);
+        let uncollected_entry_fee = simple_map::borrow_mut<String,u128>(&mut balance_ref.uncollected_entry_fee, &key);
         *borrowed = *borrowed + (amount as u128) + (fee as u128);
-        *uncollected_fee = *uncollected_fee + (fee as u128);
+        *uncollected_entry_fee = *uncollected_entry_fee + (fee as u128);
         pool_ref.total_borrowed = pool_ref.total_borrowed + (amount as u128) + (fee as u128);
         pool_ref.total_uncollected_fee = pool_ref.total_uncollected_fee + (fee as u128);
         coin::extract<USDZ>(&mut pool_ref.left, amount)
@@ -345,19 +348,19 @@ module leizd::stability_pool {
         *borrowed = *borrowed - (amount as u128);
         let pool_ref = borrow_global_mut<StabilityPool>(owner_address);
         pool_ref.total_borrowed = pool_ref.total_borrowed - (amount as u128);
-        let uncollected_fee = simple_map::borrow_mut<String,u128>(&mut balance_ref.uncollected_fee, &key);
-        if (*uncollected_fee > 0) {
+        let uncollected_entry_fee = simple_map::borrow_mut<String,u128>(&mut balance_ref.uncollected_entry_fee, &key);
+        if (*uncollected_entry_fee > 0) {
             // collect as fees at first
-            if (*uncollected_fee >= (amount as u128)) {
+            if (*uncollected_entry_fee >= (amount as u128)) {
                 // all amount to fee
-                *uncollected_fee = *uncollected_fee - (amount as u128);
+                *uncollected_entry_fee = *uncollected_entry_fee - (amount as u128);
                 pool_ref.total_uncollected_fee = pool_ref.total_uncollected_fee - (amount as u128);
                 coin::merge<USDZ>(&mut pool_ref.collected_fee, coin::withdraw<USDZ>(account, amount));
             } else {
                 // complete uncollected fee, and remaining amount to left
-                let to_fee = (*uncollected_fee as u64);
+                let to_fee = (*uncollected_entry_fee as u64);
                 let to_left = amount - to_fee;
-                *uncollected_fee = 0;
+                *uncollected_entry_fee = 0;
                 pool_ref.total_uncollected_fee = pool_ref.total_uncollected_fee - (to_fee as u128);
                 coin::merge<USDZ>(&mut pool_ref.collected_fee, coin::withdraw<USDZ>(account, to_fee));
                 coin::merge<USDZ>(&mut pool_ref.left, coin::withdraw<USDZ>(account, to_left));
@@ -469,9 +472,14 @@ module leizd::stability_pool {
         *simple_map::borrow<String,u128>(&balance_ref.borrowed, &key)
     }
 
-    public fun uncollected_fee<C>(): u128 acquires Balance {
+    public fun uncollected_entry_fee<C>(): u128 acquires Balance {
         let balance_ref = borrow_global<Balance>(permission::owner_address());
-        *simple_map::borrow<String,u128>(&balance_ref.uncollected_fee, &key<C>())
+        *simple_map::borrow<String,u128>(&balance_ref.uncollected_entry_fee, &key<C>())
+    }
+
+    public fun uncollected_support_fee(key: String): u128 acquires Balance {
+        let balance_ref = borrow_global<Balance>(permission::owner_address());
+        *simple_map::borrow<String,u128>(&balance_ref.uncollected_support_fee, &key)
     }
 
     public fun distribution_config(): (u64, u64, u64) acquires DistributionConfig {
@@ -479,14 +487,15 @@ module leizd::stability_pool {
         (config.emission_per_sec, config.last_updated, config.index)
     }
 
-    public fun top_up_uncollected_fee(key: String, amount: u128) acquires StabilityPool, Balance{
-        assert!(amount > 0, error::invalid_argument(EINVALID_AMOUNT));
+    public(friend) fun collect_support_fee(key: String, coin: coin::Coin<USDZ>, uncollected: u128) acquires StabilityPool, Balance{
         let owner_address = permission::owner_address();
-        let pool_ref = borrow_global_mut<StabilityPool>(owner_address);
         let balance_ref = borrow_global_mut<Balance>(owner_address);
-        let uncollected_fee = simple_map::borrow_mut<String,u128>(&mut balance_ref.uncollected_fee, &key);
-        *uncollected_fee = *uncollected_fee + amount;
-        pool_ref.total_uncollected_fee = pool_ref.total_uncollected_fee + amount;
+        let pool_ref = borrow_global_mut<StabilityPool>(owner_address);
+
+        let uncollected_support_fee = simple_map::borrow_mut<String,u128>(&mut balance_ref.uncollected_support_fee, &key);
+        *uncollected_support_fee = *uncollected_support_fee + uncollected;
+        pool_ref.total_uncollected_fee = pool_ref.total_uncollected_fee + uncollected;
+        coin::merge<USDZ>(&mut pool_ref.collected_fee, coin);
     }
 
     // #[test_only]
@@ -997,7 +1006,7 @@ module leizd::stability_pool {
         assert!(collected_fee() == 0, 0);
         assert!(total_borrowed() == 10050, 0);
         assert!(borrowed(key<WETH>()) == 10050, 0);
-        assert!(uncollected_fee<WETH>() == 50, 0);
+        assert!(uncollected_entry_fee<WETH>() == 50, 0);
         assert!(total_uncollected_fee() == 50, 0);
         assert!(stb_usdz::balance_of(depositor_addr) == 10000, 0);
         assert!(usdz::balance_of(borrower_addr) == 10000, 0);
@@ -1007,7 +1016,7 @@ module leizd::stability_pool {
         assert!(collected_fee() == 49, 0);
         assert!(total_borrowed() == 10001, 0);
         assert!(borrowed(key<WETH>()) == 10001, 0);
-        assert!(uncollected_fee<WETH>() == 1, 0);
+        assert!(uncollected_entry_fee<WETH>() == 1, 0);
         assert!(total_uncollected_fee() == 1, 0);
         assert!(usdz::balance_of(borrower_addr) == 9951, 0);
         ////// repay to remained uncollected_fee
@@ -1016,7 +1025,7 @@ module leizd::stability_pool {
         assert!(collected_fee() == 50, 0);
         assert!(total_borrowed() == 10000, 0);
         assert!(borrowed(key<WETH>()) == 10000, 0);
-        assert!(uncollected_fee<WETH>() == 0, 0);
+        assert!(uncollected_entry_fee<WETH>() == 0, 0);
         assert!(total_uncollected_fee() == 0, 0);
         assert!(usdz::balance_of(borrower_addr) == 9950, 0);
         //// repay to total_borrowed
@@ -1025,7 +1034,7 @@ module leizd::stability_pool {
         assert!(collected_fee() == 50, 0);
         assert!(total_borrowed() == 100, 0);
         assert!(borrowed(key<WETH>()) == 100, 0);
-        assert!(uncollected_fee<WETH>() == 0, 0);
+        assert!(uncollected_entry_fee<WETH>() == 0, 0);
         assert!(total_uncollected_fee() == 0, 0);
         assert!(usdz::balance_of(borrower_addr) == 50, 0);
         ////// repay to remained total_borrowed
@@ -1035,7 +1044,7 @@ module leizd::stability_pool {
         assert!(collected_fee() == 50, 0);
         assert!(total_borrowed() == 0, 0);
         assert!(borrowed(key<WETH>()) == 0, 0);
-        assert!(uncollected_fee<WETH>() == 0, 0);
+        assert!(uncollected_entry_fee<WETH>() == 0, 0);
         assert!(total_uncollected_fee() == 0, 0);
         assert!(usdz::balance_of(borrower_addr) == 0, 0);
     }
@@ -1063,7 +1072,7 @@ module leizd::stability_pool {
         assert!(collected_fee() == 0, 0);
         assert!(total_borrowed() == 10050, 0);
         assert!(borrowed(key<WETH>()) == 10050, 0);
-        assert!(uncollected_fee<WETH>() == 50, 0);
+        assert!(uncollected_entry_fee<WETH>() == 50, 0);
         assert!(total_uncollected_fee() == 50, 0);
         assert!(usdz::balance_of(borrower_addr) == 10000, 0);
         //// repay
@@ -1072,7 +1081,7 @@ module leizd::stability_pool {
         assert!(collected_fee() == 50, 0);
         assert!(total_borrowed() == 9950, 0);
         assert!(borrowed(key<WETH>()) == 9950, 0);
-        assert!(uncollected_fee<WETH>() == 0, 0);
+        assert!(uncollected_entry_fee<WETH>() == 0, 0);
         assert!(total_uncollected_fee() == 0, 0);
         assert!(usdz::balance_of(borrower_addr) == 9900, 0);
     }

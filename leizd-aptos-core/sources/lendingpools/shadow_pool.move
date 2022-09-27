@@ -175,7 +175,7 @@ module leizd::shadow_pool {
         let storage_ref = borrow_global_mut<Storage>(owner_address);
         let pool_ref = borrow_global_mut<Pool>(owner_address);
 
-        accrue_interest(key, storage_ref);
+        accrue_interest(key, storage_ref, pool_ref);
 
         coin::merge(&mut pool_ref.shadow, coin::withdraw<USDZ>(account, amount));
 
@@ -322,7 +322,7 @@ module leizd::shadow_pool {
         let pool_ref = borrow_global_mut<Pool>(owner_address);
         let storage_ref = borrow_global_mut<Storage>(owner_address);
 
-        accrue_interest(key, storage_ref);
+        accrue_interest(key, storage_ref, pool_ref);
         collect_shadow_fee(pool_ref, liquidation_fee);
 
         let amount_to_transfer = amount - liquidation_fee;
@@ -393,7 +393,7 @@ module leizd::shadow_pool {
         let pool_ref = borrow_global_mut<Pool>(owner_address);
         let storage_ref = borrow_global_mut<Storage>(owner_address);
 
-        accrue_interest(key, storage_ref);
+        accrue_interest(key, storage_ref, pool_ref);
 
         let entry_fee = risk_factor::calculate_entry_fee(amount);
         let total_fee = entry_fee;
@@ -480,7 +480,7 @@ module leizd::shadow_pool {
         let storage_ref = borrow_global_mut<Storage>(owner_address);
         let pool_ref = borrow_global_mut<Pool>(owner_address);
 
-        accrue_interest(key, storage_ref);
+        accrue_interest(key, storage_ref, pool_ref);
 
         // at first, repay to stability_pool
         let repaid_to_stability_pool = repay_to_stability_pool(key, account, amount);
@@ -514,8 +514,9 @@ module leizd::shadow_pool {
     ) acquires Pool, Storage, PoolEventHandle {
         let owner_address = permission::owner_address();
         let storage_ref = borrow_global_mut<Storage>(owner_address);
+        let pool_ref = borrow_global_mut<Pool>(owner_address);
         let key = key<C>();
-        accrue_interest(key, storage_ref);
+        accrue_interest(key, storage_ref, pool_ref);
         let liquidation_fee = risk_factor::calculate_liquidation_fee(withdrawing);
         withdraw_for_internal(key, liquidator_addr, target_addr, withdrawing, is_collateral_only, liquidation_fee);
 
@@ -584,7 +585,7 @@ module leizd::shadow_pool {
     }
 
     /// This function is called on every user action.
-    fun accrue_interest(key: String, storage_ref: &mut Storage) {
+    fun accrue_interest(key: String, storage_ref: &mut Storage, pool_ref: &mut Pool){
         let now = timestamp::now_microseconds();
 
         // This is the first time
@@ -611,12 +612,19 @@ module leizd::shadow_pool {
 
         let depositors_share = accrued_interest - protocol_share;
 
-        if(stability_pool::is_supported(key)){
-            let stability_pool_support_fee = stability_pool::calculate_support_fee(accrued_interest);
-            depositors_share = accrued_interest - protocol_share - stability_pool_support_fee;
-            if(stability_pool_support_fee > 0) {
-                stability_pool::top_up_uncollected_fee(key, stability_pool_support_fee);
-            }
+        if(stability_pool::is_supported(key) && accrued_interest > 0){
+            let generated_support_fee = stability_pool::calculate_support_fee(accrued_interest);
+            depositors_share = accrued_interest - protocol_share - generated_support_fee;
+
+            let uncollected_support_fee = stability_pool::uncollected_support_fee(key) + generated_support_fee;
+            let collected_support_fee = uncollected_support_fee;
+            if(collected_support_fee > total_liquidity_internal(pool_ref, storage_ref)){
+                collected_support_fee = total_liquidity_internal(pool_ref, storage_ref)
+            };
+            uncollected_support_fee = uncollected_support_fee - collected_support_fee;
+
+            let fee_extracted = coin::extract(&mut pool_ref.shadow, (collected_support_fee as u64));
+            stability_pool::collect_support_fee(key, fee_extracted, uncollected_support_fee);
         };
 
         storage_ref.total_borrowed = storage_ref.total_borrowed + accrued_interest;
@@ -1631,7 +1639,7 @@ module leizd::shadow_pool {
         usdz::mint_for_test(borrower_addr, 25 + 26); // fee in shadow + fee in stability
         repay<UNI>(borrower, 5000 + 25 + 26);
         assert!(stability_pool::borrowed(key<UNI>()) == 0, 0);
-        assert!(stability_pool::uncollected_fee<UNI>() == 0, 0);
+        assert!(stability_pool::uncollected_entry_fee<UNI>() == 0, 0);
         //// 2nd
         borrow_for<UNI>(borrower_addr, borrower_addr, 10000);
         borrow_for<UNI>(borrower_addr, borrower_addr, 20000);
