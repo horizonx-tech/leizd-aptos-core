@@ -17,7 +17,7 @@ module leizd::asset_pool {
     use leizd_aptos_common::coin_key::{key};
     use leizd_aptos_common::permission;
     use leizd_aptos_external::dex_facade;
-    use leizd_aptos_lib::constant;
+    use leizd_aptos_lib::math128;
     use leizd_aptos_treasury::treasury;
     use leizd::interest_rate;
     use leizd::pool_status;
@@ -46,8 +46,11 @@ module leizd::asset_pool {
     /// to calculate the borrowable amount in the pool.
     /// C: The coin type of the pool e.g. WETH / APT / USDC
     struct Storage<phantom C> has key {
-        total_deposited: u128,
-        total_conly_deposited: u128, // collateral only
+        total_deposited_amount: u128,
+        total_normal_deposited_amount: u128,
+        total_normal_deposited_share: u128,
+        total_conly_deposited_amount: u128, // collateral only
+        total_conly_deposited_share: u128, // collateral only
         total_borrowed: u128,
         last_updated: u64,
         protocol_fees: u64,
@@ -128,8 +131,11 @@ module leizd::asset_pool {
     }
     fun default_storage<C>(): Storage<C> {
         Storage<C>{
-            total_deposited: 0,
-            total_conly_deposited: 0,
+            total_deposited_amount: 0,
+            total_normal_deposited_amount: 0,
+            total_normal_deposited_share: 0,
+            total_conly_deposited_amount: 0,
+            total_conly_deposited_share: 0,
             total_borrowed: 0,
             last_updated: 0,
             protocol_fees: 0,
@@ -172,9 +178,15 @@ module leizd::asset_pool {
         accrue_interest<C>(storage_ref);
 
         coin::merge(&mut pool_ref.asset, coin::withdraw<C>(account, amount));
-        storage_ref.total_deposited = storage_ref.total_deposited + (amount as u128);
+        storage_ref.total_deposited_amount = storage_ref.total_deposited_amount + (amount as u128);
         if (is_collateral_only) {
-            storage_ref.total_conly_deposited = storage_ref.total_conly_deposited + (amount as u128);
+            let user_share = math128::to_share((amount as u128), storage_ref.total_conly_deposited_amount, storage_ref.total_conly_deposited_share);
+            storage_ref.total_conly_deposited_amount = storage_ref.total_conly_deposited_amount + (amount as u128);
+            storage_ref.total_conly_deposited_share = storage_ref.total_conly_deposited_share + user_share;
+        } else {
+            let user_share = math128::to_share((amount as u128), storage_ref.total_normal_deposited_amount, storage_ref.total_normal_deposited_share);
+            storage_ref.total_normal_deposited_amount = storage_ref.total_normal_deposited_amount + (amount as u128);
+            storage_ref.total_normal_deposited_share = storage_ref.total_normal_deposited_share + user_share;
         };
         event::emit_event<DepositEvent>(
             &mut borrow_global_mut<PoolEventHandle<C>>(owner_address).deposit_event,
@@ -222,20 +234,27 @@ module leizd::asset_pool {
 
         let amount_to_transfer = amount - liquidation_fee;
         coin::deposit<C>(receiver_addr, coin::extract(&mut pool_ref.asset, amount_to_transfer));
-        let withdrawn_amount;
-        if (amount == constant::u64_max()) {
-            if (is_collateral_only) {
-                withdrawn_amount = storage_ref.total_conly_deposited;
-            } else {
-                withdrawn_amount = storage_ref.total_deposited;
-            };
-        } else {
-            withdrawn_amount = (amount as u128);
-        };
 
-        storage_ref.total_deposited = storage_ref.total_deposited - (withdrawn_amount as u128);
+        // if (amount == constant::u64_max()) {
+        //     if (is_collateral_only) {
+        //         withdrawn_amount = storage_ref.total_conly_deposited_amount;
+        //     } else {
+        //         withdrawn_amount = storage_ref.total_normal_deposited_amount;
+        //     };
+        // } else {
+        //     withdrawn_amount = (amount as u128);
+        // };
+
+        let withdrawn_amount = (amount as u128);
+        storage_ref.total_deposited_amount = storage_ref.total_deposited_amount - withdrawn_amount;
         if (is_collateral_only) {
-            storage_ref.total_conly_deposited = storage_ref.total_conly_deposited - (withdrawn_amount as u128);
+            let withdrawn_share = math128::to_share_roundup(withdrawn_amount, storage_ref.total_conly_deposited_amount, storage_ref.total_conly_deposited_share);
+            storage_ref.total_conly_deposited_amount = storage_ref.total_conly_deposited_amount - withdrawn_amount;
+            storage_ref.total_conly_deposited_share = storage_ref.total_conly_deposited_share - withdrawn_share;
+        } else {
+            let withdrawn_share = math128::to_share_roundup(withdrawn_amount, storage_ref.total_normal_deposited_amount, storage_ref.total_normal_deposited_amount);
+            storage_ref.total_normal_deposited_amount = storage_ref.total_normal_deposited_amount - withdrawn_amount;
+            storage_ref.total_normal_deposited_share = storage_ref.total_normal_deposited_share - withdrawn_share;
         };
 
         event::emit_event<WithdrawEvent>(
@@ -367,10 +386,10 @@ module leizd::asset_pool {
         let amount_u128 = (amount as u128);
         if (to_collateral_only) {
             assert!(amount_u128 <= liquidity_internal(pool_ref, storage_ref), error::invalid_argument(E_INSUFFICIENT_LIQUIDITY));
-            storage_ref.total_conly_deposited = storage_ref.total_conly_deposited + amount_u128;
+            storage_ref.total_conly_deposited_amount = storage_ref.total_conly_deposited_amount + amount_u128;
         } else {
-            assert!(amount_u128 <= storage_ref.total_conly_deposited, error::invalid_argument(E_INSUFFICIENT_CONLY_DEPOSITED));
-            storage_ref.total_conly_deposited = storage_ref.total_conly_deposited - amount_u128;
+            assert!(amount_u128 <= storage_ref.total_conly_deposited_amount, error::invalid_argument(E_INSUFFICIENT_CONLY_DEPOSITED));
+            storage_ref.total_conly_deposited_amount = storage_ref.total_conly_deposited_amount - amount_u128;
         };
         event::emit_event<SwitchCollateralEvent>(
             &mut borrow_global_mut<PoolEventHandle<C>>(owner_address).switch_collateral_event,
@@ -403,7 +422,7 @@ module leizd::asset_pool {
         let protocol_share_fee = risk_factor::share_fee();
         let rcomp = interest_rate::update_interest_rate(
             key<C>(),
-            storage_ref.total_deposited,
+            storage_ref.total_normal_deposited_amount,
             storage_ref.total_borrowed,
             storage_ref.last_updated,
             now,
@@ -414,7 +433,7 @@ module leizd::asset_pool {
 
         let depositors_share = accrued_interest - protocol_share;
         storage_ref.total_borrowed = storage_ref.total_borrowed + accrued_interest;
-        storage_ref.total_deposited = storage_ref.total_deposited + depositors_share;
+        storage_ref.total_normal_deposited_amount = storage_ref.total_normal_deposited_amount + depositors_share;
         storage_ref.protocol_fees = new_protocol_fees;
         storage_ref.last_updated = now;
         storage_ref.rcomp = rcomp;
@@ -428,7 +447,7 @@ module leizd::asset_pool {
     }
 
     public entry fun total_deposited<C>(): u128 acquires Storage {
-        borrow_global<Storage<C>>(permission::owner_address()).total_deposited
+        borrow_global<Storage<C>>(permission::owner_address()).total_deposited_amount
     }
 
     public entry fun liquidity<C>(): u128 acquires Pool, Storage {
@@ -438,11 +457,11 @@ module leizd::asset_pool {
         liquidity_internal(pool_ref, storage_ref)
     }
     fun liquidity_internal<C>(pool: &Pool<C>, storage: &Storage<C>): u128 {
-        (coin::value(&pool.asset) as u128) - storage.total_conly_deposited
+        (coin::value(&pool.asset) as u128) - storage.total_conly_deposited_amount
     }
 
     public entry fun total_conly_deposited<C>(): u128 acquires Storage {
-        borrow_global<Storage<C>>(permission::owner_address()).total_conly_deposited
+        borrow_global<Storage<C>>(permission::owner_address()).total_conly_deposited_amount
     }
 
     public entry fun total_borrowed<C>(): u128 acquires Storage {
