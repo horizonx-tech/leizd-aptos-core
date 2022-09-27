@@ -832,7 +832,7 @@ module leizd::account_position {
     #[test_only]
     use leizd_aptos_common::pool_type::{Asset,Shadow};
     #[test_only]
-    use leizd::test_coin::{WETH,UNI};
+    use leizd::test_coin::{WETH,UNI,USDC};
     #[test_only]
     use leizd::test_initializer;
 
@@ -843,6 +843,7 @@ module leizd::account_position {
         risk_factor::initialize(owner);
         risk_factor::new_asset_for_test<WETH>(owner);
         risk_factor::new_asset_for_test<UNI>(owner);
+        risk_factor::new_asset_for_test<USDC>(owner);
     }
     #[test_only]
     fun borrow_unsafe_for_test<C,P>(borrower_addr: address, amount: u64) acquires Position, AccountPositionEventHandle {
@@ -1933,6 +1934,27 @@ module leizd::account_position {
         borrow_asset_with_rebalance<UNI>(account1_addr, 10000);
         assert!(deposited_asset<WETH>(account1_addr) == 100000, 0);
         assert!(borrowed_shadow<WETH>(account1_addr) == 20000, 0);
+        assert!(deposited_shadow<UNI>(account1_addr) == 20000, 0);
+        assert!(borrowed_asset<UNI>(account1_addr) == 10000, 0);
+
+        // assert!(event::counter<UpdatePositionEvent>(&borrow_global<AccountPositionEventHandle<ShadowToAsset>>(account1_addr).update_position_event) == 7, 0);
+    }
+
+    // borrow asset with rebalance
+    #[test(owner=@leizd,account1=@0x111)]
+    public entry fun test_borrow_asset_with_rebalancing_several_positions(owner: &signer, account1: &signer) acquires Position, AccountPositionEventHandle {
+        setup_for_test_to_initialize_coins(owner);
+        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+        let account1_addr = signer::address_of(account1);
+        account::create_account_for_test(account1_addr);
+
+        deposit_internal<WETH,Asset>(account1, account1_addr, 100000, false);
+        deposit_internal<USDC,Asset>(account1, account1_addr, 100000, false);
+        borrow_asset_with_rebalance<UNI>(account1_addr, 10000);
+        assert!(deposited_asset<WETH>(account1_addr) == 100000, 0);
+        assert!(deposited_asset<USDC>(account1_addr) == 100000, 0);
+        assert!(borrowed_shadow<WETH>(account1_addr) == 10000, 0);
+        assert!(borrowed_shadow<USDC>(account1_addr) == 10000, 0);
         assert!(deposited_shadow<UNI>(account1_addr) == 20000, 0);
         assert!(borrowed_asset<UNI>(account1_addr) == 10000, 0);
 
