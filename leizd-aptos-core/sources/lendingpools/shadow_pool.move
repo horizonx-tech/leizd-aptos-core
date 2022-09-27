@@ -10,7 +10,6 @@ module leizd::shadow_pool {
     use aptos_framework::timestamp;
     use leizd_aptos_common::coin_key::{key};
     use leizd_aptos_common::permission;
-    use leizd_aptos_lib::constant;
     use leizd_aptos_lib::math64;
     use leizd_aptos_trove::usdz::{USDZ};
     use leizd::interest_rate;
