@@ -127,6 +127,18 @@ module leizd::shadow_pool {
             switch_collateral_event: account::new_event_handle<SwitchCollateralEvent>(owner),
         })
     }
+    fun default_storage(): Storage {
+        Storage {
+            total_deposited: 0,
+            total_conly_deposited: 0,
+            total_borrowed: 0,
+            deposited: simple_map::create<String,u64>(),
+            conly_deposited: simple_map::create<String,u64>(),
+            borrowed: simple_map::create<String,u64>(),
+            last_updated: 0,
+            protocol_fees: 0,
+        }
+    }
 
     public(friend) fun deposit_for<C>(
         account: &signer,
@@ -166,23 +178,18 @@ module leizd::shadow_pool {
 
         coin::merge(&mut pool_ref.shadow, coin::withdraw<USDZ>(account, amount));
 
+        initialize_for_asset_if_necessary(key, storage_ref);
+
         storage_ref.total_deposited = storage_ref.total_deposited + (amount as u128);
-        if (simple_map::contains_key<String,u64>(&storage_ref.deposited, &key)) {
-            let deposited = simple_map::borrow_mut<String,u64>(&mut storage_ref.deposited, &key);
-            *deposited = *deposited + amount;
-        } else {
-            simple_map::add<String,u64>(&mut storage_ref.deposited, key, amount);
-        };
+        let deposited = simple_map::borrow_mut<String,u64>(&mut storage_ref.deposited, &key);
+        *deposited = *deposited + amount;
 
         if (is_collateral_only) {
             storage_ref.total_conly_deposited = storage_ref.total_conly_deposited + (amount as u128);
-            if (simple_map::contains_key<String,u64>(&storage_ref.conly_deposited, &key)) {
-                let conly_deposited = simple_map::borrow_mut<String,u64>(&mut storage_ref.conly_deposited, &key);
-                *conly_deposited = *conly_deposited + amount;
-            } else {
-                simple_map::add<String,u64>(&mut storage_ref.conly_deposited, key, amount);
-            }
+            let conly_deposited = simple_map::borrow_mut<String,u64>(&mut storage_ref.conly_deposited, &key);
+            *conly_deposited = *conly_deposited + amount;
         };
+
         event::emit_event<DepositEvent>(
             &mut borrow_global_mut<PoolEventHandle>(owner_address).deposit_event,
             DepositEvent {
@@ -193,6 +200,13 @@ module leizd::shadow_pool {
                 is_collateral_only,
             },
         );
+    }
+    fun initialize_for_asset_if_necessary(key: String, storage_ref: &mut Storage) {
+        if (!simple_map::contains_key<String,u64>(&storage_ref.deposited, &key)) {
+            simple_map::add<String,u64>(&mut storage_ref.deposited, key, 0);
+            simple_map::add<String,u64>(&mut storage_ref.conly_deposited, key, 0);
+            simple_map::add<String,u64>(&mut storage_ref.borrowed, key, 0);
+        }
     }
 
     public(friend) fun rebalance_shadow<C1,C2>(
@@ -417,12 +431,10 @@ module leizd::shadow_pool {
         // update borrowed stats
         let amount_with_total_fee = amount + total_fee;
         storage_ref.total_borrowed = storage_ref.total_borrowed + (amount_with_total_fee as u128);
-        if (simple_map::contains_key<String,u64>(&storage_ref.borrowed, &key)) {
-            let borrowed = simple_map::borrow_mut<String,u64>(&mut storage_ref.borrowed, &key);
-            *borrowed = *borrowed + amount_with_total_fee;
-        } else {
-            simple_map::add<String,u64>(&mut storage_ref.borrowed, key, amount_with_total_fee);
-        };
+
+        initialize_for_asset_if_necessary(key, storage_ref); // NOTE: because enable to borrow from stability_pool if no deposited
+        let borrowed = simple_map::borrow_mut<String,u64>(&mut storage_ref.borrowed, &key);
+        *borrowed = *borrowed + amount_with_total_fee;
 
         event::emit_event<BorrowEvent>(
             &mut borrow_global_mut<PoolEventHandle>(owner_address).borrow_event,
@@ -520,12 +532,8 @@ module leizd::shadow_pool {
         let amount_u128 = (amount as u128);
         if (to_collateral_only) {
             assert!(amount <= deposited_internal(key, storage_ref) - conly_deposit_internal(key, storage_ref), error::invalid_argument(E_INSUFFICIENT_LIQUIDITY));
-            if (simple_map::contains_key<String,u64>(&storage_ref.conly_deposited, &key)) {
-                let conly_deposited = simple_map::borrow_mut<String,u64>(&mut storage_ref.conly_deposited, &key);
-                *conly_deposited = *conly_deposited + amount;
-            } else {
-                simple_map::add<String,u64>(&mut storage_ref.conly_deposited, key, amount);
-            };
+            let conly_deposited = simple_map::borrow_mut<String,u64>(&mut storage_ref.conly_deposited, &key);
+            *conly_deposited = *conly_deposited + amount;
             storage_ref.total_conly_deposited = storage_ref.total_conly_deposited + amount_u128;
         } else {
             assert!(amount <= conly_deposit_internal(key, storage_ref), error::invalid_argument(E_INSUFFICIENT_CONLY_DEPOSITED));
@@ -542,19 +550,6 @@ module leizd::shadow_pool {
                 to_collateral_only,
             },
         );
-    }
-
-    fun default_storage(): Storage {
-        Storage {
-            total_deposited: 0,
-            total_conly_deposited: 0,
-            total_borrowed: 0,
-            deposited: simple_map::create<String,u64>(),
-            conly_deposited: simple_map::create<String,u64>(),
-            borrowed: simple_map::create<String,u64>(),
-            last_updated: 0,
-            protocol_fees: 0,
-        }
     }
 
     /// Borrow the shadow from the stability pool
