@@ -12,8 +12,8 @@ module leizd::account_position {
     use leizd_aptos_common::pool_type;
     use leizd_aptos_common::position_type::{Self,AssetToShadow,ShadowToAsset};
     use leizd_aptos_external::price_oracle;
+    use leizd_aptos_common::coin_key::{key};
     use leizd::risk_factor;
-    use leizd::coin_key::{key};
 
     friend leizd::money_market;
 

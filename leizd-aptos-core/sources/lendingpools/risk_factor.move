@@ -6,9 +6,9 @@ module leizd::risk_factor {
     use aptos_std::event;
     use aptos_framework::account;
     use aptos_framework::table;
+    use leizd_aptos_common::coin_key::{key};
     use leizd_aptos_common::permission;
     use leizd_aptos_trove::usdz::{USDZ};
-    use leizd::coin_key::{key};
 
     friend leizd::asset_pool;
 
@@ -63,7 +63,8 @@ module leizd::risk_factor {
     }
 
     public entry fun initialize(owner: &signer) acquires RepositoryEventHandle {
-        permission::assert_owner(signer::address_of(owner));
+        let owner_addr = signer::address_of(owner);
+        permission::assert_owner(owner_addr);
         assert_liquidation_threshold(DEFAULT_LTV, DEFAULT_THRESHOLD);
 
         let ltv = table::new<string::String,u64>();
@@ -85,14 +86,14 @@ module leizd::risk_factor {
         });
         move_to(owner, RepositoryAssetEventHandle {
             update_config_event: account::new_event_handle<UpdateConfigEvent>(owner),
-        });        
+        });
         event::emit_event<UpdateProtocolFeesEvent>(
-            &mut borrow_global_mut<RepositoryEventHandle>(signer::address_of(owner)).update_protocol_fees_event,
+            &mut borrow_global_mut<RepositoryEventHandle>(owner_addr).update_protocol_fees_event,
                 UpdateProtocolFeesEvent {
                     entry_fee: DEFAULT_ENTRY_FEE,
                     share_fee: DEFAULT_SHARE_FEE,
                     liquidation_fee: DEFAULT_LIQUIDATION_FEE,
-                    caller: signer::address_of(owner),
+                    caller: owner_addr,
                 }
         )
     }

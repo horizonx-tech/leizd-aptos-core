@@ -1,13 +1,14 @@
 module leizd_aptos_treasury::treasury {
 
+    use std::option::{Self,Option};
     use std::signer;
-    use aptos_framework::coin;
-    use leizd_aptos_common::permission;
-    use leizd_aptos_trove::usdz::{USDZ};
     use std::string::{String};
     use aptos_std::simple_map;
+    use aptos_framework::coin;
     use aptos_framework::type_info;
-    use std::option::{Self,Option};
+    use leizd_aptos_common::coin_key;
+    use leizd_aptos_common::permission;
+    use leizd_aptos_trove::usdz::{USDZ};
 
     const EALREADY_INITIALIZED: u64 = 0;
     const ECOIN_UNSUPPORTED: u64 = 1;
@@ -39,14 +40,11 @@ module leizd_aptos_treasury::treasury {
         exists<SupportedTreasuries>(permission::owner_address())
     }
 
-    fun treasury_key<C>(): String {
-        type_info::type_name<C>()
-    }
-
     fun get_treasury_owner<C>(): Option<address> acquires SupportedTreasuries {
         let treasuries = borrow_global<SupportedTreasuries>(permission::owner_address()).treasuries;
-        if (simple_map::contains_key<String, address>(&treasuries, &treasury_key<C>())) {
-            return option::some<address>(*simple_map::borrow<String, address>(&treasuries, &treasury_key<C>()))
+        let treasury_key = coin_key::key<C>();
+        if (simple_map::contains_key<String, address>(&treasuries, &treasury_key)) {
+            return option::some<address>(*simple_map::borrow<String, address>(&treasuries, &treasury_key))
         };
         option::none<address>()
     }
@@ -57,7 +55,7 @@ module leizd_aptos_treasury::treasury {
             coin: coin::zero<C>(),
         });
         let treasuries = borrow_global_mut<SupportedTreasuries>(permission::owner_address());
-        simple_map::add<String, address>(&mut treasuries.treasuries, treasury_key<C>(), signer::address_of(owner));
+        simple_map::add<String, address>(&mut treasuries.treasuries, coin_key::key<C>(), signer::address_of(owner));
     }
 
     public entry fun collect_fee<C>(coin: coin::Coin<C>) acquires Treasury, SupportedTreasuries {

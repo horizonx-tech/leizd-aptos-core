@@ -1,4 +1,4 @@
-module leizd::coin_key {
+module leizd_aptos_common::coin_key {
 
     use std::string::{String};
     use aptos_framework::type_info;

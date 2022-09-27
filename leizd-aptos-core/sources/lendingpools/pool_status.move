@@ -2,11 +2,11 @@ module leizd::pool_status {
     use std::error;
     use std::account;
     use std::string::{String};
+    use aptos_std::event;
     use aptos_std::simple_map;
     use leizd_aptos_common::permission;
+    use leizd_aptos_common::coin_key::{key};
     use leizd::system_status;
-    use aptos_std::event;
-    use leizd::coin_key::{key};
 
     friend leizd::system_administrator;
     friend leizd::asset_pool;

@@ -9,6 +9,7 @@ module leizd_aptos_external::price_oracle_prod {
     use leizd_aptos_common::permission;
     use aptos_std::event;
     use aptos_framework::account;
+    use leizd_aptos_common::coin_key;
 
     struct Config has key {
         is_mocked_price: bool
@@ -53,7 +54,7 @@ module leizd_aptos_external::price_oracle_prod {
     public entry fun add_aggregator<C>(owner: &signer, aggregator: address) acquires AggregatorStorage, OracleEventHandle {
         let owner_address = signer::address_of(owner);
         permission::assert_owner(owner_address);
-        let key = type_info::type_name<C>();
+        let key = coin_key::key<C>();
         let aggrs = &mut borrow_global_mut<AggregatorStorage>(owner_address).aggregators;
         simple_map::add<string::String, address>(aggrs, key, aggregator);
         event::emit_event<AddAggregatorEvent>(
@@ -77,7 +78,7 @@ module leizd_aptos_external::price_oracle_prod {
         price_from_aggregator(*aggregator_addr)
     }
     public fun price<C>(): (u128, u8) acquires Config, AggregatorStorage {
-        let (value, dec) = price_internal(type_info::type_name<C>());
+        let (value, dec) = price_internal(coin_key::key<C>());
         (value, dec)
     }
     public fun price_of(name: &string::String): (u128, u8) acquires Config, AggregatorStorage {

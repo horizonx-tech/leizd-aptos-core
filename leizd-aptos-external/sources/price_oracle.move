@@ -4,6 +4,7 @@ module leizd_aptos_external::price_oracle {
     use std::string;
     use aptos_std::type_info;
     use aptos_framework::table;
+    use leizd_aptos_common::coin_key;
     use leizd_aptos_common::permission;
     use aptos_std::event;
     use aptos_framework::account;
@@ -32,7 +33,7 @@ module leizd_aptos_external::price_oracle {
     public entry fun add_aggregator<C>(owner: &signer, aggregator: address) acquires AggregatorStorage, OracleEventHandle {
         let owner_address = signer::address_of(owner);
         permission::assert_owner(owner_address);
-        let key = type_info::type_name<C>();
+        let key = coin_key::key<C>();
         let aggrs = &mut borrow_global_mut<AggregatorStorage>(owner_address).aggregators;
         table::add<string::String, address>(aggrs, key, aggregator);
         event::emit_event<AddAggregatorEvent>(
@@ -60,7 +61,7 @@ module leizd_aptos_external::price_oracle {
         (1000000000, 9)
     }
     public fun price<C>(): (u128, u8) {
-        let (value, dec) = price_internal(type_info::type_name<C>());
+        let (value, dec) = price_internal(coin_key::key<C>());
         (value, dec)
     }
     public fun price_of(name: &string::String): (u128, u8) {
