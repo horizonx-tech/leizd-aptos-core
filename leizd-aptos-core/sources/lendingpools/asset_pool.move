@@ -14,15 +14,15 @@ module leizd::asset_pool {
     use aptos_framework::account;
     use aptos_framework::coin;
     use aptos_framework::timestamp;
+    use leizd_aptos_common::coin_key::{key};
     use leizd_aptos_common::permission;
-    use leizd_aptos_lib::constant;
     use leizd_aptos_external::dex_facade;
+    use leizd_aptos_lib::constant;
+    use leizd_aptos_treasury::treasury;
     use leizd::interest_rate;
     use leizd::pool_status;
     use leizd::risk_factor;
     use leizd::stability_pool;
-    use leizd_aptos_common::coin_key::{key};
-    use leizd_aptos_treasury::treasury;
 
     friend leizd::money_market;
     friend leizd::pool_manager;

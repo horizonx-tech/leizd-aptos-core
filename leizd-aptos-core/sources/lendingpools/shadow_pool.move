@@ -3,20 +3,20 @@ module leizd::shadow_pool {
     use std::error;
     use std::signer;
     use std::string::{String};
-    use aptos_std::simple_map;
     use aptos_std::event;
-    use aptos_framework::coin;
+    use aptos_std::simple_map;
     use aptos_framework::account;
+    use aptos_framework::coin;
     use aptos_framework::timestamp;
+    use leizd_aptos_common::coin_key::{key};
     use leizd_aptos_common::permission;
     use leizd_aptos_lib::constant;
     use leizd_aptos_trove::usdz::{USDZ};
-    use leizd::treasury;
-    use leizd::stability_pool;
-    use leizd::risk_factor;
-    use leizd::pool_status;
     use leizd::interest_rate;
-    use leizd_aptos_common::coin_key::{key};
+    use leizd::pool_status;
+    use leizd::risk_factor;
+    use leizd::stability_pool;
+    use leizd::treasury;
 
     friend leizd::money_market;
 

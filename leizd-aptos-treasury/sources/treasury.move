@@ -1,14 +1,14 @@
 module leizd_aptos_treasury::treasury {
 
+    use std::option::{Self,Option};
     use std::signer;
-    use aptos_framework::coin;
-    use leizd_aptos_common::permission;
-    use leizd_aptos_trove::usdz::{USDZ};
     use std::string::{String};
     use aptos_std::simple_map;
+    use aptos_framework::coin;
     use aptos_framework::type_info;
-    use std::option::{Self,Option};
     use leizd_aptos_common::coin_key;
+    use leizd_aptos_common::permission;
+    use leizd_aptos_trove::usdz::{USDZ};
 
     const EALREADY_INITIALIZED: u64 = 0;
     const ECOIN_UNSUPPORTED: u64 = 1;
