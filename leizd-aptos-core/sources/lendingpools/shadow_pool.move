@@ -202,7 +202,7 @@ module leizd::shadow_pool {
         );
     }
     fun initialize_for_asset_if_necessary(key: String, storage_ref: &mut Storage) {
-        if (!simple_map::contains_key<String,AssetStorage>(&storage_ref.asset_storages, &key)) {
+        if (!is_initialized_asset_with_internal(&key, storage_ref)) {
             simple_map::add<String,AssetStorage>(&mut storage_ref.asset_storages, key, AssetStorage {
                 deposited: 0,
                 conly_deposited: 0,
@@ -220,8 +220,8 @@ module leizd::shadow_pool {
         let key_to = key<C2>();
         let owner_addr = permission::owner_address();
         let storage_ref = borrow_global_mut<Storage>(owner_addr);
-        assert!(simple_map::contains_key<String,AssetStorage>(&storage_ref.asset_storages, &key_from), error::invalid_argument(E_NOT_INITIALIZED_COIN));
-        assert!(simple_map::contains_key<String,AssetStorage>(&storage_ref.asset_storages, &key_to), error::invalid_argument(E_NOT_INITIALIZED_COIN));
+        assert!(is_initialized_asset_with_internal(&key_from, storage_ref), error::invalid_argument(E_NOT_INITIALIZED_COIN));
+        assert!(is_initialized_asset_with_internal(&key_to, storage_ref), error::invalid_argument(E_NOT_INITIALIZED_COIN));
 
         let deposited = &mut simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key_from).deposited;
         *deposited = *deposited - amount;
@@ -255,8 +255,8 @@ module leizd::shadow_pool {
         let key_to = key<C2>();
         let owner_addr = permission::owner_address();
         let storage_ref = borrow_global_mut<Storage>(owner_addr);
-        assert!(simple_map::contains_key<String,AssetStorage>(&storage_ref.asset_storages, &key_from), 0);
-        assert!(simple_map::contains_key<String,AssetStorage>(&storage_ref.asset_storages, &key_to), 0);
+        assert!(is_initialized_asset_with_internal(&key_from, storage_ref), 0);
+        assert!(is_initialized_asset_with_internal(&key_to, storage_ref), 0);
 
         let borrowed = &mut simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key_from).borrowed;
         *borrowed = *borrowed + amount;
@@ -342,13 +342,12 @@ module leizd::shadow_pool {
         };
 
         storage_ref.total_deposited = storage_ref.total_deposited - (withdrawn_amount as u128);
-        assert!(simple_map::contains_key<String,AssetStorage>(&storage_ref.asset_storages, &key), 0);
+        assert!(is_initialized_asset_with_internal(&key, storage_ref), 0);
         let deposited = &mut simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key).deposited;
         *deposited = *deposited - amount;
 
         if (is_collateral_only) {
             storage_ref.total_conly_deposited = storage_ref.total_conly_deposited - (withdrawn_amount as u128);
-            assert!(simple_map::contains_key<String,AssetStorage>(&storage_ref.asset_storages, &key), 0);
             let conly_deposited = &mut simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key).conly_deposited;
             *conly_deposited = *conly_deposited - amount;
         };
@@ -638,14 +637,7 @@ module leizd::shadow_pool {
 
     fun is_initialized_asset<C>(): bool acquires Storage {
         let storage_ref = borrow_global<Storage>(permission::owner_address());
-        is_initialized_asset_internal<C>(storage_ref)
-    }
-    fun is_initialized_asset_internal<C>(storage_ref: &Storage): bool {
         is_initialized_asset_with_internal(&key<C>(), storage_ref)
-    }
-    fun is_initialized_asset_with(key: &String): bool acquires Storage {
-        let storage_ref = borrow_global<Storage>(permission::owner_address());
-        is_initialized_asset_with_internal(key, storage_ref)
     }
     fun is_initialized_asset_with_internal(key: &String, storage_ref: &Storage): bool {
         simple_map::contains_key<String, AssetStorage>(&storage_ref.asset_storages, key)
