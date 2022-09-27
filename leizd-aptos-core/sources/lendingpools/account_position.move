@@ -254,34 +254,6 @@ module leizd::account_position {
         };
     }
 
-    // /// @return (rebalanced, borrowed_and_rebalanced, from_key)
-    // public(friend) fun borrow_asset_with_rebalance<C>(borrower_addr: address, amount: u64): (u64,u64,Option<String>) acquires Position, AccountPositionEventHandle {
-    //     update_on_borrow<C,ShadowToAsset>(borrower_addr, amount);
-    //     if (is_safe<C,ShadowToAsset>(borrower_addr)) {
-    //         let empty_str = string::try_utf8(b"");
-    //         return (0,0,empty_str)
-    //     };
-            
-    //     // try to rebalance between pools
-    //     let from_key = key_rebalanced_from<C>(borrower_addr);
-    //     if (option::is_some(&from_key)) {
-    //         // rebalance
-    //         let (rebalanced,_,_) = rebalance_shadow_internal(borrower_addr, *option::borrow<String>(&from_key), key<C>());
-    //         return (rebalanced, 0, from_key)
-    //     };
-        
-    //     // try to borrow and rebalance shadow
-    //     let from_key = key_rebalanced_with_borrow_from<C>(borrower_addr);
-    //     if (option::is_some(&from_key)) {
-    //         // borrow and rebalance
-    //         let rebalanced = borrow_and_rebalance_internal(borrower_addr, *option::borrow<String>(&from_key), key<C>(), false);
-    //         return (0, rebalanced, from_key)
-    //     };
-
-    //     // abort if neither has not been done
-    //     abort 0
-    // }
-
     fun required_shadow(borrowed_key: String, borrowed_asset: u64, deposited_shadow: u64): u64 {
         let borrowed_volume = price_oracle::volume(&borrowed_key, borrowed_asset);
         let deposited_volume = price_oracle::volume(&key<USDZ>(), deposited_shadow);
@@ -631,9 +603,6 @@ module leizd::account_position {
         };
 
         // extra in key1
-        // let borrowed = borrowed_volume<AssetToShadow>(addr, key1);
-        // let deposited = deposited_volume<AssetToShadow>(addr, key1);
-        // let borrowable = deposited * risk_factor::lt_of(key1) / risk_factor::precision();
         let extra_borrow = borrowable_shadow(key1, addr);
         if (extra_borrow == 0) return (false, 0, 0);
 
