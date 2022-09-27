@@ -1462,6 +1462,7 @@ module leizd::shadow_pool {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         stability_pool::add_supported_pool<UNI>(owner);
+        stability_pool::update_config(owner, stability_pool::entry_fee(), 0);
 
         let owner_addr = signer::address_of(owner);
         let depositor_addr = signer::address_of(depositor);
@@ -1517,6 +1518,7 @@ module leizd::shadow_pool {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         stability_pool::add_supported_pool<UNI>(owner);
+        stability_pool::update_config(owner, stability_pool::entry_fee(), 0);
 
         let owner_addr = signer::address_of(owner);
         let depositor_addr = signer::address_of(depositor);
@@ -1564,6 +1566,7 @@ module leizd::shadow_pool {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         stability_pool::add_supported_pool<UNI>(owner);
+        stability_pool::update_config(owner, stability_pool::entry_fee(), 0);
 
         let owner_addr = signer::address_of(owner);
         let depositor_addr = signer::address_of(depositor);
@@ -1619,6 +1622,7 @@ module leizd::shadow_pool {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         stability_pool::add_supported_pool<UNI>(owner);
+        stability_pool::update_config(owner, stability_pool::entry_fee(), 0);
 
         let depositor_addr = signer::address_of(depositor);
         let borrower_addr = signer::address_of(borrower);
@@ -1670,6 +1674,7 @@ module leizd::shadow_pool {
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         stability_pool::add_supported_pool<UNI>(owner);
         stability_pool::add_supported_pool<WETH>(owner);
+        stability_pool::update_config(owner, stability_pool::entry_fee(), 0);
 
         let depositor_addr = signer::address_of(depositor);
         let borrower1_addr = signer::address_of(borrower1);
