@@ -307,31 +307,48 @@ module leizd::account_position {
         };
     }
 
-    // public(friend) fun repay_shadow_with_rebalance(addr: address, amount: u64): (vector<String>, vector<u64>) acquires Position {
+    public(friend) fun repay_shadow_with_rebalance(addr: address, amount: u64): (vector<String>, vector<u64>) acquires Position, AccountPositionEventHandle {
+        let result_key = vector::empty<String>();
+        let result_amount = vector::empty<u64>();
+
+        let position_ref = borrow_global<Position<AssetToShadow>>(addr);
+        let coins = position_ref.coins;
+
+        let i = vector::length<String>(&coins);
+        let sum_borrowed_shadow = 0;
+        while (i > 0) {
+            let key = vector::borrow<String>(&coins, i-1);
+            sum_borrowed_shadow = sum_borrowed_shadow + borrowed_shadow_with(*key, addr);
+            i = i - 1;
+        };
         
-    //     let position_ref = borrow_global<Position<AssetToShadow>>(addr);
-    //     let coins = position_ref.coins;
-
-    //     let i = vector::length<String>(&coins);
-    //     let sum_borrowed_shadow = 0;
-    //     while (i > 0) {
-    //         let key = vector::borrow<String>(&coins, i-1);
-    //         sum_borrowed_shadow = sum_borrowed_shadow + borrowed_shadow_with(*key, addr);
-    //         // let (can_rebalance,_,_) = can_borrow_and_rebalance(addr, *key_coin, key_insufficient);
-    //         // if (can_rebalance) {
-    //         //     return option::some(*key_coin)
-    //         // };
-    //         i = i - 1;
-    //     };
-        
-    //     if (sum_borrowed_shadow <= amount) {
-    //         // TODO: repay all
-    //     } else {
-    //         let debt_left = sum_borrowed_shadow - amount;
-
-    //     }
-
-    // }
+        if (sum_borrowed_shadow <= amount) {
+            // repay all
+            let i = vector::length<String>(&coins);
+            while (i > 0) {
+                let key = vector::borrow<String>(&coins, i-1);
+                let repayable = borrowed_shadow_with(*key, addr);
+                update_position_for_repay<AssetToShadow>(*key, addr, repayable);
+                vector::push_back<String>(&mut result_key, *key);
+                vector::push_back<u64>(&mut result_amount, repayable);
+                i = i - 1;
+            };
+        } else {
+            // repay to even out
+            let debt_left = sum_borrowed_shadow - amount;
+            let each_debt = debt_left / i;
+            let i = vector::length<String>(&coins);
+            while (i > 0) {
+                let key = vector::borrow<String>(&coins, i-1);
+                let repayable = borrowed_shadow_with(*key, addr) - each_debt;
+                update_position_for_repay<AssetToShadow>(*key, addr, repayable);
+                vector::push_back<String>(&mut result_key, *key);
+                vector::push_back<u64>(&mut result_amount, repayable);
+                i = i - 1;
+            };
+        };
+        (result_key, result_amount)
+    }
 
     public(friend) fun liquidate<C,P>(target_addr: address): (u64,u64,bool) acquires Position, AccountPositionEventHandle {
         liquidate_internal<C,P>(target_addr)
