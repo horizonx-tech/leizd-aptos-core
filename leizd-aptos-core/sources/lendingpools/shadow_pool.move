@@ -497,17 +497,25 @@ module leizd::shadow_pool {
         );
     }
 
-    public(friend) fun switch_collateral(amount: u64, is_collateral_only: bool) acquires Storage {
-        switch_collateral_internal(amount, is_collateral_only);
+    public(friend) fun switch_collateral<C>(amount: u64, to_collateral_only: bool) acquires Storage {
+        switch_collateral_internal(key<C>(), amount, to_collateral_only);
     }
 
-    fun switch_collateral_internal(amount: u64, is_collateral_only: bool) acquires Storage {
+    fun switch_collateral_internal(key: String, amount: u64, to_collateral_only: bool) acquires Storage {
         let owner_address = permission::owner_address();
         let storage_ref = borrow_global_mut<Storage>(owner_address);
-        if (is_collateral_only) {
+        if (to_collateral_only) {
             storage_ref.total_conly_deposited = storage_ref.total_conly_deposited + (amount as u128);
+            if (simple_map::contains_key<String,u64>(&storage_ref.conly_deposited, &key)) {
+                let conly_deposited = simple_map::borrow_mut<String,u64>(&mut storage_ref.conly_deposited, &key);
+                *conly_deposited = *conly_deposited + amount;
+            } else {
+                simple_map::add<String,u64>(&mut storage_ref.conly_deposited, key, amount);
+            };
         } else {
             storage_ref.total_conly_deposited = storage_ref.total_conly_deposited - (amount as u128);
+            let conly_deposited = simple_map::borrow_mut<String,u64>(&mut storage_ref.conly_deposited, &key);
+            *conly_deposited = *conly_deposited - amount;
         };
         // TODO: event
     }
@@ -1794,19 +1802,19 @@ module leizd::shadow_pool {
         assert!(deposited<WETH>() == 1000, 0);
         assert!(conly_deposited<WETH>() == 0, 0);
 
-        switch_collateral(800, true);
+        switch_collateral<WETH>(800, true);
         assert!(total_deposited() == 1000, 0);
         assert!(total_liquidity() == 200, 0);
         assert!(total_conly_deposited() == 800, 0);
-        // assert!(deposited<WETH>() == 200, 0);
-        // assert!(conly_deposited<WETH>() == 800, 0);
+        assert!(deposited<WETH>() == 1000, 0);
+        assert!(conly_deposited<WETH>() == 800, 0);
 
-        switch_collateral(400, false);
+        switch_collateral<WETH>(400, false);
         assert!(total_deposited() == 1000, 0);
         assert!(total_liquidity() == 600, 0);
         assert!(total_conly_deposited() == 400, 0);
-        // assert!(deposited<WETH>() == 600, 0);
-        // assert!(conly_deposited<WETH>() == 800, 0);
+        assert!(deposited<WETH>() == 1000, 0);
+        assert!(conly_deposited<WETH>() == 400, 0);
     }
 
     // for common validations
