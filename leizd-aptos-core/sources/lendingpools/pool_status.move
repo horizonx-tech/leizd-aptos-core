@@ -18,6 +18,7 @@ module leizd::pool_status {
         can_withdraw: simple_map::SimpleMap<String,bool>,
         can_borrow: simple_map::SimpleMap<String,bool>,
         can_repay: simple_map::SimpleMap<String,bool>,
+        can_switch_collateral: simple_map::SimpleMap<String,bool>,
     }
 
     struct PoolStatusUpdateEvent has store, drop {
@@ -26,6 +27,7 @@ module leizd::pool_status {
         can_withdraw: bool,
         can_borrow: bool,
         can_repay: bool,
+        can_switch_collateral: bool,
     }
 
 
@@ -43,7 +45,8 @@ module leizd::pool_status {
                     can_deposit: *simple_map::borrow<String,bool>(&pool_status_ref.can_deposit, &key),
                     can_withdraw: *simple_map::borrow<String,bool>(&pool_status_ref.can_withdraw, &key),
                     can_borrow: *simple_map::borrow<String,bool>(&pool_status_ref.can_borrow, &key),
-                    can_repay: *simple_map::borrow<String,bool>(&pool_status_ref.can_repay, &key)
+                    can_repay: *simple_map::borrow<String,bool>(&pool_status_ref.can_repay, &key),
+                    can_switch_collateral: *simple_map::borrow<String,bool>(&pool_status_ref.can_switch_collateral, &key)
             },
         );
     }
@@ -57,17 +60,20 @@ module leizd::pool_status {
             simple_map::add<String,bool>(&mut status.can_withdraw, key, true);
             simple_map::add<String,bool>(&mut status.can_borrow, key, true);
             simple_map::add<String,bool>(&mut status.can_repay, key, true);
+            simple_map::add<String,bool>(&mut status.can_switch_collateral, key, true);
         } else {
             let status = Status {
                 can_deposit: simple_map::create<String,bool>(),
                 can_withdraw: simple_map::create<String,bool>(),
                 can_borrow: simple_map::create<String,bool>(),
                 can_repay: simple_map::create<String,bool>(),
+                can_switch_collateral: simple_map::create<String,bool>(),
             };
             simple_map::add<String,bool>(&mut status.can_deposit, key, true);
             simple_map::add<String,bool>(&mut status.can_withdraw, key, true);
             simple_map::add<String,bool>(&mut status.can_borrow, key, true);
             simple_map::add<String,bool>(&mut status.can_repay, key, true);
+            simple_map::add<String,bool>(&mut status.can_switch_collateral, key, true);
             move_to(owner, status);
             move_to(owner, PoolStatusEventHandle {
                 pool_status_update_event: account::new_event_handle<PoolStatusUpdateEvent>(owner),
@@ -145,6 +151,20 @@ module leizd::pool_status {
         system_status::status() && *can_repay
     }
 
+    public fun can_switch_collateral<C>(): bool acquires Status {
+        let key = key<C>();
+        can_switch_collateral_with(key)
+    }
+
+    public fun can_switch_collateral_with(key: String): bool acquires Status {
+        let owner_address = permission::owner_address();
+        assert_pool_status_initialized(owner_address, key);
+        let pool_status_ref = borrow_global<Status>(owner_address);
+        if (!simple_map::contains_key<String,bool>(&pool_status_ref.can_switch_collateral, &key)) return false;
+        let can_switch_collateral = simple_map::borrow<String,bool>(&pool_status_ref.can_switch_collateral, &key);
+        system_status::status() && *can_switch_collateral
+    }
+
     public(friend) fun update_deposit_status<C>(active: bool) acquires Status, PoolStatusEventHandle {
         let key = key<C>();
         update_deposit_status_with(key, active);
@@ -205,6 +225,21 @@ module leizd::pool_status {
         emit_current_pool_status(key);
     }
 
+    public(friend) fun update_switch_collateral_status<C>(active: bool) acquires Status, PoolStatusEventHandle {
+        let key = key<C>();
+        update_switch_collateral_status_with(key, active);
+    }
+
+    public(friend) fun update_switch_collateral_status_with(key: String, active: bool) acquires Status , PoolStatusEventHandle{
+        let owner_address = permission::owner_address();
+        assert_pool_status_initialized(owner_address, key);
+        let pool_status_ref = borrow_global_mut<Status>(owner_address);
+        assert!(simple_map::contains_key<String,bool>(&pool_status_ref.can_switch_collateral, &key), 0);
+        let can_switch_collateral = simple_map::borrow_mut<String,bool>(&mut pool_status_ref.can_switch_collateral, &key);
+        *can_switch_collateral = active;
+        emit_current_pool_status(key);
+    }
+
     #[test_only]
     use std::signer;
 
@@ -219,13 +254,16 @@ module leizd::pool_status {
         assert!(can_withdraw<DummyStruct>(), 0);
         assert!(can_borrow<DummyStruct>(), 0);
         assert!(can_repay<DummyStruct>(), 0);
+        assert!(can_switch_collateral<DummyStruct>(), 0);
         update_deposit_status<DummyStruct>(false);
         update_withdraw_status<DummyStruct>(false);
         update_borrow_status<DummyStruct>(false);
         update_repay_status<DummyStruct>(false);
+        update_switch_collateral_status<DummyStruct>(false);
         assert!(!can_deposit<DummyStruct>(), 0);
         assert!(!can_withdraw<DummyStruct>(), 0);
         assert!(!can_borrow<DummyStruct>(), 0);
         assert!(!can_repay<DummyStruct>(), 0);
+        assert!(!can_switch_collateral<DummyStruct>(), 0);
     }
 }
