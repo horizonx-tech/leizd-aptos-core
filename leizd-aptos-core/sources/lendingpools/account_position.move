@@ -118,6 +118,10 @@ module leizd::account_position {
 
     public fun borrowed_shadow<C>(addr: address): u64 acquires Position {
         let key = key<C>();
+        borrowed_shadow_with(key, addr)
+    }
+
+    public fun borrowed_shadow_with(key: String, addr: address): u64 acquires Position {
         if (!exists<Position<AssetToShadow>>(addr)) return 0;
         let position_ref = borrow_global<Position<AssetToShadow>>(addr);
         if (simple_map::contains_key<String,Balance>(&position_ref.balance, &key)) {
@@ -302,6 +306,32 @@ module leizd::account_position {
             update_on_repay<C,AssetToShadow>(addr, amount);
         };
     }
+
+    // public(friend) fun repay_shadow_with_rebalance(addr: address, amount: u64): (vector<String>, vector<u64>) acquires Position {
+        
+    //     let position_ref = borrow_global<Position<AssetToShadow>>(addr);
+    //     let coins = position_ref.coins;
+
+    //     let i = vector::length<String>(&coins);
+    //     let sum_borrowed_shadow = 0;
+    //     while (i > 0) {
+    //         let key = vector::borrow<String>(&coins, i-1);
+    //         sum_borrowed_shadow = sum_borrowed_shadow + borrowed_shadow_with(*key, addr);
+    //         // let (can_rebalance,_,_) = can_borrow_and_rebalance(addr, *key_coin, key_insufficient);
+    //         // if (can_rebalance) {
+    //         //     return option::some(*key_coin)
+    //         // };
+    //         i = i - 1;
+    //     };
+        
+    //     if (sum_borrowed_shadow <= amount) {
+    //         // TODO: repay all
+    //     } else {
+    //         let debt_left = sum_borrowed_shadow - amount;
+
+    //     }
+
+    // }
 
     public(friend) fun liquidate<C,P>(target_addr: address): (u64,u64,bool) acquires Position, AccountPositionEventHandle {
         liquidate_internal<C,P>(target_addr)

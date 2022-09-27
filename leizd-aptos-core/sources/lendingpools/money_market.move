@@ -115,6 +115,15 @@ module leizd::money_market {
         asset_pool::borrow_for<C>(borrower_addr, receiver_addr, amount);
     }
 
+    // public entry fun repay_multiple<C>(account: &signer, amount: u64) {
+    //     let repaid_info = account_position::repay_shadow_multiple<C>();
+    //     let i = 0;
+    //     while (i > 0) {
+
+    //         i = i - 1;
+    //     };
+    // }
+
     /// Repay an asset or a shadow from the pool.
     public entry fun repay<C,P>(account: &signer, amount: u64) {
         pool_type::assert_pool_type<P>();
