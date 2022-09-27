@@ -255,8 +255,8 @@ module leizd::shadow_pool {
         let key_to = key<C2>();
         let owner_addr = permission::owner_address();
         let storage_ref = borrow_global_mut<Storage>(owner_addr);
-        assert!(is_initialized_asset_with_internal(&key_from, storage_ref), 0);
-        assert!(is_initialized_asset_with_internal(&key_to, storage_ref), 0);
+        assert!(is_initialized_asset_with_internal(&key_from, storage_ref), error::invalid_argument(E_NOT_INITIALIZED_COIN));
+        assert!(is_initialized_asset_with_internal(&key_to, storage_ref), error::invalid_argument(E_NOT_INITIALIZED_COIN));
 
         let borrowed = &mut simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key_from).borrowed;
         *borrowed = *borrowed + amount;
@@ -342,7 +342,7 @@ module leizd::shadow_pool {
         };
 
         storage_ref.total_deposited = storage_ref.total_deposited - (withdrawn_amount as u128);
-        assert!(is_initialized_asset_with_internal(&key, storage_ref), 0);
+        assert!(is_initialized_asset_with_internal(&key, storage_ref), error::invalid_argument(E_NOT_INITIALIZED_COIN));
         let deposited = &mut simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key).deposited;
         *deposited = *deposited - amount;
 
