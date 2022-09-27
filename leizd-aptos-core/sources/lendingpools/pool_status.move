@@ -56,11 +56,7 @@ module leizd::pool_status {
         let owner_address = permission::owner_address();
         if (exists<Status>(owner_address)) {
             let status = borrow_global_mut<Status>(owner_address);
-            simple_map::add<String,bool>(&mut status.can_deposit, key, true);
-            simple_map::add<String,bool>(&mut status.can_withdraw, key, true);
-            simple_map::add<String,bool>(&mut status.can_borrow, key, true);
-            simple_map::add<String,bool>(&mut status.can_repay, key, true);
-            simple_map::add<String,bool>(&mut status.can_switch_collateral, key, true);
+            initialize_status(key, status);
         } else {
             let status = Status {
                 can_deposit: simple_map::create<String,bool>(),
@@ -69,17 +65,20 @@ module leizd::pool_status {
                 can_repay: simple_map::create<String,bool>(),
                 can_switch_collateral: simple_map::create<String,bool>(),
             };
-            simple_map::add<String,bool>(&mut status.can_deposit, key, true);
-            simple_map::add<String,bool>(&mut status.can_withdraw, key, true);
-            simple_map::add<String,bool>(&mut status.can_borrow, key, true);
-            simple_map::add<String,bool>(&mut status.can_repay, key, true);
-            simple_map::add<String,bool>(&mut status.can_switch_collateral, key, true);
+            initialize_status(key, &mut status);
             move_to(owner, status);
             move_to(owner, PoolStatusEventHandle {
                 pool_status_update_event: account::new_event_handle<PoolStatusUpdateEvent>(owner),
             });
         };
         emit_current_pool_status(key);
+    }
+    fun initialize_status(key: String, status: &mut Status) {
+        simple_map::add<String,bool>(&mut status.can_deposit, key, true);
+        simple_map::add<String,bool>(&mut status.can_withdraw, key, true);
+        simple_map::add<String,bool>(&mut status.can_borrow, key, true);
+        simple_map::add<String,bool>(&mut status.can_repay, key, true);
+        simple_map::add<String,bool>(&mut status.can_switch_collateral, key, true);
     }
 
     fun is_initialized(owner_address: address, key: String): bool acquires Status {
@@ -96,8 +95,7 @@ module leizd::pool_status {
     }
 
     public fun can_deposit<C>(): bool acquires Status {
-        let key = key<C>();
-        can_deposit_with(key)
+        can_deposit_with(key<C>())
     }
 
     public fun can_deposit_with(key: String): bool acquires Status {
@@ -110,8 +108,7 @@ module leizd::pool_status {
     }
 
     public fun can_withdraw<C>(): bool acquires Status {
-        let key = key<C>();
-        can_withdraw_with(key)
+        can_withdraw_with(key<C>())
     }
 
     public fun can_withdraw_with(key: String): bool acquires Status {
@@ -138,8 +135,7 @@ module leizd::pool_status {
     }
 
     public fun can_repay<C>(): bool acquires Status {
-        let key = key<C>();
-        can_repay_with(key)
+        can_repay_with(key<C>())
     }
 
     public fun can_repay_with(key: String): bool acquires Status {
@@ -152,8 +148,7 @@ module leizd::pool_status {
     }
 
     public fun can_switch_collateral<C>(): bool acquires Status {
-        let key = key<C>();
-        can_switch_collateral_with(key)
+        can_switch_collateral_with(key<C>())
     }
 
     public fun can_switch_collateral_with(key: String): bool acquires Status {
@@ -166,8 +161,7 @@ module leizd::pool_status {
     }
 
     public(friend) fun update_deposit_status<C>(active: bool) acquires Status, PoolStatusEventHandle {
-        let key = key<C>();
-        update_deposit_status_with(key, active);
+        update_deposit_status_with(key<C>(), active);
     }
 
     public(friend) fun update_deposit_status_with(key: String, active: bool) acquires Status, PoolStatusEventHandle {
@@ -181,8 +175,7 @@ module leizd::pool_status {
     }
 
     public(friend) fun update_withdraw_status<C>(active: bool) acquires Status, PoolStatusEventHandle {
-        let key = key<C>();
-        update_withdraw_status_with(key, active);
+        update_withdraw_status_with(key<C>(), active);
     }
 
     public(friend) fun update_withdraw_status_with(key: String, active: bool) acquires Status, PoolStatusEventHandle {
@@ -196,8 +189,7 @@ module leizd::pool_status {
     }
 
     public(friend) fun update_borrow_status<C>(active: bool) acquires Status, PoolStatusEventHandle {
-        let key = key<C>();
-        update_borrow_status_with(key, active);
+        update_borrow_status_with(key<C>(), active);
     }
 
     public(friend) fun update_borrow_status_with(key: String, active: bool) acquires Status, PoolStatusEventHandle {
@@ -211,8 +203,7 @@ module leizd::pool_status {
     }
 
     public(friend) fun update_repay_status<C>(active: bool) acquires Status, PoolStatusEventHandle {
-        let key = key<C>();
-        update_repay_status_with(key, active);
+        update_repay_status_with(key<C>(), active);
     }
 
     public(friend) fun update_repay_status_with(key: String, active: bool) acquires Status , PoolStatusEventHandle{
@@ -226,8 +217,7 @@ module leizd::pool_status {
     }
 
     public(friend) fun update_switch_collateral_status<C>(active: bool) acquires Status, PoolStatusEventHandle {
-        let key = key<C>();
-        update_switch_collateral_status_with(key, active);
+        update_switch_collateral_status_with(key<C>(), active);
     }
 
     public(friend) fun update_switch_collateral_status_with(key: String, active: bool) acquires Status , PoolStatusEventHandle{
