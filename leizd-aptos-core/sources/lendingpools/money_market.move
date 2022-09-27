@@ -127,6 +127,7 @@ module leizd::money_market {
         };
 
         // repay shadow
+        let i = vector::length<Rebalance>(&repays);
         while (i > 0) {
             let rebalance = *vector::borrow<Rebalance>(&repays, i-1);
             shadow_pool::repay_with(rebalance::key(rebalance), account, rebalance::amount(rebalance));
@@ -155,7 +156,7 @@ module leizd::money_market {
         account_position::repay<C,P>(repayer, amount);
     }
 
-    public entry fun repay_shadow_with_rebalance<C>(account: &signer, amount: u64) {
+    public entry fun repay_shadow_with_rebalance(account: &signer, amount: u64) {
         let repayer_addr = signer::address_of(account);
         let (keys, amounts) = account_position::repay_shadow_with_rebalance(repayer_addr, amount);
         let i = vector::length<String>(&keys);

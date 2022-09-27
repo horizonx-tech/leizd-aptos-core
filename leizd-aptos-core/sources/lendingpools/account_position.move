@@ -386,7 +386,6 @@ module leizd::account_position {
         };
 
         // try to borrow and rebalance shadow
-        // let required_shadow = required_shadow(key<C>(), borrowed_asset<C>(addr), deposited_shadow<C>(addr));
         (_,borrowed_now,repaid_now,result_amount_borrowed, result_amount_repaid) = borrow_and_repay_evenly(addr, required_shadow, sum_extra_shadow);
         if (vector::length<Rebalance>(&result_amount_borrowed) != 0
             || vector::length<Rebalance>(&result_amount_repaid) != 0) {
@@ -1960,27 +1959,6 @@ module leizd::account_position {
 
         // assert!(event::counter<UpdatePositionEvent>(&borrow_global<AccountPositionEventHandle<ShadowToAsset>>(account1_addr).update_position_event) == 7, 0);
     }
-
-    // #[test(owner=@leizd,account1=@0x111)]
-    // public entry fun test_borrow_asset_with_rebalance_after_borrow_and_rebalance(owner: &signer, account1: &signer) acquires Position, AccountPositionEventHandle {
-    //     setup_for_test_to_initialize_coins(owner);
-    //     test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
-    //     let account1_addr = signer::address_of(account1);
-    //     account::create_account_for_test(account1_addr);
-
-    //     deposit_internal<WETH,Asset>(account1, account1_addr, 100000, false);
-    //     borrow_internal<WETH,Shadow>(account1_addr, 50000);
-    //     deposit_internal<UNI,Shadow>(account1, account1_addr, 50000, false);
-    //     borrow_internal<UNI,Asset>(account1_addr, 40000);
-    //     borrow_asset_with_rebalance<UNI>(account1_addr, 20000);
-    //     assert!(deposited_asset<WETH>(account1_addr) == 100000, 0);
-    //     assert!(borrowed_shadow<WETH>(account1_addr) == 60000, 0);
-    //     assert!(deposited_shadow<UNI>(account1_addr) == 60000, 0);
-    //     assert!(borrowed_asset<UNI>(account1_addr) == 60000, 0);
-
-    //     // assert!(event::counter<UpdatePositionEvent>(&borrow_global<AccountPositionEventHandle<AssetToShadow>>(account1_addr).update_position_event) == 3, 0);
-    //     // assert!(event::counter<UpdatePositionEvent>(&borrow_global<AccountPositionEventHandle<ShadowToAsset>>(account1_addr).update_position_event) == 4, 0);
-    // }
 
     // repay shadow with rebalance
     #[test(owner=@leizd,account=@0x111)]
