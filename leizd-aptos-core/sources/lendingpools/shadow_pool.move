@@ -611,11 +611,11 @@ module leizd::shadow_pool {
 
         let depositors_share = accrued_interest - protocol_share;
 
-        if(stability_pool::is_supported<C>()){
+        if(stability_pool::is_supported(key)){
             let stability_pool_support_fee = stability_pool::calculate_support_fee(accrued_interest);
             depositors_share = accrued_interest - protocol_share - stability_pool_support_fee;
             if(stability_pool_support_fee > 0) {
-                stability_pool::top_up_uncollected_fee<C>(stability_pool_support_fee);
+                stability_pool::top_up_uncollected_fee(key, stability_pool_support_fee);
             }
         };
 

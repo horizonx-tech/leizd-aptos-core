@@ -479,9 +479,8 @@ module leizd::stability_pool {
         (config.emission_per_sec, config.last_updated, config.index)
     }
 
-    public fun top_up_uncollected_fee<C>(amount: u128) acquires StabilityPool, Balance{
+    public fun top_up_uncollected_fee(key: String, amount: u128) acquires StabilityPool, Balance{
         assert!(amount > 0, error::invalid_argument(EINVALID_AMOUNT));
-        let key = key<C>();
         let owner_address = permission::owner_address();
         let pool_ref = borrow_global_mut<StabilityPool>(owner_address);
         let balance_ref = borrow_global_mut<Balance>(owner_address);
