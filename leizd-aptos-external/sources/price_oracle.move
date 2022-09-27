@@ -6,6 +6,17 @@ module leizd_aptos_external::price_oracle {
     use aptos_framework::table;
     use leizd_aptos_common::coin_key;
     use leizd_aptos_common::permission;
+    use aptos_std::event;
+    use aptos_framework::account;
+
+    struct AddAggregatorEvent has store, drop {
+        aggregator: address,
+        key: string::String
+    }
+
+    struct OracleEventHandle has key, store {
+        add_aggregator_event: event::EventHandle<AddAggregatorEvent>,
+    }
 
     struct AggregatorStorage has key {
         aggregators: table::Table<string::String, address>
@@ -14,14 +25,24 @@ module leizd_aptos_external::price_oracle {
     public entry fun initialize(owner: &signer) {
         permission::assert_owner(signer::address_of(owner));
         move_to(owner, AggregatorStorage { aggregators: table::new<string::String, address>() });
+        move_to(owner, OracleEventHandle {
+            add_aggregator_event: account::new_event_handle<AddAggregatorEvent>(owner),
+        });
     }
 
-    public entry fun add_aggregator<C>(owner: &signer, aggregator: address) acquires AggregatorStorage {
+    public entry fun add_aggregator<C>(owner: &signer, aggregator: address) acquires AggregatorStorage, OracleEventHandle {
         let owner_address = signer::address_of(owner);
         permission::assert_owner(owner_address);
         let key = coin_key::key<C>();
         let aggrs = &mut borrow_global_mut<AggregatorStorage>(owner_address).aggregators;
-        table::add<string::String, address>(aggrs, key, aggregator)
+        table::add<string::String, address>(aggrs, key, aggregator);
+        event::emit_event<AddAggregatorEvent>(
+            &mut borrow_global_mut<OracleEventHandle>(owner_address).add_aggregator_event,
+            AddAggregatorEvent {
+                aggregator: aggregator,
+                key: key
+            },
+        );        
     }
 
     fun price_from_aggregator(aggregator_addr: address): (u128, u8) {
@@ -68,16 +89,19 @@ module leizd_aptos_external::price_oracle {
     use leizd_aptos_common::test_coin::{USDC, WETH, UNI, USDT};
     #[test(owner = @leizd_aptos_external)]
     fun test_initialize(owner: &signer) {
+        account::create_account_for_test(signer::address_of(owner));
         initialize(owner);
         assert!(exists<AggregatorStorage>(signer::address_of(owner)), 0);
     }
     #[test(account = @0x111)]
     #[expected_failure(abort_code = 1)]
     fun test_initialize_with_not_owner(account: &signer) {
+        account::create_account_for_test(signer::address_of(account));
         initialize(account);
     }
     #[test(owner = @leizd_aptos_external)]
-    fun test_add_aggregator(owner: &signer) acquires AggregatorStorage {
+    fun test_add_aggregator(owner: &signer) acquires AggregatorStorage, OracleEventHandle {
+        account::create_account_for_test(signer::address_of(owner));
         initialize(owner);
         add_aggregator<USDC>(owner, @0x111AAA);
         add_aggregator<WETH>(owner, @0x222AAA);
@@ -91,7 +115,9 @@ module leizd_aptos_external::price_oracle {
     }
     #[test(owner = @leizd_aptos_external, account = @0x111)]
     #[expected_failure(abort_code = 1)]
-    fun test_add_aggregator_with_not_owner(owner: &signer, account: &signer) acquires AggregatorStorage {
+    fun test_add_aggregator_with_not_owner(owner: &signer, account: &signer) acquires AggregatorStorage, OracleEventHandle {
+        account::create_account_for_test(signer::address_of(owner));
+        account::create_account_for_test(signer::address_of(account));
         initialize(owner);
         add_aggregator<USDC>(account, @0x111AAA);
     }
@@ -117,11 +143,11 @@ module leizd_aptos_external::price_oracle {
         initialize(owner);
     }
     #[test_only] // for leizd-aptos-core
-    public fun add_aggregator_for_test<C>(owner: &signer, aggregator_addr: address) acquires AggregatorStorage {
+    public fun add_aggregator_for_test<C>(owner: &signer, aggregator_addr: address) acquires AggregatorStorage, OracleEventHandle {
         add_aggregator<C>(owner, aggregator_addr);
     }
     #[test_only]
-    public fun initialize_with_fixed_price_for_test(owner: &signer) acquires AggregatorStorage {
+    public fun initialize_with_fixed_price_for_test(owner: &signer) acquires AggregatorStorage, OracleEventHandle {
         // aggregator::new_test(owner, 1, 0, false);
         let owner_address = signer::address_of(owner);
         initialize(owner);
@@ -131,7 +157,8 @@ module leizd_aptos_external::price_oracle {
         add_aggregator<USDT>(owner, owner_address);
     }
     #[test(leizd = @leizd_aptos_external)]
-    fun test_price_after_initialize_with_fixed_price_for_test(leizd: &signer) acquires AggregatorStorage {
+    fun test_price_after_initialize_with_fixed_price_for_test(leizd: &signer) acquires AggregatorStorage, OracleEventHandle {
+        account::create_account_for_test(signer::address_of(leizd));
         initialize_with_fixed_price_for_test(leizd);
 
         // let (value, dec) = price<USDC>();
@@ -147,7 +174,8 @@ module leizd_aptos_external::price_oracle {
         // assert!(value / math::pow_10(dec) == 1, 0);
     }
     #[test(leizd = @leizd_aptos_external)]
-    fun test_price_of_after_initialize_with_fixed_price_for_test(leizd: &signer) acquires AggregatorStorage {
+    fun test_price_of_after_initialize_with_fixed_price_for_test(leizd: &signer) acquires AggregatorStorage, OracleEventHandle {
+        account::create_account_for_test(signer::address_of(leizd));
         initialize_with_fixed_price_for_test(leizd);
 
         // let (value, dec) = price_of(&type_info::type_name<USDC>());
