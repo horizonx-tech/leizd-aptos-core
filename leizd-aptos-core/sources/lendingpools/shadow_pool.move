@@ -223,18 +223,16 @@ module leizd::shadow_pool {
         assert!(is_initialized_asset_with_internal(&key_from, storage_ref), error::invalid_argument(E_NOT_INITIALIZED_COIN));
         assert!(is_initialized_asset_with_internal(&key_to, storage_ref), error::invalid_argument(E_NOT_INITIALIZED_COIN));
 
-        let deposited = &mut simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key_from).deposited;
-        *deposited = *deposited - amount;
-        let deposited = &mut simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key_to).deposited;
-        *deposited = *deposited + amount;
-
+        let storage_from = simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key_from);
+        storage_from.deposited = storage_from.deposited - amount;
         if (is_collateral_only_C1) {
-            let conly_deposited = &mut simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key_from).conly_deposited;
-            *conly_deposited = *conly_deposited - amount;
+            storage_from.conly_deposited = storage_from.conly_deposited - amount;
         };
+
+        let storage_to = simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key_to);
+        storage_to.deposited = storage_to.deposited + amount;
         if (is_collateral_only_C2) {
-            let conly_deposited = &mut simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key_to).conly_deposited;
-            *conly_deposited = *conly_deposited + amount;
+            storage_to.conly_deposited = storage_to.conly_deposited + amount;
         };
 
         event::emit_event<RebalanceEvent>(
@@ -258,14 +256,13 @@ module leizd::shadow_pool {
         assert!(is_initialized_asset_with_internal(&key_from, storage_ref), error::invalid_argument(E_NOT_INITIALIZED_COIN));
         assert!(is_initialized_asset_with_internal(&key_to, storage_ref), error::invalid_argument(E_NOT_INITIALIZED_COIN));
 
-        let borrowed = &mut simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key_from).borrowed;
-        *borrowed = *borrowed + amount;
-        let deposited = &mut simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key_to).deposited;
-        *deposited = *deposited + amount;
+        let storage_from = simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key_from);
+        storage_from.borrowed = storage_from.borrowed + amount;
 
+        let storage_to = simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key_to);
+        storage_to.deposited = storage_to.deposited + amount;
         if (is_collateral_only) {
-            let conly_deposited = &mut simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key_from).conly_deposited;
-            *conly_deposited = *conly_deposited + amount;
+            storage_to.conly_deposited = storage_to.conly_deposited + amount;
         };
 
         event::emit_event<RebalanceEvent>(
@@ -343,13 +340,13 @@ module leizd::shadow_pool {
 
         storage_ref.total_deposited = storage_ref.total_deposited - (withdrawn_amount as u128);
         assert!(is_initialized_asset_with_internal(&key, storage_ref), error::invalid_argument(E_NOT_INITIALIZED_COIN));
-        let deposited = &mut simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key).deposited;
-        *deposited = *deposited - amount;
+
+        let asset_storage = simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key);
+        asset_storage.deposited = asset_storage.deposited - amount;
 
         if (is_collateral_only) {
             storage_ref.total_conly_deposited = storage_ref.total_conly_deposited - (withdrawn_amount as u128);
-            let conly_deposited = &mut simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key).conly_deposited;
-            *conly_deposited = *conly_deposited - amount;
+            asset_storage.conly_deposited = asset_storage.conly_deposited - amount;
         };
 
         event::emit_event<WithdrawEvent>(
@@ -482,7 +479,7 @@ module leizd::shadow_pool {
             coin::merge(&mut pool_ref.shadow, withdrawn);
         };
         storage_ref.total_borrowed = storage_ref.total_borrowed - (amount as u128);
-        let borrowed = &mut simple_map::borrow_mut<String, AssetStorage>(&mut storage_ref.asset_storages, &key<C>()).borrowed;
+        let borrowed = &mut simple_map::borrow_mut<String, AssetStorage>(&mut storage_ref.asset_storages, &key).borrowed;
         *borrowed = *borrowed - amount;
 
         let account_addr = signer::address_of(account);
