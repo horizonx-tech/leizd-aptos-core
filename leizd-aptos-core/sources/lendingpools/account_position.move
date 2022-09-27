@@ -385,7 +385,7 @@ module leizd::account_position {
         let borrowed = borrowed_volume<ShadowToAsset>(addr, key1);
         let deposited = deposited_volume<ShadowToAsset>(addr, key1);
         let required_deposit = borrowed * risk_factor::precision() / risk_factor::lt_of_shadow();
-        if (deposited < required_deposit) return (false, 0, 0);
+        if (deposited <= required_deposit) return (false, 0, 0);
         let extra = deposited - required_deposit;
 
         // insufficient in key2
@@ -1496,16 +1496,19 @@ module leizd::account_position {
         assert!(deposited_shadow<UNI>(account1_addr) == 100000, 0);
         assert!(borrowed_asset<WETH>(account1_addr) == 50000, 0);
         assert!(borrowed_asset<UNI>(account1_addr) == 110000, 0);
+        assert!(event::counter<UpdatePositionEvent>(&borrow_global<AccountPositionEventHandle<ShadowToAsset>>(account1_addr).update_position_event) == 5, 0);
 
+        // execute rebalance
         let (insufficient, is_collateral_only_C1, is_collateral_only_C2) = rebalance_shadow_internal(account1_addr, key<WETH>(), key<UNI>());
         assert!(insufficient == 10000, 0);
         assert!(is_collateral_only_C1 == false, 0);
         assert!(is_collateral_only_C2 == false, 0);
-        // rebalance_shadow_internal(account1_addr, key<WETH>(), key<UNI>()); TODO: check
         assert!(deposited_shadow<WETH>(account1_addr) == 90000, 0);
         assert!(deposited_shadow<UNI>(account1_addr) == 110000, 0);
-
         assert!(event::counter<UpdatePositionEvent>(&borrow_global<AccountPositionEventHandle<ShadowToAsset>>(account1_addr).update_position_event) == 7, 0);
+
+        // not execute rebalance
+        rebalance_shadow_internal(account1_addr, key<WETH>(), key<UNI>()); // TODO: check - should be revert (?) when not necessary to rebalance
     }
     #[test(owner=@leizd, account1=@0x111, account2=@0x222)]
     public entry fun test_rebalance_shadow_with_patterns_collateral_only_or_borrowable(owner: &signer, account1: &signer, account2: &signer) acquires Position, AccountPositionEventHandle {
