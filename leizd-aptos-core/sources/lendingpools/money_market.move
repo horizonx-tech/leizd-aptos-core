@@ -794,6 +794,4 @@ module leizd::money_market {
         assert!(account_position::deposited_shadow<WETH>(account_addr) == 1000, 0);
         assert!(account_position::conly_deposited_shadow<WETH>(account_addr) == 0, 0);
     }
-    // fun test_switch_collateral_to_collateral_only_when_not_safe(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) {} // TODO
-    // fun test_switch_collateral_to_normal_for_becoming_safe(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) {} // TODO
 }
