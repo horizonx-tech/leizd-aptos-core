@@ -181,9 +181,10 @@ module leizd::money_market {
     public entry fun switch_collateral<C,P>(account: &signer, to_collateral_only: bool) {
         pool_type::assert_pool_type<P>();
 
-        let amount = account_position::switch_collateral<C,P>(signer::address_of(account), to_collateral_only);
+        let account_addr = signer::address_of(account);
+        let amount = account_position::switch_collateral<C,P>(account_addr, to_collateral_only);
         if (pool_type::is_type_asset<P>()) {
-            asset_pool::switch_collateral<C>(amount, to_collateral_only);
+            asset_pool::switch_collateral<C>(account_addr, amount, to_collateral_only);
         } else {
             shadow_pool::switch_collateral(amount, to_collateral_only);
         };
