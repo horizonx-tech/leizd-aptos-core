@@ -88,16 +88,19 @@ module leizd_aptos_external::price_oracle {
     use leizd_aptos_common::test_coin::{USDC, WETH, UNI, USDT};
     #[test(owner = @leizd_aptos_external)]
     fun test_initialize(owner: &signer) {
+        account::create_account_for_test(signer::address_of(owner));
         initialize(owner);
         assert!(exists<AggregatorStorage>(signer::address_of(owner)), 0);
     }
     #[test(account = @0x111)]
     #[expected_failure(abort_code = 1)]
     fun test_initialize_with_not_owner(account: &signer) {
+        account::create_account_for_test(signer::address_of(account));
         initialize(account);
     }
     #[test(owner = @leizd_aptos_external)]
     fun test_add_aggregator(owner: &signer) acquires AggregatorStorage, OracleEventHandle {
+        account::create_account_for_test(signer::address_of(owner));
         initialize(owner);
         add_aggregator<USDC>(owner, @0x111AAA);
         add_aggregator<WETH>(owner, @0x222AAA);
@@ -112,6 +115,8 @@ module leizd_aptos_external::price_oracle {
     #[test(owner = @leizd_aptos_external, account = @0x111)]
     #[expected_failure(abort_code = 1)]
     fun test_add_aggregator_with_not_owner(owner: &signer, account: &signer) acquires AggregatorStorage, OracleEventHandle {
+        account::create_account_for_test(signer::address_of(owner));
+        account::create_account_for_test(signer::address_of(account));
         initialize(owner);
         add_aggregator<USDC>(account, @0x111AAA);
     }
@@ -152,6 +157,7 @@ module leizd_aptos_external::price_oracle {
     }
     #[test(leizd = @leizd_aptos_external)]
     fun test_price_after_initialize_with_fixed_price_for_test(leizd: &signer) acquires AggregatorStorage, OracleEventHandle {
+        account::create_account_for_test(signer::address_of(leizd));
         initialize_with_fixed_price_for_test(leizd);
 
         // let (value, dec) = price<USDC>();
@@ -168,6 +174,7 @@ module leizd_aptos_external::price_oracle {
     }
     #[test(leizd = @leizd_aptos_external)]
     fun test_price_of_after_initialize_with_fixed_price_for_test(leizd: &signer) acquires AggregatorStorage, OracleEventHandle {
+        account::create_account_for_test(signer::address_of(leizd));
         initialize_with_fixed_price_for_test(leizd);
 
         // let (value, dec) = price_of(&type_info::type_name<USDC>());
