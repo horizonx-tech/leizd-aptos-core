@@ -8,7 +8,7 @@ module leizd::risk_factor {
     use aptos_framework::table;
     use leizd_aptos_common::permission;
     use leizd_aptos_trove::usdz::{USDZ};
-    use leizd::coin_key::{key};
+    use leizd_aptos_common::coin_key::{key};
 
     friend leizd::asset_pool;
 

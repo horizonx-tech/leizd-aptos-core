@@ -16,7 +16,7 @@ module leizd::shadow_pool {
     use leizd::risk_factor;
     use leizd::pool_status;
     use leizd::interest_rate;
-    use leizd::coin_key::{key};
+    use leizd_aptos_common::coin_key::{key};
 
     friend leizd::money_market;
 

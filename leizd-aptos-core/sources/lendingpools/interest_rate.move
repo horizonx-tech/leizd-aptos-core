@@ -9,7 +9,7 @@ module leizd::interest_rate {
     use leizd_aptos_lib::math128;
     use leizd_aptos_lib::prb_math_30x9;
     use leizd_aptos_lib::i128;
-    use leizd::coin_key::{key};
+    use leizd_aptos_common::coin_key::{key};
 
     friend leizd::asset_pool;
     friend leizd::shadow_pool;

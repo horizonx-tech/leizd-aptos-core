@@ -12,7 +12,7 @@ module leizd::stability_pool {
     use leizd_aptos_common::permission;
     use leizd_aptos_trove::usdz::{USDZ};
     use leizd::stb_usdz;
-    use leizd::coin_key::{key};
+    use leizd_aptos_common::coin_key::{key};
 
     friend leizd::asset_pool;
     friend leizd::shadow_pool;

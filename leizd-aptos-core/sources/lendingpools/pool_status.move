@@ -6,7 +6,7 @@ module leizd::pool_status {
     use leizd_aptos_common::permission;
     use leizd::system_status;
     use aptos_std::event;
-    use leizd::coin_key::{key};
+    use leizd_aptos_common::coin_key::{key};
 
     friend leizd::system_administrator;
     friend leizd::asset_pool;
