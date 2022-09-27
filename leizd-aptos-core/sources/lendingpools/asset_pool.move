@@ -33,6 +33,7 @@ module leizd::asset_pool {
     const E_NOT_AVAILABLE_STATUS: u64 = 4;
     const E_AMOUNT_ARG_IS_ZERO: u64 = 11;
     const E_INSUFFICIENT_LIQUIDITY: u64 = 12;
+    const E_INSUFFICIENT_CONLY_DEPOSITED: u64 = 13;
 
     /// Asset Pool where users can deposit and borrow.
     /// Each asset is separately deposited into a pool.
@@ -81,12 +82,18 @@ module leizd::asset_pool {
         caller: address,
         target: address,
     }
+    struct SwitchCollateralEvent has store, drop {
+        caller: address,
+        amount: u64,
+        to_collateral_only: bool,
+    }
     struct PoolEventHandle<phantom C> has key, store {
         deposit_event: event::EventHandle<DepositEvent>,
         withdraw_event: event::EventHandle<WithdrawEvent>,
         borrow_event: event::EventHandle<BorrowEvent>,
         repay_event: event::EventHandle<RepayEvent>,
         liquidate_event: event::EventHandle<LiquidateEvent>,
+        switch_collateral_event: event::EventHandle<SwitchCollateralEvent>,
     }
 
     /// Initializes a pool with the coin the owner specifies.
@@ -116,6 +123,7 @@ module leizd::asset_pool {
             borrow_event: account::new_event_handle<BorrowEvent>(owner),
             repay_event: account::new_event_handle<RepayEvent>(owner),
             liquidate_event: account::new_event_handle<LiquidateEvent>(owner),
+            switch_collateral_event: account::new_event_handle<SwitchCollateralEvent>(owner),
         });
     }
     fun default_storage<C>(): Storage<C> {
@@ -346,19 +354,32 @@ module leizd::asset_pool {
         );
     }
 
-    public(friend) fun switch_collateral<C>(amount: u64, is_collateral_only: bool) acquires Storage {
-        switch_collateral_internal<C>(amount, is_collateral_only);
+    public(friend) fun switch_collateral<C>(caller: address, amount: u64, to_collateral_only: bool) acquires Pool, Storage, PoolEventHandle {
+        switch_collateral_internal<C>(caller, amount, to_collateral_only);
     }
 
-    fun switch_collateral_internal<C>(amount: u64, is_collateral_only: bool) acquires Storage {
+    fun switch_collateral_internal<C>(caller: address, amount: u64, to_collateral_only: bool) acquires Pool, Storage, PoolEventHandle {
+        assert!(amount > 0, error::invalid_argument(E_AMOUNT_ARG_IS_ZERO));
+        // TODO: check pool_status
         let owner_address = permission::owner_address();
         let storage_ref = borrow_global_mut<Storage<C>>(owner_address);
-        if (is_collateral_only) {
-            storage_ref.total_conly_deposited = storage_ref.total_conly_deposited + (amount as u128);
+        let pool_ref = borrow_global<Pool<C>>(owner_address);
+        let amount_u128 = (amount as u128);
+        if (to_collateral_only) {
+            assert!(amount_u128 <= liquidity_internal(pool_ref, storage_ref), error::invalid_argument(E_INSUFFICIENT_LIQUIDITY));
+            storage_ref.total_conly_deposited = storage_ref.total_conly_deposited + amount_u128;
         } else {
-            storage_ref.total_conly_deposited = storage_ref.total_conly_deposited - (amount as u128);
+            assert!(amount_u128 <= storage_ref.total_conly_deposited, error::invalid_argument(E_INSUFFICIENT_CONLY_DEPOSITED));
+            storage_ref.total_conly_deposited = storage_ref.total_conly_deposited - amount_u128;
         };
-        // TODO: event
+        event::emit_event<SwitchCollateralEvent>(
+            &mut borrow_global_mut<PoolEventHandle<C>>(owner_address).switch_collateral_event,
+            SwitchCollateralEvent {
+                caller,
+                amount,
+                to_collateral_only,
+            },
+        );
     }
 
     public fun is_pool_initialized<C>(): bool {
@@ -1122,6 +1143,74 @@ module leizd::asset_pool {
 
         let event_handle = borrow_global<PoolEventHandle<WETH>>(signer::address_of(owner));
         assert!(event::counter<LiquidateEvent>(&event_handle.liquidate_event) == 1, 0);
+    }
+
+    // for switch_collateral
+    #[test(owner=@leizd, account=@0x111, aptos_framework=@aptos_framework)]
+    public entry fun test_switch_collateral(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+
+        let owner_addr = signer::address_of(owner);
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+        managed_coin::register<WETH>(account);
+        managed_coin::mint<WETH>(owner, account_addr, 1000);
+
+        deposit_for_internal<WETH>(account, account_addr, 1000, false);
+        assert!(total_deposited<WETH>() == 1000, 0);
+        assert!(liquidity<WETH>() == 1000, 0);
+        assert!(total_conly_deposited<WETH>() == 0, 0);
+
+        switch_collateral<WETH>(account_addr, 800, true);
+        assert!(total_deposited<WETH>() == 1000, 0);
+        assert!(liquidity<WETH>() == 200, 0);
+        assert!(total_conly_deposited<WETH>() == 800, 0);
+        assert!(event::counter<SwitchCollateralEvent>(&borrow_global<PoolEventHandle<WETH>>(owner_addr).switch_collateral_event) == 1, 0);
+
+        switch_collateral<WETH>(account_addr, 400, false);
+        assert!(total_deposited<WETH>() == 1000, 0);
+        assert!(liquidity<WETH>() == 600, 0);
+        assert!(total_conly_deposited<WETH>() == 400, 0);
+        assert!(event::counter<SwitchCollateralEvent>(&borrow_global<PoolEventHandle<WETH>>(owner_addr).switch_collateral_event) == 2, 0);
+    }
+    #[test(owner=@leizd, account=@0x111, aptos_framework=@aptos_framework)]
+    #[expected_failure(abort_code = 65547)]
+    public entry fun test_switch_collateral_when_amount_is_zero(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+        managed_coin::register<WETH>(account);
+        managed_coin::mint<WETH>(owner, account_addr, 1000);
+
+        deposit_for_internal<WETH>(account, account_addr, 1000, false);
+        switch_collateral<WETH>(account_addr, 0, true);
+    }
+    #[test(owner=@leizd, account=@0x111, aptos_framework=@aptos_framework)]
+    #[expected_failure(abort_code = 65548)]
+    public entry fun test_switch_collateral_to_collateral_only_with_more_than_deposited_amount(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+        managed_coin::register<WETH>(account);
+        managed_coin::mint<WETH>(owner, account_addr, 1000);
+
+        deposit_for_internal<WETH>(account, account_addr, 1000, false);
+        switch_collateral<WETH>(account_addr, 1001, true);
+    }
+    #[test(owner=@leizd, account=@0x111, aptos_framework=@aptos_framework)]
+    #[expected_failure(abort_code = 65549)]
+    public entry fun test_switch_collateral_to_normal_with_more_than_deposited_amount(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+        managed_coin::register<WETH>(account);
+        managed_coin::mint<WETH>(owner, account_addr, 1000);
+
+        deposit_for_internal<WETH>(account, account_addr, 1000, true);
+        switch_collateral<WETH>(account_addr, 1001, false);
     }
 
     // for common validations

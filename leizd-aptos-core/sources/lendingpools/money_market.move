@@ -181,13 +181,12 @@ module leizd::money_market {
     public entry fun switch_collateral<C,P>(account: &signer, to_collateral_only: bool) {
         pool_type::assert_pool_type<P>();
 
-        let addr = signer::address_of(account);
-        let amount = account_position::switch_collateral<C,P>(addr, to_collateral_only);
-        let is_shadow = pool_type::is_type_shadow<P>();
-        if (is_shadow) {
-            shadow_pool::switch_collateral(amount, to_collateral_only);
+        let account_addr = signer::address_of(account);
+        let amount = account_position::switch_collateral<C,P>(account_addr, to_collateral_only);
+        if (pool_type::is_type_asset<P>()) {
+            asset_pool::switch_collateral<C>(account_addr, amount, to_collateral_only);
         } else {
-            asset_pool::switch_collateral<C>(amount, to_collateral_only);
+            shadow_pool::switch_collateral<C>(account_addr, amount, to_collateral_only);
         };
     }
 
@@ -752,28 +751,49 @@ module leizd::money_market {
         liquidate<WETH, Shadow>(liquidator, borrower_addr);
     }
     #[test(owner=@leizd,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
-    fun test_switch_collateral(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) {
+    fun test_switch_collateral_to_collateral_only(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) {
         initialize_lending_pool_for_test(owner, aptos_framework);
         setup_liquidity_provider_for_test(owner, lp);
         setup_account_for_test(account);
         let account_addr = signer::address_of(account);
-        managed_coin::mint<WETH>(owner, account_addr, 100);
+        managed_coin::mint<WETH>(owner, account_addr, 1000);
 
         // prerequisite
-        deposit<WETH, Shadow>(lp, 200, false);
-        //// check risk_factor
-        assert!(risk_factor::lt<WETH>() == risk_factor::default_lt(), 0);
-        assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
+        deposit<WETH, Asset>(account, 1000, false);
+        assert!(asset_pool::total_deposited<WETH>() == 1000, 0);
+        assert!(asset_pool::total_conly_deposited<WETH>() == 0, 0);
+        assert!(account_position::deposited_asset<WETH>(account_addr) == 1000, 0);
+        assert!(account_position::conly_deposited_asset<WETH>(account_addr) == 0, 0);
 
         // execute
-        deposit<WETH, Asset>(account, 100, false);
-        borrow<WETH, Shadow>(account, 59);
         switch_collateral<WETH, Asset>(account, true);
-
-        assert!(asset_pool::total_deposited<WETH>() == 100, 0);
-        assert!(asset_pool::total_conly_deposited<WETH>() == 100, 0);
-        assert!(shadow_pool::total_borrowed() == 60, 0); // 59+fee
-        assert!(account_position::deposited_asset<WETH>(account_addr) == 100, 0);
-        assert!(account_position::conly_deposited_asset<WETH>(account_addr) == 100, 0);
+        assert!(asset_pool::total_deposited<WETH>() == 1000, 0);
+        assert!(asset_pool::total_conly_deposited<WETH>() == 1000, 0);
+        assert!(account_position::deposited_asset<WETH>(account_addr) == 1000, 0);
+        assert!(account_position::conly_deposited_asset<WETH>(account_addr) == 1000, 0);
     }
+    #[test(owner=@leizd,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
+    fun test_switch_collateral_to_normal(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) {
+        initialize_lending_pool_for_test(owner, aptos_framework);
+        setup_liquidity_provider_for_test(owner, lp);
+        setup_account_for_test(account);
+        let account_addr = signer::address_of(account);
+        usdz::mint_for_test(account_addr, 1000);
+
+        // prerequisite
+        deposit<WETH, Shadow>(account, 1000, true);
+        assert!(shadow_pool::deposited<WETH>() == 1000, 0);
+        assert!(shadow_pool::conly_deposited<WETH>() == 1000, 0);
+        assert!(account_position::deposited_shadow<WETH>(account_addr) == 1000, 0);
+        assert!(account_position::conly_deposited_shadow<WETH>(account_addr) == 1000, 0);
+
+        // execute
+        switch_collateral<WETH, Shadow>(account, false);
+        assert!(shadow_pool::deposited<WETH>() == 1000, 0);
+        assert!(shadow_pool::conly_deposited<WETH>() == 0, 0);
+        assert!(account_position::deposited_shadow<WETH>(account_addr) == 1000, 0);
+        assert!(account_position::conly_deposited_shadow<WETH>(account_addr) == 0, 0);
+    }
+    // fun test_switch_collateral_to_collateral_only_when_not_safe(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) {} // TODO
+    // fun test_switch_collateral_to_normal_for_becoming_safe(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) {} // TODO
 }
