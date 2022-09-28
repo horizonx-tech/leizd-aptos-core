@@ -45,6 +45,10 @@ module leizd::asset_pool {
     /// in this struct. The collateral only asset is separately managed
     /// to calculate the borrowable amount in the pool.
     /// C: The coin type of the pool e.g. WETH / APT / USDC
+    /// NOTE: difference xxx_amount and xxx_share
+    ///   `amount` is total deposited including interest (so basically always increasing by accrue_interest in all action)
+    ///   `share` is user's proportional share to calculate amount to withdraw from total deposited `amount`
+    ///    therefore, when calculating the latest available capacity, calculate after converting user's `share` to user's `amount`
     struct Storage<phantom C> has key {
         total_deposited_amount: u128, // borrowable + collateral only
         total_normal_deposited_amount: u128, // borrowable
@@ -153,21 +157,22 @@ module leizd::asset_pool {
         for_address: address,
         amount: u64,
         is_collateral_only: bool,
-    ) acquires Pool, Storage, PoolEventHandle {
+    ): (u64, u64) acquires Pool, Storage, PoolEventHandle {
         deposit_for_internal<C>(
             account,
             for_address,
             amount,
             is_collateral_only
-        );
+        )
     }
 
+    /// @returns (amount, share (calculated by amount in this args))
     fun deposit_for_internal<C>(
         account: &signer,
         for_address: address, // only use for event
         amount: u64,
         is_collateral_only: bool,
-    ) acquires Pool, Storage, PoolEventHandle {
+    ): (u64, u64) acquires Pool, Storage, PoolEventHandle {
         assert!(pool_status::can_deposit<C>(), error::invalid_state(E_NOT_AVAILABLE_STATUS));
         assert!(amount > 0, error::invalid_argument(E_AMOUNT_ARG_IS_ZERO));
 
@@ -179,15 +184,17 @@ module leizd::asset_pool {
 
         coin::merge(&mut pool_ref.asset, coin::withdraw<C>(account, amount));
         storage_ref.total_deposited_amount = storage_ref.total_deposited_amount + (amount as u128);
+        let user_share_u128: u128;
         if (is_collateral_only) {
-            let user_share = math128::to_share((amount as u128), storage_ref.total_conly_deposited_amount, storage_ref.total_conly_deposited_share);
+            user_share_u128 = math128::to_share((amount as u128), storage_ref.total_conly_deposited_amount, storage_ref.total_conly_deposited_share);
             storage_ref.total_conly_deposited_amount = storage_ref.total_conly_deposited_amount + (amount as u128);
-            storage_ref.total_conly_deposited_share = storage_ref.total_conly_deposited_share + user_share;
+            storage_ref.total_conly_deposited_share = storage_ref.total_conly_deposited_share + user_share_u128;
         } else {
-            let user_share = math128::to_share((amount as u128), storage_ref.total_normal_deposited_amount, storage_ref.total_normal_deposited_share);
+            user_share_u128 = math128::to_share((amount as u128), storage_ref.total_normal_deposited_amount, storage_ref.total_normal_deposited_share);
             storage_ref.total_normal_deposited_amount = storage_ref.total_normal_deposited_amount + (amount as u128);
-            storage_ref.total_normal_deposited_share = storage_ref.total_normal_deposited_share + user_share;
+            storage_ref.total_normal_deposited_share = storage_ref.total_normal_deposited_share + user_share_u128;
         };
+
         event::emit_event<DepositEvent>(
             &mut borrow_global_mut<PoolEventHandle<C>>(owner_address).deposit_event,
             DepositEvent {
@@ -197,6 +204,8 @@ module leizd::asset_pool {
                 is_collateral_only,
             },
         );
+
+        (amount, (user_share_u128 as u64))
     }
 
     /// Withdraws an asset or a shadow from the pool.

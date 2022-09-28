@@ -39,12 +39,13 @@ module leizd::money_market {
     ) {
         pool_type::assert_pool_type<P>();
 
+        let user_share: u64;
         if (pool_type::is_type_asset<P>()) {
-            asset_pool::deposit_for<C>(account, depositor_addr, amount, is_collateral_only);
+            (_, user_share) = asset_pool::deposit_for<C>(account, depositor_addr, amount, is_collateral_only);
         } else {
-            shadow_pool::deposit_for<C>(account, depositor_addr, amount, is_collateral_only);
+            (_, user_share) = shadow_pool::deposit_for<C>(account, depositor_addr, amount, is_collateral_only);
         };
-        account_position::deposit<C,P>(account, depositor_addr, amount, is_collateral_only);
+        account_position::deposit<C,P>(account, depositor_addr, user_share, is_collateral_only);
     }
 
     /// Withdraws an asset or a shadow from the pool.

@@ -151,9 +151,9 @@ module leizd::shadow_pool {
         for_address: address, // only use for event
         amount: u64,
         is_collateral_only: bool
-    ) acquires Pool, Storage, PoolEventHandle {
+    ): (u64, u64) acquires Pool, Storage, PoolEventHandle {
         let key = key<C>();
-        deposit_for_internal(key, account, for_address, amount, is_collateral_only);
+        deposit_for_internal(key, account, for_address, amount, is_collateral_only)
     }
 
     public(friend) fun deposit_for_with(
@@ -162,17 +162,18 @@ module leizd::shadow_pool {
         for_address: address,
         amount: u64,
         is_collateral_only: bool,
-    ) acquires Pool, Storage, PoolEventHandle {
-        deposit_for_internal(key, account, for_address, amount, is_collateral_only);
+    ): (u64, u64) acquires Pool, Storage, PoolEventHandle {
+        deposit_for_internal(key, account, for_address, amount, is_collateral_only)
     }
 
+    /// @returns (amount, share (calculated by amount in this args))
     fun deposit_for_internal(
         key: String,
         account: &signer,
         for_address: address,
         amount: u64,
         is_collateral_only: bool,
-    ) acquires Pool, Storage, PoolEventHandle {
+    ): (u64, u64) acquires Pool, Storage, PoolEventHandle {
         assert!(pool_status::can_deposit_with(key), error::invalid_state(E_NOT_AVAILABLE_STATUS));
         assert!(amount > 0, error::invalid_argument(E_AMOUNT_ARG_IS_ZERO));
 
@@ -189,14 +190,15 @@ module leizd::shadow_pool {
 
         storage_ref.total_deposited = storage_ref.total_deposited + (amount as u128);
         asset_storage.deposited = asset_storage.deposited + amount;
+        let user_share: u64;
         if (is_collateral_only) {
             storage_ref.total_conly_deposited = storage_ref.total_conly_deposited + (amount as u128);
-            let user_share = math64::to_share(amount, asset_storage.conly_deposited_amount, asset_storage.conly_deposited_share);
+            user_share = math64::to_share(amount, asset_storage.conly_deposited_amount, asset_storage.conly_deposited_share);
             asset_storage.conly_deposited_amount = asset_storage.conly_deposited_amount + amount;
             asset_storage.conly_deposited_share = asset_storage.conly_deposited_share + user_share;
         } else {
             storage_ref.total_normal_deposited = storage_ref.total_normal_deposited + (amount as u128);
-            let user_share = math64::to_share(amount, asset_storage.normal_deposited_amount, asset_storage.normal_deposited_share);
+            user_share = math64::to_share(amount, asset_storage.normal_deposited_amount, asset_storage.normal_deposited_share);
             asset_storage.normal_deposited_amount = asset_storage.normal_deposited_amount + amount;
             asset_storage.normal_deposited_share = asset_storage.normal_deposited_share + user_share;
         };
@@ -211,6 +213,8 @@ module leizd::shadow_pool {
                 is_collateral_only,
             },
         );
+
+        (amount, user_share)
     }
     fun initialize_for_asset_if_necessary(key: String, storage_ref: &mut Storage) {
         if (!is_initialized_asset_with_internal(&key, storage_ref)) {
