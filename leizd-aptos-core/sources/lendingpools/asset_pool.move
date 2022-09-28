@@ -214,7 +214,7 @@ module leizd::asset_pool {
         receiver_addr: address,
         amount: u64,
         is_collateral_only: bool
-    ): u64 acquires Pool, Storage, PoolEventHandle {
+    ): (u64, u64) acquires Pool, Storage, PoolEventHandle {
         withdraw_for_internal<C>(
             caller_addr,
             receiver_addr,
@@ -224,13 +224,14 @@ module leizd::asset_pool {
         )
     }
 
+    /// @returns (amount, share (calculated by amount in this args))
     fun withdraw_for_internal<C>(
         caller_addr: address,
         receiver_addr: address,
         amount: u64,
         is_collateral_only: bool,
         liquidation_fee: u64,
-    ): u64 acquires Pool, Storage, PoolEventHandle {
+    ): (u64, u64) acquires Pool, Storage, PoolEventHandle {
         assert!(pool_status::can_withdraw<C>(), error::invalid_state(E_NOT_AVAILABLE_STATUS));
         assert!(amount > 0, error::invalid_argument(E_AMOUNT_ARG_IS_ZERO));
 
@@ -254,16 +255,17 @@ module leizd::asset_pool {
         //     withdrawn_amount = (amount as u128);
         // };
 
-        let withdrawn_amount = (amount as u128);
-        storage_ref.total_deposited_amount = storage_ref.total_deposited_amount - withdrawn_amount;
+        let amount_u128 = (amount as u128);
+        storage_ref.total_deposited_amount = storage_ref.total_deposited_amount - amount_u128;
+        let withdrawn_user_share_u128: u128;
         if (is_collateral_only) {
-            let withdrawn_share = math128::to_share_roundup(withdrawn_amount, storage_ref.total_conly_deposited_amount, storage_ref.total_conly_deposited_share);
-            storage_ref.total_conly_deposited_amount = storage_ref.total_conly_deposited_amount - withdrawn_amount;
-            storage_ref.total_conly_deposited_share = storage_ref.total_conly_deposited_share - withdrawn_share;
+            withdrawn_user_share_u128 = math128::to_share_roundup(amount_u128, storage_ref.total_conly_deposited_amount, storage_ref.total_conly_deposited_share);
+            storage_ref.total_conly_deposited_amount = storage_ref.total_conly_deposited_amount - amount_u128;
+            storage_ref.total_conly_deposited_share = storage_ref.total_conly_deposited_share - withdrawn_user_share_u128;
         } else {
-            let withdrawn_share = math128::to_share_roundup(withdrawn_amount, storage_ref.total_normal_deposited_amount, storage_ref.total_normal_deposited_amount);
-            storage_ref.total_normal_deposited_amount = storage_ref.total_normal_deposited_amount - withdrawn_amount;
-            storage_ref.total_normal_deposited_share = storage_ref.total_normal_deposited_share - withdrawn_share;
+            withdrawn_user_share_u128 = math128::to_share_roundup(amount_u128, storage_ref.total_normal_deposited_amount, storage_ref.total_normal_deposited_amount);
+            storage_ref.total_normal_deposited_amount = storage_ref.total_normal_deposited_amount - amount_u128;
+            storage_ref.total_normal_deposited_share = storage_ref.total_normal_deposited_share - withdrawn_user_share_u128;
         };
 
         event::emit_event<WithdrawEvent>(
@@ -275,7 +277,8 @@ module leizd::asset_pool {
                 is_collateral_only,
             },
         );
-        (withdrawn_amount as u64)
+
+        (amount, (withdrawn_user_share_u128 as u64))
     }
 
     /// Borrows an asset or a shadow from the pool.

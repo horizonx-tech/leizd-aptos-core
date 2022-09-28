@@ -66,12 +66,13 @@ module leizd::money_market {
         pool_type::assert_pool_type<P>();
 
         let depositor_addr = signer::address_of(account);
+        let user_share: u64;
         if (pool_type::is_type_asset<P>()) {
-            amount = asset_pool::withdraw_for<C>(depositor_addr, receiver_addr, amount, is_collateral_only);
+            (_, user_share) = asset_pool::withdraw_for<C>(depositor_addr, receiver_addr, amount, is_collateral_only);
         } else {
-            amount = shadow_pool::withdraw_for<C>(depositor_addr, receiver_addr, amount, is_collateral_only, 0);
+            (_, user_share) = shadow_pool::withdraw_for<C>(depositor_addr, receiver_addr, amount, is_collateral_only, 0);
         };
-        account_position::withdraw<C,P>(depositor_addr, amount, is_collateral_only);
+        account_position::withdraw<C,P>(depositor_addr, user_share, is_collateral_only);
     }
 
     /// Borrow an asset or a shadow from the pool.

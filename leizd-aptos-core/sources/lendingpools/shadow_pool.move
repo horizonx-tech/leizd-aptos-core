@@ -306,7 +306,7 @@ module leizd::shadow_pool {
         amount: u64,
         is_collateral_only: bool,
         liquidation_fee: u64
-    ): u64 acquires Pool, Storage, PoolEventHandle {
+    ): (u64, u64) acquires Pool, Storage, PoolEventHandle {
         let key = key<C>();
         withdraw_for_internal(
             key,
@@ -325,10 +325,11 @@ module leizd::shadow_pool {
         amount: u64,
         is_collateral_only: bool,
         liquidation_fee: u64
-    ): u64 acquires Pool, Storage, PoolEventHandle {
+    ): (u64, u64) acquires Pool, Storage, PoolEventHandle {
         withdraw_for_internal(key, depositor_addr, reciever_addr, amount, is_collateral_only, liquidation_fee)
     }
 
+    /// @returns (amount, share (calculated by amount in this args))
     fun withdraw_for_internal(
         key: String,
         depositor_addr: address,
@@ -336,7 +337,7 @@ module leizd::shadow_pool {
         amount: u64,
         is_collateral_only: bool,
         liquidation_fee: u64
-    ): u64 acquires Pool, Storage, PoolEventHandle {
+    ): (u64, u64) acquires Pool, Storage, PoolEventHandle {
         assert!(pool_status::can_withdraw_with(key), error::invalid_state(E_NOT_AVAILABLE_STATUS));
         assert!(amount > 0, error::invalid_argument(E_AMOUNT_ARG_IS_ZERO));
 
@@ -362,20 +363,21 @@ module leizd::shadow_pool {
 
         assert!(is_initialized_asset_with_internal(&key, storage_ref), error::invalid_argument(E_NOT_INITIALIZED_COIN));
 
-        let withdrawn_amount = (amount as u128);
+        let amount_u128 = (amount as u128);
         let asset_storage = simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key);
-        storage_ref.total_deposited = storage_ref.total_deposited - withdrawn_amount;
+        storage_ref.total_deposited = storage_ref.total_deposited - amount_u128;
         asset_storage.deposited = asset_storage.deposited - amount;
+        let withdrawn_user_share: u64;
         if (is_collateral_only) {
-            storage_ref.total_conly_deposited = storage_ref.total_conly_deposited - withdrawn_amount;
-            let user_share = math64::to_share_roundup(amount, asset_storage.conly_deposited_amount, asset_storage.conly_deposited_share);
+            storage_ref.total_conly_deposited = storage_ref.total_conly_deposited - amount_u128;
+            withdrawn_user_share = math64::to_share_roundup(amount, asset_storage.conly_deposited_amount, asset_storage.conly_deposited_share);
             asset_storage.conly_deposited_amount = asset_storage.conly_deposited_amount - amount;
-            asset_storage.conly_deposited_share = asset_storage.conly_deposited_share - user_share;
+            asset_storage.conly_deposited_share = asset_storage.conly_deposited_share - withdrawn_user_share;
         } else {
-            storage_ref.total_normal_deposited = storage_ref.total_normal_deposited - withdrawn_amount;
-            let user_share = math64::to_share_roundup(amount, asset_storage.normal_deposited_amount, asset_storage.normal_deposited_share);
+            storage_ref.total_normal_deposited = storage_ref.total_normal_deposited - amount_u128;
+            withdrawn_user_share = math64::to_share_roundup(amount, asset_storage.normal_deposited_amount, asset_storage.normal_deposited_share);
             asset_storage.normal_deposited_amount = asset_storage.normal_deposited_amount - amount;
-            asset_storage.normal_deposited_share = asset_storage.normal_deposited_share - user_share;
+            asset_storage.normal_deposited_share = asset_storage.normal_deposited_share - withdrawn_user_share;
         };
 
         event::emit_event<WithdrawEvent>(
@@ -388,7 +390,7 @@ module leizd::shadow_pool {
                 is_collateral_only,
             },
         );
-        (withdrawn_amount as u64)
+        (amount, withdrawn_user_share)
     }
 
     public(friend) fun borrow_for<C>(
