@@ -200,6 +200,14 @@ module leizd::account_position {
         let result_amount_withdrawed = vector::empty<Rebalance>();
         let i = vector::length<String>(&coins);
         let sum_extra_shadow = 0;
+        // TODO: remove protected coins like the below
+        // while (i > 0) {
+        //     let key = vector::borrow<String>(coins, i-1);
+        //     if (!is_protected_internal(protected_coins, *key)) {
+        //         sum_repayable_shadow = sum_repayable_shadow + borrowed_shadow_with(*key, addr);
+        //     };
+        //     i = i - 1;
+        // };
         while (i > 0) {
             let key = vector::borrow<String>(&coins, i-1);
             sum_extra_shadow = sum_extra_shadow + extra_shadow(*key, addr);
@@ -342,41 +350,36 @@ module leizd::account_position {
     public(friend) fun repay_shadow_with_rebalance(addr: address, amount: u64): (vector<String>, vector<u64>) acquires Position, AccountPositionEventHandle {
         let position_ref = borrow_global<Position<AssetToShadow>>(addr);
         let coins = position_ref.coins;
-        let protected_coins = position_ref.protected_coins;
 
-        let sum_repayable_shadow = sum_repayable_shadow(&coins, &protected_coins, addr);        
+        let sum_repayable_shadow = sum_repayable_shadow(&coins, addr);        
         if (sum_repayable_shadow <= amount) {
-            repay_all(&coins, &protected_coins, addr)
+            repay_all(&coins, addr)
         } else {
-            repay_to_even_out(&coins, &protected_coins, addr, amount, sum_repayable_shadow)
+            repay_to_even_out(&coins, addr, amount, sum_repayable_shadow)
         }
     }
 
-    fun sum_repayable_shadow(coins: &vector<String>, protected_coins: &SimpleMap<String,bool>, addr: address): u64 acquires Position {
+    fun sum_repayable_shadow(coins: &vector<String>, addr: address): u64 acquires Position {
         let i = vector::length<String>(coins);
         let sum_repayable_shadow = 0;
         while (i > 0) {
             let key = vector::borrow<String>(coins, i-1);
-            if (!is_protected_internal(protected_coins, *key)) {
-                sum_repayable_shadow = sum_repayable_shadow + borrowed_shadow_with(*key, addr);
-            };
+            sum_repayable_shadow = sum_repayable_shadow + borrowed_shadow_with(*key, addr);
             i = i - 1;
         };
         sum_repayable_shadow
     }
 
-    fun repay_all(coins: &vector<String>, protected_coins: &SimpleMap<String,bool>, addr: address): (vector<String>, vector<u64>) acquires Position, AccountPositionEventHandle {
+    fun repay_all(coins: &vector<String>, addr: address): (vector<String>, vector<u64>) acquires Position, AccountPositionEventHandle {
         let repay_keys = vector::empty<String>();
         let repay_amounts = vector::empty<u64>();
         let i = vector::length<String>(coins);
         while (i > 0) {
             let key = vector::borrow<String>(coins, i-1);
-            if (!is_protected_internal(protected_coins, *key)) {
-                let repayable = borrowed_shadow_with(*key, addr);
-                update_position_for_repay<AssetToShadow>(*key, addr, repayable);
-                vector::push_back<String>(&mut repay_keys, *key);
-                vector::push_back<u64>(&mut repay_amounts, repayable);
-            };
+            let repayable = borrowed_shadow_with(*key, addr);
+            update_position_for_repay<AssetToShadow>(*key, addr, repayable);
+            vector::push_back<String>(&mut repay_keys, *key);
+            vector::push_back<u64>(&mut repay_amounts, repayable);
             i = i - 1;
         };
         (repay_keys, repay_amounts)
@@ -384,7 +387,6 @@ module leizd::account_position {
 
     fun repay_to_even_out(
         coins: &vector<String>,
-        protected_coins: &SimpleMap<String,bool>,
         addr: address,
         amount: u64,
         sum_repayable_shadow: u64
@@ -397,12 +399,10 @@ module leizd::account_position {
         let each_debt = debt_left / i;
         while (i > 0) {
             let key = vector::borrow<String>(coins, i-1);
-            if (!is_protected_internal(protected_coins, *key)) { 
-                let repayable = borrowed_shadow_with(*key, addr) - each_debt;
-                update_position_for_repay<AssetToShadow>(*key, addr, repayable);
-                vector::push_back<String>(&mut result_key, *key);
-                vector::push_back<u64>(&mut result_amount, repayable);
-            };
+            let repayable = borrowed_shadow_with(*key, addr) - each_debt;
+            update_position_for_repay<AssetToShadow>(*key, addr, repayable);
+            vector::push_back<String>(&mut result_key, *key);
+            vector::push_back<u64>(&mut result_amount, repayable);
             i = i - 1;
         };
         (result_key, result_amount)
@@ -1442,23 +1442,20 @@ module leizd::account_position {
         // execute
         deposit_internal<WETH,Asset>(account, account_addr, 10000, false);
         borrow_internal<WETH,Shadow>(account, account_addr, 6999);
-        deposit_internal<UNI,Asset>(account, account_addr, 10000, false);
-        borrow_internal<UNI,Shadow>(account, account_addr, 6999);
+        deposit_internal<UNI,Shadow>(account, account_addr, 10000, false);
+        borrow_internal<UNI,Asset>(account, account_addr, 6999);
         deposit_internal<USDC,Asset>(account, account_addr, 10000, false);
         borrow_internal<USDC,Shadow>(account, account_addr, 6999);
         unable_to_rebalance<UNI>(account);
 
         repay_shadow_with_rebalance(account_addr, 6000);
-        debug::print(&borrowed_shadow<WETH>(account_addr));
-        debug::print(&borrowed_shadow<UNI>(account_addr));
         assert!(deposited_asset<WETH>(account_addr) == 10000, 0);
         assert!(borrowed_shadow<WETH>(account_addr) == 3999, 0);
-        assert!(deposited_asset<UNI>(account_addr) == 10000, 0);
-        assert!(borrowed_shadow<UNI>(account_addr) == 6999, 0);
+        assert!(deposited_shadow<UNI>(account_addr) == 10000, 0);
+        assert!(borrowed_asset<UNI>(account_addr) == 6999, 0);
         assert!(deposited_asset<USDC>(account_addr) == 10000, 0);
         assert!(borrowed_shadow<USDC>(account_addr) == 3999, 0);
     }
-    use std::debug;
 
     // for liquidation
     #[test(owner=@leizd,account=@0x111)]
