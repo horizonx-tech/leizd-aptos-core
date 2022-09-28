@@ -489,7 +489,7 @@ module leizd::stability_pool {
         (config.emission_per_sec, config.last_updated, config.index)
     }
 
-    public(friend) fun collect_support_fee(key: String, coin: coin::Coin<USDZ>, uncollected: u128) acquires StabilityPool, Balance{
+    public(friend) fun collect_support_fee(key: String, coin: coin::Coin<USDZ>, uncollected: u128) acquires StabilityPool, Balance {
         let owner_address = permission::owner_address();
         let balance_ref = borrow_global_mut<Balance>(owner_address);
         let pool_ref = borrow_global_mut<StabilityPool>(owner_address);
@@ -1295,7 +1295,7 @@ module leizd::stability_pool {
         assert!(calculate_entry_fee(1) == 1, 0);
         assert!(calculate_entry_fee(0) == 0, 0);
 
-        update_config(owner, 0, 0);
+        update_config(owner, 0, support_fee());
         assert!(calculate_entry_fee(100000) == 0, 0);
         assert!(calculate_entry_fee(1) == 0, 0);
     }
@@ -1320,7 +1320,7 @@ module leizd::stability_pool {
         assert!(calculate_support_fee(1) == 1, 0);
         assert!(calculate_support_fee(0) == 0, 0);
 
-        update_config(owner, 0, 0);
+        update_config(owner, entry_fee(), 0);
         assert!(calculate_support_fee(100000) == 0, 0);
         assert!(calculate_support_fee(1) == 0, 0);
     }
