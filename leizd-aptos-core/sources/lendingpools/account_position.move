@@ -16,7 +16,10 @@ module leizd::account_position {
     use leizd_aptos_external::price_oracle;
     use leizd_aptos_trove::usdz::{USDZ};
     use leizd_aptos_lib::constant;
+    use leizd_aptos_lib::math64;
     use leizd::risk_factor;
+    use leizd::asset_pool;
+    use leizd::shadow_pool;
 
     friend leizd::money_market;
 
@@ -40,8 +43,8 @@ module leizd::account_position {
     }
 
     struct Balance has store, drop {
-        deposited: u64,
-        conly_deposited: u64,
+        deposited_share: u64, // TODO: only normal
+        conly_deposited_share: u64,
         borrowed: u64,
     }
 
@@ -655,7 +658,16 @@ module leizd::account_position {
     fun deposited_volume<P>(addr: address, key: String): u64 acquires Position {
         let position_ref = borrow_global_mut<Position<P>>(addr);
         if (vector::contains<String>(&position_ref.coins, &key)) {
-            let deposited = simple_map::borrow<String,Balance>(&position_ref.balance, &key).deposited;
+            let deposited_share = simple_map::borrow<String,Balance>(&position_ref.balance, &key).deposited_share;
+            let (total_amount, total_shares): (u128, u128);
+            if (pool_type::is_type_asset<P>()) {
+                total_amount = asset_pool::total_normal_deposited_internal(key);
+                total_shares = asset_pool::total_normal_deposited_share_internal(key);
+            } else {
+                total_amount = (shadow_pool::normal_deposited_with(key) as u128);
+                total_shares = (shadow_pool::normal_deposited_share_with(key) as u128);
+            };
+            let deposited = math64::to_amount(deposited_share, (total_amount as u64), (total_shares as u64));
             price_oracle::volume(&key, deposited)
         } else {
             0
@@ -710,9 +722,9 @@ module leizd::account_position {
         let position_ref = borrow_global_mut<Position<P>>(addr);
         if (vector::contains<String>(&position_ref.coins, &key)) {
             let balance_ref = simple_map::borrow_mut<String,Balance>(&mut position_ref.balance, &key);
-            balance_ref.deposited = balance_ref.deposited + amount;
+            balance_ref.deposited_share = balance_ref.deposited_share + amount;
             if (is_collateral_only) {
-                balance_ref.conly_deposited = balance_ref.conly_deposited + amount;
+                balance_ref.conly_deposited_share = balance_ref.conly_deposited_share + amount;
             };
             emit_update_position_event<P>(addr, key, balance_ref);
         } else {
@@ -723,11 +735,11 @@ module leizd::account_position {
     fun update_position_for_withdraw<P>(key: String, addr: address, amount: u64, is_collateral_only: bool): u64 acquires Position, AccountPositionEventHandle {
         let position_ref = borrow_global_mut<Position<P>>(addr);
         let balance_ref = simple_map::borrow_mut<String,Balance>(&mut position_ref.balance, &key);
-        amount = if (amount == constant::u64_max()) balance_ref.deposited else amount;
-        assert!(balance_ref.deposited >= amount, error::invalid_argument(EOVER_DEPOSITED_AMOUNT));
-        balance_ref.deposited = balance_ref.deposited - amount;
+        amount = if (amount == constant::u64_max()) balance_ref.deposited_share else amount; // TODO: convert to amount ?
+        assert!(balance_ref.deposited_share >= amount, error::invalid_argument(EOVER_DEPOSITED_AMOUNT));
+        balance_ref.deposited_share = balance_ref.deposited_share - amount;
         if (is_collateral_only) {
-            balance_ref.conly_deposited = balance_ref.conly_deposited - amount;
+            balance_ref.conly_deposited_share = balance_ref.conly_deposited_share - amount;
         };
         emit_update_position_event<P>(addr, key, balance_ref);
         remove_balance_if_unused<P>(addr, key);
@@ -761,8 +773,8 @@ module leizd::account_position {
             &mut borrow_global_mut<AccountPositionEventHandle<P>>(addr).update_position_event,
             UpdatePositionEvent {
                 key,
-                deposited: balance_ref.deposited,
-                conly_deposited: balance_ref.conly_deposited,
+                deposited: balance_ref.deposited_share, // TODO: convert to amount ?
+                conly_deposited: balance_ref.conly_deposited_share, // TODO: convert to amount ?
                 borrowed: balance_ref.borrowed,
             },
         );
@@ -774,8 +786,8 @@ module leizd::account_position {
 
         let conly_amount = if (is_collateral_only) deposit else 0;
         simple_map::add<String,Balance>(&mut position_ref.balance, key, Balance {
-            deposited: deposit,
-            conly_deposited: conly_amount,
+            deposited_share: deposit,
+            conly_deposited_share: conly_amount,
             borrowed: borrow,
         });
         emit_update_position_event<P>(addr, key, simple_map::borrow<String,Balance>(&position_ref.balance, &key));
@@ -785,8 +797,8 @@ module leizd::account_position {
         let position_ref = borrow_global_mut<Position<P>>(addr);
         let balance_ref = simple_map::borrow<String,Balance>(&position_ref.balance, &key);
         if (
-            balance_ref.deposited == 0
-            && balance_ref.conly_deposited == 0
+            balance_ref.deposited_share == 0
+            && balance_ref.conly_deposited_share == 0
             && balance_ref.borrowed == 0 // NOTE: maybe actually only `deposited` needs to be checked.
         ) {
             simple_map::remove<String, Balance>(&mut position_ref.balance, &key);
@@ -813,7 +825,7 @@ module leizd::account_position {
 
     fun utilization_of<P>(position_ref: &Position<P>, key: String): u64 {
         if (vector::contains<String>(&position_ref.coins, &key)) {
-            let deposited = simple_map::borrow<String,Balance>(&position_ref.balance, &key).deposited;
+            let deposited = simple_map::borrow<String,Balance>(&position_ref.balance, &key).deposited_share; // TODO: convert to amount
             let borrowed = simple_map::borrow<String,Balance>(&position_ref.balance, &key).borrowed;
             if (deposited == 0 && borrowed != 0) {
                 return constant::u64_max()
@@ -834,7 +846,10 @@ module leizd::account_position {
         if (!exists<Position<AssetToShadow>>(addr)) return 0;
         let position_ref = borrow_global<Position<AssetToShadow>>(addr);
         if (simple_map::contains_key<String,Balance>(&position_ref.balance, &key)) {
-            simple_map::borrow<String,Balance>(&position_ref.balance, &key).deposited
+            let total_amount = asset_pool::total_normal_deposited_internal(key);
+            let total_shares = asset_pool::total_normal_deposited_share_internal(key);
+            let user_share = simple_map::borrow<String,Balance>(&position_ref.balance, &key).deposited_share;
+            math64::to_amount(user_share, (total_amount as u64), (total_shares as u64))
         } else {
             0
         }
@@ -848,7 +863,10 @@ module leizd::account_position {
         if (!exists<Position<AssetToShadow>>(addr)) return 0;
         let position_ref = borrow_global<Position<AssetToShadow>>(addr);
         if (simple_map::contains_key<String,Balance>(&position_ref.balance, &key)) {
-            simple_map::borrow<String,Balance>(&position_ref.balance, &key).conly_deposited
+            let total_amount = asset_pool::total_normal_deposited_internal(key); // TODO: use for collateral only
+            let total_shares = asset_pool::total_normal_deposited_share_internal(key); // TODO: use for collateral only
+            let user_share = simple_map::borrow<String,Balance>(&position_ref.balance, &key).conly_deposited_share;
+            math64::to_amount(user_share, (total_amount as u64), (total_shares as u64))
         } else {
             0
         }
@@ -873,7 +891,10 @@ module leizd::account_position {
         if (!exists<Position<ShadowToAsset>>(addr)) return 0;
         let position_ref = borrow_global<Position<ShadowToAsset>>(addr);
         if (simple_map::contains_key<String,Balance>(&position_ref.balance, &key)) {
-            simple_map::borrow<String,Balance>(&position_ref.balance, &key).deposited
+            let total_amount = shadow_pool::normal_deposited_with(key); // TODO: use for collateral only
+            let total_shares = shadow_pool::normal_deposited_share_with(key); // TODO: use for collateral only
+            let user_share = simple_map::borrow<String,Balance>(&position_ref.balance, &key).deposited_share;
+            math64::to_amount(user_share, total_amount, total_shares)
         } else {
             0
         }
@@ -887,7 +908,10 @@ module leizd::account_position {
         if (!exists<Position<ShadowToAsset>>(addr)) return 0;
         let position_ref = borrow_global<Position<ShadowToAsset>>(addr);
         if (simple_map::contains_key<String,Balance>(&position_ref.balance, &key)) {
-            simple_map::borrow<String,Balance>(&position_ref.balance, &key).conly_deposited
+            let total_amount = shadow_pool::normal_deposited_with(key); // TODO: use for collateral only
+            let total_shares = shadow_pool::normal_deposited_share_with(key); // TODO: use for collateral only
+            let user_share = simple_map::borrow<String,Balance>(&position_ref.balance, &key).conly_deposited_share;
+            math64::to_amount(user_share, total_amount, total_shares)
         } else {
             0
         }

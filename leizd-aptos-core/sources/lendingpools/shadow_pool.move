@@ -725,6 +725,38 @@ module leizd::shadow_pool {
         }
     }
 
+    public entry fun normal_deposited<C>(): u64 acquires Storage {
+        let storage_ref = borrow_global<Storage>(permission::owner_address());
+        normal_deposited_internal(key<C>(), storage_ref)
+    }
+    public fun normal_deposited_with(key: String): u64 acquires Storage {
+        let storage_ref = borrow_global<Storage>(permission::owner_address());
+        normal_deposited_internal(key, storage_ref)
+    }
+    public fun normal_deposited_internal(key: String, storage: &Storage): u64 {
+        if (is_initialized_asset_with_internal(&key, storage)) {
+            simple_map::borrow<String, AssetStorage>(&storage.asset_storages, &key).normal_deposited_amount
+        } else {
+            0
+        }
+    }
+
+    public entry fun normal_deposited_share<C>(): u64 acquires Storage {
+        let storage_ref = borrow_global<Storage>(permission::owner_address());
+        normal_deposited_share_internal(key<C>(), storage_ref)
+    }
+    public entry fun normal_deposited_share_with(key: String): u64 acquires Storage {
+        let storage_ref = borrow_global<Storage>(permission::owner_address());
+        normal_deposited_share_internal(key, storage_ref)
+    }
+    public fun normal_deposited_share_internal(key: String, storage: &Storage): u64 {
+        if (is_initialized_asset_with_internal(&key, storage)) {
+            simple_map::borrow<String, AssetStorage>(&storage.asset_storages, &key).normal_deposited_share
+        } else {
+            0
+        }
+    }
+
     public entry fun conly_deposited<C>(): u64 acquires Storage {
         let storage_ref = borrow_global<Storage>(permission::owner_address());
         conly_deposit_internal(key<C>(), storage_ref)

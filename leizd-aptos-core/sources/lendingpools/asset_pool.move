@@ -10,6 +10,7 @@ module leizd::asset_pool {
 
     use std::error;
     use std::signer;
+    use std::string::{String};
     use aptos_std::event;
     use aptos_framework::account;
     use aptos_framework::coin;
@@ -485,6 +486,17 @@ module leizd::asset_pool {
 
     public entry fun total_normal_deposited<C>(): u128 acquires Storage {
         borrow_global<Storage<C>>(permission::owner_address()).total_normal_deposited_amount
+    }
+    public entry fun total_normal_deposited_internal(key: String): u128 {
+        key;
+        1 // TODO: temp
+    }
+    public entry fun total_normal_deposited_share<C>(): u128 acquires Storage {
+        borrow_global<Storage<C>>(permission::owner_address()).total_normal_deposited_share
+    }
+    public entry fun total_normal_deposited_share_internal(key: String): u128 {
+        key;
+        1 // TODO: temp
     }
 
     public entry fun total_conly_deposited<C>(): u128 acquires Storage {
