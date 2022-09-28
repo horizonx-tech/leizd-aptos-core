@@ -178,7 +178,7 @@ module leizd::stability_pool {
         permission::assert_owner(owner_address);
 
         let config = borrow_global_mut<Config>(owner_address);
-        if(config.entry_fee == new_entry_fee && config.support_fee == new_support_fee) return;
+        if (config.entry_fee == new_entry_fee && config.support_fee == new_support_fee) return;
         config.entry_fee = new_entry_fee;
         config.support_fee = new_support_fee;
 

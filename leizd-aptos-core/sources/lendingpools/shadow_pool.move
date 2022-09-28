@@ -615,14 +615,14 @@ module leizd::shadow_pool {
         let depositors_share = accrued_interest - protocol_share;
 
         // send support fee when the pool is supported
-        if(stability_pool::is_supported(key) && accrued_interest > 0){
+        if (stability_pool::is_supported(key) && accrued_interest > 0) {
             let generated_support_fee = stability_pool::calculate_support_fee(accrued_interest);
-            depositors_share = accrued_interest - protocol_share - generated_support_fee;
+            depositors_share = depositors_share - generated_support_fee;
 
             let uncollected_support_fee = stability_pool::uncollected_support_fee(key) + generated_support_fee;
             let collected_support_fee = uncollected_support_fee;
             let liquidity = total_liquidity_internal(pool_ref, storage_ref);
-            if(collected_support_fee > liquidity){
+            if (collected_support_fee > liquidity) {
                 collected_support_fee = liquidity
             };
             uncollected_support_fee = uncollected_support_fee - collected_support_fee;
