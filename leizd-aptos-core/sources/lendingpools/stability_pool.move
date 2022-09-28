@@ -308,21 +308,23 @@ module leizd::stability_pool {
         pool_ref.total_uncollected_fee = pool_ref.total_uncollected_fee + (fee as u128);
         coin::extract<USDZ>(&mut pool_ref.left, amount)
     }
-    public fun calculate_entry_fee(value: u64): u64 acquires Config {
-        let value_mul_by_fee = value * entry_fee();
-        let result = value_mul_by_fee / PRECISION;
-        if (value_mul_by_fee % PRECISION != 0) result + 1 else result
-    }
     public fun entry_fee(): u64 acquires Config {
         borrow_global<Config>(permission::owner_address()).entry_fee
     }
-    public fun calculate_support_fee(value: u128): u128 acquires Config {
-        let value_mul_by_fee = value * (support_fee() as u128);
-        let result = value_mul_by_fee / (PRECISION as u128);
-        if (value_mul_by_fee % (PRECISION as u128) != 0) result + 1 else result
+    public fun calculate_entry_fee(value: u64): u64 acquires Config {
+        (calculate_fee_with_round_up((value as u128), (entry_fee() as u128)) as u64)
     }
     public fun support_fee(): u64 acquires Config {
         borrow_global<Config>(permission::owner_address()).support_fee
+    }
+    public fun calculate_support_fee(value: u128): u128 acquires Config {
+        calculate_fee_with_round_up(value, (support_fee() as u128))
+    }
+    //// for round up
+    fun calculate_fee_with_round_up(value: u128, fee: u128): u128 {
+        let value_mul_by_fee = value * fee;
+        let result = value_mul_by_fee / (PRECISION as u128);
+        if (value_mul_by_fee % (PRECISION as u128) != 0) result + 1 else result
     }
 
     public(friend) fun repay(key: String, account: &signer, amount: u64) acquires StabilityPool, Balance, StabilityPoolEventHandle {
