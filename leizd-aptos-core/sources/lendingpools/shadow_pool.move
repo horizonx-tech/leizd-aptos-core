@@ -32,7 +32,6 @@ module leizd::shadow_pool {
     }
 
     struct Storage has key {
-        total_deposited: u128, // borrowable + collateral only
         total_normal_deposited: u128, // borrowable
         total_conly_deposited: u128, // collateral only
         total_borrowed: u128,
@@ -137,7 +136,6 @@ module leizd::shadow_pool {
     }
     fun default_storage(): Storage {
         Storage {
-            total_deposited: 0,
             total_normal_deposited: 0,
             total_conly_deposited: 0,
             total_borrowed: 0,
@@ -190,7 +188,6 @@ module leizd::shadow_pool {
         initialize_for_asset_if_necessary(key, storage_ref);
         let asset_storage = simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key);
 
-        storage_ref.total_deposited = storage_ref.total_deposited + (amount as u128);
         asset_storage.deposited = asset_storage.deposited + amount;
         let user_share: u64;
         if (is_collateral_only) {
@@ -356,7 +353,6 @@ module leizd::shadow_pool {
 
         let amount_u128 = (amount as u128);
         let asset_storage = simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key);
-        storage_ref.total_deposited = storage_ref.total_deposited - amount_u128;
         asset_storage.deposited = asset_storage.deposited - amount;
         let withdrawn_user_share: u64;
         if (is_collateral_only) {
@@ -564,14 +560,18 @@ module leizd::shadow_pool {
         let amount_u128 = (amount as u128);
         if (to_collateral_only) {
             assert!(amount <= deposited_internal(key, storage_ref) - conly_deposit_internal(key, storage_ref), error::invalid_argument(E_INSUFFICIENT_LIQUIDITY));
-            let conly_deposited_amount = &mut simple_map::borrow_mut<String, AssetStorage>(&mut storage_ref.asset_storages, &key).conly_deposited_amount;
-            *conly_deposited_amount = *conly_deposited_amount + amount;
+            let asset_storage_ref = simple_map::borrow_mut<String, AssetStorage>(&mut storage_ref.asset_storages, &key);
+            asset_storage_ref.conly_deposited_amount = asset_storage_ref.conly_deposited_amount + amount;
+            asset_storage_ref.normal_deposited_amount = asset_storage_ref.normal_deposited_amount - amount;
             storage_ref.total_conly_deposited = storage_ref.total_conly_deposited + amount_u128;
+            storage_ref.total_normal_deposited = storage_ref.total_normal_deposited - amount_u128;
         } else {
             assert!(amount <= conly_deposit_internal(key, storage_ref), error::invalid_argument(E_INSUFFICIENT_CONLY_DEPOSITED));
-            let conly_deposited_amount = &mut simple_map::borrow_mut<String, AssetStorage>(&mut storage_ref.asset_storages, &key).conly_deposited_amount;
-            *conly_deposited_amount = *conly_deposited_amount - amount;
+            let asset_storage_ref = simple_map::borrow_mut<String, AssetStorage>(&mut storage_ref.asset_storages, &key);
+            asset_storage_ref.conly_deposited_amount = asset_storage_ref.conly_deposited_amount - amount;
+            asset_storage_ref.normal_deposited_amount = asset_storage_ref.normal_deposited_amount + amount;
             storage_ref.total_conly_deposited = storage_ref.total_conly_deposited - amount_u128;
+            storage_ref.total_normal_deposited = storage_ref.total_normal_deposited + amount_u128;
         };
         event::emit_event<SwitchCollateralEvent>(
             &mut borrow_global_mut<PoolEventHandle>(owner_address).switch_collateral_event,
@@ -623,7 +623,7 @@ module leizd::shadow_pool {
         let protocol_share_fee = risk_factor::share_fee();
         let rcomp = interest_rate::update_interest_rate(
             key,
-            storage_ref.total_deposited,
+            storage_ref.total_normal_deposited,
             storage_ref.total_borrowed,
             storage_ref.last_updated,
             now,
@@ -654,7 +654,7 @@ module leizd::shadow_pool {
         };
 
         storage_ref.total_borrowed = storage_ref.total_borrowed + accrued_interest;
-        storage_ref.total_deposited = storage_ref.total_deposited + depositors_share;
+        storage_ref.total_normal_deposited = storage_ref.total_normal_deposited + depositors_share;
         storage_ref.protocol_fees = new_protocol_fees;
         storage_ref.last_updated = now;
     }
@@ -680,7 +680,7 @@ module leizd::shadow_pool {
     }
 
     public entry fun total_deposited(): u128 acquires Storage {
-        borrow_global<Storage>(permission::owner_address()).total_deposited
+        total_normal_deposited() + total_conly_deposited()
     }
 
     public entry fun total_liquidity(): u128 acquires Pool, Storage {
@@ -691,6 +691,10 @@ module leizd::shadow_pool {
     }
     fun total_liquidity_internal(pool: &Pool, storage: &Storage): u128 {
         (coin::value(&pool.shadow) as u128) - storage.total_conly_deposited
+    }
+
+    public entry fun total_normal_deposited(): u128 acquires Storage {
+        borrow_global<Storage>(permission::owner_address()).total_normal_deposited
     }
 
     public entry fun total_conly_deposited(): u128 acquires Storage {
