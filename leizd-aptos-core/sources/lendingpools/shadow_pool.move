@@ -620,12 +620,15 @@ module leizd::shadow_pool {
             depositors_share = depositors_share - generated_support_fee;
 
             let uncollected_support_fee = stability_pool::uncollected_support_fee(key) + generated_support_fee;
-            let collected_support_fee = uncollected_support_fee;
+            let collected_support_fee: u128;
             let liquidity = total_liquidity_internal(pool_ref, storage_ref);
-            if (collected_support_fee > liquidity) {
-                collected_support_fee = liquidity
+            if (uncollected_support_fee > liquidity) {
+                collected_support_fee = liquidity;
+                uncollected_support_fee = uncollected_support_fee - liquidity;
+            } else {
+                collected_support_fee = uncollected_support_fee;
+                uncollected_support_fee = 0;
             };
-            uncollected_support_fee = uncollected_support_fee - collected_support_fee;
             let fee_extracted = coin::extract(&mut pool_ref.shadow, (collected_support_fee as u64));
             stability_pool::collect_support_fee(key, fee_extracted, uncollected_support_fee);
         };
