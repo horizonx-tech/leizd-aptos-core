@@ -30,7 +30,7 @@ module leizd::money_market {
     ) {
         deposit_for<C,P>(account, signer::address_of(account), amount, is_collateral_only);
     }
-    
+
     public entry fun deposit_for<C,P>(
         account: &signer,
         depositor_addr: address,
@@ -223,6 +223,11 @@ module leizd::money_market {
         } else {
             shadow_pool::switch_collateral<C>(account_addr, amount, to_collateral_only);
         };
+    }
+    // harvest protocol share fee
+    public entry fun harvest_protocol_fees<C>() {
+        shadow_pool::harvest_protocol_fees<C>();
+        asset_pool::harvest_protocol_fees<C>();
     }
 
     #[test_only]
