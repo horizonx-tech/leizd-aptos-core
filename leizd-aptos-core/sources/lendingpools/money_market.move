@@ -147,17 +147,12 @@ module leizd::money_market {
         pool_type::assert_pool_type<P>();
 
         let repayer = signer::address_of(account);
-        // HACK: check repayable amount by account_position::repay & use this amount to xxx_pool::repay. Better not to calculate here. (because of just an entry module)
+        let repaid_amount = account_position::repay<C,P>(repayer, amount);
         if (pool_type::is_type_asset<P>()) {
-            let debt_amount = account_position::borrowed_asset<C>(repayer);
-            if (amount >= debt_amount) amount = debt_amount;
-            amount = asset_pool::repay<C>(account, amount);
+            asset_pool::repay<C>(account, repaid_amount);
         } else {
-            let debt_amount = account_position::borrowed_shadow<C>(repayer);
-            if (amount >= debt_amount) amount = debt_amount;
-            amount = shadow_pool::repay<C>(account, amount);
+            shadow_pool::repay<C>(account, repaid_amount);
         };
-        account_position::repay<C,P>(repayer, amount);
     }
 
     public entry fun repay_shadow_with_rebalance(account: &signer, amount: u64) {
