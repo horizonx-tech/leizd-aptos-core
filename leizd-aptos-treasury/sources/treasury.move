@@ -25,7 +25,7 @@ module leizd_aptos_treasury::treasury {
     public fun initialize(owner: &signer) {
         permission::assert_owner(signer::address_of(owner));
         assert!(!initialized(), EALREADY_INITIALIZED);
-        
+
         let map = simple_map::create<String, address>();
         simple_map::add<String, address>(&mut map, type_info::type_name<USDZ>(), signer::address_of(owner));
         move_to(owner, SupportedTreasuries{
@@ -83,11 +83,11 @@ module leizd_aptos_treasury::treasury {
         coin::deposit<C>(owner_address, deposited);
     }
 
-    #[test_only]
     public fun balance<C>(): u64 acquires Treasury {
         let treasury_ref = borrow_global_mut<Treasury<C>>(permission::owner_address());
         coin::value<C>(&treasury_ref.coin)
     }
+
     #[test_only]
     use aptos_framework::account;
     #[test_only]

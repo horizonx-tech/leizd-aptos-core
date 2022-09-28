@@ -39,6 +39,7 @@ module leizd::shadow_pool {
         asset_storages: simple_map::SimpleMap<String, AssetStorage>,
         last_updated: u64,
         protocol_fees: u64,
+        harvested_protocol_fees: u64,
     }
     struct AssetStorage has store {
         deposited: u64, // borrowable + collateral only
@@ -143,6 +144,7 @@ module leizd::shadow_pool {
             asset_storages: simple_map::create<String,AssetStorage>(),
             last_updated: 0,
             protocol_fees: 0,
+            harvested_protocol_fees: 0,
         }
     }
 
@@ -181,7 +183,7 @@ module leizd::shadow_pool {
         let storage_ref = borrow_global_mut<Storage>(owner_address);
         let pool_ref = borrow_global_mut<Pool>(owner_address);
 
-        accrue_interest(key, storage_ref);
+        accrue_interest(key, storage_ref, pool_ref);
 
         coin::merge(&mut pool_ref.shadow, coin::withdraw<USDZ>(account, amount));
 
@@ -345,22 +347,11 @@ module leizd::shadow_pool {
         let pool_ref = borrow_global_mut<Pool>(owner_address);
         let storage_ref = borrow_global_mut<Storage>(owner_address);
 
-        accrue_interest(key, storage_ref);
+        accrue_interest(key, storage_ref, pool_ref);
         collect_shadow_fee(pool_ref, liquidation_fee);
 
         let amount_to_transfer = amount - liquidation_fee;
         coin::deposit<USDZ>(receiver_addr, coin::extract(&mut pool_ref.shadow, amount_to_transfer));
-        
-        // if (amount == constant::u64_max()) {
-        //     if (is_collateral_only) {
-        //         withdrawn_amount = storage_ref.total_conly_deposited;
-        //     } else {
-        //         withdrawn_amount = storage_ref.total_deposited;
-        //     };
-        // } else {
-        //     withdrawn_amount = (amount as u128);
-        // };
-
         assert!(is_initialized_asset_with_internal(&key, storage_ref), error::invalid_argument(E_NOT_INITIALIZED_COIN));
 
         let amount_u128 = (amount as u128);
@@ -424,7 +415,7 @@ module leizd::shadow_pool {
         let pool_ref = borrow_global_mut<Pool>(owner_address);
         let storage_ref = borrow_global_mut<Storage>(owner_address);
 
-        accrue_interest(key, storage_ref);
+        accrue_interest(key, storage_ref, pool_ref);
 
         let entry_fee = risk_factor::calculate_entry_fee(amount);
         let total_fee = entry_fee;
@@ -511,7 +502,7 @@ module leizd::shadow_pool {
         let storage_ref = borrow_global_mut<Storage>(owner_address);
         let pool_ref = borrow_global_mut<Pool>(owner_address);
 
-        accrue_interest(key, storage_ref);
+        accrue_interest(key, storage_ref, pool_ref);
 
         // at first, repay to stability_pool
         let repaid_to_stability_pool = repay_to_stability_pool(key, account, amount);
@@ -545,8 +536,9 @@ module leizd::shadow_pool {
     ) acquires Pool, Storage, PoolEventHandle {
         let owner_address = permission::owner_address();
         let storage_ref = borrow_global_mut<Storage>(owner_address);
+        let pool_ref = borrow_global_mut<Pool>(owner_address);
         let key = key<C>();
-        accrue_interest(key, storage_ref);
+        accrue_interest(key, storage_ref, pool_ref);
         let liquidation_fee = risk_factor::calculate_liquidation_fee(withdrawing);
         withdraw_for_internal(key, liquidator_addr, target_addr, withdrawing, is_collateral_only, liquidation_fee);
 
@@ -615,7 +607,7 @@ module leizd::shadow_pool {
     }
 
     /// This function is called on every user action.
-    fun accrue_interest(key: String, storage_ref: &mut Storage) {
+    fun accrue_interest(key: String, storage_ref: &mut Storage, pool_ref: &mut Pool){
         let now = timestamp::now_microseconds();
 
         // This is the first time
@@ -641,6 +633,26 @@ module leizd::shadow_pool {
         let new_protocol_fees = storage_ref.protocol_fees + (protocol_share as u64);
 
         let depositors_share = accrued_interest - protocol_share;
+
+        // send support fee when the pool is supported
+        if (stability_pool::is_supported(key) && accrued_interest > 0) {
+            let generated_support_fee = stability_pool::calculate_support_fee(accrued_interest);
+            depositors_share = depositors_share - generated_support_fee;
+
+            let uncollected_support_fee = stability_pool::uncollected_support_fee(key) + generated_support_fee;
+            let collected_support_fee: u128;
+            let liquidity = total_liquidity_internal(pool_ref, storage_ref);
+            if (uncollected_support_fee > liquidity) {
+                collected_support_fee = liquidity;
+                uncollected_support_fee = uncollected_support_fee - liquidity;
+            } else {
+                collected_support_fee = uncollected_support_fee;
+                uncollected_support_fee = 0;
+            };
+            let fee_extracted = coin::extract(&mut pool_ref.shadow, (collected_support_fee as u64));
+            stability_pool::collect_support_fee(key, fee_extracted, uncollected_support_fee);
+        };
+
         storage_ref.total_borrowed = storage_ref.total_borrowed + accrued_interest;
         storage_ref.total_deposited = storage_ref.total_deposited + depositors_share;
         storage_ref.protocol_fees = new_protocol_fees;
@@ -650,6 +662,21 @@ module leizd::shadow_pool {
     fun collect_shadow_fee(pool_ref: &mut Pool, liquidation_fee: u64) {
         let fee_extracted = coin::extract(&mut pool_ref.shadow, liquidation_fee);
         treasury::collect_fee<USDZ>(fee_extracted);
+    }
+
+    public(friend) fun harvest_protocol_fees<C>() acquires Pool, Storage{
+        let storage_ref = borrow_global_mut<Storage>(permission::owner_address());
+        let pool_ref = borrow_global_mut<Pool>(permission::owner_address());
+        let harvested_fee = (storage_ref.protocol_fees - storage_ref.harvested_protocol_fees as u128);
+        if(harvested_fee == 0){
+            return
+        };
+        let liquidity = total_liquidity_internal(pool_ref, storage_ref);
+        if(harvested_fee > liquidity){
+            harvested_fee = liquidity;
+        };
+        storage_ref.harvested_protocol_fees = storage_ref.harvested_protocol_fees + (harvested_fee as u64);
+        collect_shadow_fee(pool_ref, (harvested_fee as u64));
     }
 
     public entry fun total_deposited(): u128 acquires Storage {
@@ -716,6 +743,14 @@ module leizd::shadow_pool {
         } else {
             0
         }
+    }
+
+    public entry fun protocol_fees(): u64 acquires Storage {
+        borrow_global<Storage>(permission::owner_address()).protocol_fees
+    }
+
+    public entry fun harvested_protocol_fees(): u64 acquires Storage {
+        borrow_global<Storage>(permission::owner_address()).harvested_protocol_fees
     }
 
     // #[test_only]
@@ -1475,6 +1510,7 @@ module leizd::shadow_pool {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         stability_pool::add_supported_pool<UNI>(owner);
+        stability_pool::update_config(owner, stability_pool::entry_fee(), 0);
 
         let owner_addr = signer::address_of(owner);
         let depositor_addr = signer::address_of(depositor);
@@ -1530,6 +1566,7 @@ module leizd::shadow_pool {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         stability_pool::add_supported_pool<UNI>(owner);
+        stability_pool::update_config(owner, stability_pool::entry_fee(), 0);
 
         let owner_addr = signer::address_of(owner);
         let depositor_addr = signer::address_of(depositor);
@@ -1577,6 +1614,7 @@ module leizd::shadow_pool {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         stability_pool::add_supported_pool<UNI>(owner);
+        stability_pool::update_config(owner, stability_pool::entry_fee(), 0);
 
         let owner_addr = signer::address_of(owner);
         let depositor_addr = signer::address_of(depositor);
@@ -1632,6 +1670,7 @@ module leizd::shadow_pool {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         stability_pool::add_supported_pool<UNI>(owner);
+        stability_pool::update_config(owner, stability_pool::entry_fee(), 0);
 
         let depositor_addr = signer::address_of(depositor);
         let borrower_addr = signer::address_of(borrower);
@@ -1653,7 +1692,7 @@ module leizd::shadow_pool {
         usdz::mint_for_test(borrower_addr, 25 + 26); // fee in shadow + fee in stability
         repay<UNI>(borrower, 5000 + 25 + 26);
         assert!(stability_pool::borrowed(key<UNI>()) == 0, 0);
-        assert!(stability_pool::uncollected_fee<UNI>() == 0, 0);
+        assert!(stability_pool::uncollected_entry_fee<UNI>() == 0, 0);
         //// 2nd
         borrow_for<UNI>(borrower_addr, borrower_addr, 10000);
         borrow_for<UNI>(borrower_addr, borrower_addr, 20000);
@@ -1683,6 +1722,7 @@ module leizd::shadow_pool {
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         stability_pool::add_supported_pool<UNI>(owner);
         stability_pool::add_supported_pool<WETH>(owner);
+        stability_pool::update_config(owner, stability_pool::entry_fee(), 0);
 
         let depositor_addr = signer::address_of(depositor);
         let borrower1_addr = signer::address_of(borrower1);
@@ -1718,6 +1758,138 @@ module leizd::shadow_pool {
         repay<WETH>(depositor, 2539);
         assert!(stability_pool::borrowed(key<WETH>()) == 0, 0);
         assert!(stability_pool::borrowed(key<UNI>()) == 0, 0);
+    }
+    #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
+    public entry fun test_support_fee(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+        stability_pool::add_supported_pool<UNI>(owner);
+
+        let owner_addr = signer::address_of(owner);
+        let depositor_addr = signer::address_of(depositor);
+        let borrower_addr = signer::address_of(borrower);
+        account::create_account_for_test(depositor_addr);
+        account::create_account_for_test(borrower_addr);
+        managed_coin::register<USDZ>(depositor);
+        managed_coin::register<USDZ>(borrower);
+        usdz::mint_for_test(depositor_addr, 10000000);
+
+        // Prerequisite
+        assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
+
+        // execute
+        //// prepares
+        let initial_sec = 1648738800; // 20220401T00:00:00
+        timestamp::update_global_time_for_test(initial_sec * 1000 * 1000);
+        deposit_for_internal(key<UNI>(), depositor, depositor_addr, 10000000, false);
+        assert!(pool_shadow_value(owner_addr) == 10000000, 0);
+        assert!(borrowed<UNI>() == 0, 0);
+        assert!(stability_pool::borrowed(key<UNI>()) == 0, 0);
+        assert!(stability_pool::left() == 0, 0);
+        assert!(stability_pool::collected_fee() == 0, 0);
+        assert!(usdz::balance_of(borrower_addr) == 0, 0);
+        timestamp::update_global_time_for_test((initial_sec + 1) * 1000 * 1000);
+        borrow_for<UNI>(borrower_addr, borrower_addr, 1000);
+        assert!(pool_shadow_value(owner_addr) == 10000000 - (1000 + 5), 0);
+        assert!(borrowed<UNI>() == 1005, 0);
+        assert!(stability_pool::borrowed(key<UNI>()) == 0, 0);
+        assert!(stability_pool::left() == 0, 0);
+        let liquidity = total_liquidity();
+        timestamp::update_global_time_for_test((initial_sec + 1 + 1) * 1000 * 1000);
+        repay<UNI>(borrower, 1);
+        assert!((pool_shadow_value(owner_addr) as u128) == liquidity - (stability_pool::collected_fee() as u128) + 1, 0);
+        assert!(stability_pool::collected_fee() > 0, 0);
+        assert!(stability_pool::total_uncollected_fee() == 0, 0);
+        assert!(stability_pool::left() == 0, 0);
+        assert!(usdz::balance_of(borrower_addr) == 999, 0);
+    }
+
+    #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
+    public entry fun test_support_fee_when_not_supported(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+
+        let owner_addr = signer::address_of(owner);
+        let depositor_addr = signer::address_of(depositor);
+        let borrower_addr = signer::address_of(borrower);
+        account::create_account_for_test(depositor_addr);
+        account::create_account_for_test(borrower_addr);
+        managed_coin::register<USDZ>(depositor);
+        managed_coin::register<USDZ>(borrower);
+        usdz::mint_for_test(depositor_addr, 10000000);
+
+        // Prerequisite
+        assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
+
+        // execute
+        //// prepares
+        let initial_sec = 1648738800; // 20220401T00:00:00
+        timestamp::update_global_time_for_test(initial_sec * 1000 * 1000);
+        deposit_for_internal(key<UNI>(), depositor, depositor_addr, 10000000, false);
+        assert!(pool_shadow_value(owner_addr) == 10000000, 0);
+        assert!(borrowed<UNI>() == 0, 0);
+        assert!(stability_pool::borrowed(key<UNI>()) == 0, 0);
+        assert!(stability_pool::left() == 0, 0);
+        assert!(stability_pool::collected_fee() == 0, 0);
+        assert!(usdz::balance_of(borrower_addr) == 0, 0);
+        timestamp::update_global_time_for_test((initial_sec + 1) * 1000 * 1000);
+        borrow_for<UNI>(borrower_addr, borrower_addr, 1000);
+        assert!(pool_shadow_value(owner_addr) == 10000000 - (1000 + 5), 0);
+        assert!(borrowed<UNI>() == 1005, 0);
+        assert!(stability_pool::borrowed(key<UNI>()) == 0, 0);
+        assert!(stability_pool::left() == 0, 0);
+        let liquidity = total_liquidity();
+        timestamp::update_global_time_for_test((initial_sec + 1 + 1) * 1000 * 1000);
+        repay<UNI>(borrower, 1);
+        assert!((pool_shadow_value(owner_addr) as u128) == liquidity + 1, 0);
+        assert!(stability_pool::collected_fee() == 0, 0);
+        assert!(stability_pool::total_uncollected_fee() == 0, 0);
+        assert!(stability_pool::left() == 0, 0);
+        assert!(usdz::balance_of(borrower_addr) == 999, 0);
+    }
+
+     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
+    public entry fun test_support_fee_more_than_liquidity(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+        stability_pool::add_supported_pool<UNI>(owner);
+
+        let owner_addr = signer::address_of(owner);
+        let depositor_addr = signer::address_of(depositor);
+        let borrower_addr = signer::address_of(borrower);
+        account::create_account_for_test(depositor_addr);
+        account::create_account_for_test(borrower_addr);
+        managed_coin::register<USDZ>(depositor);
+        managed_coin::register<USDZ>(borrower);
+        usdz::mint_for_test(depositor_addr, 100000);
+
+        // Prerequisite
+        assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
+
+        // execute
+        //// prepares
+        let initial_sec = 1648738800; // 20220401T00:00:00
+        timestamp::update_global_time_for_test(initial_sec * 1000 * 1000);
+        deposit_for_internal(key<UNI>(), depositor, depositor_addr, 10000, false);
+        assert!(pool_shadow_value(owner_addr) == 10000, 0);
+        assert!(borrowed<UNI>() == 0, 0);
+        assert!(stability_pool::borrowed(key<UNI>()) == 0, 0);
+        assert!(stability_pool::left() == 0, 0);
+        assert!(stability_pool::collected_fee() == 0, 0);
+        assert!(usdz::balance_of(borrower_addr) == 0, 0);
+        timestamp::update_global_time_for_test((initial_sec + 1) * 1000 * 1000);
+        borrow_for<UNI>(borrower_addr, borrower_addr, 5000);
+        assert!(pool_shadow_value(owner_addr) == 10000 - (5000 + 25), 0);
+        assert!(borrowed<UNI>() == 5025, 0);
+        assert!(stability_pool::borrowed(key<UNI>()) == 0, 0);
+        assert!(stability_pool::left() == 0, 0);
+        let liquidity = total_liquidity();
+        timestamp::update_global_time_for_test((initial_sec + 1 + 1) * 1000 * 1000);
+        repay<UNI>(borrower, 1);
+        assert!(pool_shadow_value(owner_addr) == 1, 0);
+        assert!((stability_pool::collected_fee() as u128) == liquidity, 0);
+        assert!(stability_pool::left() == 0, 0);
+        assert!(usdz::balance_of(borrower_addr) == 4999, 0);
     }
 
     // rebalance shadow
@@ -1996,5 +2168,158 @@ module leizd::shadow_pool {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         system_administrator::deactivate_pool<WETH>(owner);
         repay<WETH>(owner, 0);
+    }
+    #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
+    public entry fun test_harvest_protocol_fees(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+
+        let owner_address = signer::address_of(owner);
+        let depositor_addr = signer::address_of(depositor);
+        let borrower_addr = signer::address_of(borrower);
+        account::create_account_for_test(depositor_addr);
+        account::create_account_for_test(borrower_addr);
+        managed_coin::register<USDZ>(depositor);
+        managed_coin::register<USDZ>(borrower);
+        usdz::mint_for_test(depositor_addr, 3000000);
+
+        let initial_sec = 1648738800; // 20220401T00:00:00
+        timestamp::update_global_time_for_test(initial_sec * 1000 * 1000);
+
+        // Check status before repay
+        assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
+        assert!(risk_factor::share_fee() == risk_factor::default_share_fee(), 0);
+
+        // execute
+        deposit_for_internal(key<UNI>(), depositor, depositor_addr, 3000000, false);
+        assert!(pool_shadow_value(owner_address) == 3000000, 0);
+        assert!(borrowed<UNI>() == 0, 0);
+        borrow_for<UNI>(borrower_addr, borrower_addr, 1000);
+        assert!(pool_shadow_value(owner_address) == 3000000 - (1000 + 5), 0);
+        assert!(borrowed<UNI>() == 1005, 0);
+        assert!(coin::balance<USDZ>(borrower_addr) == 1000, 0);
+        timestamp::update_global_time_for_test((initial_sec + 250) * 1000 * 1000); // + 250 sec
+        let repaid_amount = repay<UNI>(borrower, 1000);
+        assert!(repaid_amount == 1000, 0);
+        assert!(pool_shadow_value(owner_address) == 3000000 - (1000 + 5) + 1000, 0);
+        assert!(borrowed<UNI>() == 5, 0);
+        assert!(coin::balance<USDZ>(borrower_addr) == 0, 0);
+        let total_protocol_fees = protocol_fees();
+        assert!(total_protocol_fees > 0, 0);
+        assert!(harvested_protocol_fees() == 0, 0);
+        let treasury_balance = treasury::balance<USDZ>();
+        harvest_protocol_fees<UNI>();
+        assert!(protocol_fees() == total_protocol_fees, 0);
+        assert!(harvested_protocol_fees() == total_protocol_fees, 0);
+        assert!(treasury::balance<USDZ>() == treasury_balance + total_protocol_fees, 0);
+        assert!(pool_shadow_value(owner_address) == 2999995 - total_protocol_fees, 0);
+
+        let event_handle = borrow_global<PoolEventHandle>(signer::address_of(owner));
+        assert!(event::counter<RepayEvent>(&event_handle.repay_event) == 1, 0);
+    }
+    #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
+    public entry fun test_harvest_protocol_fees_more_than_liquidity(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+
+        let owner_address = signer::address_of(owner);
+        let depositor_addr = signer::address_of(depositor);
+        let borrower_addr = signer::address_of(borrower);
+        account::create_account_for_test(depositor_addr);
+        account::create_account_for_test(borrower_addr);
+        managed_coin::register<USDZ>(depositor);
+        managed_coin::register<USDZ>(borrower);
+        usdz::mint_for_test(depositor_addr, 3000000);
+
+        let initial_sec = 1648738800; // 20220401T00:00:00
+        timestamp::update_global_time_for_test(initial_sec * 1000 * 1000);
+
+        // Check status before repay
+        assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
+        assert!(risk_factor::share_fee() == risk_factor::default_share_fee(), 0);
+
+        // execute
+        deposit_for_internal(key<UNI>(), depositor, depositor_addr, 300000, false);
+        assert!(pool_shadow_value(owner_address) == 300000, 0);
+        assert!(borrowed<UNI>() == 0, 0);
+        borrow_for<UNI>(borrower_addr, borrower_addr, 1000);
+        assert!(pool_shadow_value(owner_address) == 300000 - (1000 + 5), 0);
+        assert!(borrowed<UNI>() == 1005, 0);
+        assert!(coin::balance<USDZ>(borrower_addr) == 1000, 0);
+        timestamp::update_global_time_for_test((initial_sec + 250) * 1000 * 1000); // + 250 sec
+        let repaid_amount = repay<UNI>(borrower, 1000);
+        assert!(repaid_amount == 1000, 0);
+        assert!(pool_shadow_value(owner_address) == 300000 - (1000 + 5) + 1000, 0);
+        assert!(borrowed<UNI>() == 5, 0);
+        assert!(coin::balance<USDZ>(borrower_addr) == 0, 0);
+        let total_protocol_fees = protocol_fees();
+        let liquidity = total_liquidity();
+        assert!(liquidity > 0, 0);
+        assert!((total_protocol_fees as u128) > liquidity, 0);
+        assert!(harvested_protocol_fees() == 0, 0);
+        let treasury_balance = treasury::balance<USDZ>();
+        harvest_protocol_fees<UNI>();
+        assert!(protocol_fees() == total_protocol_fees, 0);
+        assert!((harvested_protocol_fees() as u128) == liquidity, 0);
+        assert!((treasury::balance<USDZ>() as u128) == (treasury_balance as u128) + liquidity, 0);
+        assert!((pool_shadow_value(owner_address) as u128) == 299995 - liquidity, 0);
+
+        let event_handle = borrow_global<PoolEventHandle>(signer::address_of(owner));
+        assert!(event::counter<RepayEvent>(&event_handle.repay_event) == 1, 0);
+    }
+    #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
+    public entry fun test_harvest_protocol_fees_at_zero(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+
+        let owner_address = signer::address_of(owner);
+        let depositor_addr = signer::address_of(depositor);
+        let borrower_addr = signer::address_of(borrower);
+        account::create_account_for_test(depositor_addr);
+        account::create_account_for_test(borrower_addr);
+        managed_coin::register<USDZ>(depositor);
+        managed_coin::register<USDZ>(borrower);
+        usdz::mint_for_test(depositor_addr, 3000000);
+
+        let initial_sec = 1648738800; // 20220401T00:00:00
+        timestamp::update_global_time_for_test(initial_sec * 1000 * 1000);
+
+        // Check status before repay
+        assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
+        assert!(risk_factor::share_fee() == risk_factor::default_share_fee(), 0);
+
+        // execute
+        deposit_for_internal(key<UNI>(), depositor, depositor_addr, 3000000, false);
+        assert!(pool_shadow_value(owner_address) == 3000000, 0);
+        assert!(borrowed<UNI>() == 0, 0);
+        borrow_for<UNI>(borrower_addr, borrower_addr, 1000);
+        assert!(pool_shadow_value(owner_address) == 3000000 - (1000 + 5), 0);
+        assert!(borrowed<UNI>() == 1005, 0);
+        assert!(coin::balance<USDZ>(borrower_addr) == 1000, 0);
+        timestamp::update_global_time_for_test((initial_sec + 250) * 1000 * 1000); // + 250 sec
+        let repaid_amount = repay<UNI>(borrower, 1000);
+        assert!(repaid_amount == 1000, 0);
+        assert!(pool_shadow_value(owner_address) == 3000000 - (1000 + 5) + 1000, 0);
+        assert!(borrowed<UNI>() == 5, 0);
+        assert!(coin::balance<USDZ>(borrower_addr) == 0, 0);
+        let total_protocol_fees = protocol_fees();
+        assert!(total_protocol_fees > 0, 0);
+        assert!(harvested_protocol_fees() == 0, 0);
+        let treasury_balance = treasury::balance<USDZ>();
+        harvest_protocol_fees<UNI>();
+        assert!(protocol_fees() == total_protocol_fees, 0);
+        assert!(harvested_protocol_fees() == total_protocol_fees, 0);
+        assert!(treasury::balance<USDZ>() == treasury_balance + total_protocol_fees, 0);
+        assert!(pool_shadow_value(owner_address) == 2999995 - total_protocol_fees, 0);
+        // harvest again
+        treasury_balance = treasury::balance<USDZ>();
+        let pool_balance = pool_shadow_value(owner_address);
+        harvest_protocol_fees<UNI>();
+        assert!(protocol_fees() - harvested_protocol_fees() == 0, 0);
+        assert!(treasury::balance<USDZ>() == treasury_balance, 0);
+        assert!(pool_shadow_value(owner_address) == pool_balance, 0);
+
+        let event_handle = borrow_global<PoolEventHandle>(signer::address_of(owner));
+        assert!(event::counter<RepayEvent>(&event_handle.repay_event) == 1, 0);
     }
 }
