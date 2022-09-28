@@ -39,13 +39,13 @@ module leizd::money_market {
         is_collateral_only: bool,
     ) {
         pool_type::assert_pool_type<P>();
-
+        
+        account_position::deposit<C,P>(account, depositor_addr, amount, is_collateral_only);
         if (pool_type::is_type_asset<P>()) {
             asset_pool::deposit_for<C>(account, depositor_addr, amount, is_collateral_only);
         } else {
             shadow_pool::deposit_for<C>(account, depositor_addr, amount, is_collateral_only);
         };
-        account_position::deposit<C,P>(account, depositor_addr, amount, is_collateral_only);
     }
 
     /// Withdraws an asset or a shadow from the pool.
@@ -67,12 +67,13 @@ module leizd::money_market {
 
         let depositor_addr = signer::address_of(account);
         let is_collateral_only = account_position::is_conly<C,P>(depositor_addr);
+        let withdrawn_amount = account_position::withdraw<C,P>(depositor_addr, amount, is_collateral_only);
         if (pool_type::is_type_asset<P>()) {
-            amount = asset_pool::withdraw_for<C>(depositor_addr, receiver_addr, amount, is_collateral_only);
+            asset_pool::withdraw_for<C>(depositor_addr, receiver_addr, withdrawn_amount, is_collateral_only);
         } else {
-            amount = shadow_pool::withdraw_for<C>(depositor_addr, receiver_addr, amount, is_collateral_only, 0);
+            shadow_pool::withdraw_for<C>(depositor_addr, receiver_addr, withdrawn_amount, is_collateral_only, 0);
         };
-        account_position::withdraw<C,P>(depositor_addr, amount, is_collateral_only);
+        
     }
 
     /// Borrow an asset or a shadow from the pool.

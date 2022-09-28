@@ -147,18 +147,20 @@ module leizd::account_position {
     ////////////////////////////////////////////////////
     /// Withdraw
     ////////////////////////////////////////////////////
-    public(friend) fun withdraw<C,P>(depositor_addr: address, amount: u64, is_collateral_only: bool) acquires Position, AccountPositionEventHandle {
-        withdraw_internal<C,P>(depositor_addr, amount, is_collateral_only);
+    public(friend) fun withdraw<C,P>(depositor_addr: address, amount: u64, is_collateral_only: bool): u64 acquires Position, AccountPositionEventHandle {
+        withdraw_internal<C,P>(depositor_addr, amount, is_collateral_only)
     }
 
-    fun withdraw_internal<C,P>(depositor_addr: address, amount: u64, is_collateral_only: bool) acquires Position, AccountPositionEventHandle {
+    fun withdraw_internal<C,P>(depositor_addr: address, amount: u64, is_collateral_only: bool): u64 acquires Position, AccountPositionEventHandle {
+        let withdrawn_amount;
         if (pool_type::is_type_asset<P>()) {
-            update_on_withdraw<C,AssetToShadow>(depositor_addr, amount, is_collateral_only);
+            withdrawn_amount = update_on_withdraw<C,AssetToShadow>(depositor_addr, amount, is_collateral_only);
             assert!(is_safe<C,AssetToShadow>(depositor_addr), error::invalid_state(ENO_SAFE_POSITION));
         } else {
-            update_on_withdraw<C,ShadowToAsset>(depositor_addr, amount, is_collateral_only);
+            withdrawn_amount = update_on_withdraw<C,ShadowToAsset>(depositor_addr, amount, is_collateral_only);
             assert!(is_safe<C,ShadowToAsset>(depositor_addr), error::invalid_state(ENO_SAFE_POSITION));
         };
+        withdrawn_amount
     }
 
 
@@ -654,9 +656,9 @@ module leizd::account_position {
         depositor_addr: address,
         amount: u64,
         is_collateral_only: bool
-    ) acquires Position, AccountPositionEventHandle {
+    ): u64 acquires Position, AccountPositionEventHandle {
         let key = key<C>();
-        update_position_for_withdraw<P>(key, depositor_addr, amount, is_collateral_only);
+        update_position_for_withdraw<P>(key, depositor_addr, amount, is_collateral_only)
     }
 
     fun update_on_borrow<C,P>(
@@ -689,9 +691,10 @@ module leizd::account_position {
         };
     }
 
-    fun update_position_for_withdraw<P>(key: String, addr: address, amount: u64, is_collateral_only: bool) acquires Position, AccountPositionEventHandle {
+    fun update_position_for_withdraw<P>(key: String, addr: address, amount: u64, is_collateral_only: bool): u64 acquires Position, AccountPositionEventHandle {
         let position_ref = borrow_global_mut<Position<P>>(addr);
         let balance_ref = simple_map::borrow_mut<String,Balance>(&mut position_ref.balance, &key);
+        amount = if (amount == constant::u64_max()) balance_ref.deposited else amount;
         assert!(balance_ref.deposited >= amount, error::invalid_argument(EOVER_DEPOSITED_AMOUNT));
         balance_ref.deposited = balance_ref.deposited - amount;
         if (is_collateral_only) {
@@ -699,6 +702,7 @@ module leizd::account_position {
         };
         emit_update_position_event<P>(addr, key, balance_ref);
         remove_balance_if_unused<P>(addr, key);
+        amount
     }
 
     fun update_position_for_borrow<P>(key: String, addr: address, amount: u64) acquires Position, AccountPositionEventHandle {
@@ -1106,6 +1110,19 @@ module leizd::account_position {
 
         assert!(deposited_shadow<WETH>(account_addr) == 100000, 0);
         assert!(conly_deposited_shadow<WETH>(account_addr) == 100000, 0);
+    }
+    #[test(owner=@leizd,account=@0x111)]
+    public entry fun test_withdraw_all(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle {
+        setup_for_test_to_initialize_coins(owner);
+        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+
+        deposit_internal<WETH,Shadow>(account, account_addr, 700000, true);
+        withdraw_internal<WETH,Shadow>(account_addr, constant::u64_max(), true);
+
+        assert!(deposited_shadow<WETH>(account_addr) == 0, 0);
+        assert!(conly_deposited_shadow<WETH>(account_addr) == 0, 0);
     }
     #[test(owner=@leizd,account=@0x111)]
     public entry fun test_withdraw_with_all_patterns(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle {
