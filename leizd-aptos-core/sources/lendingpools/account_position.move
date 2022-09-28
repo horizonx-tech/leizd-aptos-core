@@ -7,7 +7,7 @@ module leizd::account_position {
     use std::string::{String};
     use aptos_std::event;
     use aptos_std::comparator;
-    use aptos_std::simple_map;
+    use aptos_std::simple_map::{Self,SimpleMap};
     use aptos_framework::account;
     use leizd::rebalance::{Self,Rebalance};
     use leizd_aptos_common::pool_type;
@@ -35,8 +35,8 @@ module leizd::account_position {
     /// P: The position type - AssetToShadow or ShadowToAsset.
     struct Position<phantom P> has key {
         coins: vector<String>, // e.g. 0x1::module_name::WBTC
-        protected_coins: simple_map::SimpleMap<String,bool>, // e.g. 0x1::module_name::WBTC - true, NOTE: use only ShadowToAsset (need to refactor)
-        balance: simple_map::SimpleMap<String,Balance>,
+        protected_coins: SimpleMap<String,bool>, // e.g. 0x1::module_name::WBTC - true, NOTE: use only ShadowToAsset (need to refactor)
+        balance: SimpleMap<String,Balance>,
     }
 
     struct Balance has store, drop {
@@ -338,45 +338,72 @@ module leizd::account_position {
         repaid_amount
     }
 
+    /// @return (repay_keys, repay_amounts)
     public(friend) fun repay_shadow_with_rebalance(addr: address, amount: u64): (vector<String>, vector<u64>) acquires Position, AccountPositionEventHandle {
+        let position_ref = borrow_global<Position<AssetToShadow>>(addr);
+        let coins = position_ref.coins;
+        let protected_coins = position_ref.protected_coins;
+
+        let sum_repayable_shadow = sum_repayable_shadow(&coins, &protected_coins, addr);        
+        if (sum_repayable_shadow <= amount) {
+            repay_all(&coins, &protected_coins, addr)
+        } else {
+            repay_to_even_out(&coins, &protected_coins, addr, amount, sum_repayable_shadow)
+        }
+    }
+
+    fun sum_repayable_shadow(coins: &vector<String>, protected_coins: &SimpleMap<String,bool>, addr: address): u64 acquires Position {
+        let i = vector::length<String>(coins);
+        let sum_repayable_shadow = 0;
+        while (i > 0) {
+            let key = vector::borrow<String>(coins, i-1);
+            if (!simple_map::contains_key<String,bool>(protected_coins, key)) {
+                sum_repayable_shadow = sum_repayable_shadow + borrowed_shadow_with(*key, addr);
+            };
+            i = i - 1;
+        };
+        sum_repayable_shadow
+    }
+
+    fun repay_all(coins: &vector<String>, protected_coins: &SimpleMap<String,bool>, addr: address): (vector<String>, vector<u64>) acquires Position, AccountPositionEventHandle {
+        let repay_keys = vector::empty<String>();
+        let repay_amounts = vector::empty<u64>();
+        let i = vector::length<String>(coins);
+        while (i > 0) {
+            let key = vector::borrow<String>(coins, i-1);
+            if (!simple_map::contains_key<String,bool>(protected_coins, key)) {
+                let repayable = borrowed_shadow_with(*key, addr);
+                update_position_for_repay<AssetToShadow>(*key, addr, repayable);
+                vector::push_back<String>(&mut repay_keys, *key);
+                vector::push_back<u64>(&mut repay_amounts, repayable);
+            };
+            i = i - 1;
+        };
+        (repay_keys, repay_amounts)
+    }
+
+    fun repay_to_even_out(
+        coins: &vector<String>,
+        protected_coins: &SimpleMap<String,bool>,
+        addr: address,
+        amount: u64,
+        sum_repayable_shadow: u64
+    ): (vector<String>, vector<u64>) acquires Position, AccountPositionEventHandle {
         let result_key = vector::empty<String>();
         let result_amount = vector::empty<u64>();
 
-        let position_ref = borrow_global<Position<AssetToShadow>>(addr);
-        let coins = position_ref.coins;
-
-        let i = vector::length<String>(&coins);
-        let sum_borrowed_shadow = 0;
+        let i = vector::length<String>(coins);
+        let debt_left = sum_repayable_shadow - amount;
+        let each_debt = debt_left / i;
         while (i > 0) {
-            let key = vector::borrow<String>(&coins, i-1);
-            sum_borrowed_shadow = sum_borrowed_shadow + borrowed_shadow_with(*key, addr);
-            i = i - 1;
-        };
-        
-        if (sum_borrowed_shadow <= amount) {
-            // repay all
-            let i = vector::length<String>(&coins);
-            while (i > 0) {
-                let key = vector::borrow<String>(&coins, i-1);
-                let repayable = borrowed_shadow_with(*key, addr);
-                update_position_for_repay<AssetToShadow>(*key, addr, repayable);
-                vector::push_back<String>(&mut result_key, *key);
-                vector::push_back<u64>(&mut result_amount, repayable);
-                i = i - 1;
-            };
-        } else {
-            // repay to even out
-            let i = vector::length<String>(&coins);
-            let debt_left = sum_borrowed_shadow - amount;
-            let each_debt = debt_left / i;
-            while (i > 0) {
-                let key = vector::borrow<String>(&coins, i-1);
+            let key = vector::borrow<String>(coins, i-1);
+            if (!simple_map::contains_key<String,bool>(protected_coins, key)) { 
                 let repayable = borrowed_shadow_with(*key, addr) - each_debt;
                 update_position_for_repay<AssetToShadow>(*key, addr, repayable);
                 vector::push_back<String>(&mut result_key, *key);
                 vector::push_back<u64>(&mut result_amount, repayable);
-                i = i - 1;
             };
+            i = i - 1;
         };
         (result_key, result_amount)
     }
@@ -592,7 +619,7 @@ module leizd::account_position {
         let position_ref = borrow_global<Position<ShadowToAsset>>(account_addr);
         is_protected_internal(&position_ref.protected_coins, key)
     }
-    fun is_protected_internal(protected_coins: &simple_map::SimpleMap<String,bool>, key: String): bool {
+    fun is_protected_internal(protected_coins: &SimpleMap<String,bool>, key: String): bool {
         simple_map::contains_key<String,bool>(protected_coins, &key)
     }
 
