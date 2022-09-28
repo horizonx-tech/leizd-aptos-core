@@ -23,6 +23,7 @@ module leizd::money_market {
     /// P is a pool type and a user should select which pool to use: Asset or Shadow.
     /// e.g. Deposit USDZ for WETH Pool -> deposit<WETH,Asset>(x,x,x)
     /// e.g. Deposit WBTC for WBTC Pool -> deposit<WBTC,Shadow>(x,x,x)
+    /// Note that a user cannot mix the both the collateral only position and the borrowable position for the same asset.
     public entry fun deposit<C,P>(
         account: &signer,
         amount: u64,
@@ -51,20 +52,19 @@ module leizd::money_market {
     public entry fun withdraw<C,P>(
         account: &signer,
         amount: u64,
-        is_collateral_only: bool
     ) {
-        withdraw_for<C,P>(account, signer::address_of(account), amount, is_collateral_only);
+        withdraw_for<C,P>(account, signer::address_of(account), amount);
     }
 
     public entry fun withdraw_for<C,P>(
         account: &signer,
         receiver_addr: address,
         amount: u64,
-        is_collateral_only: bool
     ) {
         pool_type::assert_pool_type<P>();
 
         let depositor_addr = signer::address_of(account);
+        let is_collateral_only = account_position::is_conly<C,P>(depositor_addr);
         if (pool_type::is_type_asset<P>()) {
             amount = asset_pool::withdraw_for<C>(depositor_addr, receiver_addr, amount, is_collateral_only);
         } else {
@@ -88,7 +88,7 @@ module leizd::money_market {
         } else {
             borrowed_amount = shadow_pool::borrow_for<C>(borrower_addr, receiver_addr, amount);
         };
-        account_position::borrow<C,P>(borrower_addr, borrowed_amount);
+        account_position::borrow<C,P>(account, borrower_addr, borrowed_amount);
     }
 
     /// Borrow the coin C with the shadow that is collected from the best pool.
@@ -359,7 +359,7 @@ module leizd::money_market {
         managed_coin::mint<WETH>(owner, account_addr, 100);
 
         deposit<WETH, Asset>(account, 100, false);
-        withdraw<WETH, Asset>(account, 75, false);
+        withdraw<WETH, Asset>(account, 75);
 
         assert!(coin::balance<WETH>(account_addr) == 75, 0);
         assert!(asset_pool::total_deposited<WETH>() == 25, 0);
@@ -373,7 +373,7 @@ module leizd::money_market {
         usdz::mint_for_test(account_addr, 100);
 
         deposit<WETH, Shadow>(account, 100, false);
-        withdraw<WETH, Shadow>(account, 75, false);
+        withdraw<WETH, Shadow>(account, 75);
 
         assert!(coin::balance<USDZ>(account_addr) == 75, 0);
         assert!(shadow_pool::deposited<WETH>() == 25, 0);
@@ -390,7 +390,7 @@ module leizd::money_market {
 
         deposit<WETH, Asset>(account, 100, false);
         let for_addr = signer::address_of(for);
-        withdraw_for<WETH, Asset>(account, for_addr, 75, false);
+        withdraw_for<WETH, Asset>(account, for_addr, 75);
 
         assert!(coin::balance<WETH>(account_addr) == 0, 0);
         assert!(coin::balance<WETH>(for_addr) == 75, 0);
@@ -408,7 +408,7 @@ module leizd::money_market {
 
         deposit<WETH, Shadow>(account, 100, false);
         let for_addr = signer::address_of(for);
-        withdraw_for<WETH, Shadow>(account, for_addr, 75, false);
+        withdraw_for<WETH, Shadow>(account, for_addr, 75);
 
         assert!(coin::balance<USDZ>(account_addr) == 0, 0);
         assert!(coin::balance<USDZ>(for_addr) == 75, 0);
@@ -623,7 +623,7 @@ module leizd::money_market {
         deposit<WETH, Asset>(lp, 3, false);
         borrow<WETH, Shadow>(lp, 1);
         repay<WETH, Shadow>(lp, 2);
-        withdraw<WETH, Asset>(lp, 3, false);
+        withdraw<WETH, Asset>(lp, 3);
         let lp_addr = signer::address_of(lp);
         assert!(asset_pool::total_deposited<WETH>() == 0, 0);
         assert!(shadow_pool::borrowed<WETH>() == 0, 0);
