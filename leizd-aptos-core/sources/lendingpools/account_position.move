@@ -357,7 +357,7 @@ module leizd::account_position {
         let sum_repayable_shadow = 0;
         while (i > 0) {
             let key = vector::borrow<String>(coins, i-1);
-            if (!simple_map::contains_key<String,bool>(protected_coins, key)) {
+            if (!is_protected_internal(protected_coins, *key)) {
                 sum_repayable_shadow = sum_repayable_shadow + borrowed_shadow_with(*key, addr);
             };
             i = i - 1;
@@ -371,7 +371,7 @@ module leizd::account_position {
         let i = vector::length<String>(coins);
         while (i > 0) {
             let key = vector::borrow<String>(coins, i-1);
-            if (!simple_map::contains_key<String,bool>(protected_coins, key)) {
+            if (!is_protected_internal(protected_coins, *key)) {
                 let repayable = borrowed_shadow_with(*key, addr);
                 update_position_for_repay<AssetToShadow>(*key, addr, repayable);
                 vector::push_back<String>(&mut repay_keys, *key);
@@ -397,7 +397,7 @@ module leizd::account_position {
         let each_debt = debt_left / i;
         while (i > 0) {
             let key = vector::borrow<String>(coins, i-1);
-            if (!simple_map::contains_key<String,bool>(protected_coins, key)) { 
+            if (!is_protected_internal(protected_coins, *key)) { 
                 let repayable = borrowed_shadow_with(*key, addr) - each_debt;
                 update_position_for_repay<AssetToShadow>(*key, addr, repayable);
                 vector::push_back<String>(&mut result_key, *key);
@@ -599,19 +599,19 @@ module leizd::account_position {
     public(friend) fun enable_to_rebalance<C>(account: &signer) acquires Position {
         let key = key<C>();
         let position_ref = borrow_global_mut<Position<ShadowToAsset>>(signer::address_of(account));
-        // assert!(vector::contains<String>(&position_ref.coins, &key), ENOT_EXISTED); // TODO: temp
-        assert!(!is_protected_internal(&position_ref.protected_coins, key), EALREADY_PROTECTED);
+        assert!(vector::contains<String>(&position_ref.coins, &key), ENOT_EXISTED); // TODO
+        assert!(is_protected_internal(&position_ref.protected_coins, key), EALREADY_PROTECTED);
 
-        simple_map::add<String,bool>(&mut position_ref.protected_coins, key, true);
+        simple_map::remove<String,bool>(&mut position_ref.protected_coins, &key);
     }
 
     public(friend) fun unable_to_rebalance<C>(account: &signer) acquires Position {
         let key = key<C>();
         let position_ref = borrow_global_mut<Position<ShadowToAsset>>(signer::address_of(account));
-        // assert!(vector::contains<String>(&position_ref.coins, &key), ENOT_EXISTED); // TODO: temp
-        assert!(is_protected_internal(&position_ref.protected_coins, key), EALREADY_PROTECTED);
+        assert!(vector::contains<String>(&position_ref.coins, &key), ENOT_EXISTED); // TODO
+        assert!(!is_protected_internal(&position_ref.protected_coins, key), EALREADY_PROTECTED);
 
-        simple_map::remove<String,bool>(&mut position_ref.protected_coins, &key);
+        simple_map::add<String,bool>(&mut position_ref.protected_coins, key, true);
     }
 
     public fun is_protected<C>(account_addr: address): bool acquires Position {
@@ -945,13 +945,13 @@ module leizd::account_position {
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
         initialize_if_necessary(account);
-        new_position<ShadowToAsset>(account_addr, 0, 0, false, key);
+        new_position<ShadowToAsset>(account_addr, 10, 0, false, key);
         assert!(!is_protected<WETH>(account_addr), 0);
 
-        enable_to_rebalance<WETH>(account);
+        unable_to_rebalance<WETH>(account);
         assert!(is_protected<WETH>(account_addr), 0);
 
-        unable_to_rebalance<WETH>(account);
+        enable_to_rebalance<WETH>(account);
         assert!(!is_protected<WETH>(account_addr), 0);
     }
     #[test(owner=@leizd,account=@0x111)]
@@ -1391,6 +1391,74 @@ module leizd::account_position {
         borrow_internal<WETH,Shadow>(account, account_addr, 6999);
         repay<WETH,Shadow>(account_addr, 7000);
     }
+
+    // repay with rebalance
+    #[test(owner=@leizd,account=@0x111)]
+    public entry fun test_repay_shadow_with_rebalance_evenly(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle {
+        setup_for_test_to_initialize_coins(owner);
+        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+
+        // 2 positions
+        deposit_internal<WETH,Asset>(account, account_addr, 10000, false);
+        borrow_internal<WETH,Shadow>(account, account_addr, 6999);
+        deposit_internal<UNI,Asset>(account, account_addr, 10000, false);
+        borrow_internal<UNI,Shadow>(account, account_addr, 6999);
+        assert!(borrowed_shadow<WETH>(account_addr) == 6999, 0);
+        assert!(borrowed_shadow<UNI>(account_addr) == 6999, 0);
+
+        // execute
+        repay_shadow_with_rebalance(account_addr, 10000);
+        assert!(borrowed_shadow<WETH>(account_addr) == 1999, 0);
+        assert!(borrowed_shadow<UNI>(account_addr) == 1999, 0);
+    }
+    #[test(owner=@leizd,account=@0x111)]
+    public entry fun test_repay_shadow_with_rebalance_all(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle {
+        setup_for_test_to_initialize_coins(owner);
+        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+
+        // execute
+        deposit_internal<WETH,Asset>(account, account_addr, 10000, false);
+        borrow_internal<WETH,Shadow>(account, account_addr, 6999);
+        deposit_internal<UNI,Asset>(account, account_addr, 10000, false);
+        borrow_internal<UNI,Shadow>(account, account_addr, 6999);
+
+        repay_shadow_with_rebalance(account_addr, 14000);
+        assert!(deposited_asset<WETH>(account_addr) == 10000, 0);
+        assert!(borrowed_shadow<WETH>(account_addr) == 0, 0);
+        assert!(deposited_asset<UNI>(account_addr) == 10000, 0);
+        assert!(borrowed_shadow<UNI>(account_addr) == 0, 0);
+    }
+    #[test(owner=@leizd,account=@0x111)]
+    public entry fun test_repay_shadow_with_rebalance_without_protected_coins(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle {
+        setup_for_test_to_initialize_coins(owner);
+        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+
+        // execute
+        deposit_internal<WETH,Asset>(account, account_addr, 10000, false);
+        borrow_internal<WETH,Shadow>(account, account_addr, 6999);
+        deposit_internal<UNI,Asset>(account, account_addr, 10000, false);
+        borrow_internal<UNI,Shadow>(account, account_addr, 6999);
+        deposit_internal<USDC,Asset>(account, account_addr, 10000, false);
+        borrow_internal<USDC,Shadow>(account, account_addr, 6999);
+        unable_to_rebalance<UNI>(account);
+
+        repay_shadow_with_rebalance(account_addr, 6000);
+        debug::print(&borrowed_shadow<WETH>(account_addr));
+        debug::print(&borrowed_shadow<UNI>(account_addr));
+        assert!(deposited_asset<WETH>(account_addr) == 10000, 0);
+        assert!(borrowed_shadow<WETH>(account_addr) == 3999, 0);
+        assert!(deposited_asset<UNI>(account_addr) == 10000, 0);
+        assert!(borrowed_shadow<UNI>(account_addr) == 6999, 0);
+        assert!(deposited_asset<USDC>(account_addr) == 10000, 0);
+        assert!(borrowed_shadow<USDC>(account_addr) == 3999, 0);
+    }
+    use std::debug;
 
     // for liquidation
     #[test(owner=@leizd,account=@0x111)]
@@ -1861,7 +1929,7 @@ module leizd::account_position {
 
         deposit_internal<WETH,Shadow>(account, account_addr, 100, false);
         deposit_internal<UNI,Shadow>(account, account_addr, 100, false);
-        enable_to_rebalance<WETH>(account);
+        unable_to_rebalance<WETH>(account);
         rebalance_shadow<WETH, UNI>(account_addr);
     }
     #[test(owner = @leizd, account = @0x111)]
@@ -1873,7 +1941,7 @@ module leizd::account_position {
 
         deposit_internal<WETH,Shadow>(account, account_addr, 100, false);
         deposit_internal<UNI,Shadow>(account, account_addr, 100, false);
-        enable_to_rebalance<UNI>(account);
+        unable_to_rebalance<UNI>(account);
         rebalance_shadow<WETH, UNI>(account_addr);
     }
     #[test(owner=@leizd,account1=@0x111)]
@@ -1956,7 +2024,7 @@ module leizd::account_position {
         borrow_internal<WETH,Shadow>(account, account_addr, 1000);
         deposit_internal<UNI,Shadow>(account, account_addr, 1000, false);
         borrow_unsafe_for_test<UNI,Asset>(account_addr, 1500);
-        enable_to_rebalance<WETH>(account);
+        unable_to_rebalance<UNI>(account);
         borrow_and_rebalance<WETH, UNI>(account_addr, false);
     }
     #[test(owner = @leizd, account = @0x111)]
@@ -2076,28 +2144,6 @@ module leizd::account_position {
         assert!(borrowed_asset<UNI>(account1_addr) == 10000, 0);
 
         // assert!(event::counter<UpdatePositionEvent>(&borrow_global<AccountPositionEventHandle<ShadowToAsset>>(account1_addr).update_position_event) == 7, 0);
-    }
-
-    // repay shadow with rebalance
-    #[test(owner=@leizd,account=@0x111)]
-    public entry fun test_repay_shadow_with_rebalance(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
-        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
-        let account_addr = signer::address_of(account);
-        account::create_account_for_test(account_addr);
-
-        // 2 positions
-        deposit_internal<WETH,Asset>(account, account_addr, 10000, false);
-        borrow_internal<WETH,Shadow>(account, account_addr, 6999);
-        deposit_internal<UNI,Asset>(account, account_addr, 10000, false);
-        borrow_internal<UNI,Shadow>(account, account_addr, 6999);
-        assert!(borrowed_shadow<WETH>(account_addr) == 6999, 0);
-        assert!(borrowed_shadow<UNI>(account_addr) == 6999, 0);
-
-        // execute
-        repay_shadow_with_rebalance(account_addr, 10000);
-        assert!(borrowed_shadow<WETH>(account_addr) == 1999, 0);
-        assert!(borrowed_shadow<UNI>(account_addr) == 1999, 0);
     }
 
     // switch collateral

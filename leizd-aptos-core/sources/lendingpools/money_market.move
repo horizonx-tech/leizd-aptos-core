@@ -565,14 +565,14 @@ module leizd::money_market {
 
         // prerequisite: create position by depositing some asset
         let account_addr = signer::address_of(account);
-        managed_coin::mint<WETH>(owner, account_addr, 100);
-        deposit<WETH, Asset>(account, 100, false);
+        usdz::mint_for_test(account_addr, 100);
+        deposit<WETH, Shadow>(account, 100, false);
 
         // execute
         assert!(!account_position::is_protected<WETH>(account_addr), 0);
-        enable_to_rebalance<WETH>(account);
-        assert!(account_position::is_protected<WETH>(account_addr), 0);
         unable_to_rebalance<WETH>(account);
+        assert!(account_position::is_protected<WETH>(account_addr), 0);
+        enable_to_rebalance<WETH>(account);
         assert!(!account_position::is_protected<WETH>(account_addr), 0);
     }
     #[test(owner=@leizd,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
