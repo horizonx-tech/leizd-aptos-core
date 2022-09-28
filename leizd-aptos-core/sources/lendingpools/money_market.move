@@ -49,6 +49,8 @@ module leizd::money_market {
     }
 
     /// Withdraws an asset or a shadow from the pool.
+    /// A user can withdraw an asset or a shadow position whether or not it is `is_collateral_only`.
+    /// All amount will be withdrawn if the max u64 amount was set as the `amount`.
     public entry fun withdraw<C,P>(
         account: &signer,
         amount: u64,
@@ -74,6 +76,7 @@ module leizd::money_market {
     }
 
     /// Borrow an asset or a shadow from the pool.
+    /// When a user executes `borrow` without the enough collateral, the result will be reverted.
     public entry fun borrow<C,P>(account: &signer, amount: u64) {
         borrow_for<C,P>(account, signer::address_of(account), amount);
     }
