@@ -489,14 +489,15 @@ module leizd::stability_pool {
         (config.emission_per_sec, config.last_updated, config.index)
     }
 
-    public(friend) fun collect_support_fee(key: String, coin: coin::Coin<USDZ>, uncollected: u128) acquires StabilityPool, Balance {
+    public(friend) fun collect_support_fee(key: String, coin: coin::Coin<USDZ>, new_uncollected_fee: u128) acquires StabilityPool, Balance {
         let owner_address = permission::owner_address();
         let balance_ref = borrow_global_mut<Balance>(owner_address);
         let pool_ref = borrow_global_mut<StabilityPool>(owner_address);
 
         let uncollected_support_fee = simple_map::borrow_mut<String,u128>(&mut balance_ref.uncollected_support_fee, &key);
-        *uncollected_support_fee = *uncollected_support_fee + uncollected;
-        pool_ref.total_uncollected_fee = pool_ref.total_uncollected_fee + uncollected;
+        pool_ref.total_uncollected_fee = pool_ref.total_uncollected_fee - *uncollected_support_fee;
+        *uncollected_support_fee = new_uncollected_fee;
+        pool_ref.total_uncollected_fee = pool_ref.total_uncollected_fee + new_uncollected_fee;
         coin::merge<USDZ>(&mut pool_ref.collected_fee, coin);
     }
 
