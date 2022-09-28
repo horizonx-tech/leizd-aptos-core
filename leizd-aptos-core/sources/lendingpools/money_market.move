@@ -12,6 +12,7 @@ module leizd::money_market {
     use std::vector;
     use std::string::{String};
     use leizd_aptos_common::pool_type;
+    use leizd_aptos_lib::constant;
     use leizd::asset_pool;
     use leizd::shadow_pool;
     use leizd::account_position;
@@ -64,15 +65,24 @@ module leizd::money_market {
         amount: u64,
     ) {
         pool_type::assert_pool_type<P>();
-
         let depositor_addr = signer::address_of(account);
         let is_collateral_only = account_position::is_conly<C,P>(depositor_addr);
-        let withdrawn_amount = account_position::withdraw<C,P>(depositor_addr, amount, is_collateral_only);
-        if (pool_type::is_type_asset<P>()) {
-            asset_pool::withdraw_for<C>(depositor_addr, receiver_addr, withdrawn_amount, is_collateral_only);
+        if (amount == constant::u64_max()) {
+            let withdrawn_amount = account_position::withdraw<C,P>(depositor_addr, amount, is_collateral_only);
+            if (pool_type::is_type_asset<P>()) {
+                asset_pool::withdraw_for<C>(depositor_addr, receiver_addr, withdrawn_amount, is_collateral_only);
+            } else {
+                shadow_pool::withdraw_for<C>(depositor_addr, receiver_addr, withdrawn_amount, is_collateral_only, 0);
+            };
         } else {
-            shadow_pool::withdraw_for<C>(depositor_addr, receiver_addr, withdrawn_amount, is_collateral_only, 0);
-        };
+            let withdrawing_user_share: u64;
+            if (pool_type::is_type_asset<P>()) {
+                (_, withdrawing_user_share) = asset_pool::withdraw_for<C>(depositor_addr, receiver_addr, amount, is_collateral_only);
+            } else {
+                (_, withdrawing_user_share) = shadow_pool::withdraw_for<C>(depositor_addr, receiver_addr, amount, is_collateral_only, 0);
+            };
+            account_position::withdraw<C,P>(depositor_addr, withdrawing_user_share, is_collateral_only);
+        }
     }
 
     /// Borrow an asset or a shadow from the pool.
