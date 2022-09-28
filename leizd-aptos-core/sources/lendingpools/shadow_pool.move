@@ -10,7 +10,6 @@ module leizd::shadow_pool {
     use aptos_framework::timestamp;
     use leizd_aptos_common::coin_key::{key};
     use leizd_aptos_common::permission;
-    use leizd_aptos_lib::constant;
     use leizd_aptos_trove::usdz::{USDZ};
     use leizd::interest_rate;
     use leizd::pool_status;
@@ -286,7 +285,7 @@ module leizd::shadow_pool {
         amount: u64,
         is_collateral_only: bool,
         liquidation_fee: u64
-    ): u64 acquires Pool, Storage, PoolEventHandle {
+    ) acquires Pool, Storage, PoolEventHandle {
         let key = key<C>();
         withdraw_for_internal(
             key,
@@ -295,7 +294,7 @@ module leizd::shadow_pool {
             amount,
             is_collateral_only,
             liquidation_fee
-        )
+        );
     }
 
     public(friend) fun withdraw_for_with(
@@ -305,7 +304,7 @@ module leizd::shadow_pool {
         amount: u64,
         is_collateral_only: bool,
         liquidation_fee: u64
-    ): u64 acquires Pool, Storage, PoolEventHandle {
+    ) acquires Pool, Storage, PoolEventHandle {
         withdraw_for_internal(key, depositor_addr, reciever_addr, amount, is_collateral_only, liquidation_fee)
     }
 
@@ -316,7 +315,7 @@ module leizd::shadow_pool {
         amount: u64,
         is_collateral_only: bool,
         liquidation_fee: u64
-    ): u64 acquires Pool, Storage, PoolEventHandle {
+    ) acquires Pool, Storage, PoolEventHandle {
         assert!(pool_status::can_withdraw_with(key), error::invalid_state(E_NOT_AVAILABLE_STATUS));
         assert!(amount > 0, error::invalid_argument(E_AMOUNT_ARG_IS_ZERO));
 
@@ -329,25 +328,15 @@ module leizd::shadow_pool {
 
         let amount_to_transfer = amount - liquidation_fee;
         coin::deposit<USDZ>(receiver_addr, coin::extract(&mut pool_ref.shadow, amount_to_transfer));
-        let withdrawn_amount;
-        if (amount == constant::u64_max()) {
-            if (is_collateral_only) {
-                withdrawn_amount = storage_ref.total_conly_deposited;
-            } else {
-                withdrawn_amount = storage_ref.total_deposited;
-            };
-        } else {
-            withdrawn_amount = (amount as u128);
-        };
 
-        storage_ref.total_deposited = storage_ref.total_deposited - (withdrawn_amount as u128);
+        storage_ref.total_deposited = storage_ref.total_deposited - (amount as u128);
         assert!(is_initialized_asset_with_internal(&key, storage_ref), error::invalid_argument(E_NOT_INITIALIZED_COIN));
 
         let asset_storage = simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key);
         asset_storage.deposited = asset_storage.deposited - amount;
 
         if (is_collateral_only) {
-            storage_ref.total_conly_deposited = storage_ref.total_conly_deposited - (withdrawn_amount as u128);
+            storage_ref.total_conly_deposited = storage_ref.total_conly_deposited - (amount as u128);
             asset_storage.conly_deposited = asset_storage.conly_deposited - amount;
         };
 
@@ -361,7 +350,6 @@ module leizd::shadow_pool {
                 is_collateral_only,
             },
         );
-        (withdrawn_amount as u64)
     }
 
     public(friend) fun borrow_for<C>(

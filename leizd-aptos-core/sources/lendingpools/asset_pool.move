@@ -17,7 +17,6 @@ module leizd::asset_pool {
     use leizd_aptos_common::coin_key::{key};
     use leizd_aptos_common::permission;
     use leizd_aptos_external::dex_facade;
-    use leizd_aptos_lib::constant;
     use leizd_aptos_treasury::treasury;
     use leizd::interest_rate;
     use leizd::pool_status;
@@ -195,14 +194,14 @@ module leizd::asset_pool {
         receiver_addr: address,
         amount: u64,
         is_collateral_only: bool
-    ): u64 acquires Pool, Storage, PoolEventHandle {
+    ) acquires Pool, Storage, PoolEventHandle {
         withdraw_for_internal<C>(
             caller_addr,
             receiver_addr,
             amount,
             is_collateral_only,
             0
-        )
+        );
     }
 
     fun withdraw_for_internal<C>(
@@ -211,7 +210,7 @@ module leizd::asset_pool {
         amount: u64,
         is_collateral_only: bool,
         liquidation_fee: u64,
-    ): u64 acquires Pool, Storage, PoolEventHandle {
+    ) acquires Pool, Storage, PoolEventHandle {
         assert!(pool_status::can_withdraw<C>(), error::invalid_state(E_NOT_AVAILABLE_STATUS));
         assert!(amount > 0, error::invalid_argument(E_AMOUNT_ARG_IS_ZERO));
 
@@ -224,20 +223,10 @@ module leizd::asset_pool {
 
         let amount_to_transfer = amount - liquidation_fee;
         coin::deposit<C>(receiver_addr, coin::extract(&mut pool_ref.asset, amount_to_transfer));
-        let withdrawn_amount;
-        if (amount == constant::u64_max()) {
-            if (is_collateral_only) {
-                withdrawn_amount = storage_ref.total_conly_deposited;
-            } else {
-                withdrawn_amount = storage_ref.total_deposited;
-            };
-        } else {
-            withdrawn_amount = (amount as u128);
-        };
 
-        storage_ref.total_deposited = storage_ref.total_deposited - (withdrawn_amount as u128);
+        storage_ref.total_deposited = storage_ref.total_deposited - (amount as u128);
         if (is_collateral_only) {
-            storage_ref.total_conly_deposited = storage_ref.total_conly_deposited - (withdrawn_amount as u128);
+            storage_ref.total_conly_deposited = storage_ref.total_conly_deposited - (amount as u128);
         };
 
         event::emit_event<WithdrawEvent>(
@@ -249,7 +238,6 @@ module leizd::asset_pool {
                 is_collateral_only,
             },
         );
-        (withdrawn_amount as u64)
     }
 
     /// Borrows an asset or a shadow from the pool.
@@ -302,14 +290,14 @@ module leizd::asset_pool {
     public(friend) fun repay<C>(
         account: &signer,
         amount: u64,
-    ): u64 acquires Pool, Storage, PoolEventHandle {
+    ) acquires Pool, Storage, PoolEventHandle {
         repay_internal<C>(account, amount)
     }
 
     fun repay_internal<C>(
         account: &signer,
         amount: u64,
-    ): u64 acquires Pool, Storage, PoolEventHandle {
+    ) acquires Pool, Storage, PoolEventHandle {
         assert!(pool_status::can_repay<C>(), error::invalid_state(E_NOT_AVAILABLE_STATUS));
         assert!(amount > 0, error::invalid_argument(E_AMOUNT_ARG_IS_ZERO));
 
@@ -332,7 +320,6 @@ module leizd::asset_pool {
                 amount,
             },
         );
-        amount
     }
 
     public(friend) fun withdraw_for_liquidation<C>(
@@ -991,8 +978,7 @@ module leizd::asset_pool {
         assert!(pool_asset_value<UNI>(owner_address) == 1005, 0);
         borrow_for_internal<UNI>(borrower_addr, borrower_addr, 1000);
         assert!(pool_asset_value<UNI>(owner_address) == 0, 0);
-        let repaid_amount = repay_internal<UNI>(borrower, 900);
-        assert!(repaid_amount == 900, 0);
+        repay_internal<UNI>(borrower, 900);
         assert!(pool_asset_value<UNI>(owner_address) == 900, 0);
         assert!(coin::balance<UNI>(borrower_addr) == 100, 0);
 
@@ -1019,8 +1005,7 @@ module leizd::asset_pool {
         managed_coin::mint<UNI>(owner, depositor_addr, 1005);
         deposit_for_internal<UNI>(depositor, depositor_addr, 1005, false);
         borrow_for_internal<UNI>(borrower_addr, borrower_addr, 1000);
-        let repaid_amount = repay_internal<UNI>(borrower, 1000);
-        assert!(repaid_amount == 1000, 0);
+        repay_internal<UNI>(borrower, 1000);
         assert!(pool_asset_value<UNI>(owner_address) == 1000, 0);
         assert!(coin::balance<UNI>(borrower_addr) == 0, 0);
     }
@@ -1066,20 +1051,16 @@ module leizd::asset_pool {
         managed_coin::mint<UNI>(owner, depositor_addr, 1005);
         deposit_for_internal<UNI>(depositor, depositor_addr, 1005, false);
         borrow_for_internal<UNI>(borrower_addr, borrower_addr, 1000);
-        let repaid_amount = repay_internal<UNI>(borrower, 100);
-        assert!(repaid_amount == 100, 0);
+        repay_internal<UNI>(borrower, 100);
         assert!(pool_asset_value<UNI>(owner_address) == 100, 0);
         assert!(coin::balance<UNI>(borrower_addr) == 900, 0);
-        let repaid_amount = repay_internal<UNI>(borrower, 200);
-        assert!(repaid_amount == 200, 0);
+        repay_internal<UNI>(borrower, 200);
         assert!(pool_asset_value<UNI>(owner_address) == 300, 0);
         assert!(coin::balance<UNI>(borrower_addr) == 700, 0);
-        let repaid_amount = repay_internal<UNI>(borrower, 300);
-        assert!(repaid_amount == 300, 0);
+        repay_internal<UNI>(borrower, 300);
         assert!(pool_asset_value<UNI>(owner_address) == 600, 0);
         assert!(coin::balance<UNI>(borrower_addr) == 400, 0);
-        let repaid_amount = repay_internal<UNI>(borrower, 400);
-        assert!(repaid_amount == 400, 0);
+        repay_internal<UNI>(borrower, 400);
         assert!(pool_asset_value<UNI>(owner_address) == 1000, 0);
         assert!(coin::balance<UNI>(borrower_addr) == 0, 0);
 
@@ -1112,18 +1093,15 @@ module leizd::asset_pool {
         borrow_for_internal<UNI>(borrower_addr, borrower_addr, 1000);
 
         timestamp::update_global_time_for_test((initial_sec + 160) * 1000 * 1000); // + 80 sec
-        let repaid_amount = repay_internal<UNI>(borrower, 100);
-        assert!(repaid_amount == 100, 0);
+        repay_internal<UNI>(borrower, 100);
         assert!(pool_asset_value<UNI>(owner_address) == 100, 0);
         assert!(coin::balance<UNI>(borrower_addr) == 900, 0);
         timestamp::update_global_time_for_test((initial_sec + 240) * 1000 * 1000); // + 80 sec
-        let repaid_amount = repay_internal<UNI>(borrower, 200);
-        assert!(repaid_amount == 200, 0);
+        repay_internal<UNI>(borrower, 200);
         assert!(pool_asset_value<UNI>(owner_address) == 300, 0);
         assert!(coin::balance<UNI>(borrower_addr) == 700, 0);
         timestamp::update_global_time_for_test((initial_sec + 320) * 1000 * 1000); // + 80 sec
-        let repaid_amount = repay_internal<UNI>(borrower, 300);
-        assert!(repaid_amount == 300, 0);
+        repay_internal<UNI>(borrower, 300);
         assert!(pool_asset_value<UNI>(owner_address) == 600, 0);
         assert!(coin::balance<UNI>(borrower_addr) == 400, 0);
         // timestamp::update_global_time_for_test((initial_sec + 400) * 1000 * 1000); // + 80 sec
