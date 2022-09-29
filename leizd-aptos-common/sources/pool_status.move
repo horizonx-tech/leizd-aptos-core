@@ -1,6 +1,7 @@
 module leizd_aptos_common::pool_status {
     use std::error;
     use std::account;
+    use std::signer;
     use std::string::{String};
     use aptos_std::event;
     use aptos_std::simple_map;
@@ -230,8 +231,6 @@ module leizd_aptos_common::pool_status {
         emit_current_pool_status(key);
     }
 
-    #[test_only]
-    use std::signer;
     #[test_only]
     struct DummyStruct {}
     #[test_only]
