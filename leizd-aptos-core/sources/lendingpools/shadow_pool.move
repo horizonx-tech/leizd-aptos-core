@@ -35,7 +35,6 @@ module leizd::shadow_pool {
         total_conly_deposited: u128, // collateral only
         total_borrowed: u128,
         asset_storages: simple_map::SimpleMap<String, AssetStorage>,
-        last_updated: u64,
         protocol_fees: u64,
         harvested_protocol_fees: u64,
     }
@@ -43,6 +42,7 @@ module leizd::shadow_pool {
         deposited: u64, // borrowable + collateral only
         conly_deposited: u64, // collateral only
         borrowed: u64,
+        last_updated: u64,
     }
 
     // Events
@@ -136,7 +136,6 @@ module leizd::shadow_pool {
             total_conly_deposited: 0,
             total_borrowed: 0,
             asset_storages: simple_map::create<String,AssetStorage>(),
-            last_updated: 0,
             protocol_fees: 0,
             harvested_protocol_fees: 0,
         }
@@ -176,11 +175,10 @@ module leizd::shadow_pool {
         let storage_ref = borrow_global_mut<Storage>(owner_address);
         let pool_ref = borrow_global_mut<Pool>(owner_address);
 
+        initialize_for_asset_if_necessary(key, storage_ref);
         accrue_interest(key, storage_ref, pool_ref);
 
         coin::merge(&mut pool_ref.shadow, coin::withdraw<USDZ>(account, amount));
-
-        initialize_for_asset_if_necessary(key, storage_ref);
 
         storage_ref.total_deposited = storage_ref.total_deposited + (amount as u128);
         let asset_storage = simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key);
@@ -208,6 +206,7 @@ module leizd::shadow_pool {
                 deposited: 0,
                 conly_deposited: 0,
                 borrowed: 0,
+                last_updated: 0,
             });
         }
     }
@@ -383,6 +382,7 @@ module leizd::shadow_pool {
         let pool_ref = borrow_global_mut<Pool>(owner_address);
         let storage_ref = borrow_global_mut<Storage>(owner_address);
 
+        initialize_for_asset_if_necessary(key, storage_ref); // NOTE: because enable to borrow from stability_pool if no deposited
         accrue_interest(key, storage_ref, pool_ref);
 
         let entry_fee = risk_factor::calculate_entry_fee(amount);
@@ -429,7 +429,6 @@ module leizd::shadow_pool {
         let amount_with_total_fee = amount + total_fee;
         storage_ref.total_borrowed = storage_ref.total_borrowed + (amount_with_total_fee as u128);
 
-        initialize_for_asset_if_necessary(key, storage_ref); // NOTE: because enable to borrow from stability_pool if no deposited
         let borrowed = &mut simple_map::borrow_mut<String, AssetStorage>(&mut storage_ref.asset_storages, &key).borrowed;
         *borrowed = *borrowed + amount_with_total_fee;
 
@@ -577,26 +576,27 @@ module leizd::shadow_pool {
     /// This function is called on every user action.
     fun accrue_interest(key: String, storage_ref: &mut Storage, pool_ref: &mut Pool){
         let now = timestamp::now_microseconds();
+        let asset_storage_ref = simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key);
 
         // This is the first time
-        if (storage_ref.last_updated == 0) {
-            storage_ref.last_updated = now;
+        if (asset_storage_ref.last_updated == 0) {
+            asset_storage_ref.last_updated = now;
             return
         };
 
-        if (storage_ref.last_updated == now) {
+        if (asset_storage_ref.last_updated == now) {
             return
         };
 
         let protocol_share_fee = risk_factor::share_fee();
         let rcomp = interest_rate::update_interest_rate(
             key,
-            storage_ref.total_deposited,
-            storage_ref.total_borrowed,
-            storage_ref.last_updated,
+            (asset_storage_ref.deposited as u128),
+            (asset_storage_ref.borrowed as u128),
+            asset_storage_ref.last_updated,
             now,
         );
-        let accrued_interest = storage_ref.total_borrowed * rcomp / interest_rate::precision();
+        let accrued_interest = (asset_storage_ref.borrowed as u128) * rcomp / interest_rate::precision();
         let protocol_share = accrued_interest * (protocol_share_fee as u128) / interest_rate::precision();
         let new_protocol_fees = storage_ref.protocol_fees + (protocol_share as u64);
 
@@ -609,7 +609,10 @@ module leizd::shadow_pool {
 
             let uncollected_support_fee = stability_pool::uncollected_support_fee(key) + generated_support_fee;
             let collected_support_fee: u128;
-            let liquidity = total_liquidity_internal(pool_ref, storage_ref);
+            // TOOD: check - can use total liquidity? (not for a asset?)
+            // HACK: duplicated to total_liquidity_internal
+            let liquidity = (coin::value(&pool_ref.shadow) as u128) - storage_ref.total_conly_deposited;
+            // let liquidity = total_liquidity_internal(pool_ref, storage_ref);
             if (uncollected_support_fee > liquidity) {
                 collected_support_fee = liquidity;
                 uncollected_support_fee = uncollected_support_fee - liquidity;
@@ -621,10 +624,10 @@ module leizd::shadow_pool {
             stability_pool::collect_support_fee(key, fee_extracted, uncollected_support_fee);
         };
 
-        storage_ref.total_borrowed = storage_ref.total_borrowed + accrued_interest;
-        storage_ref.total_deposited = storage_ref.total_deposited + depositors_share;
+        asset_storage_ref.borrowed = asset_storage_ref.borrowed + (accrued_interest as u64);
+        asset_storage_ref.deposited = asset_storage_ref.deposited + (depositors_share as u64);
         storage_ref.protocol_fees = new_protocol_fees;
-        storage_ref.last_updated = now;
+        asset_storage_ref.last_updated = now;
     }
 
     fun collect_shadow_fee(pool_ref: &mut Pool, liquidation_fee: u64) {
