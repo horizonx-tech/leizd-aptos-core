@@ -1,0 +1,19 @@
+[package]
+name = 'LeizdAptosLogic'
+version = '1.0.0'
+
+[dependencies.AptosFramework]
+git = 'https://github.com/aptos-labs/aptos-core.git'
+rev = 'devnet'
+subdir = 'aptos-move/framework/aptos-framework'
+
+[dependencies.LeizdAptosCommon]
+local = "../leizd-aptos-common"
+
+[dependencies.LeizdAptosTrove]
+local = "../leizd-aptos-trove"
+
+[addresses]
+leizd_aptos_logic="0x0123456789ABCDEF"
+leizd_aptos_common="0x0123456789ABCDEF"
+leizd_aptos_trove="0x0123456789ABCDEF"
