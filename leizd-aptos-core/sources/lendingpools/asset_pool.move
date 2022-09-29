@@ -1249,14 +1249,14 @@ module leizd::asset_pool {
     #[expected_failure(abort_code = 196612)]
     public entry fun test_cannot_deposit_when_not_available(owner: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
-        pool_status::update_deposit_status<WETH>(false);
+        pool_status::update_deposit_status_for_test<WETH>(false);
         deposit_for_internal<WETH>(owner, signer::address_of(owner), 0, false);
     }
     #[test(owner=@leizd, aptos_framework=@aptos_framework)]
     #[expected_failure(abort_code = 196612)]
     public entry fun test_cannot_withdraw_when_not_available(owner: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
-        pool_status::update_withdraw_status<WETH>(false);
+        pool_status::update_withdraw_status_for_test<WETH>(false);
         let owner_address = signer::address_of(owner);
         withdraw_for_internal<WETH>(owner_address, owner_address, 0, false, 0);
     }
@@ -1264,7 +1264,7 @@ module leizd::asset_pool {
     #[expected_failure(abort_code = 196612)]
     public entry fun test_cannot_borrow_when_not_available(owner: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
-        pool_status::update_borrow_status<WETH>(false);
+        pool_status::update_borrow_status_for_test<WETH>(false);
         let owner_address = signer::address_of(owner);
         borrow_for_internal<WETH>(owner_address, owner_address, 0);
     }
@@ -1272,7 +1272,7 @@ module leizd::asset_pool {
     #[expected_failure(abort_code = 196612)]
     public entry fun test_cannot_repay_when_not_available(owner: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
-        pool_status::update_repay_status<WETH>(false);
+        pool_status::update_repay_status_for_test<WETH>(false);
         repay_internal<WETH>(owner, 0);
     }
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
