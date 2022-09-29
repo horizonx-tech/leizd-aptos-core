@@ -213,7 +213,7 @@ module leizd_aptos_entry::money_market {
     public entry fun repay_shadow_with_rebalance(account: &signer, amount: u64) acquires LendingPoolModKeys {
         let repayer_addr = signer::address_of(account);
         let (account_position_key, _, shadow_pool_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
-        let (keys, amounts) = account_position::repay_shadow_with_rebalance(repayer_addr, amount, account_position_key);
+        let (keys, amounts, unpaid) = account_position::repay_shadow_with_rebalance(repayer_addr, amount, account_position_key);
         let i = vector::length<String>(&keys);
         while (i > 0) {
             let key = vector::borrow<String>(&keys, i-1);
@@ -221,6 +221,8 @@ module leizd_aptos_entry::money_market {
             shadow_pool::repay_with(*key, account, *repay_amount, shadow_pool_key);
             i = i - 1;
         };
+        // TODO: Event
+        unpaid;
     }
 
     /// Rebalance shadow coin from C1 Pool to C2 Pool.
