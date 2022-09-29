@@ -95,13 +95,13 @@ module leizd::money_market {
         pool_type::assert_pool_type<P>();
 
         let borrower_addr = signer::address_of(account);
-        let borrowed_amount: u64;
+        let user_share: u64;
         if (pool_type::is_type_asset<P>()) {
-            (borrowed_amount, _) = asset_pool::borrow_for<C>(borrower_addr, receiver_addr, amount);
+            (_, user_share) = asset_pool::borrow_for<C>(borrower_addr, receiver_addr, amount);
         } else {
-            (borrowed_amount, _) = shadow_pool::borrow_for<C>(borrower_addr, receiver_addr, amount);
+            (_, user_share) = shadow_pool::borrow_for<C>(borrower_addr, receiver_addr, amount);
         };
-        account_position::borrow<C,P>(account, borrower_addr, borrowed_amount);
+        account_position::borrow<C,P>(account, borrower_addr, user_share);
     }
 
     /// Borrow the coin C with the shadow that is collected from the best pool.
@@ -156,12 +156,22 @@ module leizd::money_market {
         pool_type::assert_pool_type<P>();
 
         let repayer = signer::address_of(account);
-        let repaid_amount = account_position::repay<C,P>(repayer, amount);
-        if (pool_type::is_type_asset<P>()) {
-            asset_pool::repay<C>(account, repaid_amount);
+        if (amount == constant::u64_max()) {
+            let repaid_amount = account_position::repay<C,P>(repayer, amount);
+            if (pool_type::is_type_asset<P>()) {
+                asset_pool::repay<C>(account, repaid_amount);
+            } else {
+                shadow_pool::repay<C>(account, repaid_amount);
+            };
         } else {
-            shadow_pool::repay<C>(account, repaid_amount);
-        };
+            let repaying_user_share: u64;
+            if (pool_type::is_type_asset<P>()) {
+                (_, repaying_user_share) = asset_pool::repay<C>(account, amount);
+            } else {
+                (_, repaying_user_share) = shadow_pool::repay<C>(account, amount);
+            };
+            account_position::repay<C,P>(repayer, repaying_user_share);
+        }
     }
 
     public entry fun repay_shadow_with_rebalance(account: &signer, amount: u64) {
