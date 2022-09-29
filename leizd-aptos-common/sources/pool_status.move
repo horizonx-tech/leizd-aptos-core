@@ -1,4 +1,4 @@
-module leizd::pool_status {
+module leizd_aptos_common::pool_status {
     use std::error;
     use std::account;
     use std::string::{String};
@@ -6,9 +6,9 @@ module leizd::pool_status {
     use aptos_std::simple_map;
     use leizd_aptos_common::permission;
     use leizd_aptos_common::coin_key::{key};
-    use leizd::system_status;
+    use leizd_aptos_common::system_status;
 
-    friend leizd::system_administrator;
+    friend leizd_aptos_common::system_administrator;
 
     const E_IS_NOT_EXISTED: u64 = 1;
 
@@ -254,7 +254,7 @@ module leizd::pool_status {
     public fun update_switch_collateral_status_for_test<C>(active: bool) acquires Status, PoolStatusEventHandle {
         update_switch_collateral_status<C>(active);
     }
-    #[test(owner = @leizd)]
+    #[test(owner = @leizd_aptos_common)]
     fun test_end_to_end(owner: &signer) acquires Status, PoolStatusEventHandle {
         account::create_account_for_test(signer::address_of(owner));
         system_status::initialize(owner);
