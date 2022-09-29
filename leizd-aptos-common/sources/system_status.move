@@ -1,11 +1,11 @@
-module leizd::system_status { 
+module leizd_aptos_common::system_status { 
 
     use std::signer;
     use std::event;
     use std::account;
     use leizd_aptos_common::permission;
 
-    friend leizd::system_administrator;
+    friend leizd_aptos_common::system_administrator;
 
     struct SystemStatus has key {
         is_active: bool
@@ -49,12 +49,12 @@ module leizd::system_status {
         borrow_global<SystemStatus>(permission::owner_address()).is_active
     }
 
-    #[test(owner = @leizd)]
+    #[test(owner = @leizd_aptos_common)]
     fun test_end_to_end(owner: &signer) acquires SystemStatus, SystemStatusEventHandle {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
         initialize(owner);
-        assert!(exists<SystemStatus>(@leizd), 0);
+        assert!(exists<SystemStatus>(@leizd_aptos_common), 0);
         assert!(status(), 0);
         assert!(event::counter<SystemStatusUpdateEvent>(&borrow_global<SystemStatusEventHandle>(owner_addr).system_status_update_event) == 1, 0);
 

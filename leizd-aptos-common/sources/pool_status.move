@@ -1,15 +1,15 @@
-module leizd::pool_status {
+module leizd_aptos_common::pool_status {
     use std::error;
     use std::account;
+    use std::signer;
     use std::string::{String};
     use aptos_std::event;
     use aptos_std::simple_map;
     use leizd_aptos_common::permission;
     use leizd_aptos_common::coin_key::{key};
-    use leizd::system_status;
+    use leizd_aptos_common::system_status;
 
-    friend leizd::system_administrator;
-    friend leizd::asset_pool;
+    friend leizd_aptos_common::system_administrator;
 
     const E_IS_NOT_EXISTED: u64 = 1;
 
@@ -51,11 +51,12 @@ module leizd::pool_status {
         );
     }
 
-    public(friend) fun initialize<C>(owner: &signer) acquires Status, PoolStatusEventHandle {
+    public fun initialize<C>(owner: &signer) acquires Status, PoolStatusEventHandle {
+        let owner_addr = signer::address_of(owner);
+        permission::assert_owner(owner_addr); // NOTE: remove this validation if permission less
         let key = key<C>();
-        let owner_address = permission::owner_address();
-        if (exists<Status>(owner_address)) {
-            let status = borrow_global_mut<Status>(owner_address);
+        if (exists<Status>(owner_addr)) {
+            let status = borrow_global_mut<Status>(owner_addr);
             initialize_status(key, status);
         } else {
             let status = Status {
@@ -231,11 +232,28 @@ module leizd::pool_status {
     }
 
     #[test_only]
-    use std::signer;
-
-    #[test_only]
     struct DummyStruct {}
-    #[test(owner = @leizd)]
+    #[test_only]
+    public fun update_deposit_status_for_test<C>(active: bool) acquires Status, PoolStatusEventHandle {
+        update_deposit_status<C>(active);
+    }
+    #[test_only]
+    public fun update_withdraw_status_for_test<C>(active: bool) acquires Status, PoolStatusEventHandle {
+        update_withdraw_status<C>(active);
+    }
+    #[test_only]
+    public fun update_borrow_status_for_test<C>(active: bool) acquires Status, PoolStatusEventHandle {
+        update_borrow_status<C>(active);
+    }
+    #[test_only]
+    public fun update_repay_status_for_test<C>(active: bool) acquires Status, PoolStatusEventHandle {
+        update_repay_status<C>(active);
+    }
+    #[test_only]
+    public fun update_switch_collateral_status_for_test<C>(active: bool) acquires Status, PoolStatusEventHandle {
+        update_switch_collateral_status<C>(active);
+    }
+    #[test(owner = @leizd_aptos_common)]
     fun test_end_to_end(owner: &signer) acquires Status, PoolStatusEventHandle {
         account::create_account_for_test(signer::address_of(owner));
         system_status::initialize(owner);

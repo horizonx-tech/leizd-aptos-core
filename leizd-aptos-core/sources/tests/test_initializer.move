@@ -2,11 +2,11 @@
 module leizd::test_initializer {
 
     use std::signer;
+    use leizd_aptos_common::system_status;
     use leizd_aptos_trove::trove_manager;
     use leizd_aptos_treasury::treasury;
     use leizd_aptos_external::price_oracle;
     use leizd::risk_factor;
-    use leizd::system_status;
     use leizd::stability_pool;
     use leizd::test_coin;
 

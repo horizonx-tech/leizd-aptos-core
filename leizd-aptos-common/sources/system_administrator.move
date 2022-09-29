@@ -1,9 +1,9 @@
-module leizd::system_administrator {
+module leizd_aptos_common::system_administrator {
 
     use std::signer;
     use leizd_aptos_common::permission;
-    use leizd::pool_status;
-    use leizd::system_status;
+    use leizd_aptos_common::pool_status;
+    use leizd_aptos_common::system_status;
 
     public entry fun activate_pool<C>(owner: &signer) {
         permission::assert_owner(signer::address_of(owner));
@@ -48,30 +48,14 @@ module leizd::system_administrator {
     #[test_only]
     use aptos_framework::account;
     #[test_only]
-    use leizd::risk_factor;
-    #[test_only]
-    use leizd::pool_manager;
-    #[test_only]
-    use leizd::test_coin::{Self, WETH};
-    #[test_only]
-    use leizd_aptos_treasury::treasury;
-    #[test_only]
-    use leizd::stability_pool;
-    #[test_only]
-    use leizd_aptos_trove::usdz;
+    use leizd_aptos_common::test_coin::{WETH};
     #[test_only]
     fun prepare_for_test(owner: &signer) {
         account::create_account_for_test(signer::address_of(owner));
-        usdz::initialize_for_test(owner);
-        stability_pool::initialize(owner);
-        treasury::initialize(owner);        
-        test_coin::init_weth(owner);
-        pool_manager::initialize(owner);
-        risk_factor::initialize(owner);
-        pool_manager::add_pool<WETH>(owner);
         system_status::initialize(owner);
+        pool_status::initialize<WETH>(owner);
     }
-    #[test(owner = @leizd)]
+    #[test(owner = @leizd_aptos_common)]
     fun test_operate_pool_to_deactivate(owner: &signer) {
         prepare_for_test(owner);
         assert!(pool_status::can_deposit<WETH>(), 0);
@@ -86,7 +70,7 @@ module leizd::system_administrator {
         assert!(!pool_status::can_repay<WETH>(), 0);
         assert!(!pool_status::can_switch_collateral<WETH>(), 0);
     }
-    #[test(owner = @leizd)]
+    #[test(owner = @leizd_aptos_common)]
     fun test_operate_pool_to_activate(owner: &signer) {
         prepare_for_test(owner);
         deactivate_pool<WETH>(owner);
@@ -102,7 +86,7 @@ module leizd::system_administrator {
         assert!(pool_status::can_repay<WETH>(), 0);
         assert!(pool_status::can_switch_collateral<WETH>(), 0);
     }
-    #[test(owner = @leizd)]
+    #[test(owner = @leizd_aptos_common)]
     fun test_operate_pool_to_freeze(owner: &signer) {
         prepare_for_test(owner);
         assert!(pool_status::can_deposit<WETH>(), 0);
@@ -117,7 +101,7 @@ module leizd::system_administrator {
         assert!(pool_status::can_repay<WETH>(), 0);
         assert!(pool_status::can_switch_collateral<WETH>(), 0);
     }
-    #[test(owner = @leizd)]
+    #[test(owner = @leizd_aptos_common)]
     fun test_operate_pool_to_unfreeze(owner: &signer) {
         prepare_for_test(owner);
         freeze_pool<WETH>(owner);
@@ -153,7 +137,7 @@ module leizd::system_administrator {
     fun test_operate_pool_to_unfreeze_without_owner(account: &signer) {
         unfreeze_pool<WETH>(account);
     }
-    #[test(owner = @leizd)]
+    #[test(owner = @leizd_aptos_common)]
     fun test_operate_system_status(owner: &signer) {
         account::create_account_for_test(signer::address_of(owner));
         system_status::initialize(owner);
