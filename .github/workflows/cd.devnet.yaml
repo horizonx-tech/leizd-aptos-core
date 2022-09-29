@@ -40,6 +40,9 @@ jobs:
       - name: release leizd-aptos-trove
         run: aptos move publish --package-dir leizd-aptos-trove --override-size-check
 
+      - name: release leizd-aptos-logic
+        run: aptos move publish --package-dir leizd-aptos-logic --override-size-check
+
       - name: release leizd-aptos-treasury
         run: aptos move publish --package-dir leizd-aptos-treasury --override-size-check
 
