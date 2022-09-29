@@ -324,10 +324,27 @@ module leizd::account_position {
         (sum_extra_shadow, result_amount_deposited, result_amount_withdrawed)
     }
 
-    /// @returns (sum_extra_shadow, borrowed_sum, repaid_sum, result_amount_borrowed, result_amount_repaid)
+    fun sum_borrowable_shadow(coins: &vector<String>, protected_coins: &SimpleMap<String,bool>, addr: address): (u64,u64) acquires Position {
+        let i = vector::length<String>(coins);
+        let sum_borrowable_shadow = 0;
+        let borrowable_position_count = 0;
+        while (i > 0) {
+            let key = vector::borrow<String>(coins, i-1);
+            let borrowable = borrowable_shadow(*key, addr);
+            if (!is_protected_internal(protected_coins, *key) && borrowable > 0) {
+                sum_borrowable_shadow = sum_borrowable_shadow + borrowable_shadow(*key, addr);
+                borrowable_position_count = borrowable_position_count + 1;
+            };
+            i = i - 1;
+        };
+        (sum_borrowable_shadow, borrowable_position_count)
+    }
+
+    /// @returns (sum_extra_shadow, borrowed_sum, repaid_sum, result_amount_borrowed, result_amount_repaied)
     fun borrow_and_repay_evenly(addr: address, required_shadow: u64, sum_extra_shadow: u64): (u64,u64,u64,vector<Rebalance>, vector<Rebalance>) acquires Position, AccountPositionEventHandle {
         let position_ref = borrow_global<Position<AssetToShadow>>(addr);
         let coins = position_ref.coins;
+        let protected_coins = position_ref.protected_coins;
         
         // return params
         let borrowed_sum = 0;
@@ -335,13 +352,7 @@ module leizd::account_position {
         let result_amount_borrowed = vector::empty<Rebalance>();
         let result_amount_repaid = vector::empty<Rebalance>();
 
-        let i = vector::length<String>(&coins);
-        let sum_borrowable_shadow = 0;
-        while (i > 0) {
-            let key = vector::borrow<String>(&coins, i-1);
-            sum_borrowable_shadow = sum_borrowable_shadow + borrowable_shadow(*key, addr);
-            i = i - 1;
-        };
+        let (sum_borrowable_shadow,_) = sum_borrowable_shadow(&coins, &protected_coins, addr);
         if (required_shadow <= sum_extra_shadow + sum_borrowable_shadow) {
             // borrow and rebalance
 
@@ -621,7 +632,7 @@ module leizd::account_position {
     fun borrowable_shadow(key: String, addr: address): u64 acquires Position {
         let borrowed = borrowed_volume<AssetToShadow>(addr, key);
         let deposited = deposited_volume<AssetToShadow>(addr, key);
-        let borrowable = deposited * risk_factor::lt_of(key) / risk_factor::precision();
+        let borrowable = deposited * risk_factor::ltv_of(key) / risk_factor::precision();
         if (borrowable < borrowed) return 0;
         borrowable - borrowed
     }
@@ -2177,7 +2188,7 @@ module leizd::account_position {
         account::create_account_for_test(account1_addr);
 
         deposit_internal<WETH,Asset>(account1, account1_addr, 100000, false);
-        borrow_internal<WETH,Shadow>(account1, account1_addr, 50000);
+        borrow_internal<WETH,Shadow>(account1, account1_addr, 30000);
         deposit_internal<UNI,Shadow>(account1, account1_addr, 100000, false);
         borrow_internal<UNI,Asset>(account1, account1_addr, 90000);
         borrow_unsafe_for_test<UNI,Asset>(account1_addr, 20000);
