@@ -1,4 +1,4 @@
-module leizd::rebalance {
+module leizd_aptos_logic::rebalance {
     use std::string::{String};
 
     struct Rebalance has copy, drop {

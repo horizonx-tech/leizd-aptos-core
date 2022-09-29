@@ -9,14 +9,14 @@ module leizd::account_position {
     use aptos_std::comparator;
     use aptos_std::simple_map::{Self,SimpleMap};
     use aptos_framework::account;
-    use leizd::rebalance::{Self,Rebalance};
+    use leizd_aptos_logic::rebalance::{Self,Rebalance};
+    use leizd_aptos_logic::risk_factor;
     use leizd_aptos_common::pool_type;
     use leizd_aptos_common::position_type::{Self,AssetToShadow,ShadowToAsset};
     use leizd_aptos_common::coin_key::{key};
     use leizd_aptos_external::price_oracle;
     use leizd_aptos_trove::usdz::{USDZ};
     use leizd_aptos_lib::constant;
-    use leizd_aptos_logic::risk_factor;
 
     friend leizd::money_market;
 

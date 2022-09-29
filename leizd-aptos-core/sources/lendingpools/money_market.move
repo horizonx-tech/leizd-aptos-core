@@ -12,10 +12,10 @@ module leizd::money_market {
     use std::vector;
     use std::string::{String};
     use leizd_aptos_common::pool_type;
+    use leizd_aptos_logic::rebalance::{Self,Rebalance};
     use leizd::asset_pool;
     use leizd::shadow_pool;
     use leizd::account_position;
-    use leizd::rebalance::{Self,Rebalance};
 
     /// Deposits an asset or a shadow to the pool.
     /// If a user wants to protect the asset, it's possible that it can be used only for the collateral.
