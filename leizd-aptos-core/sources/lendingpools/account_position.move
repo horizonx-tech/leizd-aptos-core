@@ -722,9 +722,10 @@ module leizd::account_position {
         let position_ref = borrow_global_mut<Position<P>>(addr);
         if (vector::contains<String>(&position_ref.coins, &key)) {
             let balance_ref = simple_map::borrow_mut<String,Balance>(&mut position_ref.balance, &key);
-            balance_ref.deposited_share = balance_ref.deposited_share + amount;
             if (is_collateral_only) {
                 balance_ref.conly_deposited_share = balance_ref.conly_deposited_share + amount;
+            } else {
+                balance_ref.deposited_share = balance_ref.deposited_share + amount;
             };
             emit_update_position_event<P>(addr, key, balance_ref);
         } else {
@@ -735,11 +736,14 @@ module leizd::account_position {
     fun update_position_for_withdraw<P>(key: String, addr: address, amount: u64, is_collateral_only: bool): u64 acquires Position, AccountPositionEventHandle {
         let position_ref = borrow_global_mut<Position<P>>(addr);
         let balance_ref = simple_map::borrow_mut<String,Balance>(&mut position_ref.balance, &key);
-        amount = if (amount == constant::u64_max()) balance_ref.deposited_share else amount; // TODO: convert to amount ?
-        assert!(balance_ref.deposited_share >= amount, error::invalid_argument(EOVER_DEPOSITED_AMOUNT));
-        balance_ref.deposited_share = balance_ref.deposited_share - amount;
         if (is_collateral_only) {
+            amount = if (amount == constant::u64_max()) balance_ref.conly_deposited_share else amount; // TODO: convert to amount ?
+            assert!(balance_ref.conly_deposited_share >= amount, error::invalid_argument(EOVER_DEPOSITED_AMOUNT));
             balance_ref.conly_deposited_share = balance_ref.conly_deposited_share - amount;
+        } else {
+            amount = if (amount == constant::u64_max()) balance_ref.deposited_share else amount; // TODO: convert to amount ?
+            assert!(balance_ref.deposited_share >= amount, error::invalid_argument(EOVER_DEPOSITED_AMOUNT));
+            balance_ref.deposited_share = balance_ref.deposited_share - amount;
         };
         emit_update_position_event<P>(addr, key, balance_ref);
         remove_balance_if_unused<P>(addr, key);
@@ -937,7 +941,15 @@ module leizd::account_position {
     #[test_only]
     use leizd_aptos_common::pool_type::{Asset,Shadow};
     #[test_only]
-    use leizd::test_coin::{WETH,UNI,USDC};
+    use leizd::pool_manager;
+    #[test_only]
+    use leizd::stability_pool;
+    #[test_only]
+    use leizd::treasury;
+    #[test_only]
+    use leizd::trove_manager;
+    #[test_only]
+    use leizd::test_coin::{Self,WETH,UNI,USDC};
     #[test_only]
     use leizd::test_initializer;
 
@@ -946,9 +958,22 @@ module leizd::account_position {
     fun setup_for_test_to_initialize_coins(owner: &signer) {
         account::create_account_for_test(signer::address_of(owner));
         risk_factor::initialize(owner);
-        risk_factor::new_asset_for_test<WETH>(owner);
-        risk_factor::new_asset_for_test<UNI>(owner);
-        risk_factor::new_asset_for_test<USDC>(owner);
+        // risk_factor::new_asset_for_test<WETH>(owner);
+        // risk_factor::new_asset_for_test<UNI>(owner);
+        // risk_factor::new_asset_for_test<USDC>(owner);
+
+        // temp
+        trove_manager::initialize(owner);
+        treasury::initialize(owner);
+        stability_pool::initialize(owner);
+        shadow_pool::init_pool(owner);
+        test_coin::init_usdc(owner);
+        test_coin::init_weth(owner);
+        test_coin::init_uni(owner);
+        pool_manager::initialize(owner);
+        pool_manager::add_pool<USDC>(owner);
+        pool_manager::add_pool<WETH>(owner);
+        pool_manager::add_pool<UNI>(owner);
     }
     #[test_only]
     fun borrow_unsafe_for_test<C,P>(borrower_addr: address, amount: u64) acquires Position, AccountPositionEventHandle {
@@ -2187,8 +2212,11 @@ module leizd::account_position {
         assert!(deposited_asset<WETH>(account1_addr) == 40000, 0);
         assert!(conly_deposited_asset<WETH>(account1_addr) == 0, 0);
     }
-    #[test(account1=@0x111)]
-    public entry fun test_switch_collateral_with_shadow(account1: &signer) acquires Position, AccountPositionEventHandle {
+    #[test(owner=@leizd,account1=@0x111)]
+    public entry fun test_switch_collateral_with_shadow(owner: &signer, account1: &signer) acquires Position, AccountPositionEventHandle {
+        account::create_account_for_test(signer::address_of(owner)); // temp
+        shadow_pool::init_pool(owner); // temp
+
         let account1_addr = signer::address_of(account1);
         account::create_account_for_test(account1_addr);
         deposit_internal<WETH,Shadow>(account1, account1_addr, 10000, true);
