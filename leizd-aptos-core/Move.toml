@@ -17,6 +17,9 @@ local = "../leizd-aptos-common"
 [dependencies.LeizdAptosTrove]
 local = "../leizd-aptos-trove"
 
+[dependencies.LeizdAptosLogic]
+local = "../leizd-aptos-logic"
+
 [dependencies.LeizdAptosExternal]
 local = "../leizd-aptos-external"
 
@@ -28,6 +31,7 @@ leizd="0x0123456789ABCDEF"
 leizd_aptos_lib="0x0123456789ABCDEF"
 leizd_aptos_common="0x0123456789ABCDEF"
 leizd_aptos_trove="0x0123456789ABCDEF"
+leizd_aptos_logic="0x0123456789ABCDEF"
 leizd_aptos_external="0x0123456789ABCDEF"
 leizd_aptos_treasury="0x0123456789ABCDEF"
 std = "0x1"

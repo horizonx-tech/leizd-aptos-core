@@ -89,7 +89,7 @@ module leizd::pool_manager {
   }
 
   #[test_only]
-  use leizd::risk_factor;
+  use leizd_aptos_logic::risk_factor;
   #[test_only]
   use leizd::test_coin::{Self, WETH};
   #[test_only]

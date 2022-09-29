@@ -242,7 +242,7 @@ module leizd::money_market {
     #[test_only]
     use leizd::pool_type::{Asset, Shadow};
     #[test_only]
-    use leizd::risk_factor;
+    use leizd_aptos_logic::risk_factor;
     #[test_only]
     use leizd::treasury;
     #[test_only]

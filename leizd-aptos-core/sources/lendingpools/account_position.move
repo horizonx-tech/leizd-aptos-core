@@ -16,7 +16,7 @@ module leizd::account_position {
     use leizd_aptos_external::price_oracle;
     use leizd_aptos_trove::usdz::{USDZ};
     use leizd_aptos_lib::constant;
-    use leizd::risk_factor;
+    use leizd_aptos_logic::risk_factor;
 
     friend leizd::money_market;
 

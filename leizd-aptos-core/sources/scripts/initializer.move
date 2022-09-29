@@ -4,7 +4,7 @@ module leizd::initializer {
     use leizd_aptos_common::system_status;
     use leizd_aptos_trove::trove_manager;
     use leizd_aptos_treasury::treasury;
-    use leizd::risk_factor;
+    use leizd_aptos_logic::risk_factor;
     use leizd::pool_manager;
     use leizd::stability_pool;
 
