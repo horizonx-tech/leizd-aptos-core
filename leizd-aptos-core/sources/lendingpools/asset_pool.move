@@ -20,7 +20,7 @@ module leizd::asset_pool {
     use leizd_aptos_external::dex_facade;
     use leizd_aptos_treasury::treasury;
     use leizd::interest_rate;
-    use leizd::risk_factor;
+    use leizd_aptos_logic::risk_factor;
     use leizd::stability_pool;
 
     friend leizd::money_market;

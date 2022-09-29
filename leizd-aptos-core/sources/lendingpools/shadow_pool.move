@@ -13,7 +13,7 @@ module leizd::shadow_pool {
     use leizd_aptos_common::pool_status;
     use leizd_aptos_trove::usdz::{USDZ};
     use leizd::interest_rate;
-    use leizd::risk_factor;
+    use leizd_aptos_logic::risk_factor;
     use leizd::stability_pool;
     use leizd::treasury;
 

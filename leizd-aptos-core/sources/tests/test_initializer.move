@@ -6,7 +6,7 @@ module leizd::test_initializer {
     use leizd_aptos_trove::trove_manager;
     use leizd_aptos_treasury::treasury;
     use leizd_aptos_external::price_oracle;
-    use leizd::risk_factor;
+    use leizd_aptos_logic::risk_factor;
     use leizd::stability_pool;
     use leizd::test_coin;
 
