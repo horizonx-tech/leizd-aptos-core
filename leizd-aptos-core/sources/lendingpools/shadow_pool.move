@@ -784,9 +784,28 @@ module leizd::shadow_pool {
         let storage_ref = borrow_global<Storage>(permission::owner_address());
         borrowed_internal(key<C>(), storage_ref)
     }
+    public entry fun borrowed_with(key: String): u64 acquires Storage {
+        let storage_ref = borrow_global<Storage>(permission::owner_address());
+        borrowed_internal(key, storage_ref)
+    }
     fun borrowed_internal(key: String, storage: &Storage): u64 {
         if (is_initialized_asset_with_internal(&key, storage)) {
             simple_map::borrow<String, AssetStorage>(&storage.asset_storages, &key).borrowed_amount
+        } else {
+            0
+        }
+    }
+    public entry fun borrowed_share<C>(): u64 acquires Storage {
+        let storage_ref = borrow_global<Storage>(permission::owner_address());
+        borrowed_share_internal(key<C>(), storage_ref)
+    }
+    public entry fun borrowed_share_with(key: String): u64 acquires Storage {
+        let storage_ref = borrow_global<Storage>(permission::owner_address());
+        borrowed_share_internal(key, storage_ref)
+    }
+    public fun borrowed_share_internal(key: String, storage: &Storage): u64 {
+        if (is_initialized_asset_with_internal(&key, storage)) {
+            simple_map::borrow<String, AssetStorage>(&storage.asset_storages, &key).borrowed_share
         } else {
             0
         }

@@ -518,6 +518,17 @@ module leizd::asset_pool {
     public entry fun total_borrowed<C>(): u128 acquires Storage {
         borrow_global<Storage<C>>(permission::owner_address()).total_borrowed_amount
     }
+    public entry fun total_borrowed_internal(key: String): u128 {
+        key;
+        0 // TODO: temp
+    }
+    public entry fun total_borrowed_share<C>(): u128 acquires Storage {
+        borrow_global<Storage<C>>(permission::owner_address()).total_borrowed_share
+    }
+    public entry fun total_borrowed_share_internal(key: String): u128 {
+        key;
+        0 // TODO: temp
+    }
 
     public entry fun last_updated<C>(): u64 acquires Storage {
         borrow_global<Storage<C>>(permission::owner_address()).last_updated

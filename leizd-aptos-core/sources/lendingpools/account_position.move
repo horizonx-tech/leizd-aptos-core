@@ -45,7 +45,7 @@ module leizd::account_position {
     struct Balance has store, drop {
         deposited_share: u64, // TODO: only normal
         conly_deposited_share: u64,
-        borrowed: u64,
+        borrowed_share: u64,
     }
 
     // Events
@@ -696,7 +696,16 @@ module leizd::account_position {
     }
     fun borrowed_volume_internal<P>(position_ref: &Position<P>, key: String): u64 {
         if (vector::contains<String>(&position_ref.coins, &key)) {
-            let borrowed = simple_map::borrow<String,Balance>(&position_ref.balance, &key).borrowed;
+            let borrowed_share = simple_map::borrow<String,Balance>(&position_ref.balance, &key).borrowed_share;
+            let (total_amount, total_shares): (u128, u128);
+            if (pool_type::is_type_asset<P>()) {
+                total_amount = asset_pool::total_borrowed_internal(key);
+                total_shares = asset_pool::total_borrowed_share_internal(key);
+            } else {
+                total_amount = (shadow_pool::borrowed_with(key) as u128);
+                total_shares = (shadow_pool::borrowed_share_with(key) as u128);
+            };
+            let borrowed = if (total_amount == 0 && total_shares == 0) borrowed_share else math64::to_amount(borrowed_share, (total_amount as u64), (total_shares as u64));
             price_oracle::volume(&key, borrowed)
         } else {
             0
@@ -773,7 +782,7 @@ module leizd::account_position {
         let position_ref = borrow_global_mut<Position<P>>(addr);
         if (vector::contains<String>(&position_ref.coins, &key)) {
             let balance_ref = simple_map::borrow_mut<String,Balance>(&mut position_ref.balance, &key);
-            balance_ref.borrowed = balance_ref.borrowed + amount;
+            balance_ref.borrowed_share = balance_ref.borrowed_share + amount;
             emit_update_position_event<P>(addr, key, balance_ref);
         } else {
             new_position<P>(addr, 0, amount, false, key);
@@ -783,9 +792,9 @@ module leizd::account_position {
     fun update_position_for_repay<P>(key: String, addr: address, amount: u64): u64 acquires Position, AccountPositionEventHandle {
         let position_ref = borrow_global_mut<Position<P>>(addr);
         let balance_ref = simple_map::borrow_mut<String,Balance>(&mut position_ref.balance, &key);
-        amount = if (amount == constant::u64_max()) balance_ref.borrowed else amount;
-        assert!(balance_ref.borrowed >= amount, error::invalid_argument(EOVER_BORROWED_AMOUNT));
-        balance_ref.borrowed = balance_ref.borrowed - amount;
+        amount = if (amount == constant::u64_max()) balance_ref.borrowed_share else amount;
+        assert!(balance_ref.borrowed_share >= amount, error::invalid_argument(EOVER_BORROWED_AMOUNT));
+        balance_ref.borrowed_share = balance_ref.borrowed_share - amount;
         emit_update_position_event<P>(addr, key, balance_ref);
         remove_balance_if_unused<P>(addr, key);
         amount
@@ -798,7 +807,7 @@ module leizd::account_position {
                 key,
                 deposited: balance_ref.deposited_share, // TODO: convert to amount ?
                 conly_deposited: balance_ref.conly_deposited_share, // TODO: convert to amount ?
-                borrowed: balance_ref.borrowed,
+                borrowed: balance_ref.borrowed_share, // TODO: convert to amount ?
             },
         );
     }
@@ -811,13 +820,13 @@ module leizd::account_position {
             simple_map::add<String,Balance>(&mut position_ref.balance, key, Balance {
                 deposited_share: 0,
                 conly_deposited_share: deposit,
-                borrowed: borrow,
+                borrowed_share: borrow,
             });
         } else {
             simple_map::add<String,Balance>(&mut position_ref.balance, key, Balance {
                 deposited_share: deposit,
                 conly_deposited_share: 0,
-                borrowed: borrow,
+                borrowed_share: borrow,
             });
         };
         emit_update_position_event<P>(addr, key, simple_map::borrow<String,Balance>(&position_ref.balance, &key));
@@ -829,7 +838,7 @@ module leizd::account_position {
         if (
             balance_ref.deposited_share == 0
             && balance_ref.conly_deposited_share == 0
-            && balance_ref.borrowed == 0 // NOTE: maybe actually only `deposited` needs to be checked.
+            && balance_ref.borrowed_share == 0 // NOTE: maybe actually only `deposited` needs to be checked.
         ) {
             simple_map::remove<String, Balance>(&mut position_ref.balance, &key);
             let (_, i) = vector::index_of<String>(&position_ref.coins, &key);
@@ -915,7 +924,14 @@ module leizd::account_position {
         if (!exists<Position<ShadowToAsset>>(addr)) return 0;
         let position_ref = borrow_global<Position<ShadowToAsset>>(addr);
         if (simple_map::contains_key<String,Balance>(&position_ref.balance, &key)) {
-            simple_map::borrow<String,Balance>(&position_ref.balance, &key).borrowed
+            let total_amount = asset_pool::total_borrowed_internal(key);
+            let total_shares = asset_pool::total_borrowed_share_internal(key);
+            let user_share = simple_map::borrow<String,Balance>(&position_ref.balance, &key).borrowed_share;
+            if (total_amount == 0 && total_shares == 0) {
+                user_share // temp
+            } else {
+                math64::to_amount(user_share, (total_amount as u64), (total_shares as u64))
+            }
         } else {
             0
         }
@@ -972,7 +988,14 @@ module leizd::account_position {
         if (!exists<Position<AssetToShadow>>(addr)) return 0;
         let position_ref = borrow_global<Position<AssetToShadow>>(addr);
         if (simple_map::contains_key<String,Balance>(&position_ref.balance, &key)) {
-            simple_map::borrow<String,Balance>(&position_ref.balance, &key).borrowed
+            let total_amount = shadow_pool::borrowed_with(key);
+            let total_shares = shadow_pool::borrowed_share_with(key);
+            let user_share = simple_map::borrow<String,Balance>(&position_ref.balance, &key).borrowed_share;
+            if (total_amount == 0 && total_shares == 0) {
+                user_share // temp
+            } else {
+                math64::to_amount(user_share, total_amount, total_shares)
+            }
         } else {
             0
         }
