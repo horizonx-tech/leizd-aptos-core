@@ -212,6 +212,59 @@ module leizd::account_position {
         };
     }
 
+    public fun borrow_asset_with_rebalance<C>(
+        addr: address, 
+        amount: u64,
+        _key: &OperatorKey
+    ):(
+        vector<Rebalance>,
+        vector<Rebalance>,
+        vector<Rebalance>,
+        vector<Rebalance>
+    ) acquires Position, AccountPositionEventHandle {
+        borrow_asset_with_rebalance_internal<C>(addr, amount)
+    }
+
+    fun borrow_asset_with_rebalance_internal<C>(
+        addr: address, 
+        amount: u64,
+    ):(
+        vector<Rebalance>,
+        vector<Rebalance>,
+        vector<Rebalance>,
+        vector<Rebalance>
+    ) acquires Position, AccountPositionEventHandle {
+        let result_amount_deposited = vector::empty<Rebalance>();
+        let result_amount_withdrawed = vector::empty<Rebalance>();
+        let result_amount_borrowed = vector::empty<Rebalance>();
+        let result_amount_repaid = vector::empty<Rebalance>();
+        let borrowed_now;
+        let repaid_now;
+        
+        update_on_borrow<C,ShadowToAsset>(addr, amount);
+        if (is_safe<C,ShadowToAsset>(addr)) {
+            return (result_amount_deposited, result_amount_withdrawed, result_amount_borrowed, result_amount_repaid)
+        };
+
+        // try to rebalance between pools
+        let sum_extra_shadow;
+        let required_shadow = required_shadow(key<C>(), borrowed_asset_share<C>(addr), deposited_shadow_share<C>(addr));
+        (sum_extra_shadow, result_amount_deposited, result_amount_withdrawed) = deposit_and_withdraw_evenly(addr, required_shadow, 0, 0);
+        if (vector::length<Rebalance>(&result_amount_deposited) != 0 
+            || vector::length<Rebalance>(&result_amount_withdrawed) != 0) {
+            return (result_amount_deposited, result_amount_withdrawed, result_amount_borrowed, result_amount_repaid)
+        };
+
+        // try to borrow and rebalance shadow
+        (_,borrowed_now,repaid_now,result_amount_borrowed, result_amount_repaid) = borrow_and_repay_evenly(addr, required_shadow, sum_extra_shadow);
+        if (vector::length<Rebalance>(&result_amount_borrowed) != 0
+            || vector::length<Rebalance>(&result_amount_repaid) != 0) {
+            (_, result_amount_deposited, result_amount_withdrawed) = deposit_and_withdraw_evenly(addr, required_shadow, borrowed_now, repaid_now);
+            return (result_amount_deposited, result_amount_withdrawed, result_amount_borrowed, result_amount_repaid)
+        };
+        abort 0
+    }
+
     fun required_shadow(borrowed_key: String, borrowed_asset_share: u64, deposited_shadow_share: u64): u64 {
         let borrowed_volume = price_oracle::volume(&borrowed_key, borrowed_asset_share);
         let deposited_volume = price_oracle::volume(&key<USDZ>(), deposited_shadow_share);
@@ -319,59 +372,6 @@ module leizd::account_position {
             };
         };
         (sum_borrowable_shadow, borrowed_sum, repaid_sum, result_amount_borrowed, result_amount_repaid)
-    }
-
-    public fun borrow_asset_with_rebalance<C>(
-        addr: address,
-        amount: u64,
-        _key: &OperatorKey
-    ):(
-        vector<Rebalance>,
-        vector<Rebalance>,
-        vector<Rebalance>,
-        vector<Rebalance>
-    ) acquires Position, AccountPositionEventHandle {
-        borrow_asset_with_rebalance_internal<C>(addr, amount)
-    }
-
-    fun borrow_asset_with_rebalance_internal<C>(
-        addr: address, 
-        amount: u64
-    ):(
-        vector<Rebalance>,
-        vector<Rebalance>,
-        vector<Rebalance>,
-        vector<Rebalance>
-    ) acquires Position, AccountPositionEventHandle {
-        let result_amount_deposited = vector::empty<Rebalance>();
-        let result_amount_withdrawed = vector::empty<Rebalance>();
-        let result_amount_borrowed = vector::empty<Rebalance>();
-        let result_amount_repaid = vector::empty<Rebalance>();
-        let borrowed_now;
-        let repaid_now;
-        
-        update_on_borrow<C,ShadowToAsset>(addr, amount);
-        if (is_safe<C,ShadowToAsset>(addr)) {
-            return (result_amount_deposited, result_amount_withdrawed, result_amount_borrowed, result_amount_repaid)
-        };
-
-        // try to rebalance between pools
-        let sum_extra_shadow;
-        let required_shadow = required_shadow(key<C>(), borrowed_asset_share<C>(addr), deposited_shadow_share<C>(addr));
-        (sum_extra_shadow, result_amount_deposited, result_amount_withdrawed) = deposit_and_withdraw_evenly(addr, required_shadow, 0, 0);
-        if (vector::length<Rebalance>(&result_amount_deposited) != 0 
-            || vector::length<Rebalance>(&result_amount_withdrawed) != 0) {
-            return (result_amount_deposited, result_amount_withdrawed, result_amount_borrowed, result_amount_repaid)
-        };
-
-        // try to borrow and rebalance shadow
-        (_,borrowed_now,repaid_now,result_amount_borrowed, result_amount_repaid) = borrow_and_repay_evenly(addr, required_shadow, sum_extra_shadow);
-        if (vector::length<Rebalance>(&result_amount_borrowed) != 0
-            || vector::length<Rebalance>(&result_amount_repaid) != 0) {
-            (_, result_amount_deposited, result_amount_withdrawed) = deposit_and_withdraw_evenly(addr, required_shadow, borrowed_now, repaid_now);
-            return (result_amount_deposited, result_amount_withdrawed, result_amount_borrowed, result_amount_repaid)
-        };
-        abort 0
     }
 
     ////////////////////////////////////////////////////
@@ -665,11 +665,14 @@ module leizd::account_position {
     }
     fun enable_to_rebalance_internal<C>(account: &signer) acquires Position {
         let key = key<C>();
-        let position_ref = borrow_global_mut<Position<ShadowToAsset>>(signer::address_of(account));
-        assert!(vector::contains<String>(&position_ref.coins, &key), error::invalid_argument(ENOT_EXISTED)); // TODO
-        assert!(is_protected_internal(&position_ref.protected_coins, key), error::invalid_argument(EALREADY_PROTECTED));
-
-        simple_map::remove<String,bool>(&mut position_ref.protected_coins, &key);
+        let position_a2s_ref = borrow_global_mut<Position<AssetToShadow>>(signer::address_of(account));
+        if (is_protected_internal(&position_a2s_ref.protected_coins, key)) {
+            simple_map::remove<String,bool>(&mut position_a2s_ref.protected_coins, &key);
+        };
+        let position_s2a_ref = borrow_global_mut<Position<ShadowToAsset>>(signer::address_of(account));
+        if (is_protected_internal(&position_s2a_ref.protected_coins, key)) {
+            simple_map::remove<String,bool>(&mut position_s2a_ref.protected_coins, &key);
+        };
     }
 
     public fun unable_to_rebalance<C>(account: &signer) acquires Position {
@@ -677,11 +680,14 @@ module leizd::account_position {
     }
     fun unable_to_rebalance_internal<C>(account: &signer) acquires Position {
         let key = key<C>();
-        let position_ref = borrow_global_mut<Position<ShadowToAsset>>(signer::address_of(account));
-        assert!(vector::contains<String>(&position_ref.coins, &key), error::invalid_argument(ENOT_EXISTED)); // TODO
-        assert!(!is_protected_internal(&position_ref.protected_coins, key), error::invalid_argument(EALREADY_PROTECTED));
-
-        simple_map::add<String,bool>(&mut position_ref.protected_coins, key, true);
+        let position_a2s_ref = borrow_global_mut<Position<AssetToShadow>>(signer::address_of(account));
+        if (!is_protected_internal(&position_a2s_ref.protected_coins, key)) {
+            simple_map::add<String,bool>(&mut position_a2s_ref.protected_coins, key, true);
+        };
+        let position_s2a_ref = borrow_global_mut<Position<ShadowToAsset>>(signer::address_of(account));
+        if (!is_protected_internal(&position_s2a_ref.protected_coins, key)) {
+            simple_map::add<String,bool>(&mut position_s2a_ref.protected_coins, key, true);
+        };
     }
 
     public fun is_protected<C>(account_addr: address): bool acquires Position {
@@ -2243,7 +2249,7 @@ module leizd::account_position {
         borrow_internal<WETH,Shadow>(account, account_addr, 1000);
         deposit_internal<UNI,Shadow>(account, account_addr, 1000, false);
         borrow_unsafe_for_test<UNI,Asset>(account_addr, 1500);
-        unable_to_rebalance_internal<UNI>(account);
+        unable_to_rebalance_internal<WETH>(account);
         borrow_and_rebalance_internal(account_addr, key<WETH>(), key<UNI>(), false);
     }
     #[test(owner = @leizd, account = @0x111)]
@@ -2257,7 +2263,7 @@ module leizd::account_position {
         borrow_internal<WETH,Shadow>(account, account_addr, 1000);
         deposit_internal<UNI,Shadow>(account, account_addr, 1000, false);
         borrow_unsafe_for_test<UNI,Asset>(account_addr, 1500);
-        enable_to_rebalance_internal<UNI>(account);
+        unable_to_rebalance_internal<UNI>(account);
         borrow_and_rebalance_internal(account_addr, key<WETH>(), key<UNI>(), false);
     }
     //// utils for rebalance
