@@ -29,25 +29,25 @@ jobs:
         run: sh prerelease.sh
 
       - name: release leizd-aptos-common
-        run: aptos move publish --package-dir leizd-aptos-common --override-size-check
+        run: aptos move publish --package-dir leizd-aptos-common --override-size-check --assume-yes
 
       - name: release leizd-aptos-lib
-        run: aptos move publish --package-dir leizd-aptos-lib --override-size-check
+        run: aptos move publish --package-dir leizd-aptos-lib --override-size-check --assume-yes
 
       - name: release leizd-aptos-external
-        run: aptos move publish --package-dir leizd-aptos-external --override-size-check
+        run: aptos move publish --package-dir leizd-aptos-external --override-size-check --assume-yes
 
       - name: release leizd-aptos-trove
-        run: aptos move publish --package-dir leizd-aptos-trove --override-size-check
+        run: aptos move publish --package-dir leizd-aptos-trove --override-size-check --assume-yes
 
       - name: release leizd-aptos-logic
-        run: aptos move publish --package-dir leizd-aptos-logic --override-size-check
+        run: aptos move publish --package-dir leizd-aptos-logic --override-size-check --assume-yes
 
       - name: release leizd-aptos-treasury
-        run: aptos move publish --package-dir leizd-aptos-treasury --override-size-check
+        run: aptos move publish --package-dir leizd-aptos-treasury --override-size-check --assume-yes
 
       - name: release leizd-aptos-core
-        run: aptos move publish --package-dir leizd-aptos-core --override-size-check  --max-gas 10000
+        run: aptos move publish --package-dir leizd-aptos-core --override-size-check --assume-yes
 
       - name: Slack Notification on Success
         if: success()
