@@ -359,8 +359,10 @@ module leizd::asset_pool {
         if (to_collateral_only) {
             assert!(amount_u128 <= liquidity_internal(pool_ref, storage_ref), error::invalid_argument(E_INSUFFICIENT_LIQUIDITY));
             storage_ref.total_conly_deposited = storage_ref.total_conly_deposited + amount_u128;
+            storage_ref.total_normal_deposited = storage_ref.total_normal_deposited - amount_u128;
         } else {
             assert!(amount_u128 <= storage_ref.total_conly_deposited, error::invalid_argument(E_INSUFFICIENT_CONLY_DEPOSITED));
+            storage_ref.total_normal_deposited = storage_ref.total_normal_deposited + amount_u128;
             storage_ref.total_conly_deposited = storage_ref.total_conly_deposited - amount_u128;
         };
         event::emit_event<SwitchCollateralEvent>(
@@ -1162,19 +1164,19 @@ module leizd::asset_pool {
         managed_coin::mint<WETH>(owner, account_addr, 1000);
 
         deposit_for_internal<WETH>(account, account_addr, 1000, false);
-        assert!(total_normal_deposited<WETH>() == 1000, 0);
         assert!(liquidity<WETH>() == 1000, 0);
+        assert!(total_normal_deposited<WETH>() == 1000, 0);
         assert!(total_conly_deposited<WETH>() == 0, 0);
 
         switch_collateral<WETH>(account_addr, 800, true);
-        assert!(total_normal_deposited<WETH>() == 1000, 0);
         assert!(liquidity<WETH>() == 200, 0);
+        assert!(total_normal_deposited<WETH>() == 200, 0);
         assert!(total_conly_deposited<WETH>() == 800, 0);
         assert!(event::counter<SwitchCollateralEvent>(&borrow_global<PoolEventHandle<WETH>>(owner_addr).switch_collateral_event) == 1, 0);
 
         switch_collateral<WETH>(account_addr, 400, false);
-        assert!(total_normal_deposited<WETH>() == 1000, 0);
         assert!(liquidity<WETH>() == 600, 0);
+        assert!(total_normal_deposited<WETH>() == 600, 0);
         assert!(total_conly_deposited<WETH>() == 400, 0);
         assert!(event::counter<SwitchCollateralEvent>(&borrow_global<PoolEventHandle<WETH>>(owner_addr).switch_collateral_event) == 2, 0);
     }

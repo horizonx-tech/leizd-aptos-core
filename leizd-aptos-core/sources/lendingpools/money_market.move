@@ -806,9 +806,9 @@ module leizd::money_market {
 
         // execute
         switch_collateral<WETH, Asset>(account, true);
-        assert!(asset_pool::total_normal_deposited<WETH>() == 1000, 0);
+        assert!(asset_pool::total_normal_deposited<WETH>() == 0, 0);
         assert!(asset_pool::total_conly_deposited<WETH>() == 1000, 0);
-        assert!(account_position::deposited_asset<WETH>(account_addr) == 1000, 0);
+        assert!(account_position::deposited_asset<WETH>(account_addr) == 0, 0);
         assert!(account_position::conly_deposited_asset<WETH>(account_addr) == 1000, 0);
     }
     #[test(owner=@leizd,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
@@ -821,9 +821,9 @@ module leizd::money_market {
 
         // prerequisite
         deposit<WETH, Shadow>(account, 1000, true);
-        assert!(shadow_pool::normal_deposited<WETH>() == 1000, 0);
+        assert!(shadow_pool::normal_deposited<WETH>() == 0, 0);
         assert!(shadow_pool::conly_deposited<WETH>() == 1000, 0);
-        assert!(account_position::deposited_shadow<WETH>(account_addr) == 1000, 0);
+        assert!(account_position::deposited_shadow<WETH>(account_addr) == 0, 0);
         assert!(account_position::conly_deposited_shadow<WETH>(account_addr) == 1000, 0);
 
         // execute

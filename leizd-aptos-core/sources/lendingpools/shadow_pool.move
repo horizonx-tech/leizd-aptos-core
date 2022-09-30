@@ -532,13 +532,17 @@ module leizd::shadow_pool {
         let amount_u128 = (amount as u128);
         if (to_collateral_only) {
             assert!(amount <= normal_deposited_internal(key, storage_ref) - conly_deposit_internal(key, storage_ref), error::invalid_argument(E_INSUFFICIENT_LIQUIDITY));
-            let conly_deposited = &mut simple_map::borrow_mut<String, AssetStorage>(&mut storage_ref.asset_storages, &key).conly_deposited;
-            *conly_deposited = *conly_deposited + amount;
+            let asset_storage_ref = simple_map::borrow_mut<String, AssetStorage>(&mut storage_ref.asset_storages, &key);
+            asset_storage_ref.conly_deposited = asset_storage_ref.conly_deposited + amount;
             storage_ref.total_conly_deposited = storage_ref.total_conly_deposited + amount_u128;
+            asset_storage_ref.normal_deposited = asset_storage_ref.normal_deposited - amount;
+            storage_ref.total_normal_deposited = storage_ref.total_normal_deposited - amount_u128;
         } else {
             assert!(amount <= conly_deposit_internal(key, storage_ref), error::invalid_argument(E_INSUFFICIENT_CONLY_DEPOSITED));
-            let conly_deposited = &mut simple_map::borrow_mut<String, AssetStorage>(&mut storage_ref.asset_storages, &key).conly_deposited;
-            *conly_deposited = *conly_deposited - amount;
+            let asset_storage_ref = simple_map::borrow_mut<String, AssetStorage>(&mut storage_ref.asset_storages, &key);
+            asset_storage_ref.normal_deposited = asset_storage_ref.normal_deposited + amount;
+            storage_ref.total_normal_deposited = storage_ref.total_normal_deposited + amount_u128;
+            asset_storage_ref.conly_deposited = asset_storage_ref.conly_deposited - amount;
             storage_ref.total_conly_deposited = storage_ref.total_conly_deposited - amount_u128;
         };
         event::emit_event<SwitchCollateralEvent>(
@@ -2019,17 +2023,17 @@ module leizd::shadow_pool {
 
         switch_collateral<WETH>(account_addr, 800, true);
         assert!(total_liquidity() == 200, 0);
-        assert!(total_normal_deposited() == 1000, 0);
+        assert!(total_normal_deposited() == 200, 0);
         assert!(total_conly_deposited() == 800, 0);
-        assert!(normal_deposited<WETH>() == 1000, 0);
+        assert!(normal_deposited<WETH>() == 200, 0);
         assert!(conly_deposited<WETH>() == 800, 0);
         assert!(event::counter<SwitchCollateralEvent>(&borrow_global<PoolEventHandle>(owner_addr).switch_collateral_event) == 1, 0);
 
         switch_collateral<WETH>(account_addr, 400, false);
         assert!(total_liquidity() == 600, 0);
-        assert!(total_normal_deposited() == 1000, 0);
+        assert!(total_normal_deposited() == 600, 0);
         assert!(total_conly_deposited() == 400, 0);
-        assert!(normal_deposited<WETH>() == 1000, 0);
+        assert!(normal_deposited<WETH>() == 600, 0);
         assert!(conly_deposited<WETH>() == 400, 0);
         assert!(event::counter<SwitchCollateralEvent>(&borrow_global<PoolEventHandle>(owner_addr).switch_collateral_event) == 2, 0);
     }
