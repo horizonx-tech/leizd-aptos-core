@@ -48,7 +48,7 @@ module leizd::account_position {
     // Events
     struct UpdatePositionEvent has store, drop {
         key: String,
-        deposited: u64,
+        normal_deposited: u64,
         conly_deposited: u64,
         borrowed: u64,
     }
@@ -768,7 +768,7 @@ module leizd::account_position {
             &mut borrow_global_mut<AccountPositionEventHandle<P>>(addr).update_position_event,
             UpdatePositionEvent {
                 key,
-                deposited: balance_ref.normal_deposited,
+                normal_deposited: balance_ref.normal_deposited,
                 conly_deposited: balance_ref.conly_deposited,
                 borrowed: balance_ref.borrowed,
             },
