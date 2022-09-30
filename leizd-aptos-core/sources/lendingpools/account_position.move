@@ -40,7 +40,7 @@ module leizd::account_position {
     }
 
     struct Balance has store, drop {
-        deposited: u64,
+        normal_deposited: u64,
         conly_deposited: u64,
         borrowed: u64,
     }
@@ -48,7 +48,7 @@ module leizd::account_position {
     // Events
     struct UpdatePositionEvent has store, drop {
         key: String,
-        deposited: u64,
+        normal_deposited: u64,
         conly_deposited: u64,
         borrowed: u64,
     }
@@ -99,27 +99,23 @@ module leizd::account_position {
     }
 
     fun assert_invalid_deposit_asset<C>(depositor_addr: address, is_collateral_only: bool) acquires Position {
-        let deposited = deposited_asset<C>(depositor_addr);
-        if (deposited > 0) {
+        if (is_collateral_only) {
+            let deposited = deposited_asset<C>(depositor_addr);
+            assert!(deposited == 0, error::invalid_argument(EALREADY_DEPOSITED_AS_NORMAL));
+        } else {
             let conly_deposited = conly_deposited_asset<C>(depositor_addr);
-            if (conly_deposited > 0) {
-                assert!(is_collateral_only, error::invalid_argument(EALREADY_DEPOSITED_AS_COLLATERAL_ONLY));
-            } else {
-                assert!(!is_collateral_only, error::invalid_argument(EALREADY_DEPOSITED_AS_NORMAL));
-            }
-        }
+            assert!(conly_deposited == 0, error::invalid_argument(EALREADY_DEPOSITED_AS_COLLATERAL_ONLY));
+        };
     }
 
     fun assert_invalid_deposit_shadow<C>(depositor_addr: address, is_collateral_only: bool) acquires Position {
-        let deposited = deposited_shadow<C>(depositor_addr);
-        if (deposited > 0) {
+        if (is_collateral_only) {
+            let deposited = deposited_shadow<C>(depositor_addr);
+            assert!(deposited == 0, error::invalid_argument(EALREADY_DEPOSITED_AS_NORMAL));
+        } else {
             let conly_deposited = conly_deposited_shadow<C>(depositor_addr);
-            if (conly_deposited > 0) {
-                assert!(is_collateral_only, error::invalid_argument(EALREADY_DEPOSITED_AS_COLLATERAL_ONLY));
-            } else {
-                assert!(!is_collateral_only, error::invalid_argument(EALREADY_DEPOSITED_AS_NORMAL));
-            }
-        }
+            assert!(conly_deposited == 0, error::invalid_argument(EALREADY_DEPOSITED_AS_COLLATERAL_ONLY));
+        };
     }
 
     public fun is_conly<C,P>(depositor_addr: address): bool acquires Position {
@@ -418,9 +414,13 @@ module leizd::account_position {
     fun liquidate_internal<C,P>(target_addr: address): (u64,u64,bool) acquires Position, AccountPositionEventHandle {
         if (pool_type::is_type_asset<P>()) {
             assert!(!is_safe<C,AssetToShadow>(target_addr), error::invalid_state(ENO_SAFE_POSITION));
-            let deposited = deposited_asset<C>(target_addr);
-            assert!(deposited > 0, error::invalid_argument(ENO_DEPOSITED));
-            let is_collateral_only = conly_deposited_asset<C>(target_addr) > 0;
+
+            let normal_deposited = deposited_asset<C>(target_addr);
+            let conly_deposited = conly_deposited_asset<C>(target_addr);
+            assert!(normal_deposited > 0 || conly_deposited > 0, error::invalid_argument(ENO_DEPOSITED));
+            let is_collateral_only = conly_deposited > 0;
+            let deposited = if (is_collateral_only) conly_deposited else normal_deposited;
+
             update_on_withdraw<C, AssetToShadow>(target_addr, deposited, is_collateral_only);
             let borrowed = borrowed_shadow<C>(target_addr);
             update_on_repay<C,AssetToShadow>(target_addr, borrowed);
@@ -437,9 +437,12 @@ module leizd::account_position {
                 return (0, 0, false)
             };
 
-            let deposited = deposited_shadow<C>(target_addr);
-            assert!(deposited > 0, error::invalid_argument(ENO_DEPOSITED));
-            let is_collateral_only = conly_deposited_shadow<C>(target_addr) > 0;
+            let normal_deposited = deposited_shadow<C>(target_addr);
+            let conly_deposited = conly_deposited_shadow<C>(target_addr);
+            assert!(normal_deposited > 0 || conly_deposited > 0, error::invalid_argument(ENO_DEPOSITED));
+            let is_collateral_only = conly_deposited > 0;
+            let deposited = if (is_collateral_only) conly_deposited else normal_deposited;
+
             update_on_withdraw<C,ShadowToAsset>(target_addr, deposited, is_collateral_only);
             let borrowed = borrowed_asset<C>(target_addr);
             update_on_repay<C,ShadowToAsset>(target_addr, borrowed);
@@ -655,8 +658,8 @@ module leizd::account_position {
     fun deposited_volume<P>(addr: address, key: String): u64 acquires Position {
         let position_ref = borrow_global_mut<Position<P>>(addr);
         if (vector::contains<String>(&position_ref.coins, &key)) {
-            let deposited = simple_map::borrow<String,Balance>(&position_ref.balance, &key).deposited;
-            price_oracle::volume(&key, deposited)
+            let balance = simple_map::borrow<String,Balance>(&position_ref.balance, &key);
+            price_oracle::volume(&key, balance.normal_deposited + balance.conly_deposited)
         } else {
             0
         }
@@ -710,9 +713,10 @@ module leizd::account_position {
         let position_ref = borrow_global_mut<Position<P>>(addr);
         if (vector::contains<String>(&position_ref.coins, &key)) {
             let balance_ref = simple_map::borrow_mut<String,Balance>(&mut position_ref.balance, &key);
-            balance_ref.deposited = balance_ref.deposited + amount;
             if (is_collateral_only) {
                 balance_ref.conly_deposited = balance_ref.conly_deposited + amount;
+            } else {
+                balance_ref.normal_deposited = balance_ref.normal_deposited + amount;
             };
             emit_update_position_event<P>(addr, key, balance_ref);
         } else {
@@ -723,11 +727,14 @@ module leizd::account_position {
     fun update_position_for_withdraw<P>(key: String, addr: address, amount: u64, is_collateral_only: bool): u64 acquires Position, AccountPositionEventHandle {
         let position_ref = borrow_global_mut<Position<P>>(addr);
         let balance_ref = simple_map::borrow_mut<String,Balance>(&mut position_ref.balance, &key);
-        amount = if (amount == constant::u64_max()) balance_ref.deposited else amount;
-        assert!(balance_ref.deposited >= amount, error::invalid_argument(EOVER_DEPOSITED_AMOUNT));
-        balance_ref.deposited = balance_ref.deposited - amount;
         if (is_collateral_only) {
+            amount = if (amount == constant::u64_max()) balance_ref.conly_deposited else amount;
+            assert!(balance_ref.conly_deposited >= amount, error::invalid_argument(EOVER_DEPOSITED_AMOUNT));
             balance_ref.conly_deposited = balance_ref.conly_deposited - amount;
+        } else {
+            amount = if (amount == constant::u64_max()) balance_ref.normal_deposited else amount;
+            assert!(balance_ref.normal_deposited >= amount, error::invalid_argument(EOVER_DEPOSITED_AMOUNT));
+            balance_ref.normal_deposited = balance_ref.normal_deposited - amount;
         };
         emit_update_position_event<P>(addr, key, balance_ref);
         remove_balance_if_unused<P>(addr, key);
@@ -761,7 +768,7 @@ module leizd::account_position {
             &mut borrow_global_mut<AccountPositionEventHandle<P>>(addr).update_position_event,
             UpdatePositionEvent {
                 key,
-                deposited: balance_ref.deposited,
+                normal_deposited: balance_ref.normal_deposited,
                 conly_deposited: balance_ref.conly_deposited,
                 borrowed: balance_ref.borrowed,
             },
@@ -772,12 +779,20 @@ module leizd::account_position {
         let position_ref = borrow_global_mut<Position<P>>(addr);
         vector::push_back<String>(&mut position_ref.coins, key);
 
-        let conly_amount = if (is_collateral_only) deposit else 0;
-        simple_map::add<String,Balance>(&mut position_ref.balance, key, Balance {
-            deposited: deposit,
-            conly_deposited: conly_amount,
-            borrowed: borrow,
-        });
+        if (is_collateral_only) {
+            simple_map::add<String,Balance>(&mut position_ref.balance, key, Balance {
+                normal_deposited: 0,
+                conly_deposited: deposit,
+                borrowed: borrow,
+            });
+        } else {
+            simple_map::add<String,Balance>(&mut position_ref.balance, key, Balance {
+                normal_deposited: deposit,
+                conly_deposited: 0,
+                borrowed: borrow,
+            });
+        };
+
         emit_update_position_event<P>(addr, key, simple_map::borrow<String,Balance>(&position_ref.balance, &key));
     }
 
@@ -785,7 +800,7 @@ module leizd::account_position {
         let position_ref = borrow_global_mut<Position<P>>(addr);
         let balance_ref = simple_map::borrow<String,Balance>(&position_ref.balance, &key);
         if (
-            balance_ref.deposited == 0
+            balance_ref.normal_deposited == 0
             && balance_ref.conly_deposited == 0
             && balance_ref.borrowed == 0 // NOTE: maybe actually only `deposited` needs to be checked.
         ) {
@@ -813,7 +828,8 @@ module leizd::account_position {
 
     fun utilization_of<P>(position_ref: &Position<P>, key: String): u64 {
         if (vector::contains<String>(&position_ref.coins, &key)) {
-            let deposited = simple_map::borrow<String,Balance>(&position_ref.balance, &key).deposited;
+            let balance = simple_map::borrow<String,Balance>(&position_ref.balance, &key);
+            let deposited = balance.normal_deposited + balance.conly_deposited;
             let borrowed = simple_map::borrow<String,Balance>(&position_ref.balance, &key).borrowed;
             if (deposited == 0 && borrowed != 0) {
                 return constant::u64_max()
@@ -834,7 +850,7 @@ module leizd::account_position {
         if (!exists<Position<AssetToShadow>>(addr)) return 0;
         let position_ref = borrow_global<Position<AssetToShadow>>(addr);
         if (simple_map::contains_key<String,Balance>(&position_ref.balance, &key)) {
-            simple_map::borrow<String,Balance>(&position_ref.balance, &key).deposited
+            simple_map::borrow<String,Balance>(&position_ref.balance, &key).normal_deposited
         } else {
             0
         }
@@ -873,7 +889,7 @@ module leizd::account_position {
         if (!exists<Position<ShadowToAsset>>(addr)) return 0;
         let position_ref = borrow_global<Position<ShadowToAsset>>(addr);
         if (simple_map::contains_key<String,Balance>(&position_ref.balance, &key)) {
-            simple_map::borrow<String,Balance>(&position_ref.balance, &key).deposited
+            simple_map::borrow<String,Balance>(&position_ref.balance, &key).normal_deposited
         } else {
             0
         }
@@ -986,7 +1002,7 @@ module leizd::account_position {
         account::create_account_for_test(account_addr);
 
         deposit_internal<WETH,Asset>(account, account_addr, 800000, true);
-        assert!(deposited_asset<WETH>(account_addr) == 800000, 0);
+        assert!(deposited_asset<WETH>(account_addr) == 0, 0);
         assert!(conly_deposited_asset<WETH>(account_addr) == 800000, 0);
     }
     #[test(owner=@leizd,account=@0x111)]
@@ -1006,7 +1022,7 @@ module leizd::account_position {
         account::create_account_for_test(account_addr);
 
         deposit_internal<WETH,Shadow>(account, account_addr, 800000, true);
-        assert!(deposited_shadow<WETH>(account_addr) == 800000, 0);
+        assert!(deposited_shadow<WETH>(account_addr) == 0, 0);
         assert!(conly_deposited_shadow<WETH>(account_addr) == 800000, 0);
     }
     #[test(owner=@leizd,account=@0x111)]
@@ -1113,7 +1129,7 @@ module leizd::account_position {
         deposit_internal<WETH,Asset>(account, account_addr, 700000, true);
         withdraw_internal<WETH,Asset>(account_addr, 600000, true);
 
-        assert!(deposited_asset<WETH>(account_addr) == 100000, 0);
+        assert!(deposited_asset<WETH>(account_addr) == 0, 0);
         assert!(conly_deposited_asset<WETH>(account_addr) == 100000, 0);
     }
     #[test(owner=@leizd,account=@0x111)]
@@ -1139,7 +1155,7 @@ module leizd::account_position {
         deposit_internal<WETH,Shadow>(account, account_addr, 700000, true);
         withdraw_internal<WETH,Shadow>(account_addr, 600000, true);
 
-        assert!(deposited_shadow<WETH>(account_addr) == 100000, 0);
+        assert!(deposited_shadow<WETH>(account_addr) == 0, 0);
         assert!(conly_deposited_shadow<WETH>(account_addr) == 100000, 0);
     }
     #[test(owner=@leizd,account=@0x111)]
@@ -1490,7 +1506,7 @@ module leizd::account_position {
 
         deposit_internal<WETH,Asset>(account, account_addr, 100, true);
         borrow_unsafe_for_test<WETH,Shadow>(account_addr, 90);
-        assert!(deposited_asset<WETH>(account_addr) == 100, 0);
+        assert!(deposited_asset<WETH>(account_addr) == 0, 0);
         assert!(conly_deposited_asset<WETH>(account_addr) == 100, 0);
         assert!(borrowed_shadow<WETH>(account_addr) == 90, 0);
 
@@ -1536,7 +1552,7 @@ module leizd::account_position {
 
         deposit_internal<WETH,Shadow>(account, account_addr, 100, true);
         borrow_unsafe_for_test<WETH,Asset>(account_addr, 110);
-        assert!(deposited_shadow<WETH>(account_addr) == 100, 0);
+        assert!(deposited_shadow<WETH>(account_addr) == 0, 0);
         assert!(conly_deposited_shadow<WETH>(account_addr) == 100, 0);
         assert!(borrowed_asset<WETH>(account_addr) == 110, 0);
 
@@ -1561,7 +1577,7 @@ module leizd::account_position {
         borrow_unsafe_for_test<WETH,Asset>(account_addr, 190);
         deposit_internal<UNI,Shadow>(account, account_addr, 80, false);
         borrow_unsafe_for_test<UNI,Asset>(account_addr, 170);
-        assert!(deposited_shadow<WETH>(account_addr) == 100, 0);
+        assert!(deposited_shadow<WETH>(account_addr) == 0, 0);
         assert!(deposited_shadow<UNI>(account_addr) == 80, 0);
         assert!(conly_deposited_shadow<WETH>(account_addr) == 100, 0);
         assert!(conly_deposited_shadow<UNI>(account_addr) == 0, 0);
@@ -1596,7 +1612,7 @@ module leizd::account_position {
         borrow_unsafe_for_test<WETH,Shadow>(account_addr, 190);
         deposit_internal<WETH,Shadow>(account, account_addr, 80, false);
         borrow_unsafe_for_test<WETH,Asset>(account_addr, 170);
-        assert!(deposited_asset<WETH>(account_addr) == 100, 0);
+        assert!(deposited_asset<WETH>(account_addr) == 0, 0);
         assert!(deposited_shadow<WETH>(account_addr) == 80, 0);
         assert!(conly_deposited_asset<WETH>(account_addr) == 100, 0);
         assert!(conly_deposited_shadow<WETH>(account_addr) == 0, 0);
@@ -1869,7 +1885,7 @@ module leizd::account_position {
         assert!(insufficient == 200, 0);
         assert!(is_collateral_only_C1, 0);
         assert!(!is_collateral_only_C2, 0);
-        assert!(deposited_shadow<WETH>(account1_addr) == 800, 0);
+        assert!(conly_deposited_shadow<WETH>(account1_addr) == 800, 0);
         assert!(deposited_shadow<UNI>(account1_addr) == 1200, 0);
 
         // borrowable & borrowable
@@ -2154,7 +2170,7 @@ module leizd::account_position {
 
         let deposited = switch_collateral<WETH,Asset>(account1_addr, true);
         assert!(deposited == 10000, 0);
-        assert!(deposited_asset<WETH>(account1_addr) == 10000, 0);
+        assert!(deposited_asset<WETH>(account1_addr) == 0, 0);
         assert!(conly_deposited_asset<WETH>(account1_addr) == 10000, 0);
 
         deposit_internal<WETH,Asset>(account1, account1_addr, 30000, true);
@@ -2168,7 +2184,7 @@ module leizd::account_position {
         let account1_addr = signer::address_of(account1);
         account::create_account_for_test(account1_addr);
         deposit_internal<WETH,Shadow>(account1, account1_addr, 10000, true);
-        assert!(deposited_shadow<WETH>(account1_addr) == 10000, 0);
+        assert!(deposited_shadow<WETH>(account1_addr) == 0, 0);
         assert!(conly_deposited_shadow<WETH>(account1_addr) == 10000, 0);
 
         let deposited = switch_collateral<WETH,Shadow>(account1_addr, false);
@@ -2179,7 +2195,7 @@ module leizd::account_position {
         deposit_internal<WETH,Shadow>(account1, account1_addr, 30000, false);
         let deposited = switch_collateral<WETH,Shadow>(account1_addr, true);
         assert!(deposited == 40000, 0);
-        assert!(deposited_shadow<WETH>(account1_addr) == 40000, 0);
+        assert!(deposited_shadow<WETH>(account1_addr) == 0, 0);
         assert!(conly_deposited_shadow<WETH>(account1_addr) == 40000, 0);
     }
 }
