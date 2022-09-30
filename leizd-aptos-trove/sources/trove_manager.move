@@ -15,7 +15,7 @@ module leizd_aptos_trove::trove_manager {
         sorted_trove::initialize<C>(owner);
     }
 
-    public entry fun open_trove<C>(account: &signer, amount: u64)  {
+    public entry fun open_trove<C>(account: &signer, amount: u64) {
         trove::open_trove<C>(account, amount);
         sorted_trove::insert<C>(signer::address_of(account))
     }
@@ -164,7 +164,7 @@ module leizd_aptos_trove::trove_manager {
    }
 
    #[test(owner=@leizd_aptos_trove)]
-   fun test_remove_tail_of_2_entries(owner: &signer)  {
+   fun test_remove_tail_of_2_entries(owner: &signer) {
         set_up(owner);
         let (alice, bob, _) = users(owner);
         open_trove<USDC>(&alice, 100);

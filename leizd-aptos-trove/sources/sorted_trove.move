@@ -56,7 +56,11 @@ module leizd_aptos_trove::sorted_trove {
     }
 
     public(friend) fun insert<C>(id: address) acquires Data {
+        if (contains<C>(id)) {
+            remove<C>(id);
+        };
         let (prev, next) = insert_position_of<C>(id);
+
         insert_internal<C>(id, prev, next);
     }
 
