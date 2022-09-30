@@ -45,7 +45,7 @@ module leizd::asset_pool {
     /// to calculate the borrowable amount in the pool.
     /// C: The coin type of the pool e.g. WETH / APT / USDC
     struct Storage<phantom C> has key {
-        total_normal_deposited: u128,
+        total_normal_deposited: u128, // borrowable
         total_conly_deposited: u128, // collateral only
         total_borrowed: u128,
         last_updated: u64,
