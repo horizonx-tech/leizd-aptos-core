@@ -114,8 +114,9 @@ module leizd::stability_pool {
         update_config_event: event::EventHandle<UpdateConfigEvent>,
     }
 
-    public entry fun initialize(owner: &signer) {
-        permission::assert_owner(signer::address_of(owner));
+    public entry fun initialize(owner: &signer) acquires StabilityPoolEventHandle {
+        let owner_address = signer::address_of(owner);
+        permission::assert_owner(owner_address);
         assert!(!is_pool_initialized(), error::invalid_state(EALREADY_INITIALIZED));
 
         stb_usdz::initialize(owner);
@@ -150,6 +151,23 @@ module leizd::stability_pool {
             claim_reward_event: account::new_event_handle<ClaimRewardEvent>(owner),
             update_config_event: account::new_event_handle<UpdateConfigEvent>(owner),
         });
+        event::emit_event<UpdateConfigEvent>(
+            &mut borrow_global_mut<StabilityPoolEventHandle>(owner_address).update_config_event,
+            UpdateConfigEvent {
+                caller: owner_address,
+                entry_fee: DEFAULT_ENTRY_FEE,
+                support_fee: DEFAULT_SUPPORT_FEE
+            }
+        );        
+        event::emit_event<UpdateStateEvent>(
+            &mut borrow_global_mut<StabilityPoolEventHandle>(owner_address).update_state_event,
+            UpdateStateEvent {
+                old_index: 0,
+                new_index: 0,
+                emission_per_sec: 0,
+                updated_at: 0,
+            }
+        );        
     }
 
     public fun is_pool_initialized(): bool {
@@ -520,7 +538,7 @@ module leizd::stability_pool {
         DEFAULT_SUPPORT_FEE
     }
     #[test_only]
-    fun initialize_for_test_to_use_coin(owner: &signer) acquires Balance {
+    fun initialize_for_test_to_use_coin(owner: &signer) acquires Balance, StabilityPoolEventHandle {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
 
@@ -532,7 +550,7 @@ module leizd::stability_pool {
     }
     // related initialize
     #[test(owner=@leizd)]
-    public entry fun test_initialize(owner: &signer) acquires StabilityPool, Config, DistributionConfig {
+    public entry fun test_initialize(owner: &signer) acquires StabilityPool, Config, DistributionConfig, StabilityPoolEventHandle {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
         trove_manager::initialize(owner);
@@ -560,7 +578,7 @@ module leizd::stability_pool {
     }
     #[test(owner=@leizd)]
     #[expected_failure(abort_code = 196609)]
-    public entry fun test_initialize_twice(owner: &signer) {
+    public entry fun test_initialize_twice(owner: &signer) acquires StabilityPoolEventHandle {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
         trove_manager::initialize(owner);
@@ -570,11 +588,11 @@ module leizd::stability_pool {
     }
     #[test(account=@0x111)]
     #[expected_failure(abort_code = 1)]
-    public entry fun test_initialize_without_owner(account: &signer) {
+    public entry fun test_initialize_without_owner(account: &signer) acquires StabilityPoolEventHandle {
         initialize(account);
     }
     #[test(owner = @leizd)]
-    fun test_is_supported(owner: &signer) acquires StabilityPool {
+    fun test_is_supported(owner: &signer) acquires StabilityPool, StabilityPoolEventHandle {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
         trove_manager::initialize(owner);
@@ -610,7 +628,7 @@ module leizd::stability_pool {
     }
     #[test(owner = @leizd)]
     #[expected_failure(abort_code = 65543)]
-    fun test_add_supported_pool_with_not_initialized_coin(owner: &signer) acquires StabilityPool {
+    fun test_add_supported_pool_with_not_initialized_coin(owner: &signer) acquires StabilityPool, StabilityPoolEventHandle {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
         trove_manager::initialize(owner);
@@ -620,7 +638,7 @@ module leizd::stability_pool {
     }
     #[test(owner = @leizd)]
     #[expected_failure(abort_code = 65542)]
-    fun test_add_supported_pool_if_already_added(owner: &signer) acquires Balance, StabilityPool {
+    fun test_add_supported_pool_if_already_added(owner: &signer) acquires Balance, StabilityPool, StabilityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         assert!(!is_supported(key<WETH>()), 0);
 
@@ -634,7 +652,7 @@ module leizd::stability_pool {
     }
     #[test(owner = @leizd)]
     #[expected_failure(abort_code = 65544)]
-    fun test_add_supported_pool_if_already_removed(owner: &signer) acquires Balance, StabilityPool {
+    fun test_add_supported_pool_if_already_removed(owner: &signer) acquires Balance, StabilityPool, StabilityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         assert!(!is_supported(key<WETH>()), 0);
 
@@ -1255,7 +1273,7 @@ module leizd::stability_pool {
         assert!(entry_fee() == PRECISION * 10 / 1000, 0);
         assert!(support_fee() == PRECISION * 10 / 1000, 0);
 
-        assert!(event::counter<UpdateConfigEvent>(&borrow_global<StabilityPoolEventHandle>(signer::address_of(owner)).update_config_event) == 1, 0);
+        assert!(event::counter<UpdateConfigEvent>(&borrow_global<StabilityPoolEventHandle>(signer::address_of(owner)).update_config_event) == 2, 0);
     }
     #[test(owner = @leizd, account = @0x111)]
     #[expected_failure(abort_code = 1)]
@@ -1326,7 +1344,7 @@ module leizd::stability_pool {
         assert!(calculate_support_fee(1) == 0, 0);
     }
     #[test(owner = @leizd)]
-    fun test_distribution_config(owner: &signer) acquires DistributionConfig {
+    fun test_distribution_config(owner: &signer) acquires DistributionConfig, StabilityPoolEventHandle {
         account::create_account_for_test(signer::address_of(owner));
         trove_manager::initialize(owner);
         initialize(owner);
