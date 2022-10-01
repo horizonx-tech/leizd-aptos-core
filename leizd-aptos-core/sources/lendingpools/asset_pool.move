@@ -519,18 +519,51 @@ module leizd::asset_pool {
     }
 
     public entry fun total_normal_deposited_amount<C>(): u128 acquires Storage {
-        let asset_storage_ref = borrow_mut_asset_storage<C>(borrow_global_mut<Storage>(permission::owner_address()));
+        total_normal_deposited_amount_with(key<C>())
+    }
+    public entry fun total_normal_deposited_amount_with(key: String): u128 acquires Storage {
+        let asset_storage_ref = borrow_mut_asset_storage_with(borrow_global_mut<Storage>(permission::owner_address()), key);
         asset_storage_ref.total_normal_deposited_amount
     }
 
+    public entry fun total_normal_deposited_share<C>(): u128 acquires Storage {
+        total_normal_deposited_share_with(key<C>())
+    }
+    public entry fun total_normal_deposited_share_with(key: String): u128 acquires Storage {
+        let asset_storage_ref = borrow_mut_asset_storage_with(borrow_global_mut<Storage>(permission::owner_address()), key);
+        asset_storage_ref.total_normal_deposited_share
+    }
+
     public entry fun total_conly_deposited_amount<C>(): u128 acquires Storage {
-        let asset_storage_ref = borrow_mut_asset_storage<C>(borrow_global_mut<Storage>(permission::owner_address()));
+        total_conly_deposited_amount_with(key<C>())
+    }
+    public entry fun total_conly_deposited_amount_with(key: String): u128 acquires Storage {
+        let asset_storage_ref = borrow_mut_asset_storage_with(borrow_global_mut<Storage>(permission::owner_address()), key);
         asset_storage_ref.total_conly_deposited_amount
     }
 
+    public entry fun total_conly_deposited_share<C>(): u128 acquires Storage {
+        total_conly_deposited_share_with(key<C>())
+    }
+    public entry fun total_conly_deposited_share_with(key: String): u128 acquires Storage {
+        let asset_storage_ref = borrow_mut_asset_storage_with(borrow_global_mut<Storage>(permission::owner_address()), key);
+        asset_storage_ref.total_conly_deposited_share
+    }
+
     public entry fun total_borrowed_amount<C>(): u128 acquires Storage {
-        let asset_storage_ref = borrow_mut_asset_storage<C>(borrow_global_mut<Storage>(permission::owner_address()));
+        total_borrowed_amount_with(key<C>())
+    }
+    public entry fun total_borrowed_amount_with(key: String): u128 acquires Storage {
+        let asset_storage_ref = borrow_mut_asset_storage_with(borrow_global_mut<Storage>(permission::owner_address()), key);
         asset_storage_ref.total_borrowed_amount
+    }
+
+    public entry fun total_borrowed_share<C>(): u128 acquires Storage {
+        total_borrowed_share_with(key<C>())
+    }
+    public entry fun total_borrowed_share_with(key: String): u128 acquires Storage {
+        let asset_storage_ref = borrow_mut_asset_storage_with(borrow_global_mut<Storage>(permission::owner_address()), key);
+        asset_storage_ref.total_borrowed_share
     }
 
     public entry fun last_updated<C>(): u64 acquires Storage {
