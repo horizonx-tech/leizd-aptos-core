@@ -5,7 +5,6 @@ module leizd::initializer {
     use leizd_aptos_trove::trove_manager;
     use leizd_aptos_treasury::treasury;
     use leizd_aptos_logic::risk_factor;
-    use leizd::asset_pool;
     use leizd::pool_manager;
     use leizd::stability_pool;
 
@@ -16,7 +15,6 @@ module leizd::initializer {
         treasury::initialize(owner);
         trove_manager::initialize(owner);
         pool_manager::initialize(owner);
-        asset_pool::initialize(owner);
         stability_pool::initialize(owner);
     }
 

@@ -776,6 +776,8 @@ module leizd::shadow_pool {
     #[test_only]
     use leizd::initializer;
     #[test_only]
+    use leizd::asset_pool;
+    #[test_only]
     use leizd::pool_manager;
     #[test_only]
     use leizd::test_coin::{Self,WETH,UNI};
@@ -790,6 +792,7 @@ module leizd::shadow_pool {
         test_coin::init_weth(owner);
         test_coin::init_uni(owner);
         init_pool_internal(owner);
+        asset_pool::initialize(owner);
         pool_manager::add_pool<WETH>(owner);
         pool_manager::add_pool<UNI>(owner);
     }
@@ -1991,6 +1994,7 @@ module leizd::shadow_pool {
         test_coin::init_weth(owner);
         test_coin::init_uni(owner);
         init_pool_internal(owner);
+        asset_pool::initialize(owner);
         pool_manager::add_pool<WETH>(owner);
 
         rebalance_shadow<UNI,WETH>(5000, true, true);
@@ -2005,6 +2009,7 @@ module leizd::shadow_pool {
         test_coin::init_weth(owner);
         test_coin::init_uni(owner);
         init_pool_internal(owner);
+        asset_pool::initialize(owner);
         pool_manager::add_pool<WETH>(owner);
 
         rebalance_shadow<WETH,UNI>(5000, true, true);
