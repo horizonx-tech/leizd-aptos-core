@@ -439,9 +439,6 @@ module leizd::asset_pool {
         collect_asset_fee<C>(pool_ref, (harvested_fee as u64));
     }
 
-    public entry fun total_normal_deposited<C>(): u128 acquires Storage {
-        borrow_global<Storage<C>>(permission::owner_address()).total_normal_deposited_amount
-    }
 
     public entry fun protocol_fees<C>(): u64 acquires Storage {
         borrow_global<Storage<C>>(permission::owner_address()).protocol_fees
@@ -461,11 +458,15 @@ module leizd::asset_pool {
         (coin::value(&pool.asset) as u128) - storage.total_conly_deposited_amount
     }
 
-    public entry fun total_conly_deposited<C>(): u128 acquires Storage {
+    public entry fun total_normal_deposited_amount<C>(): u128 acquires Storage {
+        borrow_global<Storage<C>>(permission::owner_address()).total_normal_deposited_amount
+    }
+
+    public entry fun total_conly_deposited_amount<C>(): u128 acquires Storage {
         borrow_global<Storage<C>>(permission::owner_address()).total_conly_deposited_amount
     }
 
-    public entry fun total_borrowed<C>(): u128 acquires Storage {
+    public entry fun total_borrowed_amount<C>(): u128 acquires Storage {
         borrow_global<Storage<C>>(permission::owner_address()).total_borrowed_amount
     }
 
@@ -562,10 +563,10 @@ module leizd::asset_pool {
 
         deposit_for_internal<WETH>(account, account_addr, 800000, false);
         assert!(coin::balance<WETH>(account_addr) == 200000, 0);
-        assert!(total_normal_deposited<WETH>() == 800000, 0);
+        assert!(total_normal_deposited_amount<WETH>() == 800000, 0);
         assert!(liquidity<WETH>() == 800000, 0);
-        assert!(total_conly_deposited<WETH>() == 0, 0);
-        assert!(total_borrowed<WETH>() == 0, 0);
+        assert!(total_conly_deposited_amount<WETH>() == 0, 0);
+        assert!(total_borrowed_amount<WETH>() == 0, 0);
 
         let event_handle = borrow_global<PoolEventHandle<WETH>>(signer::address_of(owner));
         assert!(event::counter<DepositEvent>(&event_handle.deposit_event) == 1, 0);
@@ -580,8 +581,8 @@ module leizd::asset_pool {
 
         deposit_for_internal<WETH>(account, account_addr, 1000000, false);
         assert!(coin::balance<WETH>(account_addr) == 0, 0);
-        assert!(total_normal_deposited<WETH>() == 1000000, 0);
-        assert!(total_conly_deposited<WETH>() == 0, 0);
+        assert!(total_normal_deposited_amount<WETH>() == 1000000, 0);
+        assert!(total_conly_deposited_amount<WETH>() == 0, 0);
     }
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
     #[expected_failure(abort_code = 65542)]
@@ -608,8 +609,8 @@ module leizd::asset_pool {
         timestamp::update_global_time_for_test(1662125899830897);
         deposit_for_internal<WETH>(account, account_addr, 400000, false);
         assert!(coin::balance<WETH>(account_addr) == 200000, 0);
-        assert!(total_normal_deposited<WETH>() == 800000, 0);
-        assert!(total_conly_deposited<WETH>() == 0, 0);
+        assert!(total_normal_deposited_amount<WETH>() == 800000, 0);
+        assert!(total_conly_deposited_amount<WETH>() == 0, 0);
     }
     #[test(owner=@leizd,account1=@0x111,account2=@0x222,aptos_framework=@aptos_framework)]
     public entry fun test_deposit_weth_by_two(owner: &signer, account1: &signer, account2: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
@@ -627,8 +628,8 @@ module leizd::asset_pool {
         deposit_for_internal<WETH>(account2, account2_addr, 200000, false);
         assert!(coin::balance<WETH>(account1_addr) == 200000, 0);
         assert!(coin::balance<WETH>(account2_addr) == 800000, 0);
-        assert!(total_normal_deposited<WETH>() == 1000000, 0);
-        assert!(total_conly_deposited<WETH>() == 0, 0);
+        assert!(total_normal_deposited_amount<WETH>() == 1000000, 0);
+        assert!(total_conly_deposited_amount<WETH>() == 0, 0);
     }
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
     #[expected_failure(abort_code = 393217)]
@@ -659,9 +660,9 @@ module leizd::asset_pool {
         deposit_for_internal<WETH>(account, account_addr, 800000, true);
         assert!(coin::balance<WETH>(account_addr) == 200000, 0);
         assert!(liquidity<WETH>() == 0, 0);
-        assert!(total_normal_deposited<WETH>() == 0, 0);
-        assert!(total_conly_deposited<WETH>() == 800000, 0);
-        assert!(total_borrowed<WETH>() == 0, 0);
+        assert!(total_normal_deposited_amount<WETH>() == 0, 0);
+        assert!(total_conly_deposited_amount<WETH>() == 800000, 0);
+        assert!(total_borrowed_amount<WETH>() == 0, 0);
     }
 
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
@@ -679,9 +680,9 @@ module leizd::asset_pool {
         deposit_for_internal<WETH>(account, account_addr, 2, true);
 
         assert!(liquidity<WETH>() == 1, 0);
-        assert!(total_normal_deposited<WETH>() == 1, 0);
-        assert!(total_conly_deposited<WETH>() == 2, 0);
-        assert!(total_borrowed<WETH>() == 0, 0);
+        assert!(total_normal_deposited_amount<WETH>() == 1, 0);
+        assert!(total_conly_deposited_amount<WETH>() == 2, 0);
+        assert!(total_borrowed_amount<WETH>() == 0, 0);
 
         let event_handle = borrow_global<PoolEventHandle<WETH>>(signer::address_of(owner));
         assert!(event::counter<DepositEvent>(&event_handle.deposit_event) == 2, 0);
@@ -703,10 +704,10 @@ module leizd::asset_pool {
         withdraw_for_internal<WETH>(account_addr, account_addr, 600000, false, 0);
 
         assert!(coin::balance<WETH>(account_addr) == 900000, 0);
-        assert!(total_normal_deposited<WETH>() == 100000, 0);
+        assert!(total_normal_deposited_amount<WETH>() == 100000, 0);
         assert!(liquidity<WETH>() == 100000, 0);
-        assert!(total_conly_deposited<WETH>() == 0, 0);
-        assert!(total_borrowed<WETH>() == 0, 0);
+        assert!(total_conly_deposited_amount<WETH>() == 0, 0);
+        assert!(total_borrowed_amount<WETH>() == 0, 0);
 
         let event_handle = borrow_global<PoolEventHandle<WETH>>(signer::address_of(owner));
         assert!(event::counter<WithdrawEvent>(&event_handle.withdraw_event) == 1, 0);
@@ -725,7 +726,7 @@ module leizd::asset_pool {
         withdraw_for_internal<WETH>(account_addr, account_addr, 30, false, 0);
 
         assert!(coin::balance<WETH>(account_addr) == 100, 0);
-        assert!(total_normal_deposited<WETH>() == 0, 0);
+        assert!(total_normal_deposited_amount<WETH>() == 0, 0);
     }
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
     #[expected_failure(abort_code = 65542)]
@@ -757,9 +758,9 @@ module leizd::asset_pool {
 
         assert!(coin::balance<WETH>(account_addr) == 900000, 0);
         assert!(liquidity<WETH>() == 0, 0);
-        assert!(total_normal_deposited<WETH>() == 0, 0);
-        assert!(total_conly_deposited<WETH>() == 100000, 0);
-        assert!(total_borrowed<WETH>() == 0, 0);
+        assert!(total_normal_deposited_amount<WETH>() == 0, 0);
+        assert!(total_conly_deposited_amount<WETH>() == 100000, 0);
+        assert!(total_borrowed_amount<WETH>() == 0, 0);
     }
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
     public entry fun test_withdraw_with_all_patterns_over_time(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
@@ -784,9 +785,9 @@ module leizd::asset_pool {
 
         assert!(coin::balance<WETH>(account_addr) == 3, 0);
         assert!(liquidity<WETH>() == 9, 0);
-        assert!(total_normal_deposited<WETH>() == 9, 0);
-        assert!(total_conly_deposited<WETH>() == 8, 0);
-        assert!(total_borrowed<WETH>() == 0, 0);
+        assert!(total_normal_deposited_amount<WETH>() == 9, 0);
+        assert!(total_conly_deposited_amount<WETH>() == 8, 0);
+        assert!(total_borrowed_amount<WETH>() == 0, 0);
 
         let event_handle = borrow_global<PoolEventHandle<WETH>>(signer::address_of(owner));
         assert!(event::counter<WithdrawEvent>(&event_handle.withdraw_event) == 2, 0);
@@ -813,10 +814,10 @@ module leizd::asset_pool {
         let borrowed = borrow_for_internal<UNI>(borrower_addr, borrower_addr, 100000);
         assert!(borrowed == 100500, 0);
         assert!(coin::balance<UNI>(borrower_addr) == 100000, 0);
-        assert!(total_normal_deposited<UNI>() == 800000, 0);
+        assert!(total_normal_deposited_amount<UNI>() == 800000, 0);
         assert!(liquidity<UNI>() == 699500, 0);
-        assert!(total_conly_deposited<UNI>() == 0, 0);
-        assert!(total_borrowed<UNI>() == 100500, 0); // 100000 + 500
+        assert!(total_conly_deposited_amount<UNI>() == 0, 0);
+        assert!(total_borrowed_amount<UNI>() == 100500, 0); // 100000 + 500
 
         // check about fee
         assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
@@ -893,19 +894,19 @@ module leizd::asset_pool {
         let borrowed = borrow_for_internal<UNI>(borrower_addr, borrower_addr, 1000);
         assert!(borrowed == 1005, 0);
         assert!(coin::balance<UNI>(borrower_addr) == 1000, 0);
-        assert!(total_borrowed<UNI>() == 1000 + 5 * 1, 0);
+        assert!(total_borrowed_amount<UNI>() == 1000 + 5 * 1, 0);
         let borrowed = borrow_for_internal<UNI>(borrower_addr, borrower_addr, 2000);
         assert!(borrowed == 2010, 0);
         assert!(coin::balance<UNI>(borrower_addr) == 3000, 0);
-        assert!(total_borrowed<UNI>() == 3000 + 5 * 3, 0);
+        assert!(total_borrowed_amount<UNI>() == 3000 + 5 * 3, 0);
         let borrowed = borrow_for_internal<UNI>(borrower_addr, borrower_addr, 3000);
         assert!(borrowed == 3015, 0);
         assert!(coin::balance<UNI>(borrower_addr) == 6000, 0);
-        assert!(total_borrowed<UNI>() == 6000 + 5 * 6, 0);
+        assert!(total_borrowed_amount<UNI>() == 6000 + 5 * 6, 0);
         let borrowed = borrow_for_internal<UNI>(borrower_addr, borrower_addr, 4000);
         assert!(borrowed == 4020, 0);
         assert!(coin::balance<UNI>(borrower_addr) == 10000, 0);
-        assert!(total_borrowed<UNI>() == 10000 + 5 * 10, 0);
+        assert!(total_borrowed_amount<UNI>() == 10000 + 5 * 10, 0);
     }
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
     fun test_borrow_more_than_once_sequentially_over_time(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
@@ -1139,15 +1140,15 @@ module leizd::asset_pool {
 
         deposit_for_internal<WETH>(depositor, depositor_addr, 1001, false);
         assert!(pool_asset_value<WETH>(owner_address) == 1001, 0);
-        assert!(total_normal_deposited<WETH>() == 1001, 0);
-        assert!(total_conly_deposited<WETH>() == 0, 0);
+        assert!(total_normal_deposited_amount<WETH>() == 1001, 0);
+        assert!(total_conly_deposited_amount<WETH>() == 0, 0);
         assert!(coin::balance<WETH>(depositor_addr) == 0, 0);
         assert!(coin::balance<WETH>(liquidator_addr) == 0, 0);
 
         withdraw_for_liquidation<WETH>(liquidator_addr, liquidator_addr, 1001, false);
         assert!(pool_asset_value<WETH>(owner_address) == 0, 0);
-        assert!(total_normal_deposited<WETH>() == 0, 0);
-        assert!(total_conly_deposited<WETH>() == 0, 0);
+        assert!(total_normal_deposited_amount<WETH>() == 0, 0);
+        assert!(total_conly_deposited_amount<WETH>() == 0, 0);
         assert!(coin::balance<WETH>(depositor_addr) == 0, 0);
         assert!(coin::balance<WETH>(liquidator_addr) == 995, 0);
         assert!(treasury::balance<WETH>() == 6, 0);
@@ -1169,19 +1170,19 @@ module leizd::asset_pool {
 
         deposit_for_internal<WETH>(account, account_addr, 1000, false);
         assert!(liquidity<WETH>() == 1000, 0);
-        assert!(total_normal_deposited<WETH>() == 1000, 0);
-        assert!(total_conly_deposited<WETH>() == 0, 0);
+        assert!(total_normal_deposited_amount<WETH>() == 1000, 0);
+        assert!(total_conly_deposited_amount<WETH>() == 0, 0);
 
         switch_collateral<WETH>(account_addr, 800, true);
         assert!(liquidity<WETH>() == 200, 0);
-        assert!(total_normal_deposited<WETH>() == 200, 0);
-        assert!(total_conly_deposited<WETH>() == 800, 0);
+        assert!(total_normal_deposited_amount<WETH>() == 200, 0);
+        assert!(total_conly_deposited_amount<WETH>() == 800, 0);
         assert!(event::counter<SwitchCollateralEvent>(&borrow_global<PoolEventHandle<WETH>>(owner_addr).switch_collateral_event) == 1, 0);
 
         switch_collateral<WETH>(account_addr, 400, false);
         assert!(liquidity<WETH>() == 600, 0);
-        assert!(total_normal_deposited<WETH>() == 600, 0);
-        assert!(total_conly_deposited<WETH>() == 400, 0);
+        assert!(total_normal_deposited_amount<WETH>() == 600, 0);
+        assert!(total_conly_deposited_amount<WETH>() == 400, 0);
         assert!(event::counter<SwitchCollateralEvent>(&borrow_global<PoolEventHandle<WETH>>(owner_addr).switch_collateral_event) == 2, 0);
     }
     #[test(owner=@leizd, account=@0x111, aptos_framework=@aptos_framework)]
