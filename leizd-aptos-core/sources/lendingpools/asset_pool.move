@@ -192,8 +192,7 @@ module leizd::asset_pool {
         assert!(amount > 0, error::invalid_argument(E_AMOUNT_ARG_IS_ZERO));
 
         let owner_address = permission::owner_address();
-        let storage_ref = borrow_global_mut<Storage>(owner_address);
-        let asset_storage_ref = simple_map::borrow_mut<String, AssetStorage>(&mut storage_ref.assets, &key<C>());
+        let asset_storage_ref = borrow_mut_asset_storage<C>(borrow_global_mut<Storage>(owner_address));
         let pool_ref = borrow_global_mut<Pool<C>>(owner_address);
 
         accrue_interest<C>(asset_storage_ref);
@@ -250,8 +249,7 @@ module leizd::asset_pool {
 
         let owner_address = permission::owner_address();
         let pool_ref = borrow_global_mut<Pool<C>>(owner_address);
-        let storage_ref = borrow_global_mut<Storage>(owner_address);
-        let asset_storage_ref = simple_map::borrow_mut<String, AssetStorage>(&mut storage_ref.assets, &key<C>());
+        let asset_storage_ref = borrow_mut_asset_storage<C>(borrow_global_mut<Storage>(owner_address));
 
         accrue_interest<C>(asset_storage_ref);
         collect_asset_fee<C>(pool_ref, liquidation_fee);
@@ -303,8 +301,7 @@ module leizd::asset_pool {
 
         let owner_address = permission::owner_address();
         let pool_ref = borrow_global_mut<Pool<C>>(owner_address);
-        let storage_ref = borrow_global_mut<Storage>(owner_address);
-        let asset_storage_ref = simple_map::borrow_mut<String, AssetStorage>(&mut storage_ref.assets, &key<C>());
+        let asset_storage_ref = borrow_mut_asset_storage<C>(borrow_global_mut<Storage>(owner_address));
 
         accrue_interest<C>(asset_storage_ref);
 
@@ -353,8 +350,7 @@ module leizd::asset_pool {
 
         let owner_address = permission::owner_address();
         let pool_ref = borrow_global_mut<Pool<C>>(owner_address);
-        let storage_ref = borrow_global_mut<Storage>(owner_address);
-        let asset_storage_ref = simple_map::borrow_mut<String, AssetStorage>(&mut storage_ref.assets, &key<C>());
+        let asset_storage_ref = borrow_mut_asset_storage<C>(borrow_global_mut<Storage>(owner_address));
 
         accrue_interest<C>(asset_storage_ref);
 
@@ -384,8 +380,7 @@ module leizd::asset_pool {
         is_collateral_only: bool,
     ) acquires Pool, Storage, PoolEventHandle {
         let owner_address = permission::owner_address();
-        let storage_ref = borrow_global_mut<Storage>(owner_address);
-        let asset_storage_ref = simple_map::borrow_mut<String, AssetStorage>(&mut storage_ref.assets, &key<C>());
+        let asset_storage_ref = borrow_mut_asset_storage<C>(borrow_global_mut<Storage>(owner_address));
 
         accrue_interest<C>(asset_storage_ref);
         let liquidation_fee = risk_factor::calculate_liquidation_fee(withdrawing);
@@ -409,8 +404,7 @@ module leizd::asset_pool {
         assert!(amount > 0, error::invalid_argument(E_AMOUNT_ARG_IS_ZERO));
         let owner_address = permission::owner_address();
         let pool_ref = borrow_global<Pool<C>>(owner_address);
-        let storage_ref = borrow_global_mut<Storage>(owner_address);
-        let asset_storage_ref = simple_map::borrow_mut<String, AssetStorage>(&mut storage_ref.assets, &key<C>());
+        let asset_storage_ref = borrow_mut_asset_storage<C>(borrow_global_mut<Storage>(owner_address));
 
         let amount_u128 = (amount as u128);
         if (to_collateral_only) {
@@ -479,9 +473,9 @@ module leizd::asset_pool {
     }
 
     public(friend) fun harvest_protocol_fees<C>() acquires Pool, Storage{
-        let storage_ref = borrow_global_mut<Storage>(permission::owner_address());
-        let asset_storage_ref = simple_map::borrow_mut<String, AssetStorage>(&mut storage_ref.assets, &key<C>());
-        let pool_ref = borrow_global_mut<Pool<C>>(permission::owner_address());
+        let owner_addr = permission::owner_address();
+        let pool_ref = borrow_global_mut<Pool<C>>(owner_addr);
+        let asset_storage_ref = borrow_mut_asset_storage<C>(borrow_global_mut<Storage>(owner_addr));
         let harvested_fee = (asset_storage_ref.protocol_fees - asset_storage_ref.harvested_protocol_fees as u128);
         if(harvested_fee == 0){
             return
@@ -507,11 +501,17 @@ module leizd::asset_pool {
         asset_storage_ref.harvested_protocol_fees
     }
 
+    fun borrow_mut_asset_storage<C>(storage_ref: &mut Storage): &mut AssetStorage {
+        borrow_mut_asset_storage_with(storage_ref, key<C>())
+    }
+    fun borrow_mut_asset_storage_with(storage_ref: &mut Storage, key: String): &mut AssetStorage {
+        simple_map::borrow_mut<String, AssetStorage>(&mut storage_ref.assets, &key)
+    }
+
     public entry fun liquidity<C>(): u128 acquires Pool, Storage {
         let owner_addr = permission::owner_address();
         let pool_ref = borrow_global<Pool<C>>(owner_addr);
-        let storage_ref = borrow_global<Storage>(owner_addr);
-        let asset_storage_ref = simple_map::borrow<String, AssetStorage>(&storage_ref.assets, &key<C>());
+        let asset_storage_ref = borrow_mut_asset_storage<C>(borrow_global_mut<Storage>(owner_addr));
         liquidity_internal(pool_ref, asset_storage_ref)
     }
     fun liquidity_internal<C>(pool: &Pool<C>, asset_storage_ref: &AssetStorage): u128 {
@@ -519,26 +519,22 @@ module leizd::asset_pool {
     }
 
     public entry fun total_normal_deposited_amount<C>(): u128 acquires Storage {
-        let storage_ref = borrow_global<Storage>(permission::owner_address());
-        let asset_storage_ref = simple_map::borrow<String, AssetStorage>(&storage_ref.assets, &key<C>());
+        let asset_storage_ref = borrow_mut_asset_storage<C>(borrow_global_mut<Storage>(permission::owner_address()));
         asset_storage_ref.total_normal_deposited_amount
     }
 
     public entry fun total_conly_deposited_amount<C>(): u128 acquires Storage {
-        let storage_ref = borrow_global<Storage>(permission::owner_address());
-        let asset_storage_ref = simple_map::borrow<String, AssetStorage>(&storage_ref.assets, &key<C>());
+        let asset_storage_ref = borrow_mut_asset_storage<C>(borrow_global_mut<Storage>(permission::owner_address()));
         asset_storage_ref.total_conly_deposited_amount
     }
 
     public entry fun total_borrowed_amount<C>(): u128 acquires Storage {
-        let storage_ref = borrow_global<Storage>(permission::owner_address());
-        let asset_storage_ref = simple_map::borrow<String, AssetStorage>(&storage_ref.assets, &key<C>());
+        let asset_storage_ref = borrow_mut_asset_storage<C>(borrow_global_mut<Storage>(permission::owner_address()));
         asset_storage_ref.total_borrowed_amount
     }
 
     public entry fun last_updated<C>(): u64 acquires Storage {
-        let storage_ref = borrow_global<Storage>(permission::owner_address());
-        let asset_storage_ref = simple_map::borrow<String, AssetStorage>(&storage_ref.assets, &key<C>());
+        let asset_storage_ref = borrow_mut_asset_storage<C>(borrow_global_mut<Storage>(permission::owner_address()));
         asset_storage_ref.last_updated
     }
 
