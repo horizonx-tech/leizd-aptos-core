@@ -37,6 +37,8 @@ module leizd::asset_pool {
     const E_INSUFFICIENT_LIQUIDITY: u64 = 12;
     const E_INSUFFICIENT_CONLY_DEPOSITED: u64 = 13;
 
+    struct AssetPoolKey has store, drop {} // TODO: remove `drop` ability
+
     /// Asset Pool where users can deposit and borrow.
     /// Each asset is separately deposited into a pool.
     struct Pool<phantom C> has key {
@@ -110,11 +112,12 @@ module leizd::asset_pool {
         switch_collateral_event: event::EventHandle<SwitchCollateralEvent>,
     }
 
-    public entry fun initialize(owner: &signer) {
+    public entry fun initialize(owner: &signer): AssetPoolKey {
         permission::assert_owner(signer::address_of(owner));
         move_to(owner, Storage {
             assets: simple_map::create<String, AssetStorage>(),
-        })
+        });
+        AssetPoolKey {}
     }
 
     /// Initializes a pool with the coin the owner specifies.
@@ -173,6 +176,7 @@ module leizd::asset_pool {
         for_address: address,
         amount: u64,
         is_collateral_only: bool,
+        _key: &AssetPoolKey
     ): (u64, u64) acquires Pool, Storage, PoolEventHandle {
         deposit_for_internal<C>(
             account,
@@ -226,7 +230,8 @@ module leizd::asset_pool {
         caller_addr: address,
         receiver_addr: address,
         amount: u64,
-        is_collateral_only: bool
+        is_collateral_only: bool,
+        _key: &AssetPoolKey
     ): (u64, u64) acquires Pool, Storage, PoolEventHandle {
         withdraw_for_internal<C>(
             caller_addr,
@@ -287,6 +292,7 @@ module leizd::asset_pool {
         borrower_addr: address,
         receiver_addr: address,
         amount: u64,
+        _key: &AssetPoolKey,
     ): (u64, u64) acquires Pool, Storage, PoolEventHandle {
         borrow_for_internal<C>(borrower_addr, receiver_addr, amount)
     }
@@ -337,6 +343,7 @@ module leizd::asset_pool {
     public(friend) fun repay<C>(
         account: &signer,
         amount: u64,
+        _key: &AssetPoolKey,
     ): (u64, u64) acquires Pool, Storage, PoolEventHandle {
         repay_internal<C>(account, amount)
     }
