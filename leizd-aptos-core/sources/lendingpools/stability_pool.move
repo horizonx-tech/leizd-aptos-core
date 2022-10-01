@@ -68,24 +68,28 @@ module leizd::stability_pool {
     struct DepositEvent has store, drop {
         caller: address,
         target_account: address,
-        amount: u64
+        amount: u64,
+        total_deposited: u128
     }
     struct WithdrawEvent has store, drop {
         caller: address,
         target_account: address,
-        amount: u64
+        amount: u64,
+        total_deposited: u128
     }
     struct BorrowEvent has store, drop {
         key: String,
         caller: address,
         target_account: address,
-        amount: u64
+        amount: u64,
+        total_borrowed: u128
     }
     struct RepayEvent has store, drop {
         key: String,
         caller: address,
         target_account: address,
-        amount: u64
+        amount: u64,
+        total_borrowed: u128
     }
     struct UpdateStateEvent has store, drop {
         old_index: u64,
@@ -267,7 +271,8 @@ module leizd::stability_pool {
             DepositEvent {
                 caller: account_addr,
                 target_account: account_addr,
-                amount
+                amount,
+                total_deposited: pool_ref.total_deposited
             }
         );
     }
@@ -287,7 +292,8 @@ module leizd::stability_pool {
             WithdrawEvent {
                 caller: account_addr,
                 target_account: account_addr,
-                amount
+                amount,
+                total_deposited: pool_ref.total_deposited
             }
         );
     }
@@ -298,19 +304,20 @@ module leizd::stability_pool {
         // if (!exists<UserDistribution>(signer::address_of(account))) {
         //     move_to(account, UserDistribution { index: 0 });
         // };
-        let borrowed = borrow_internal(key, amount);
+        let (borrowed, total_borrowed) = borrow_internal(key, amount);
         event::emit_event<BorrowEvent>(
             &mut borrow_global_mut<StabilityPoolEventHandle>(permission::owner_address()).borrow_event,
             BorrowEvent {
                 key,
                 caller: addr,
                 target_account: addr,
-                amount
+                amount,
+                total_borrowed
             }
         );
         borrowed
     }
-    fun borrow_internal(key: String, amount: u64): coin::Coin<USDZ> acquires StabilityPool, Config, Balance {
+    fun borrow_internal(key: String, amount: u64): (coin::Coin<USDZ>,u128) acquires StabilityPool, Config, Balance {
         assert!(amount > 0, error::invalid_argument(EINVALID_AMOUNT));
         let owner_address = permission::owner_address();
         let pool_ref = borrow_global_mut<StabilityPool>(owner_address);
@@ -324,7 +331,7 @@ module leizd::stability_pool {
         *uncollected_entry_fee = *uncollected_entry_fee + (fee as u128);
         pool_ref.total_borrowed = pool_ref.total_borrowed + (amount as u128) + (fee as u128);
         pool_ref.total_uncollected_fee = pool_ref.total_uncollected_fee + (fee as u128);
-        coin::extract<USDZ>(&mut pool_ref.left, amount)
+        (coin::extract<USDZ>(&mut pool_ref.left, amount), pool_ref.total_borrowed)
     }
     public fun entry_fee(): u64 acquires Config {
         borrow_global<Config>(permission::owner_address()).entry_fee
@@ -346,7 +353,7 @@ module leizd::stability_pool {
     }
 
     public(friend) fun repay(key: String, account: &signer, amount: u64) acquires StabilityPool, Balance, StabilityPoolEventHandle {
-        repay_internal(key, account, amount);
+        let total_borrowed = repay_internal(key, account, amount);
         let account_addr = signer::address_of(account);
         event::emit_event<RepayEvent>(
             &mut borrow_global_mut<StabilityPoolEventHandle>(permission::owner_address()).repay_event,
@@ -354,11 +361,12 @@ module leizd::stability_pool {
                 key,
                 caller: account_addr,
                 target_account: account_addr,
-                amount: amount
+                amount: amount,
+                total_borrowed: total_borrowed
             }
         );
     }
-    fun repay_internal(key: String, account: &signer, amount: u64) acquires StabilityPool, Balance {
+    fun repay_internal(key: String, account: &signer, amount: u64): u128 acquires StabilityPool, Balance {
         assert!(amount > 0, error::invalid_argument(EINVALID_AMOUNT));
         let owner_address = permission::owner_address();
         let balance_ref = borrow_global_mut<Balance>(owner_address);
@@ -376,6 +384,7 @@ module leizd::stability_pool {
                 *uncollected_entry_fee = *uncollected_entry_fee - (amount as u128);
                 pool_ref.total_uncollected_fee = pool_ref.total_uncollected_fee - (amount as u128);
                 coin::merge<USDZ>(&mut pool_ref.collected_fee, coin::withdraw<USDZ>(account, amount));
+                pool_ref.total_borrowed
             } else {
                 // complete uncollected fee, and remaining amount to left
                 let to_fee = (*uncollected_entry_fee as u64);
@@ -384,11 +393,13 @@ module leizd::stability_pool {
                 pool_ref.total_uncollected_fee = pool_ref.total_uncollected_fee - (to_fee as u128);
                 coin::merge<USDZ>(&mut pool_ref.collected_fee, coin::withdraw<USDZ>(account, to_fee));
                 coin::merge<USDZ>(&mut pool_ref.left, coin::withdraw<USDZ>(account, to_left));
+                pool_ref.total_borrowed
             }
         } else {
             // all amount to left
             coin::merge<USDZ>(&mut pool_ref.left, coin::withdraw<USDZ>(account, amount));
-        };
+            pool_ref.total_borrowed
+        }
     }
 
     public entry fun claim_reward(account: &signer, amount: u64) acquires DistributionConfig, UserDistribution, StabilityPool, StabilityPoolEventHandle {
@@ -960,7 +971,7 @@ module leizd::stability_pool {
 
         // execute
         deposit(account1, 400000);
-        let borrowed = borrow_internal(key<WETH>(), 300000);
+        let (borrowed, _) = borrow_internal(key<WETH>(), 300000);
         coin::deposit(account2_addr, borrowed);
         repay(key<WETH>(), account2, 200000);
 
@@ -1020,7 +1031,7 @@ module leizd::stability_pool {
         // execute
         //// add liquidity & borrow
         deposit(depositor, 10000);
-        let borrowed = borrow_internal(key<WETH>(), 10000);
+        let (borrowed, _) = borrow_internal(key<WETH>(), 10000);
         coin::deposit(borrower_addr, borrowed);
         assert!(total_deposited() == 10000, 0);
         assert!(left() == 0, 0);
@@ -1086,7 +1097,7 @@ module leizd::stability_pool {
         // execute
         //// add liquidity & borrow
         deposit(depositor, 10000);
-        let borrowed = borrow_internal(key<WETH>(), 10000);
+        let (borrowed, _) = borrow_internal(key<WETH>(), 10000);
         coin::deposit(borrower_addr, borrowed);
         assert!(total_deposited() == 10000, 0);
         assert!(left() == 0, 0);
