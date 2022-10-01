@@ -88,7 +88,7 @@ module leizd::money_market {
         let borrower_addr = signer::address_of(account);
         let borrowed_amount: u64;
         if (pool_type::is_type_asset<P>()) {
-            borrowed_amount = asset_pool::borrow_for<C>(borrower_addr, receiver_addr, amount);
+            (borrowed_amount, _) = asset_pool::borrow_for<C>(borrower_addr, receiver_addr, amount);
         } else {
             borrowed_amount = shadow_pool::borrow_for<C>(borrower_addr, receiver_addr, amount);
         };
