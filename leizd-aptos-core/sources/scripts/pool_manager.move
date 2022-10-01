@@ -108,6 +108,7 @@ module leizd::pool_manager {
     test_coin::init_usdt(owner);
     risk_factor::initialize(owner);
     treasury::initialize(owner);
+    asset_pool::initialize(owner);
   }
   
   #[test_only]
