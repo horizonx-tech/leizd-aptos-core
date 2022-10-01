@@ -45,11 +45,11 @@ module leizd::stb_usdz {
         coin_base::burn<StabilityCollateral>(account, amount);
     }
 
-    public entry fun balance_of(addr: address): u64 {
+    public fun balance_of(addr: address): u64 {
         coin_base::balance_of<StabilityCollateral>(addr)
     }
 
-    public entry fun supply(): u128 {
+    public fun supply(): u128 {
         coin_base::supply<StabilityCollateral>()
     }
 }

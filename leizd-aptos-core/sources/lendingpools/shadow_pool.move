@@ -691,11 +691,11 @@ module leizd::shadow_pool {
         collect_shadow_fee(pool_ref, (harvested_fee as u64));
     }
 
-    public entry fun total_normal_deposited_amount(): u128 acquires Storage {
+    public fun total_normal_deposited_amount(): u128 acquires Storage {
         borrow_global<Storage>(permission::owner_address()).total_normal_deposited_amount
     }
 
-    public entry fun total_liquidity(): u128 acquires Pool, Storage {
+    public fun total_liquidity(): u128 acquires Pool, Storage {
         let owner_addr = permission::owner_address();
         let pool_ref = borrow_global<Pool>(owner_addr);
         let storage_ref = borrow_global<Storage>(owner_addr);
@@ -705,11 +705,11 @@ module leizd::shadow_pool {
         (coin::value(&pool.shadow) as u128) - storage.total_conly_deposited_amount
     }
 
-    public entry fun total_conly_deposited_amount(): u128 acquires Storage {
+    public fun total_conly_deposited_amount(): u128 acquires Storage {
         borrow_global<Storage>(permission::owner_address()).total_conly_deposited_amount
     }
 
-    public entry fun total_borrowed_amount(): u128 acquires Storage {
+    public fun total_borrowed_amount(): u128 acquires Storage {
         borrow_global<Storage>(permission::owner_address()).total_borrowed_amount
     }
 
@@ -721,7 +721,7 @@ module leizd::shadow_pool {
         simple_map::contains_key<String, AssetStorage>(&storage_ref.asset_storages, key)
     }
 
-    public entry fun normal_deposited_amount<C>(): u64 acquires Storage {
+    public fun normal_deposited_amount<C>(): u64 acquires Storage {
         let storage_ref = borrow_global<Storage>(permission::owner_address());
         normal_deposited_amount_internal(key<C>(), storage_ref)
     }
@@ -733,7 +733,7 @@ module leizd::shadow_pool {
         }
     }
 
-    public entry fun conly_deposited_amount<C>(): u64 acquires Storage {
+    public fun conly_deposited_amount<C>(): u64 acquires Storage {
         let storage_ref = borrow_global<Storage>(permission::owner_address());
         conly_deposit_amount_internal(key<C>(), storage_ref)
     }
@@ -745,7 +745,7 @@ module leizd::shadow_pool {
         }
     }
 
-    public entry fun borrowed_amount<C>(): u64 acquires Storage {
+    public fun borrowed_amount<C>(): u64 acquires Storage {
         let storage_ref = borrow_global<Storage>(permission::owner_address());
         borrowed_amount_internal(key<C>(), storage_ref)
     }
@@ -757,11 +757,11 @@ module leizd::shadow_pool {
         }
     }
 
-    public entry fun protocol_fees(): u64 acquires Storage {
+    public fun protocol_fees(): u64 acquires Storage {
         borrow_global<Storage>(permission::owner_address()).protocol_fees
     }
 
-    public entry fun harvested_protocol_fees(): u64 acquires Storage {
+    public fun harvested_protocol_fees(): u64 acquires Storage {
         borrow_global<Storage>(permission::owner_address()).harvested_protocol_fees
     }
 
