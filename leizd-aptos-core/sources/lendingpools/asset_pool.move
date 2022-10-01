@@ -385,6 +385,16 @@ module leizd::asset_pool {
         target_addr: address,
         withdrawing: u64,
         is_collateral_only: bool,
+        _key: &AssetPoolKey,
+    ) acquires Pool, Storage, PoolEventHandle {
+        withdraw_for_liquidation_internal<C>(liquidator_addr, target_addr, withdrawing, is_collateral_only)
+    }
+
+    fun withdraw_for_liquidation_internal<C>(
+        liquidator_addr: address,
+        target_addr: address,
+        withdrawing: u64,
+        is_collateral_only: bool,
     ) acquires Pool, Storage, PoolEventHandle {
         let owner_address = permission::owner_address();
         let asset_storage_ref = borrow_mut_asset_storage<C>(borrow_global_mut<Storage>(owner_address));
@@ -402,7 +412,7 @@ module leizd::asset_pool {
         );
     }
 
-    public(friend) fun switch_collateral<C>(caller: address, amount: u64, to_collateral_only: bool) acquires Pool, Storage, PoolEventHandle {
+    public(friend) fun switch_collateral<C>(caller: address, amount: u64, to_collateral_only: bool, _key: &AssetPoolKey) acquires Pool, Storage, PoolEventHandle {
         switch_collateral_internal<C>(caller, amount, to_collateral_only);
     }
 
@@ -1253,7 +1263,7 @@ module leizd::asset_pool {
         assert!(coin::balance<WETH>(depositor_addr) == 0, 0);
         assert!(coin::balance<WETH>(liquidator_addr) == 0, 0);
 
-        withdraw_for_liquidation<WETH>(liquidator_addr, liquidator_addr, 1001, false);
+        withdraw_for_liquidation_internal<WETH>(liquidator_addr, liquidator_addr, 1001, false);
         assert!(pool_asset_value<WETH>(owner_address) == 0, 0);
         assert!(total_normal_deposited_amount<WETH>() == 0, 0);
         assert!(total_conly_deposited_amount<WETH>() == 0, 0);
@@ -1281,13 +1291,13 @@ module leizd::asset_pool {
         assert!(total_normal_deposited_amount<WETH>() == 1000, 0);
         assert!(total_conly_deposited_amount<WETH>() == 0, 0);
 
-        switch_collateral<WETH>(account_addr, 800, true);
+        switch_collateral_internal<WETH>(account_addr, 800, true);
         assert!(liquidity<WETH>() == 200, 0);
         assert!(total_normal_deposited_amount<WETH>() == 200, 0);
         assert!(total_conly_deposited_amount<WETH>() == 800, 0);
         assert!(event::counter<SwitchCollateralEvent>(&borrow_global<PoolEventHandle<WETH>>(owner_addr).switch_collateral_event) == 1, 0);
 
-        switch_collateral<WETH>(account_addr, 400, false);
+        switch_collateral_internal<WETH>(account_addr, 400, false);
         assert!(liquidity<WETH>() == 600, 0);
         assert!(total_normal_deposited_amount<WETH>() == 600, 0);
         assert!(total_conly_deposited_amount<WETH>() == 400, 0);
@@ -1304,7 +1314,7 @@ module leizd::asset_pool {
         managed_coin::mint<WETH>(owner, account_addr, 1000);
 
         deposit_for_internal<WETH>(account, account_addr, 1000, false);
-        switch_collateral<WETH>(account_addr, 0, true);
+        switch_collateral_internal<WETH>(account_addr, 0, true);
     }
     #[test(owner=@leizd, account=@0x111, aptos_framework=@aptos_framework)]
     #[expected_failure(abort_code = 65548)]
@@ -1317,7 +1327,7 @@ module leizd::asset_pool {
         managed_coin::mint<WETH>(owner, account_addr, 1000);
 
         deposit_for_internal<WETH>(account, account_addr, 1000, false);
-        switch_collateral<WETH>(account_addr, 1001, true);
+        switch_collateral_internal<WETH>(account_addr, 1001, true);
     }
     #[test(owner=@leizd, account=@0x111, aptos_framework=@aptos_framework)]
     #[expected_failure(abort_code = 65549)]
@@ -1330,7 +1340,7 @@ module leizd::asset_pool {
         managed_coin::mint<WETH>(owner, account_addr, 1000);
 
         deposit_for_internal<WETH>(account, account_addr, 1000, true);
-        switch_collateral<WETH>(account_addr, 1001, false);
+        switch_collateral_internal<WETH>(account_addr, 1001, false);
     }
 
     // for common validations

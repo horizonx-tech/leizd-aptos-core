@@ -215,7 +215,7 @@ module leizd::money_market {
         let (asset_pool_key, shadow_pool_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
         if (pool_type::is_type_asset<P>()) {
             shadow_pool::repay<C>(liquidator, borrowed, shadow_pool_key);
-            asset_pool::withdraw_for_liquidation<C>(liquidator_addr, target_addr, deposited, is_collateral_only);
+            asset_pool::withdraw_for_liquidation<C>(liquidator_addr, target_addr, deposited, is_collateral_only, asset_pool_key);
         } else {
             asset_pool::repay<C>(liquidator, borrowed, asset_pool_key);
             shadow_pool::withdraw_for_liquidation<C>(liquidator_addr, target_addr, deposited, is_collateral_only, shadow_pool_key);
@@ -229,16 +229,17 @@ module leizd::money_market {
     /// `to_collateral_only` should be false if the user wants to switch it to the borrowable collateral.
     public entry fun switch_collateral<C,P>(account: &signer, to_collateral_only: bool) acquires LendingPoolModKeys {
         pool_type::assert_pool_type<P>();
-        let (_, shadow_pool_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
+        let (asset_pool_key, shadow_pool_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
 
         let account_addr = signer::address_of(account);
         let amount = account_position::switch_collateral<C,P>(account_addr, to_collateral_only);
         if (pool_type::is_type_asset<P>()) {
-            asset_pool::switch_collateral<C>(account_addr, amount, to_collateral_only);
+            asset_pool::switch_collateral<C>(account_addr, amount, to_collateral_only, asset_pool_key);
         } else {
             shadow_pool::switch_collateral<C>(account_addr, amount, to_collateral_only, shadow_pool_key);
         };
     }
+
     // harvest protocol share fee
     public entry fun harvest_protocol_fees<C>() {
         shadow_pool::harvest_protocol_fees<C>();
