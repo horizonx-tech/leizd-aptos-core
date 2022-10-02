@@ -8,6 +8,7 @@
 /// # Rebalance
 module leizd_aptos_entry::money_market {
 
+    use std::error;
     use std::signer;
     use std::vector;
     use std::string::{String};
@@ -18,6 +19,8 @@ module leizd_aptos_entry::money_market {
     use leizd_aptos_core::shadow_pool::{Self, ShadowPoolKey};
     use leizd_aptos_core::account_position::{Self, AccountPositionKey};
 
+    const EALREADY_INITIALIZED: u64 = 1;
+
     struct LendingPoolModKeys has key {
         account_position: AccountPositionKey,
         asset_pool: AssetPoolKey,
@@ -25,7 +28,9 @@ module leizd_aptos_entry::money_market {
     }
 
     public entry fun initialize(owner: &signer) {
-        permission::assert_owner(signer::address_of(owner));
+        let owner_addr = signer::address_of(owner);
+        permission::assert_owner(owner_addr);
+        assert!(!exists<LendingPoolModKeys>(owner_addr), error::invalid_argument(EALREADY_INITIALIZED));
         let account_position_key = account_position::initialize(owner);
         let asset_pool_key = asset_pool::initialize(owner);
         let shadow_pool_key = shadow_pool::initialize(owner);
@@ -284,6 +289,25 @@ module leizd_aptos_entry::money_market {
     use leizd::initializer;
     #[test_only]
     use leizd::test_coin::{Self, USDC, USDT, WETH, UNI};
+    #[test(owner=@leizd)]
+    fun test_initialize(owner: &signer) {
+        let owner_addr = signer::address_of(owner);
+        account::create_account_for_test(owner_addr);
+        initialize(owner);
+        assert!(exists<LendingPoolModKeys>(owner_addr), 0);
+    }
+    #[test(account=@0x111)]
+    #[expected_failure(abort_code = 65537)]
+    fun test_initialize_with_not_owner(account: &signer) {
+        initialize(account);
+    }
+    #[test(owner=@leizd)]
+    #[expected_failure(abort_code = 65537)]
+    fun test_initialize_twice(owner: &signer) {
+        account::create_account_for_test(signer::address_of(owner));
+        initialize(owner);
+        initialize(owner);
+    }
     #[test_only]
     fun initialize_lending_pool_for_test(owner: &signer, aptos_framework: &signer) {
         timestamp::set_time_has_started_for_testing(aptos_framework);
