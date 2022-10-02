@@ -1,5 +1,6 @@
 module leizd_aptos_treasury::treasury {
 
+    use std::error;
     use std::option::{Self,Option};
     use std::signer;
     use std::string::{String};
@@ -10,9 +11,10 @@ module leizd_aptos_treasury::treasury {
     use leizd_aptos_common::permission;
     use leizd_aptos_trove::usdz::{USDZ};
 
-    const EALREADY_INITIALIZED: u64 = 0;
-    const ECOIN_UNSUPPORTED: u64 = 1;
-    const EALREADY_ADDED: u64 = 2;
+    //// error codes
+    const EALREADY_INITIALIZED: u64 = 1;
+    const ECOIN_UNSUPPORTED: u64 = 2;
+    const EALREADY_ADDED: u64 = 3;
 
     struct Treasury<phantom C> has key {
         coin: coin::Coin<C>,
@@ -24,7 +26,7 @@ module leizd_aptos_treasury::treasury {
 
     public fun initialize(owner: &signer) {
         permission::assert_owner(signer::address_of(owner));
-        assert!(!initialized(), EALREADY_INITIALIZED);
+        assert!(!initialized(), error::invalid_argument(EALREADY_INITIALIZED));
 
         let map = simple_map::create<String, address>();
         simple_map::add<String, address>(&mut map, type_info::type_name<USDZ>(), signer::address_of(owner));
@@ -50,7 +52,7 @@ module leizd_aptos_treasury::treasury {
     }
 
     public fun add_coin<C>(owner: &signer) acquires SupportedTreasuries {
-        assert!(!is_coin_supported<C>(), EALREADY_ADDED);
+        assert!(!is_coin_supported<C>(), error::invalid_argument(EALREADY_ADDED));
         move_to(owner, Treasury<C> {
             coin: coin::zero<C>(),
         });
@@ -65,7 +67,7 @@ module leizd_aptos_treasury::treasury {
     }
 
     fun assert_coin_supported<C>() acquires SupportedTreasuries {
-        assert!(is_coin_supported<C>(), ECOIN_UNSUPPORTED);
+        assert!(is_coin_supported<C>(), error::invalid_argument(ECOIN_UNSUPPORTED));
     }
 
     fun is_coin_supported<C>(): bool acquires SupportedTreasuries {
@@ -169,14 +171,14 @@ module leizd_aptos_treasury::treasury {
     }
 
     #[test(owner = @leizd_aptos_treasury)]
-    #[expected_failure(abort_code = 0)]
+    #[expected_failure(abort_code = 65537)]
     fun test_initialize_multiple_times(owner: &signer) {
         initialize(owner);
         initialize(owner);
     }
 
     #[test(owner = @leizd_aptos_treasury)]
-    #[expected_failure(abort_code = 2)]
+    #[expected_failure(abort_code = 65539)]
     fun test_add_coin_multiple_times(owner: &signer) acquires SupportedTreasuries{
         initialize(owner);
         add_coin<WETH>(owner);
