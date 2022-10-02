@@ -18,6 +18,8 @@ module leizd::account_position {
     use leizd_aptos_external::price_oracle;
     use leizd_aptos_trove::usdz::{USDZ};
     use leizd_aptos_lib::constant;
+    use leizd::asset_pool;
+    use leizd::shadow_pool;
 
     const ENO_POSITION_RESOURCE: u64 = 1;
     const ENO_SAFE_POSITION: u64 = 2;
@@ -978,6 +980,59 @@ module leizd::account_position {
         } else {
             0
         }
+    }
+
+    //// get total from pools
+    fun total_normal_deposited<P>(key: String): (u128, u128) {
+        if (pool_type::is_type_asset<P>()) {
+            total_normal_deposited_for_asset(key)
+        } else {
+            total_normal_deposited_for_shadow(key)
+        }
+    }
+    fun total_normal_deposited_for_asset(key: String): (u128, u128) {
+        let total_amount = asset_pool::total_normal_deposited_amount_with(key);
+        let total_shares = asset_pool::total_normal_deposited_share_with(key);
+        (total_amount, total_shares)
+    }
+    fun total_normal_deposited_for_shadow(key: String): (u128, u128) {
+        let total_amount = shadow_pool::normal_deposited_amount_with(key);
+        let total_shares = shadow_pool::normal_deposited_share_with(key);
+        ((total_amount as u128), (total_shares as u128)) // TODO: use u128 in pool (temp, cast to u128)
+    }
+    fun total_conly_deposited<P>(key: String): (u128, u128) {
+        if (pool_type::is_type_asset<P>()) {
+            total_conly_deposited_for_asset(key)
+        } else {
+            total_conly_deposited_for_shadow(key)
+        }
+    }
+    fun total_conly_deposited_for_asset(key: String): (u128, u128) {
+        let total_amount = asset_pool::total_conly_deposited_amount_with(key);
+        let total_shares = asset_pool::total_conly_deposited_share_with(key);
+        (total_amount, total_shares) // TODO: use u128 in pool (temp, cast to u128)
+    }
+    fun total_conly_deposited_for_shadow(key: String): (u128, u128) {
+        let total_amount = shadow_pool::conly_deposited_amount_with(key);
+        let total_shares = shadow_pool::conly_deposited_share_with(key);
+        ((total_amount as u128), (total_shares as u128))
+    }
+    fun total_borrowed<P>(key: String): (u128, u128) {
+        if (pool_type::is_type_asset<P>()) {
+            total_borrowed_for_asset(key)
+        } else {
+            total_borrowed_for_shadow(key)
+        }
+    }
+    fun total_borrowed_for_asset(key: String): (u128, u128) {
+        let total_amount = asset_pool::total_borrowed_amount_with(key);
+        let total_shares = asset_pool::total_borrowed_share_with(key);
+        (total_amount, total_shares)
+    }
+    fun total_borrowed_for_shadow(key: String): (u128, u128) {
+        let total_amount = shadow_pool::borrowed_amount_with(key);
+        let total_shares = shadow_pool::borrowed_share_with(key);
+        ((total_amount as u128), (total_shares as u128)) // TODO: use u128 in pool (temp, cast to u128)
     }
 
     // #[test_only]
