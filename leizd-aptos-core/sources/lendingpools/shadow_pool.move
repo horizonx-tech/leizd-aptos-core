@@ -853,11 +853,11 @@ module leizd::shadow_pool {
     #[test_only]
     use leizd_aptos_trove::usdz;
     #[test_only]
+    use leizd_aptos_common::test_coin::{Self,WETH,UNI};
+    #[test_only]
     use leizd::asset_pool;
     #[test_only]
     use leizd::pool_manager;
-    #[test_only]
-    use leizd::test_coin::{Self,WETH,UNI};
     #[test_only]
     use leizd::test_initializer;
 

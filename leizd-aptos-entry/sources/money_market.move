@@ -288,6 +288,8 @@ module leizd_aptos_entry::money_market {
     #[test_only]
     use aptos_framework::timestamp;
     #[test_only]
+    use leizd_aptos_common::test_coin::{Self, USDC, USDT, WETH, UNI};
+    #[test_only]
     use leizd_aptos_trove::usdz::{Self, USDZ};
     #[test_only]
     use leizd::pool_type::{Asset, Shadow};
@@ -297,8 +299,6 @@ module leizd_aptos_entry::money_market {
     use leizd::treasury;
     #[test_only]
     use leizd::initializer;
-    #[test_only]
-    use leizd::test_coin::{Self, USDC, USDT, WETH, UNI};
     #[test(owner=@leizd)]
     fun test_initialize(owner: &signer) {
         let owner_addr = signer::address_of(owner);

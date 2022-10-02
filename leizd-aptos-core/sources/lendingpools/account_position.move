@@ -985,7 +985,7 @@ module leizd::account_position {
     #[test_only]
     use leizd_aptos_common::pool_type::{Asset,Shadow};
     #[test_only]
-    use leizd::test_coin::{WETH,UNI,USDC};
+    use leizd_aptos_common::test_coin::{WETH,UNI,USDC};
     #[test_only]
     use leizd::test_initializer;
 

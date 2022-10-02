@@ -598,11 +598,11 @@ module leizd::asset_pool {
     #[test_only]
     use aptos_framework::managed_coin;
     #[test_only]
+    use leizd_aptos_common::test_coin::{Self,USDC,USDT,WETH,UNI};
+    #[test_only]
     use leizd_aptos_trove::usdz::{USDZ};
     #[test_only]
     use leizd::dummy;
-    #[test_only]
-    use leizd::test_coin::{Self,USDC,USDT,WETH,UNI};
     #[test_only]
     use leizd::test_initializer;
 
