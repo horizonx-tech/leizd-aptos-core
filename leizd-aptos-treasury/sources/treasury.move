@@ -150,14 +150,14 @@ module leizd_aptos_treasury::treasury {
         assert!(coin::balance<USDZ>(owner_address) == 75, 0);
     }
     #[test(account = @0x111)]
-    #[expected_failure(abort_code = 1)]
+    #[expected_failure(abort_code = 65537)]
     fun test_withdraw_asset_fee_with_not_owner(account: &signer) acquires Treasury, SupportedTreasuries {
         initialize(account);
         add_coin<WETH>(account);
         withdraw_fee<WETH>(account, 0);
     }
     #[test(account = @0x111)]
-    #[expected_failure(abort_code = 1)]
+    #[expected_failure(abort_code = 65537)]
     fun test_withdraw_shadow_fee_with_not_owner(account: &signer) acquires Treasury, SupportedTreasuries {
         initialize(account);
         add_coin<WETH>(account);
@@ -165,7 +165,7 @@ module leizd_aptos_treasury::treasury {
     }
 
     #[test(account = @0x1)]
-    #[expected_failure(abort_code = 1)]
+    #[expected_failure(abort_code = 65537)]
     fun test_initialize_by_not_owner(account: &signer) {
         initialize(account);
     }

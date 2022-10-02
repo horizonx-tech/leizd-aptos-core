@@ -616,7 +616,7 @@ module leizd::stability_pool {
         initialize(owner);
     }
     #[test(account=@0x111)]
-    #[expected_failure(abort_code = 1)]
+    #[expected_failure(abort_code = 65537)]
     public entry fun test_initialize_without_owner(account: &signer) acquires StabilityPoolEventHandle {
         initialize(account);
     }
@@ -651,7 +651,7 @@ module leizd::stability_pool {
         assert!(!is_supported(key<USDC>()), 0);
     }
     #[test(account = @0x111)]
-    #[expected_failure(abort_code = 1)]
+    #[expected_failure(abort_code = 65537)]
     fun test_add_supported_pool_with_not_owner(account: &signer) acquires StabilityPool {
         add_supported_pool<WETH>(account)
     }
@@ -675,7 +675,7 @@ module leizd::stability_pool {
         add_supported_pool<WETH>(owner);
     }
     #[test(account = @0x111)]
-    #[expected_failure(abort_code = 1)]
+    #[expected_failure(abort_code = 65537)]
     fun test_remove_supported_pool_with_not_owner(account: &signer) acquires StabilityPool {
         remove_supported_pool<WETH>(account)
     }
@@ -1305,7 +1305,7 @@ module leizd::stability_pool {
         assert!(event::counter<UpdateConfigEvent>(&borrow_global<StabilityPoolEventHandle>(signer::address_of(owner)).update_config_event) == 2, 0);
     }
     #[test(owner = @leizd, account = @0x111)]
-    #[expected_failure(abort_code = 1)]
+    #[expected_failure(abort_code = 65537)]
     fun test_update_config_with_not_owner(owner: &signer, account: &signer) acquires Balance, Config, StabilityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         update_config(account, PRECISION * 10 / 1000, PRECISION * 10 / 1000);

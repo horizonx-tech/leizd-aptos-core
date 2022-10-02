@@ -269,7 +269,7 @@ module leizd_aptos_logic::risk_factor {
         assert!(event::counter(&event_handle.update_protocol_fees_event) == 1, 0);
     }
     #[test(account = @0x111)]
-    #[expected_failure(abort_code = 1)]
+    #[expected_failure(abort_code = 65537)]
     public entry fun test_initialize_without_owner(account: signer) acquires RepositoryEventHandle {
         initialize(&account);
     }

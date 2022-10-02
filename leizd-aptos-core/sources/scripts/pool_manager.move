@@ -125,7 +125,7 @@ module leizd::pool_manager {
     assert!(exists<PoolList>(signer::address_of(owner)), 0);
   }
   #[test(account = @0x111)]
-  #[expected_failure(abort_code = 1)]
+  #[expected_failure(abort_code = 65537)]
   fun test_initialize_with_not_owner(account: &signer) {
     initialize(account);
   }

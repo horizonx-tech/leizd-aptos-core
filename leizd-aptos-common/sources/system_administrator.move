@@ -118,22 +118,22 @@ module leizd_aptos_common::system_administrator {
         assert!(pool_status::can_switch_collateral<WETH>(), 0);
     }
     #[test(account = @0x111)]
-    #[expected_failure(abort_code = 1)]
+    #[expected_failure(abort_code = 65537)]
     fun test_operate_pool_to_activate_without_owner(account: &signer) {
         activate_pool<WETH>(account);
     }
     #[test(account = @0x111)]
-    #[expected_failure(abort_code = 1)]
+    #[expected_failure(abort_code = 65537)]
     fun test_operate_pool_to_deactivate_without_owner(account: &signer) {
         deactivate_pool<WETH>(account);
     }
     #[test(account = @0x111)]
-    #[expected_failure(abort_code = 1)]
+    #[expected_failure(abort_code = 65537)]
     fun test_operate_pool_to_freeze_without_owner(account: &signer) {
         freeze_pool<WETH>(account);
     }
     #[test(account = @0x111)]
-    #[expected_failure(abort_code = 1)]
+    #[expected_failure(abort_code = 65537)]
     fun test_operate_pool_to_unfreeze_without_owner(account: &signer) {
         unfreeze_pool<WETH>(account);
     }
@@ -148,12 +148,12 @@ module leizd_aptos_common::system_administrator {
         assert!(system_status::status(), 0);
     }
     #[test(account = @0x111)]
-    #[expected_failure(abort_code = 1)]
+    #[expected_failure(abort_code = 65537)]
     fun test_operate_system_status_to_pause_without_owner(account: &signer) {
         pause_protocol(account);
     }
     #[test(account = @0x111)]
-    #[expected_failure(abort_code = 1)]
+    #[expected_failure(abort_code = 65537)]
     fun test_operate_system_status_to_resume_without_owner(account: &signer) {
         resume_protocol(account);
     }

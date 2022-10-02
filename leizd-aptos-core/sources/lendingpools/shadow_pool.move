@@ -848,7 +848,7 @@ module leizd::shadow_pool {
         assert!(simple_map::length<String,AssetStorage>(asset_storages) == 0, 0);
     }
     #[test(account=@0x111)]
-    #[expected_failure(abort_code = 1)]
+    #[expected_failure(abort_code = 65537)]
     public entry fun test_initialize_with_not_owner(account: &signer) {
         initialize(account);
     }
