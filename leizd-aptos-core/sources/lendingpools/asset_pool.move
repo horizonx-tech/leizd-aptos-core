@@ -26,7 +26,6 @@ module leizd::asset_pool {
     use leizd::interest_rate;
     use leizd::stability_pool;
 
-    friend leizd::money_market;
     friend leizd::pool_manager;
 
     //// error_code
@@ -128,12 +127,13 @@ module leizd::asset_pool {
     /// Initializes a pool with the coin the owner specifies.
     /// The caller is only owner and creates not only a pool but also other resources
     /// such as a treasury for the coin, an interest rate model, and coins of collaterals and debts.
-    public(friend) fun init_pool<C>(owner: &signer) acquires Storage {
+    public fun init_pool<C>(owner: &signer) acquires Storage {
         init_pool_internal<C>(owner);
     }
 
     fun init_pool_internal<C>(owner: &signer) acquires Storage {
         let owner_addr = signer::address_of(owner);
+        permission::assert_owner(owner_addr);
         assert!(exists<Storage>(owner_addr), error::invalid_argument(ENOT_INITILIZED));
         assert!(!is_pool_initialized<C>(), error::invalid_argument(EIS_ALREADY_EXISTED));
         assert!(dex_facade::has_liquidity<C>(), error::invalid_state(EDEX_DOES_NOT_HAVE_LIQUIDITY));
@@ -178,7 +178,7 @@ module leizd::asset_pool {
     /// C is a pool type and a user should select which pool to use.
     /// e.g. Deposit USDZ for WETH Pool -> deposit_for<WETH,Shadow>(x,x,x,x)
     /// e.g. Deposit WBTC for WBTC Pool -> deposit_for<WBTC,Asset>(x,x,x,x)
-    public(friend) fun deposit_for<C>(
+    public fun deposit_for<C>(
         account: &signer,
         for_address: address,
         amount: u64,
@@ -233,7 +233,7 @@ module leizd::asset_pool {
     }
 
     /// Withdraws an asset or a shadow from the pool.
-    public(friend) fun withdraw_for<C>(
+    public fun withdraw_for<C>(
         caller_addr: address,
         receiver_addr: address,
         amount: u64,
@@ -295,7 +295,7 @@ module leizd::asset_pool {
     }
 
     /// Borrows an asset or a shadow from the pool.
-    public(friend) fun borrow_for<C>(
+    public fun borrow_for<C>(
         borrower_addr: address,
         receiver_addr: address,
         amount: u64,
@@ -347,7 +347,7 @@ module leizd::asset_pool {
     }
 
     /// Repays an asset or a shadow for the borrowed position.
-    public(friend) fun repay<C>(
+    public fun repay<C>(
         account: &signer,
         amount: u64,
         _key: &AssetPoolKey,
@@ -387,7 +387,7 @@ module leizd::asset_pool {
         (amount, (share_u128 as u64))
     }
 
-    public(friend) fun withdraw_for_liquidation<C>(
+    public fun withdraw_for_liquidation<C>(
         liquidator_addr: address,
         target_addr: address,
         withdrawing: u64,
@@ -419,7 +419,7 @@ module leizd::asset_pool {
         );
     }
 
-    public(friend) fun switch_collateral<C>(caller: address, amount: u64, to_collateral_only: bool, _key: &AssetPoolKey) acquires Pool, Storage, PoolEventHandle {
+    public fun switch_collateral<C>(caller: address, amount: u64, to_collateral_only: bool, _key: &AssetPoolKey) acquires Pool, Storage, PoolEventHandle {
         switch_collateral_internal<C>(caller, amount, to_collateral_only);
     }
 
@@ -496,7 +496,7 @@ module leizd::asset_pool {
         };
     }
 
-    public(friend) fun harvest_protocol_fees<C>() acquires Pool, Storage{
+    public fun harvest_protocol_fees<C>() acquires Pool, Storage{
         let owner_addr = permission::owner_address();
         let pool_ref = borrow_global_mut<Pool<C>>(owner_addr);
         let asset_storage_ref = borrow_mut_asset_storage<C>(borrow_global_mut<Storage>(owner_addr));

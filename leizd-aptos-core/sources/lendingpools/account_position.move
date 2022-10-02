@@ -19,8 +19,6 @@ module leizd::account_position {
     use leizd_aptos_trove::usdz::{USDZ};
     use leizd_aptos_lib::constant;
 
-    friend leizd::money_market;
-
     const ENO_POSITION_RESOURCE: u64 = 1;
     const ENO_SAFE_POSITION: u64 = 2;
     const ENOT_EXISTED: u64 = 3;
@@ -90,7 +88,7 @@ module leizd::account_position {
     ////////////////////////////////////////////////////
     /// Deposit
     ////////////////////////////////////////////////////
-    public(friend) fun deposit<C,P>(
+    public fun deposit<C,P>(
         account: &signer,
         depositor_addr: address,
         amount: u64,
@@ -158,7 +156,7 @@ module leizd::account_position {
     ////////////////////////////////////////////////////
     /// Withdraw
     ////////////////////////////////////////////////////
-    public(friend) fun withdraw<C,P>(
+    public fun withdraw<C,P>(
         depositor_addr: address,
         amount: u64,
         is_collateral_only: bool,
@@ -183,7 +181,7 @@ module leizd::account_position {
     ////////////////////////////////////////////////////
     /// Borrow
     ////////////////////////////////////////////////////
-    public(friend) fun borrow<C,P>(
+    public fun borrow<C,P>(
         account: &signer,
         borrower_addr: address,
         amount: u64,
@@ -318,7 +316,7 @@ module leizd::account_position {
         (sum_borrowable_shadow, borrowed_sum, repaid_sum, result_amount_borrowed, result_amount_repaid)
     }
 
-    public(friend) fun borrow_asset_with_rebalance<C>(
+    public fun borrow_asset_with_rebalance<C>(
         addr: address,
         amount: u64,
         _key: &AccountPositionKey
@@ -374,7 +372,7 @@ module leizd::account_position {
     ////////////////////////////////////////////////////
     /// Repay
     ////////////////////////////////////////////////////
-    public(friend) fun repay<C,P>(addr: address, amount: u64,  _key: &AccountPositionKey): u64 acquires Position, AccountPositionEventHandle {
+    public fun repay<C,P>(addr: address, amount: u64,  _key: &AccountPositionKey): u64 acquires Position, AccountPositionEventHandle {
         repay_internal<C, P>(addr, amount)
     }
     fun repay_internal<C,P>(addr: address, amount: u64): u64 acquires Position, AccountPositionEventHandle {
@@ -388,7 +386,7 @@ module leizd::account_position {
     }
 
     /// @return (repay_keys, repay_amounts)
-    public(friend) fun repay_shadow_with_rebalance(addr: address, amount: u64, _key: &AccountPositionKey): (vector<String>, vector<u64>) acquires Position, AccountPositionEventHandle {
+    public fun repay_shadow_with_rebalance(addr: address, amount: u64, _key: &AccountPositionKey): (vector<String>, vector<u64>) acquires Position, AccountPositionEventHandle {
         repay_shadow_with_rebalance_internal(addr, amount)
     }
     fun repay_shadow_with_rebalance_internal(addr: address, amount: u64): (vector<String>, vector<u64>) acquires Position, AccountPositionEventHandle {
@@ -455,7 +453,7 @@ module leizd::account_position {
     ////////////////////////////////////////////////////
     /// Liquidate
     ////////////////////////////////////////////////////
-    public(friend) fun liquidate<C,P>(target_addr: address, _key: &AccountPositionKey): (u64,u64,bool) acquires Position, AccountPositionEventHandle {
+    public fun liquidate<C,P>(target_addr: address, _key: &AccountPositionKey): (u64,u64,bool) acquires Position, AccountPositionEventHandle {
         liquidate_internal<C,P>(target_addr)
     }
 
@@ -502,7 +500,7 @@ module leizd::account_position {
     ////////////////////////////////////////////////////
     /// Rebalance
     ////////////////////////////////////////////////////
-    public(friend) fun rebalance_shadow<C1,C2>(addr: address, _key: &AccountPositionKey): (u64,bool,bool) acquires Position, AccountPositionEventHandle {
+    public fun rebalance_shadow<C1,C2>(addr: address, _key: &AccountPositionKey): (u64,bool,bool) acquires Position, AccountPositionEventHandle {
         let key1 = key<C1>();
         let key2 = key<C2>();
         rebalance_shadow_internal(addr, key1, key2)
@@ -582,7 +580,7 @@ module leizd::account_position {
 
     // Rebalance after borrowing additonal shadow
 
-    public(friend) fun borrow_and_rebalance<C1,C2>(addr: address, is_collateral_only: bool, _key: &AccountPositionKey): u64 acquires Position, AccountPositionEventHandle {
+    public fun borrow_and_rebalance<C1,C2>(addr: address, is_collateral_only: bool, _key: &AccountPositionKey): u64 acquires Position, AccountPositionEventHandle {
         let key1 = key<C1>();
         let key2 = key<C2>();
         borrow_and_rebalance_internal(addr, key1, key2, is_collateral_only)
@@ -647,7 +645,7 @@ module leizd::account_position {
         insufficient
     }
 
-    public(friend) fun enable_to_rebalance<C>(account: &signer) acquires Position {
+    public fun enable_to_rebalance<C>(account: &signer) acquires Position {
         enable_to_rebalance_internal<C>(account);
     }
     fun enable_to_rebalance_internal<C>(account: &signer) acquires Position {
@@ -659,7 +657,7 @@ module leizd::account_position {
         simple_map::remove<String,bool>(&mut position_ref.protected_coins, &key);
     }
 
-    public(friend) fun unable_to_rebalance<C>(account: &signer) acquires Position {
+    public fun unable_to_rebalance<C>(account: &signer) acquires Position {
         unable_to_rebalance_internal<C>(account);
     }
     fun unable_to_rebalance_internal<C>(account: &signer) acquires Position {
@@ -683,7 +681,7 @@ module leizd::account_position {
     ////////////////////////////////////////////////////
     /// Switch Collateral
     ////////////////////////////////////////////////////
-    public(friend) fun switch_collateral<C,P>(addr: address, to_collateral_only: bool,  _key: &AccountPositionKey): u64 acquires Position, AccountPositionEventHandle {
+    public fun switch_collateral<C,P>(addr: address, to_collateral_only: bool,  _key: &AccountPositionKey): u64 acquires Position, AccountPositionEventHandle {
         switch_collateral_internal<C,P>(addr, to_collateral_only)
     }
     fun switch_collateral_internal<C,P>(addr: address, to_collateral_only: bool): u64 acquires Position, AccountPositionEventHandle {
