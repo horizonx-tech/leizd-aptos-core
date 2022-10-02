@@ -238,8 +238,6 @@ module leizd::account_position {
         let result_amount_withdrawed = vector::empty<Rebalance>();
         let result_amount_borrowed = vector::empty<Rebalance>();
         let result_amount_repaid = vector::empty<Rebalance>();
-        let borrowed_now;
-        let repaid_now;
         
         update_on_borrow<C,ShadowToAsset>(addr, amount);
         if (is_safe<C,ShadowToAsset>(addr)) {
@@ -247,19 +245,18 @@ module leizd::account_position {
         };
 
         // try to rebalance between pools
-        let sum_extra_shadow;
         let required_shadow = required_shadow(key<C>(), borrowed_asset_share<C>(addr), deposited_shadow_share<C>(addr));
-        (sum_extra_shadow, result_amount_deposited, result_amount_withdrawed) = deposit_and_withdraw_evenly(addr, required_shadow, 0, 0);
+        (result_amount_deposited, result_amount_withdrawed) = deposit_and_withdraw_evenly(addr, result_amount_deposited);
         if (vector::length<Rebalance>(&result_amount_deposited) != 0 
             || vector::length<Rebalance>(&result_amount_withdrawed) != 0) {
             return (result_amount_deposited, result_amount_withdrawed, result_amount_borrowed, result_amount_repaid)
         };
 
         // try to borrow and rebalance shadow
-        (_,borrowed_now,repaid_now,result_amount_borrowed, result_amount_repaid) = borrow_and_repay_evenly(addr, required_shadow, sum_extra_shadow);
+        (result_amount_borrowed, result_amount_deposited) = borrow_and_deposit_if_has_capacity(addr, required_shadow);
         if (vector::length<Rebalance>(&result_amount_borrowed) != 0
-            || vector::length<Rebalance>(&result_amount_repaid) != 0) {
-            (_, result_amount_deposited, result_amount_withdrawed) = deposit_and_withdraw_evenly(addr, required_shadow, borrowed_now, repaid_now);
+            || vector::length<Rebalance>(&result_amount_deposited) != 0) {
+            (result_amount_deposited, result_amount_withdrawed) = deposit_and_withdraw_evenly(addr, result_amount_deposited);
             return (result_amount_deposited, result_amount_withdrawed, result_amount_borrowed, result_amount_repaid)
         };
         abort 0
@@ -274,115 +271,127 @@ module leizd::account_position {
     }
 
     /// @returns (sum_extra_shadow, result_amount_deposited, result_amount_withdrawed)
-    fun deposit_and_withdraw_evenly(addr: address, required_shadow: u64, borrowed_now: u64, repaid_now: u64): (u64,vector<Rebalance>, vector<Rebalance>) acquires Position, AccountPositionEventHandle {
+    fun deposit_and_withdraw_evenly(addr: address, result_amount_deposited: vector<Rebalance>): (vector<Rebalance>, vector<Rebalance>) acquires Position, AccountPositionEventHandle {
         let position_ref = borrow_global<Position<ShadowToAsset>>(addr);
         let coins = position_ref.coins;
-        let result_amount_deposited = vector::empty<Rebalance>();
+        let protected_coins = position_ref.protected_coins;
         let result_amount_withdrawed = vector::empty<Rebalance>();
-        let i = vector::length<String>(&coins);
-        let sum_extra_shadow = 0;
-        // TODO: remove protected coins like the below
-        // while (i > 0) {
-        //     let key = vector::borrow<String>(coins, i-1);
-        //     if (!is_protected_internal(protected_coins, *key)) {
-        //         sum_repayable_shadow = sum_repayable_shadow + borrowed_shadow_share_with(*key, addr);
-        //     };
-        //     i = i - 1;
-        // };
-        while (i > 0) {
-            let key = vector::borrow<String>(&coins, i-1);
-            sum_extra_shadow = sum_extra_shadow + extra_shadow(*key, addr);
-            i = i - 1;
-        };
-        // borrowed_now/repaid_now: still not deposited
-        sum_extra_shadow = sum_extra_shadow + borrowed_now - repaid_now;
 
-        if (required_shadow <= sum_extra_shadow) {
+        let (sum_extra_shadow, sum_insufficient_shadow, _, _) = sum_extra_and_insufficient_shadow(&coins, &protected_coins, addr);
+        if (sum_extra_shadow >= sum_insufficient_shadow) {
             // reallocation
             let i = vector::length<String>(&coins);
-            let extra_for_each = required_shadow / i;
             while (i > 0) {
                 let key = *vector::borrow<String>(&coins, i-1);
-                let deposited_shadow_share = deposited_shadow_share_with(key, addr);
-                if (extra_for_each == deposited_shadow_share) {
-                    // nothing happens
-                    // skip
-                } else if (extra_for_each > deposited_shadow_share) {
-                    // deposit
-                    let amount = extra_for_each - deposited_shadow_share;
-                    update_position_for_deposit<ShadowToAsset>(key, addr, amount, false); // TODO: put collateral only
-                    vector::push_back<Rebalance>(&mut result_amount_deposited, rebalance::create(key, amount));
-                } else {
-                    // withdraw
-                    let amount = deposited_shadow_share - extra_for_each;
-                    update_position_for_withdraw<ShadowToAsset>(key, addr, amount, false); // TODO: put collateral only
-                    vector::push_back<Rebalance>(&mut result_amount_withdrawed, rebalance::create(key, amount));
+                let (_, insufficient) = extra_and_insufficient_shadow(key, addr); // TODO: share
+                while (insufficient > 0) {
+                    // deposit the insufficient amount
+                    let j = vector::length<String>(&coins);
+                    while (j > 0 && insufficient > 0) {
+                        let key_j = *vector::borrow<String>(&coins, j-1);
+                        if (!is_protected_internal(&protected_coins, key)) {
+                            let (extra, _) = extra_and_insufficient_shadow(key_j, addr);
+                            if (extra > 0) {
+                                let deposit_amount;
+                                if (extra > insufficient) {
+                                    deposit_amount = insufficient;
+                                } else {
+                                    deposit_amount = extra;
+                                };
+                                update_position_for_deposit<ShadowToAsset>(key, addr, deposit_amount, false); // TODO: collateral_only
+                                vector::push_back<Rebalance>(&mut result_amount_deposited, rebalance::create(key, deposit_amount));
+                                update_position_for_withdraw<ShadowToAsset>(key_j, addr, deposit_amount, false); // TODO: collateral_only
+                                vector::push_back<Rebalance>(&mut result_amount_withdrawed, rebalance::create(key, deposit_amount));
+                                insufficient = insufficient - deposit_amount;
+                            };
+                        };
+                        j = j - 1;
+                    };                    
                 };
-                i = i - 1;
-            };
+                i = i -1;
+            }
         };
-        (sum_extra_shadow, result_amount_deposited, result_amount_withdrawed)
+        (result_amount_deposited, result_amount_withdrawed)
     }
 
-    fun sum_borrowable_shadow(coins: &vector<String>, protected_coins: &SimpleMap<String,bool>, addr: address): (u64,u64) acquires Position {
+    fun sum_extra_and_insufficient_shadow(coins: &vector<String>, protected_coins: &SimpleMap<String,bool>, addr: address): (u64,u64,u64,u64) acquires Position {
         let i = vector::length<String>(coins);
-        let sum_borrowable_shadow = 0;
-        let borrowable_position_count = 0;
+        let sum_extra_shadow = 0;
+        let sum_insufficient_shadow = 0;
+        let extra_position_count = 0;
+        let insufficient_position_count = 0;
+
         while (i > 0) {
             let key = vector::borrow<String>(coins, i-1);
-            let borrowable = borrowable_shadow(*key, addr);
-            if (!is_protected_internal(protected_coins, *key) && borrowable > 0) {
-                sum_borrowable_shadow = sum_borrowable_shadow + borrowable_shadow(*key, addr);
-                borrowable_position_count = borrowable_position_count + 1;
+            if (!is_protected_internal(protected_coins, *key)) {
+                let (extra, insufficient) = extra_and_insufficient_shadow(*key, addr);
+                sum_extra_shadow = sum_extra_shadow + extra;
+                sum_insufficient_shadow = sum_insufficient_shadow + insufficient;
+                extra_position_count = extra_position_count + 1;
+                insufficient_position_count = insufficient_position_count + 1;
             };
             i = i - 1;
         };
-        (sum_borrowable_shadow, borrowable_position_count)
+        (sum_extra_shadow, sum_insufficient_shadow, extra_position_count, insufficient_position_count)
     }
 
-    /// @returns (sum_extra_shadow, borrowed_sum, repaid_sum, result_amount_borrowed, result_amount_repaied)
-    fun borrow_and_repay_evenly(addr: address, required_shadow: u64, sum_extra_shadow: u64): (u64,u64,u64,vector<Rebalance>, vector<Rebalance>) acquires Position, AccountPositionEventHandle {
+    fun sum_capacity_and_overdebt_shadow(coins: &vector<String>, protected_coins: &SimpleMap<String,bool>, addr: address): (u64,u64,u64,u64) acquires Position {
+        let i = vector::length<String>(coins);
+        let sum_capacity_shadow = 0;
+        let sum_overdebt_shadow = 0;
+        let capacity_position_count = 0;
+        let overdebt_position_count = 0;
+        
+        while (i > 0) {
+            let key = vector::borrow<String>(coins, i-1);
+            if (!is_protected_internal(protected_coins, *key)) {
+                let (capacity, overdebt) = capacity_and_overdebt_shadow(*key, addr);
+                sum_capacity_shadow = sum_capacity_shadow + capacity;
+                sum_overdebt_shadow = sum_overdebt_shadow + overdebt;
+                capacity_position_count = capacity_position_count + 1;
+                overdebt_position_count = overdebt_position_count + 1;
+            };
+            i = i - 1;
+        };
+        (sum_capacity_shadow, sum_overdebt_shadow, capacity_position_count, overdebt_position_count)
+    }
+
+    /// @returns (result_amount_borrowed, result_amount_deposited)
+    fun borrow_and_deposit_if_has_capacity(addr: address, required_shadow: u64): (vector<Rebalance>, vector<Rebalance>) acquires Position, AccountPositionEventHandle {
         let position_ref = borrow_global<Position<AssetToShadow>>(addr);
         let coins = position_ref.coins;
         let protected_coins = position_ref.protected_coins;
         
-        // return params
-        let borrowed_sum = 0;
-        let repaid_sum = 0;
         let result_amount_borrowed = vector::empty<Rebalance>();
-        let result_amount_repaid = vector::empty<Rebalance>();
+        let result_amount_deposited = vector::empty<Rebalance>();
 
-        let (sum_borrowable_shadow,_) = sum_borrowable_shadow(&coins, &protected_coins, addr);
-        if (required_shadow <= sum_extra_shadow + sum_borrowable_shadow) {
-            // borrow and rebalance
-
-            // 1.borrow
+        let (sum_capacity_shadow,_,_,_) = sum_capacity_and_overdebt_shadow(&coins, &protected_coins, addr);
+        if (required_shadow <= sum_capacity_shadow) {
+            // borrow and deposit
             let i = vector::length<String>(&coins);
-            let borrow_amount = required_shadow - sum_extra_shadow;
-            let borrow_for_each = borrow_amount / i;
-            while (i > 0) {
+            while (i > 0 && required_shadow > 0) {
                 let key = *vector::borrow<String>(&coins, i-1);
-                let borrowed_shadow_share = borrowed_shadow_share_with(key, addr);
-                if (borrow_for_each == borrowed_shadow_share) {
-                    // nothing happens
-                    // skip
-                } else if (borrow_for_each > borrowed_shadow_share) {
-                    // borrow
-                    let amount = borrow_for_each - borrowed_shadow_share;
-                    update_position_for_borrow<AssetToShadow>(key, addr, amount);
-                    vector::push_back<Rebalance>(&mut result_amount_borrowed, rebalance::create(key, amount));
-                    borrowed_sum = borrowed_sum + amount;
-                } else {
-                    // repay
-                    let amount = borrowed_shadow_share - borrow_for_each;
-                    update_position_for_repay<AssetToShadow>(key, addr, amount);
-                    vector::push_back<Rebalance>(&mut result_amount_repaid, rebalance::create(key, amount));
-                    repaid_sum = repaid_sum + amount;
+                if (!is_protected_internal(&protected_coins, key)) {
+                    let (capacity, _) = capacity_and_overdebt_shadow(key, addr); // TODO: share
+                    if (capacity > 0) {
+                        let borrow_amount;
+                        if (required_shadow > capacity) {
+                            borrow_amount = capacity;
+                        } else {
+                            borrow_amount = required_shadow;
+                        };
+                        update_position_for_borrow<AssetToShadow>(key, addr, borrow_amount);
+                        vector::push_back<Rebalance>(&mut result_amount_borrowed, rebalance::create(key, borrow_amount));
+                        update_position_for_deposit<ShadowToAsset>(key, addr, borrow_amount, false); // TODO: collateral_only
+                        vector::push_back<Rebalance>(&mut result_amount_deposited, rebalance::create(key, borrow_amount));
+                        required_shadow = required_shadow - borrow_amount;
+                    };
                 };
+                
                 i = i - 1;
             };
         };
-        (sum_borrowable_shadow, borrowed_sum, repaid_sum, result_amount_borrowed, result_amount_repaid)
+        (result_amount_borrowed, result_amount_deposited)
     }
 
     ////////////////////////////////////////////////////
@@ -560,21 +569,44 @@ module leizd::account_position {
         )
     }
 
-    fun extra_shadow(key: String, addr: address): u64 acquires Position {
+    fun capacity_and_overdebt_shadow(key: String, addr: address): (u64,u64) acquires Position {
+        let capacity = 0;
+        let overdebt = 0;
+        
+        let borrowed = borrowed_volume<AssetToShadow>(addr, key);
+        let deposited = deposited_volume<AssetToShadow>(addr, key);
+        let borrowable = deposited * risk_factor::ltv_of(key) / risk_factor::precision();
+        if (borrowable < borrowed) {
+            overdebt = overdebt + (borrowed - borrowable);
+        } else {
+            capacity = capacity + (borrowable - borrowed);
+        };
+        (capacity, overdebt)
+    }
+
+    fun extra_and_insufficient_shadow(key: String, addr: address): (u64,u64) acquires Position {
+        let extra = 0;
+        let insufficient = 0;
+        
         let borrowed = borrowed_volume<ShadowToAsset>(addr, key);
         let deposited = deposited_volume<ShadowToAsset>(addr, key);
-        let required_deposit = borrowed * risk_factor::precision() / risk_factor::lt_of_shadow();
-        if (deposited < required_deposit) return 0;
-        deposited - required_deposit
+        let required_deposit = borrowed * risk_factor::precision() / risk_factor::ltv_of_shadow();
+        if (deposited < required_deposit) {
+            insufficient = insufficient + (required_deposit - deposited);
+        } else {
+            extra = extra + (deposited - required_deposit);
+        };
+        (extra, insufficient)
     }
 
     fun can_rebalance_shadow_between(addr: address, key1: String, key2: String): (bool,u64,u64) acquires Position {
+        // TODO
         if (is_the_same(key1, key2)) {
             return (false, 0, 0)
         };
 
         // extra in key1
-        let extra = extra_shadow(key1, addr);
+        let (extra, _) = extra_and_insufficient_shadow(key1, addr);
         if (extra == 0) return (false, 0, 0);
 
         // insufficient in key2
