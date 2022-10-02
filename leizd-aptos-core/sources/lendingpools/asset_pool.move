@@ -29,7 +29,7 @@ module leizd::asset_pool {
     friend leizd::money_market;
     friend leizd::pool_manager;
 
-    // const ENOT_INITILIZED: u64 = 1;
+    const ENOT_INITILIZED: u64 = 1;
     const EIS_ALREADY_EXISTED: u64 = 2;
     const EIS_NOT_EXISTED: u64 = 3;
     const EDEX_DOES_NOT_HAVE_LIQUIDITY: u64 = 4;
@@ -113,7 +113,9 @@ module leizd::asset_pool {
 
     // initialize
     public entry fun initialize(owner: &signer) {
-        permission::assert_owner(signer::address_of(owner));
+        let owner_addr = signer::address_of(owner);
+        permission::assert_owner(owner_addr);
+        assert!(!exists<Storage>(owner_addr), error::invalid_argument(EIS_ALREADY_EXISTED));
         move_to(owner, Storage {
             assets: simple_map::create<String, AssetStorage>(),
         })
@@ -127,6 +129,8 @@ module leizd::asset_pool {
     }
 
     fun init_pool_internal<C>(owner: &signer) acquires Storage {
+        let owner_addr = signer::address_of(owner);
+        assert!(exists<Storage>(owner_addr), error::invalid_argument(ENOT_INITILIZED));
         assert!(!is_pool_initialized<C>(), error::invalid_argument(EIS_ALREADY_EXISTED));
         assert!(dex_facade::has_liquidity<C>(), error::invalid_state(EDEX_DOES_NOT_HAVE_LIQUIDITY));
 
@@ -139,7 +143,7 @@ module leizd::asset_pool {
         move_to(owner, Pool<C> {
             asset: coin::zero<C>()
         });
-        let storage_ref = borrow_global_mut<Storage>(signer::address_of(owner));
+        let storage_ref = borrow_global_mut<Storage>(owner_addr);
         simple_map::add<String, AssetStorage>(&mut storage_ref.assets, key<C>(), default_asset_storage());
         move_to(owner, PoolEventHandle<C> {
             deposit_event: account::new_event_handle<DepositEvent>(owner),
@@ -585,6 +589,22 @@ module leizd::asset_pool {
     use leizd::test_initializer;
 
     #[test(owner=@leizd)]
+    public entry fun test_initialize(owner: &signer) {
+        initialize(owner);
+        assert!(exists<Storage>(signer::address_of(owner)), 0);
+    }
+    #[test(account=@0x111)]
+    #[expected_failure(abort_code = 1)]
+    public entry fun test_initialize_with_not_owner(account: &signer) {
+        initialize(account);
+    }
+    #[test(owner=@leizd)]
+    #[expected_failure(abort_code = 65538)]
+    public entry fun test_initialize_twice(owner: &signer) {
+        initialize(owner);
+        initialize(owner);
+    }
+    #[test(owner=@leizd)]
     public entry fun test_init_pool(owner: &signer) acquires Pool, Storage {
         // Prerequisite
         let owner_address = signer::address_of(owner);
@@ -603,6 +623,16 @@ module leizd::asset_pool {
         assert!(pool_status::can_borrow<WETH>(), 0);
         assert!(pool_status::can_repay<WETH>(), 0);
         assert!(is_pool_initialized<WETH>(), 0);
+    }
+    #[test(owner=@leizd)]
+    #[expected_failure(abort_code = 65537)]
+    public entry fun test_init_pool_before_initialized(owner: &signer) acquires Storage {
+        // Prerequisite
+        account::create_account_for_test(signer::address_of(owner));
+        test_coin::init_weth(owner);
+        test_initializer::initialize(owner);
+
+        init_pool<WETH>(owner);
     }
     #[test(owner=@leizd)]
     #[expected_failure(abort_code = 65538)]
