@@ -1,4 +1,4 @@
-module leizd_aptos_central_liquidity_pool::coin_base {
+module leizd_aptos_central_liquidity_pool::coin_base_stb_usdz {
     use std::string;
     use std::signer;
     use std::option;

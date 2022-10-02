@@ -3,7 +3,7 @@ module leizd_aptos_central_liquidity_pool::stb_usdz {
     use std::string;
     use aptos_framework::coin;
     use leizd_aptos_trove::usdz::{USDZ};
-    use leizd_aptos_central_liquidity_pool::coin_base;
+    use leizd_aptos_central_liquidity_pool::coin_base_stb_usdz;
 
     friend leizd_aptos_central_liquidity_pool::central_liquidity_pool;
 
@@ -26,11 +26,11 @@ module leizd_aptos_central_liquidity_pool::stb_usdz {
         let symbol = string::utf8(b"stb");
         string::append(&mut name, coin_name);
         string::append(&mut symbol, coin_symbol);
-        coin_base::initialize<StabilityCollateral>(owner, name, symbol, coin_decimals);
+        coin_base_stb_usdz::initialize<StabilityCollateral>(owner, name, symbol, coin_decimals);
     }
 
     public fun register(account: &signer) {
-        coin_base::register<StabilityCollateral>(account);
+        coin_base_stb_usdz::register<StabilityCollateral>(account);
     }
 
     public fun is_account_registered(addr: address): bool {
@@ -38,18 +38,18 @@ module leizd_aptos_central_liquidity_pool::stb_usdz {
     }
 
     public(friend) fun mint(minter_addr: address, amount: u64) {
-        coin_base::mint<StabilityCollateral>(minter_addr, amount);
+        coin_base_stb_usdz::mint<StabilityCollateral>(minter_addr, amount);
     }
 
     public(friend) fun burn(account: &signer, amount: u64) {
-        coin_base::burn<StabilityCollateral>(account, amount);
+        coin_base_stb_usdz::burn<StabilityCollateral>(account, amount);
     }
 
     public fun balance_of(addr: address): u64 {
-        coin_base::balance_of<StabilityCollateral>(addr)
+        coin_base_stb_usdz::balance_of<StabilityCollateral>(addr)
     }
 
     public fun supply(): u128 {
-        coin_base::supply<StabilityCollateral>()
+        coin_base_stb_usdz::supply<StabilityCollateral>()
     }
 }
