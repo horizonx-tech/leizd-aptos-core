@@ -838,8 +838,6 @@ module leizd::shadow_pool {
     #[test_only]
     use leizd_aptos_trove::usdz;
     #[test_only]
-    use leizd::initializer;
-    #[test_only]
     use leizd::asset_pool;
     #[test_only]
     use leizd::pool_manager;
@@ -880,7 +878,8 @@ module leizd::shadow_pool {
         timestamp::set_time_has_started_for_testing(aptos_framework);
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
-        initializer::initialize(owner);
+        test_initializer::initialize(owner);
+        pool_manager::initialize(owner);
         test_coin::init_weth(owner);
         test_coin::init_uni(owner);
         initialize(owner);
@@ -2081,7 +2080,8 @@ module leizd::shadow_pool {
         timestamp::set_time_has_started_for_testing(aptos_framework);
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
-        initializer::initialize(owner);
+        test_initializer::initialize(owner);
+        pool_manager::initialize(owner);
         test_coin::init_weth(owner);
         test_coin::init_uni(owner);
         initialize(owner);
@@ -2096,7 +2096,8 @@ module leizd::shadow_pool {
         timestamp::set_time_has_started_for_testing(aptos_framework);
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
-        initializer::initialize(owner);
+        test_initializer::initialize(owner);
+        pool_manager::initialize(owner);
         test_coin::init_weth(owner);
         test_coin::init_uni(owner);
         initialize(owner);
