@@ -95,14 +95,14 @@ module leizd::pool_manager {
   #[test_only]
   use leizd_aptos_treasury::treasury;
   #[test_only]
-  use leizd::stability_pool;
+  use leizd::central_liquidity_pool;
   #[test_only]
   use leizd_aptos_trove::usdz;
   #[test_only]
   fun set_up(owner: &signer) {
     account::create_account_for_test(signer::address_of(owner));
     usdz::initialize_for_test(owner);
-    stability_pool::initialize(owner);
+    central_liquidity_pool::initialize(owner);
     test_coin::init_weth(owner);
     test_coin::init_usdc(owner);
     test_coin::init_usdt(owner);
@@ -234,7 +234,7 @@ module leizd::pool_manager {
   //   account::create_account_for_test(signer::address_of(owner));
   //   account::create_account_for_test(signer::address_of(account));
   //   usdz::initialize_for_test(owner);
-  //   stability_pool::initialize(owner);
+  //   central_liquidity_pool::initialize(owner);
   //   test_coin::init_weth(owner);
   //   risk_factor::initialize(owner);
   //   treasury::initialize(owner);

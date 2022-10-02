@@ -7,7 +7,7 @@ module leizd::test_initializer {
     use leizd_aptos_treasury::treasury;
     use leizd_aptos_external::price_oracle;
     use leizd_aptos_logic::risk_factor;
-    use leizd::stability_pool;
+    use leizd::central_liquidity_pool;
     use leizd::test_coin;
 
     /// Called only once by the owner.
@@ -16,7 +16,7 @@ module leizd::test_initializer {
         risk_factor::initialize(owner);
         treasury::initialize(owner);
         trove_manager::initialize(owner);
-        stability_pool::initialize(owner);
+        central_liquidity_pool::initialize(owner);
     }
     public entry fun initialize_price_oracle_with_fixed_price_for_test(owner: &signer) {
         price_oracle::initialize_for_test(owner, 1, 0);
