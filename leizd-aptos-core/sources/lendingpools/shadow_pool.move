@@ -15,7 +15,7 @@ module leizd::shadow_pool {
     use leizd_aptos_trove::usdz::{USDZ};
     use leizd::interest_rate;
     use leizd_aptos_logic::risk_factor;
-    use leizd::central_liquidity_pool;
+    use leizd::central_liquidity_pool::{Self, CentralLiquidityPoolKey};
     use leizd::treasury;
 
     //// error_code (ref: asset_pool)
@@ -30,6 +30,9 @@ module leizd::shadow_pool {
     const EINSUFFICIENT_CONLY_DEPOSITED: u64 = 14;
 
     struct ShadowPoolKey has store, drop {} // TODO: remove `drop` ability
+    struct Keys has key {
+        central_liquidity_pool: CentralLiquidityPoolKey
+    }
 
     struct Pool has key {
         shadow: coin::Coin<USDZ>
@@ -150,6 +153,13 @@ module leizd::shadow_pool {
             harvested_protocol_fees: 0,
         }
     }
+    //// for connecting to central liquidity pool
+    public entry fun connect_to_central_liduidity_pool(owner: &signer) {
+        let owner_addr = signer::address_of(owner);
+        permission::assert_owner(owner_addr);
+        let central_liquidity_pool_key = central_liquidity_pool::publish_key(owner);
+        move_to(owner, Keys { central_liquidity_pool: central_liquidity_pool_key });
+    }
     //// for assets
     fun init_pool_if_necessary(key: String, storage_ref: &mut Storage) {
         if (!is_initialized_asset_with_internal(&key, storage_ref)) {
@@ -174,7 +184,7 @@ module leizd::shadow_pool {
         amount: u64,
         is_collateral_only: bool,
         _key: &ShadowPoolKey
-    ): (u64, u64) acquires Pool, Storage, PoolEventHandle {
+    ): (u64, u64) acquires Pool, Storage, PoolEventHandle, Keys {
         let key = key<C>();
         deposit_for_internal(key, account, for_address, amount, is_collateral_only)
     }
@@ -186,7 +196,7 @@ module leizd::shadow_pool {
         amount: u64,
         is_collateral_only: bool,
         _key: &ShadowPoolKey
-    ): (u64, u64) acquires Pool, Storage, PoolEventHandle {
+    ): (u64, u64) acquires Pool, Storage, PoolEventHandle, Keys {
         deposit_for_internal(key, account, for_address, amount, is_collateral_only)
     }
 
@@ -196,7 +206,7 @@ module leizd::shadow_pool {
         for_address: address,
         amount: u64,
         is_collateral_only: bool,
-    ): (u64, u64) acquires Pool, Storage, PoolEventHandle {
+    ): (u64, u64) acquires Pool, Storage, PoolEventHandle, Keys {
         assert!(pool_status::can_deposit_with(key), error::invalid_state(ENOT_AVAILABLE_STATUS));
         assert!(amount > 0, error::invalid_argument(EAMOUNT_ARG_IS_ZERO));
 
@@ -339,7 +349,7 @@ module leizd::shadow_pool {
         is_collateral_only: bool,
         liquidation_fee: u64,
         _key: &ShadowPoolKey
-    ): (u64, u64) acquires Pool, Storage, PoolEventHandle {
+    ): (u64, u64) acquires Pool, Storage, PoolEventHandle, Keys {
         let key = key<C>();
         withdraw_for_internal(
             key,
@@ -359,7 +369,7 @@ module leizd::shadow_pool {
         is_collateral_only: bool,
         liquidation_fee: u64,
         _key: &ShadowPoolKey
-    ): (u64, u64) acquires Pool, Storage, PoolEventHandle {
+    ): (u64, u64) acquires Pool, Storage, PoolEventHandle, Keys {
         withdraw_for_internal(key, depositor_addr, reciever_addr, amount, is_collateral_only, liquidation_fee)
     }
 
@@ -370,7 +380,7 @@ module leizd::shadow_pool {
         amount: u64,
         is_collateral_only: bool,
         liquidation_fee: u64
-    ): (u64, u64) acquires Pool, Storage, PoolEventHandle {
+    ): (u64, u64) acquires Pool, Storage, PoolEventHandle, Keys {
         assert!(pool_status::can_withdraw_with(key), error::invalid_state(ENOT_AVAILABLE_STATUS));
         assert!(amount > 0, error::invalid_argument(EAMOUNT_ARG_IS_ZERO));
 
@@ -421,7 +431,7 @@ module leizd::shadow_pool {
         receiver_addr: address,
         amount: u64,
         _key: &ShadowPoolKey
-    ): (u64, u64) acquires Pool, Storage, PoolEventHandle {
+    ): (u64, u64) acquires Pool, Storage, PoolEventHandle, Keys {
         let key = key<C>();
         borrow_for_internal(key, borrower_addr, receiver_addr, amount)
     }
@@ -432,7 +442,7 @@ module leizd::shadow_pool {
         receiver_addr: address,
         amount: u64,
         _key: &ShadowPoolKey
-    ): (u64, u64) acquires Pool, Storage, PoolEventHandle {
+    ): (u64, u64) acquires Pool, Storage, PoolEventHandle, Keys {
         borrow_for_internal(key, borrower_addr, receiver_addr, amount)
     }
 
@@ -441,7 +451,7 @@ module leizd::shadow_pool {
         borrower_addr: address,
         receiver_addr: address,
         amount: u64
-    ): (u64, u64) acquires Pool, Storage, PoolEventHandle {
+    ): (u64, u64) acquires Pool, Storage, PoolEventHandle, Keys {
         assert!(pool_status::can_borrow_with(key), error::invalid_state(ENOT_AVAILABLE_STATUS));
         assert!(amount > 0, error::invalid_argument(EAMOUNT_ARG_IS_ZERO));
 
@@ -524,7 +534,7 @@ module leizd::shadow_pool {
         account: &signer,
         amount: u64,
         _key: &ShadowPoolKey
-    ): (u64, u64) acquires Pool, Storage, PoolEventHandle {
+    ): (u64, u64) acquires Pool, Storage, PoolEventHandle, Keys {
         repay_internal(key<C>(), account, amount)
     }
 
@@ -533,11 +543,11 @@ module leizd::shadow_pool {
         account: &signer,
         amount: u64,
         _key: &ShadowPoolKey
-    ): (u64, u64) acquires Pool, Storage, PoolEventHandle {
+    ): (u64, u64) acquires Pool, Storage, PoolEventHandle, Keys {
         repay_internal(key, account, amount)
     }
 
-    fun repay_internal(key: String, account: &signer, amount: u64): (u64, u64) acquires Pool, Storage, PoolEventHandle {
+    fun repay_internal(key: String, account: &signer, amount: u64): (u64, u64) acquires Pool, Storage, PoolEventHandle, Keys {
         assert!(pool_status::can_repay_with(key), error::invalid_state(ENOT_AVAILABLE_STATUS));
         assert!(amount > 0, error::invalid_argument(EAMOUNT_ARG_IS_ZERO));
 
@@ -584,7 +594,7 @@ module leizd::shadow_pool {
         withdrawing: u64,
         is_collateral_only: bool,
         _key: &ShadowPoolKey
-    ) acquires Pool, Storage, PoolEventHandle {
+    ) acquires Pool, Storage, PoolEventHandle, Keys {
         withdraw_for_liquidation_internal(key<C>(), liquidator_addr, target_addr, withdrawing, is_collateral_only);
     }
 
@@ -594,7 +604,7 @@ module leizd::shadow_pool {
         target_addr: address,
         withdrawing: u64,
         is_collateral_only: bool,
-    ) acquires Pool, Storage, PoolEventHandle {
+    ) acquires Pool, Storage, PoolEventHandle, Keys {
         let owner_address = permission::owner_address();
         let storage_ref = borrow_global_mut<Storage>(owner_address);
         let pool_ref = borrow_global_mut<Pool>(owner_address);
@@ -655,29 +665,31 @@ module leizd::shadow_pool {
     ////// Internal Logics
     /// Borrow the shadow from the central-liquidity-pool
     /// use when shadow in this pool become insufficient.
-    fun borrow_from_central_liquidity_pool(key: String, caller_addr: address, amount: u64): coin::Coin<USDZ> {
-        let (borrowed, _) = central_liquidity_pool::borrow(key, caller_addr, amount);
+    fun borrow_from_central_liquidity_pool(key: String, caller_addr: address, amount: u64): coin::Coin<USDZ> acquires Keys {
+        let key_for_central = &borrow_global<Keys>(permission::owner_address()).central_liquidity_pool;
+        let (borrowed, _) = central_liquidity_pool::borrow(key, caller_addr, amount, key_for_central);
         borrowed
     }
 
     /// Repays the shadow to the central-liquidity-pool
     /// use when shadow has already borrowed from this pool.
     /// @return repaid amount
-    fun repay_to_central_liquidity_pool(key: String, account: &signer, amount: u64): u64 {
+    fun repay_to_central_liquidity_pool(key: String, account: &signer, amount: u64): u64 acquires Keys {
+        let key_for_central = &borrow_global<Keys>(permission::owner_address()).central_liquidity_pool;
         let borrowed = central_liquidity_pool::borrowed(key);
         if (borrowed == 0) {
             return 0
         } else if (borrowed >= (amount as u128)) {
-            central_liquidity_pool::repay(key, account, amount);
+            central_liquidity_pool::repay(key, account, amount, key_for_central);
             return amount
         } else {
-            central_liquidity_pool::repay(key, account, (borrowed as u64));
+            central_liquidity_pool::repay(key, account, (borrowed as u64), key_for_central);
             return (borrowed as u64)
         }
     }
 
     /// This function is called on every user action.
-    fun accrue_interest(key: String, storage_ref: &mut Storage, pool_ref: &mut Pool){
+    fun accrue_interest(key: String, storage_ref: &mut Storage, pool_ref: &mut Pool) acquires Keys {
         let now = timestamp::now_microseconds();
         let asset_storage_ref = simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key);
 
@@ -724,7 +736,9 @@ module leizd::shadow_pool {
                 uncollected_support_fee = 0;
             };
             let fee_extracted = coin::extract(&mut pool_ref.shadow, (collected_support_fee as u64));
-            central_liquidity_pool::collect_support_fee(key, fee_extracted, uncollected_support_fee);
+
+            let key_for_central = &borrow_global<Keys>(permission::owner_address()).central_liquidity_pool;
+            central_liquidity_pool::collect_support_fee(key, fee_extracted, uncollected_support_fee, key_for_central);
         };
 
         asset_storage_ref.borrowed_amount = asset_storage_ref.borrowed_amount + (accrued_interest as u64);
@@ -890,7 +904,7 @@ module leizd::shadow_pool {
     }
     // for deposit
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
-    public entry fun test_deposit_shadow(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+    public entry fun test_deposit_shadow(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
 
         let account_addr = signer::address_of(account);
@@ -914,7 +928,7 @@ module leizd::shadow_pool {
         assert!(event::counter<DepositEvent>(&event_handle.deposit_event) == 1, 0);
     }
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
-    public entry fun test_deposit_with_same_as_holding_amount(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+    public entry fun test_deposit_with_same_as_holding_amount(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
 
         let account_addr = signer::address_of(account);
@@ -934,7 +948,7 @@ module leizd::shadow_pool {
     }
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
     #[expected_failure(abort_code = 65542)]
-    public entry fun test_deposit_with_more_than_holding_amount(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+    public entry fun test_deposit_with_more_than_holding_amount(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
 
         let account_addr = signer::address_of(account);
@@ -945,7 +959,7 @@ module leizd::shadow_pool {
         deposit_for_internal(key<WETH>(), account, account_addr, 101, false);
     }
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
-    public entry fun test_deposit_more_than_once_sequentially_over_time(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+    public entry fun test_deposit_more_than_once_sequentially_over_time(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
 
         let account_addr = signer::address_of(account);
@@ -970,7 +984,7 @@ module leizd::shadow_pool {
         assert!(borrowed_amount<WETH>() == 0, 0);
     }
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
-    public entry fun test_deposit_shadow_for_only_collateral(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+    public entry fun test_deposit_shadow_for_only_collateral(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
 
         let account_addr = signer::address_of(account);
@@ -993,7 +1007,7 @@ module leizd::shadow_pool {
 
     // for withdraw
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
-    public entry fun test_withdraw_shadow(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+    public entry fun test_withdraw_shadow(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
 
@@ -1018,7 +1032,7 @@ module leizd::shadow_pool {
         assert!(event::counter<WithdrawEvent>(&event_handle.withdraw_event) == 1, 0);
     }
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
-    public entry fun test_withdraw_same_as_deposited_amount(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+    public entry fun test_withdraw_same_as_deposited_amount(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
 
@@ -1041,7 +1055,7 @@ module leizd::shadow_pool {
     }
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
     #[expected_failure(abort_code = 65542)]
-    public entry fun test_withdraw_with_more_than_deposited_amount(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+    public entry fun test_withdraw_with_more_than_deposited_amount(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
 
@@ -1054,7 +1068,7 @@ module leizd::shadow_pool {
         withdraw_for_internal(key<WETH>(), account_addr, account_addr, 101, false, 0);
     }
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
-    public entry fun test_withdraw_more_than_once_sequentially_over_time(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+    public entry fun test_withdraw_more_than_once_sequentially_over_time(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
 
@@ -1083,7 +1097,7 @@ module leizd::shadow_pool {
         assert!(borrowed_amount<WETH>() == 0, 0);
     }
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
-    public entry fun test_withdraw_shadow_for_only_collateral(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+    public entry fun test_withdraw_shadow_for_only_collateral(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
 
@@ -1107,7 +1121,7 @@ module leizd::shadow_pool {
 
     // for borrow
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
-    public entry fun test_borrow(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+    public entry fun test_borrow(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
 
@@ -1142,7 +1156,7 @@ module leizd::shadow_pool {
         assert!(event::counter<BorrowEvent>(&event_handle.borrow_event) == 1, 0);
     }
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
-    public entry fun test_borrow_with_same_as_deposited_amount(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+    public entry fun test_borrow_with_same_as_deposited_amount(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
 
@@ -1175,7 +1189,7 @@ module leizd::shadow_pool {
     }
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
     #[expected_failure(abort_code = 65548)]
-    public entry fun test_borrow_with_more_than_deposited_amount(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+    public entry fun test_borrow_with_more_than_deposited_amount(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
 
@@ -1194,7 +1208,7 @@ module leizd::shadow_pool {
         borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 1001); // NOTE: consider fee
     }
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
-    public entry fun test_borrow_more_than_once_sequentially(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+    public entry fun test_borrow_more_than_once_sequentially(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
 
@@ -1268,7 +1282,7 @@ module leizd::shadow_pool {
     // }
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
     #[expected_failure(abort_code = 65548)]
-    fun test_borrow_to_not_borrow_collateral_only(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+    fun test_borrow_to_not_borrow_collateral_only(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
 
@@ -1293,9 +1307,10 @@ module leizd::shadow_pool {
         coin::value(&borrow_global<Pool>(addr).shadow)
     }
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
-    public entry fun test_repay(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+    public entry fun test_repay(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+        connect_to_central_liduidity_pool(owner); // memo: is it really necessary?
 
         let owner_address = signer::address_of(owner);
         let depositor_addr = signer::address_of(depositor);
@@ -1327,9 +1342,10 @@ module leizd::shadow_pool {
         assert!(event::counter<RepayEvent>(&event_handle.repay_event) == 1, 0);
     }
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
-    public entry fun test_repay_with_same_as_total_borrowed_amount(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+    public entry fun test_repay_with_same_as_total_borrowed_amount(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+        connect_to_central_liduidity_pool(owner); // memo: is it really necessary?
 
         let owner_address = signer::address_of(owner);
         let depositor_addr = signer::address_of(depositor);
@@ -1355,9 +1371,10 @@ module leizd::shadow_pool {
     }
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
     #[expected_failure(abort_code = 65542)]
-    public entry fun test_repay_with_more_than_total_borrowed_amount(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+    public entry fun test_repay_with_more_than_total_borrowed_amount(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+        connect_to_central_liduidity_pool(owner); // memo: is it really necessary?
 
         let depositor_addr = signer::address_of(depositor);
         let borrower_addr = signer::address_of(borrower);
@@ -1376,9 +1393,10 @@ module leizd::shadow_pool {
         repay_internal(key<UNI>(), borrower, 251);
     }
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
-    public entry fun test_repay_more_than_once_sequentially(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+    public entry fun test_repay_more_than_once_sequentially(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+        connect_to_central_liduidity_pool(owner); // memo: is it really necessary?
 
         let owner_address = signer::address_of(owner);
         let depositor_addr = signer::address_of(depositor);
@@ -1479,7 +1497,7 @@ module leizd::shadow_pool {
 
     // for liquidation
     #[test(owner=@leizd,depositor=@0x111,liquidator=@0x222,aptos_framework=@aptos_framework)]
-    public entry fun test_withdraw_for_liquidation(owner: &signer, depositor: &signer, liquidator: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+    public entry fun test_withdraw_for_liquidation(owner: &signer, depositor: &signer, liquidator: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
 
@@ -1513,9 +1531,10 @@ module leizd::shadow_pool {
 
     // for with central_liquidity_pool
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
-    public entry fun test_with_central_liquidity_pool_to_borrow(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+    public entry fun test_with_central_liquidity_pool_to_borrow(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+        connect_to_central_liduidity_pool(owner);
         central_liquidity_pool::add_supported_pool<UNI>(owner);
 
         let owner_addr = signer::address_of(owner);
@@ -1565,9 +1584,10 @@ module leizd::shadow_pool {
     }
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
     #[expected_failure(abort_code = 65548)]
-    public entry fun test_with_central_liquidity_pool_to_borrow_when_not_supported(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+    public entry fun test_with_central_liquidity_pool_to_borrow_when_not_supported(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+        connect_to_central_liduidity_pool(owner);
 
         let owner_addr = signer::address_of(owner);
         let depositor_addr = signer::address_of(depositor);
@@ -1594,9 +1614,10 @@ module leizd::shadow_pool {
     }
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
     #[expected_failure(abort_code = 65548)]
-    public entry fun test_with_central_liquidity_pool_to_borrow_with_cannot_borrowed_amount(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+    public entry fun test_with_central_liquidity_pool_to_borrow_with_cannot_borrowed_amount(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+        connect_to_central_liduidity_pool(owner);
         central_liquidity_pool::add_supported_pool<UNI>(owner);
 
         let depositor_addr = signer::address_of(depositor);
@@ -1671,9 +1692,10 @@ module leizd::shadow_pool {
     //     assert!(usdz::balance_of(borrower_addr) == 30000, 0);
     // }
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
-    public entry fun test_with_central_liquidity_pool_to_repay(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+    public entry fun test_with_central_liquidity_pool_to_repay(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+        connect_to_central_liduidity_pool(owner);
         central_liquidity_pool::add_supported_pool<UNI>(owner);
         central_liquidity_pool::update_config(owner, central_liquidity_pool::entry_fee(), 0);
 
@@ -1776,9 +1798,10 @@ module leizd::shadow_pool {
     //     assert!(usdz::balance_of(borrower_addr) == 0, 0);
     // }
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
-    public entry fun test_with_central_liquidity_pool_to_open_position_more_than_once(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+    public entry fun test_with_central_liquidity_pool_to_open_position_more_than_once(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+        connect_to_central_liduidity_pool(owner);
         central_liquidity_pool::add_supported_pool<UNI>(owner);
         central_liquidity_pool::update_config(owner, central_liquidity_pool::entry_fee(), 0);
 
@@ -1827,9 +1850,10 @@ module leizd::shadow_pool {
         assert!(central_liquidity_pool::borrowed(key<UNI>()) == 5051, 0);
     }
     #[test(owner=@leizd,depositor=@0x111,borrower1=@0x222,borrower2=@0x333,aptos_framework=@aptos_framework)]
-    public entry fun test_with_central_liquidity_pool_to_open_multi_position(owner: &signer, depositor: &signer, borrower1: &signer, borrower2: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+    public entry fun test_with_central_liquidity_pool_to_open_multi_position(owner: &signer, depositor: &signer, borrower1: &signer, borrower2: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+        connect_to_central_liduidity_pool(owner);
         central_liquidity_pool::add_supported_pool<UNI>(owner);
         central_liquidity_pool::add_supported_pool<WETH>(owner);
         central_liquidity_pool::update_config(owner, central_liquidity_pool::entry_fee(), 0);
@@ -2005,7 +2029,7 @@ module leizd::shadow_pool {
 
     // rebalance shadow
     #[test(owner=@leizd,account1=@0x111,aptos_framework=@aptos_framework)]
-    public entry fun test_rebalance_shadow(owner: &signer, account1: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+    public entry fun test_rebalance_shadow(owner: &signer, account1: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
 
         let account1_addr = signer::address_of(account1);
@@ -2029,7 +2053,7 @@ module leizd::shadow_pool {
         assert!(event::counter<RebalanceEvent>(&event_handle.rebalance_event) == 1, 0);
     }
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
-    public entry fun test_rebalance_shadow_with_all_pattern(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+    public entry fun test_rebalance_shadow_with_all_pattern(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -2109,7 +2133,7 @@ module leizd::shadow_pool {
     }
 
     #[test(owner=@leizd,account1=@0x111,aptos_framework=@aptos_framework)]
-    public entry fun test_borrow_and_rebalance(owner: &signer, account1: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+    public entry fun test_borrow_and_rebalance(owner: &signer, account1: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
 
         let owner_addr = signer::address_of(owner);
@@ -2138,7 +2162,7 @@ module leizd::shadow_pool {
 
     // for switch_collateral
     #[test(owner=@leizd, account=@0x111, aptos_framework=@aptos_framework)]
-    public entry fun test_switch_collateral(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+    public entry fun test_switch_collateral(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
 
         let owner_addr = signer::address_of(owner);
@@ -2172,7 +2196,7 @@ module leizd::shadow_pool {
     }
     #[test(owner=@leizd, account=@0x111, aptos_framework=@aptos_framework)]
     #[expected_failure(abort_code = 65547)]
-    public entry fun test_switch_collateral_when_amount_is_zero(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+    public entry fun test_switch_collateral_when_amount_is_zero(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
 
         let account_addr = signer::address_of(account);
@@ -2185,7 +2209,7 @@ module leizd::shadow_pool {
     }
     #[test(owner=@leizd, account=@0x111, aptos_framework=@aptos_framework)]
     #[expected_failure(abort_code = 65549)]
-    public entry fun test_switch_collateral_to_collateral_only_with_more_than_deposited_amount(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+    public entry fun test_switch_collateral_to_collateral_only_with_more_than_deposited_amount(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
 
         let account_addr = signer::address_of(account);
@@ -2198,7 +2222,7 @@ module leizd::shadow_pool {
     }
     #[test(owner=@leizd, account=@0x111, aptos_framework=@aptos_framework)]
     #[expected_failure(abort_code = 65550)]
-    public entry fun test_switch_collateral_to_normal_with_more_than_deposited_amount(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+    public entry fun test_switch_collateral_to_normal_with_more_than_deposited_amount(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
 
         let account_addr = signer::address_of(account);
@@ -2214,48 +2238,48 @@ module leizd::shadow_pool {
     //// `amount` arg
     #[test(owner=@leizd, aptos_framework=@aptos_framework)]
     #[expected_failure(abort_code = 65547)]
-    public entry fun test_cannot_deposit_when_amount_is_zero(owner: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+    public entry fun test_cannot_deposit_when_amount_is_zero(owner: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         deposit_for_internal(key<WETH>(), owner, signer::address_of(owner), 0, false);
     }
     #[test(owner=@leizd, aptos_framework=@aptos_framework)]
     #[expected_failure(abort_code = 65547)]
-    public entry fun test_cannot_withdraw_when_amount_is_zero(owner: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+    public entry fun test_cannot_withdraw_when_amount_is_zero(owner: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         let owner_address = signer::address_of(owner);
         withdraw_for_internal(key<WETH>(), owner_address, owner_address, 0, false, 0);
     }
     #[test(owner=@leizd, aptos_framework=@aptos_framework)]
     #[expected_failure(abort_code = 65547)]
-    public entry fun test_cannot_borrow_when_amount_is_zero(owner: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+    public entry fun test_cannot_borrow_when_amount_is_zero(owner: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         let owner_address = signer::address_of(owner);
         borrow_for_internal(key<WETH>(), owner_address, owner_address, 0);
     }
     #[test(owner=@leizd, aptos_framework=@aptos_framework)]
     #[expected_failure(abort_code = 65547)]
-    public entry fun test_cannot_repay_when_amount_is_zero(owner: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+    public entry fun test_cannot_repay_when_amount_is_zero(owner: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         repay_internal(key<WETH>(), owner, 0);
     }
     //// control pool status
     #[test(owner=@leizd, aptos_framework=@aptos_framework)]
     #[expected_failure(abort_code = 196612)]
-    public entry fun test_cannot_deposit_when_not_available(owner: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+    public entry fun test_cannot_deposit_when_not_available(owner: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         system_administrator::deactivate_pool<WETH>(owner);
         deposit_for_internal(key<WETH>(), owner, signer::address_of(owner), 0, false);
     }
     #[test(owner=@leizd, aptos_framework=@aptos_framework)]
     #[expected_failure(abort_code = 196612)]
-    public entry fun test_cannot_deposit_when_froze(owner: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+    public entry fun test_cannot_deposit_when_froze(owner: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         system_administrator::freeze_pool<WETH>(owner);
         deposit_for_internal(key<WETH>(), owner, signer::address_of(owner), 0, false);
     }
     #[test(owner=@leizd, aptos_framework=@aptos_framework)]
     #[expected_failure(abort_code = 196612)]
-    public entry fun test_cannot_withdraw_when_not_available(owner: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+    public entry fun test_cannot_withdraw_when_not_available(owner: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         system_administrator::deactivate_pool<WETH>(owner);
         let owner_address = signer::address_of(owner);
@@ -2263,7 +2287,7 @@ module leizd::shadow_pool {
     }
     #[test(owner=@leizd, aptos_framework=@aptos_framework)]
     #[expected_failure(abort_code = 196612)]
-    public entry fun test_cannot_borrow_when_not_available(owner: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+    public entry fun test_cannot_borrow_when_not_available(owner: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         system_administrator::deactivate_pool<WETH>(owner);
         let owner_address = signer::address_of(owner);
@@ -2271,7 +2295,7 @@ module leizd::shadow_pool {
     }
     #[test(owner=@leizd, aptos_framework=@aptos_framework)]
     #[expected_failure(abort_code = 196612)]
-    public entry fun test_cannot_borrow_when_frozen(owner: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+    public entry fun test_cannot_borrow_when_frozen(owner: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         system_administrator::freeze_pool<WETH>(owner);
         let owner_address = signer::address_of(owner);
@@ -2279,7 +2303,7 @@ module leizd::shadow_pool {
     }
     #[test(owner=@leizd, aptos_framework=@aptos_framework)]
     #[expected_failure(abort_code = 196612)]
-    public entry fun test_cannot_repay_when_not_available(owner: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
+    public entry fun test_cannot_repay_when_not_available(owner: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         system_administrator::deactivate_pool<WETH>(owner);
         repay_internal(key<WETH>(), owner, 0);
