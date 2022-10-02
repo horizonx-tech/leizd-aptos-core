@@ -29,13 +29,14 @@ module leizd::asset_pool {
     friend leizd::money_market;
     friend leizd::pool_manager;
 
-    const E_IS_ALREADY_EXISTED: u64 = 1;
-    const E_IS_NOT_EXISTED: u64 = 2;
-    const E_DEX_DOES_NOT_HAVE_LIQUIDITY: u64 = 3;
-    const E_NOT_AVAILABLE_STATUS: u64 = 4;
-    const E_AMOUNT_ARG_IS_ZERO: u64 = 11;
-    const E_INSUFFICIENT_LIQUIDITY: u64 = 12;
-    const E_INSUFFICIENT_CONLY_DEPOSITED: u64 = 13;
+    // const ENOT_INITILIZED: u64 = 1;
+    const EIS_ALREADY_EXISTED: u64 = 2;
+    const EIS_NOT_EXISTED: u64 = 3;
+    const EDEX_DOES_NOT_HAVE_LIQUIDITY: u64 = 4;
+    const ENOT_AVAILABLE_STATUS: u64 = 5;
+    const EAMOUNT_ARG_IS_ZERO: u64 = 11;
+    const EINSUFFICIENT_LIQUIDITY: u64 = 12;
+    const EINSUFFICIENT_CONLY_DEPOSITED: u64 = 13;
 
     /// Asset Pool where users can deposit and borrow.
     /// Each asset is separately deposited into a pool.
@@ -126,8 +127,8 @@ module leizd::asset_pool {
     }
 
     fun init_pool_internal<C>(owner: &signer) acquires Storage {
-        assert!(!is_pool_initialized<C>(), E_IS_ALREADY_EXISTED);
-        assert!(dex_facade::has_liquidity<C>(), E_DEX_DOES_NOT_HAVE_LIQUIDITY);
+        assert!(!is_pool_initialized<C>(), error::invalid_argument(EIS_ALREADY_EXISTED));
+        assert!(dex_facade::has_liquidity<C>(), error::invalid_state(EDEX_DOES_NOT_HAVE_LIQUIDITY));
 
         treasury::add_coin<C>(owner);
         risk_factor::new_asset<C>(owner);
@@ -189,8 +190,8 @@ module leizd::asset_pool {
         amount: u64,
         is_collateral_only: bool,
     ): (u64, u64) acquires Pool, Storage, PoolEventHandle {
-        assert!(pool_status::can_deposit<C>(), error::invalid_state(E_NOT_AVAILABLE_STATUS));
-        assert!(amount > 0, error::invalid_argument(E_AMOUNT_ARG_IS_ZERO));
+        assert!(pool_status::can_deposit<C>(), error::invalid_state(ENOT_AVAILABLE_STATUS));
+        assert!(amount > 0, error::invalid_argument(EAMOUNT_ARG_IS_ZERO));
 
         let owner_address = permission::owner_address();
         let pool_ref = borrow_global_mut<Pool<C>>(owner_address);
@@ -245,8 +246,8 @@ module leizd::asset_pool {
         is_collateral_only: bool,
         liquidation_fee: u64,
     ): (u64, u64) acquires Pool, Storage, PoolEventHandle {
-        assert!(pool_status::can_withdraw<C>(), error::invalid_state(E_NOT_AVAILABLE_STATUS));
-        assert!(amount > 0, error::invalid_argument(E_AMOUNT_ARG_IS_ZERO));
+        assert!(pool_status::can_withdraw<C>(), error::invalid_state(ENOT_AVAILABLE_STATUS));
+        assert!(amount > 0, error::invalid_argument(EAMOUNT_ARG_IS_ZERO));
 
         let owner_address = permission::owner_address();
         let pool_ref = borrow_global_mut<Pool<C>>(owner_address);
@@ -297,8 +298,8 @@ module leizd::asset_pool {
         receiver_addr: address,
         amount: u64,
     ): (u64, u64) acquires Pool, Storage, PoolEventHandle {
-        assert!(pool_status::can_borrow<C>(), error::invalid_state(E_NOT_AVAILABLE_STATUS));
-        assert!(amount > 0, error::invalid_argument(E_AMOUNT_ARG_IS_ZERO));
+        assert!(pool_status::can_borrow<C>(), error::invalid_state(ENOT_AVAILABLE_STATUS));
+        assert!(amount > 0, error::invalid_argument(EAMOUNT_ARG_IS_ZERO));
 
         let owner_address = permission::owner_address();
         let pool_ref = borrow_global_mut<Pool<C>>(owner_address);
@@ -308,7 +309,7 @@ module leizd::asset_pool {
 
         let fee = risk_factor::calculate_entry_fee(amount);
         let amount_with_fee = amount + fee;
-        assert!((amount_with_fee as u128) <= liquidity_internal(pool_ref, asset_storage_ref), error::invalid_argument(E_INSUFFICIENT_LIQUIDITY));
+        assert!((amount_with_fee as u128) <= liquidity_internal(pool_ref, asset_storage_ref), error::invalid_argument(EINSUFFICIENT_LIQUIDITY));
 
         collect_asset_fee<C>(pool_ref, fee);
         let borrowed = coin::extract(&mut pool_ref.asset, amount);
@@ -346,8 +347,8 @@ module leizd::asset_pool {
         account: &signer,
         amount: u64,
     ): (u64, u64) acquires Pool, Storage, PoolEventHandle {
-        assert!(pool_status::can_repay<C>(), error::invalid_state(E_NOT_AVAILABLE_STATUS));
-        assert!(amount > 0, error::invalid_argument(E_AMOUNT_ARG_IS_ZERO));
+        assert!(pool_status::can_repay<C>(), error::invalid_state(ENOT_AVAILABLE_STATUS));
+        assert!(amount > 0, error::invalid_argument(EAMOUNT_ARG_IS_ZERO));
 
         let owner_address = permission::owner_address();
         let pool_ref = borrow_global_mut<Pool<C>>(owner_address);
@@ -401,19 +402,19 @@ module leizd::asset_pool {
     }
 
     fun switch_collateral_internal<C>(caller: address, amount: u64, to_collateral_only: bool) acquires Pool, Storage, PoolEventHandle {
-        assert!(pool_status::can_switch_collateral<C>(), error::invalid_state(E_NOT_AVAILABLE_STATUS));
-        assert!(amount > 0, error::invalid_argument(E_AMOUNT_ARG_IS_ZERO));
+        assert!(pool_status::can_switch_collateral<C>(), error::invalid_state(ENOT_AVAILABLE_STATUS));
+        assert!(amount > 0, error::invalid_argument(EAMOUNT_ARG_IS_ZERO));
         let owner_address = permission::owner_address();
         let pool_ref = borrow_global<Pool<C>>(owner_address);
         let asset_storage_ref = borrow_mut_asset_storage<C>(borrow_global_mut<Storage>(owner_address));
 
         let amount_u128 = (amount as u128);
         if (to_collateral_only) {
-            assert!(amount_u128 <= liquidity_internal(pool_ref, asset_storage_ref), error::invalid_argument(E_INSUFFICIENT_LIQUIDITY));
+            assert!(amount_u128 <= liquidity_internal(pool_ref, asset_storage_ref), error::invalid_argument(EINSUFFICIENT_LIQUIDITY));
             asset_storage_ref.total_conly_deposited_amount = asset_storage_ref.total_conly_deposited_amount + amount_u128;
             asset_storage_ref.total_normal_deposited_amount = asset_storage_ref.total_normal_deposited_amount - amount_u128;
         } else {
-            assert!(amount_u128 <= asset_storage_ref.total_conly_deposited_amount, error::invalid_argument(E_INSUFFICIENT_CONLY_DEPOSITED));
+            assert!(amount_u128 <= asset_storage_ref.total_conly_deposited_amount, error::invalid_argument(EINSUFFICIENT_CONLY_DEPOSITED));
             asset_storage_ref.total_normal_deposited_amount = asset_storage_ref.total_normal_deposited_amount + amount_u128;
             asset_storage_ref.total_conly_deposited_amount = asset_storage_ref.total_conly_deposited_amount - amount_u128;
         };
@@ -604,7 +605,7 @@ module leizd::asset_pool {
         assert!(is_pool_initialized<WETH>(), 0);
     }
     #[test(owner=@leizd)]
-    #[expected_failure(abort_code = 1)]
+    #[expected_failure(abort_code = 65538)]
     public entry fun test_init_pool_twice(owner: &signer) acquires Storage {
         // Prerequisite
         account::create_account_for_test(signer::address_of(owner));
@@ -1357,14 +1358,14 @@ module leizd::asset_pool {
     }
     //// control pool status
     #[test(owner=@leizd, aptos_framework=@aptos_framework)]
-    #[expected_failure(abort_code = 196612)]
+    #[expected_failure(abort_code = 196613)]
     public entry fun test_cannot_deposit_when_not_available(owner: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         pool_status::update_deposit_status_for_test<WETH>(false);
         deposit_for_internal<WETH>(owner, signer::address_of(owner), 0, false);
     }
     #[test(owner=@leizd, aptos_framework=@aptos_framework)]
-    #[expected_failure(abort_code = 196612)]
+    #[expected_failure(abort_code = 196613)]
     public entry fun test_cannot_withdraw_when_not_available(owner: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         pool_status::update_withdraw_status_for_test<WETH>(false);
@@ -1372,7 +1373,7 @@ module leizd::asset_pool {
         withdraw_for_internal<WETH>(owner_address, owner_address, 0, false, 0);
     }
     #[test(owner=@leizd, aptos_framework=@aptos_framework)]
-    #[expected_failure(abort_code = 196612)]
+    #[expected_failure(abort_code = 196613)]
     public entry fun test_cannot_borrow_when_not_available(owner: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         pool_status::update_borrow_status_for_test<WETH>(false);
@@ -1380,7 +1381,7 @@ module leizd::asset_pool {
         borrow_for_internal<WETH>(owner_address, owner_address, 0);
     }
     #[test(owner=@leizd, aptos_framework=@aptos_framework)]
-    #[expected_failure(abort_code = 196612)]
+    #[expected_failure(abort_code = 196613)]
     public entry fun test_cannot_repay_when_not_available(owner: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         pool_status::update_repay_status_for_test<WETH>(false);
