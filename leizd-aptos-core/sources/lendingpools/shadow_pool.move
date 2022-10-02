@@ -20,6 +20,10 @@ module leizd::shadow_pool {
 
     friend leizd::money_market;
 
+    //// error_code (ref: asset_pool)
+    // const ENOT_INITILIZED: u64 = 1;
+    const EIS_ALREADY_EXISTED: u64 = 2;
+    // const EIS_NOT_EXISTED: u64 = 3;
     const E_NOT_AVAILABLE_STATUS: u64 = 4;
     const E_NOT_INITIALIZED_COIN: u64 = 5;
     const E_AMOUNT_ARG_IS_ZERO: u64 = 11;
@@ -118,7 +122,9 @@ module leizd::shadow_pool {
     /// initialize
     ////////////////////////////////////////////////////
     public entry fun initialize(owner: &signer) {
-        permission::assert_owner(signer::address_of(owner));
+        let owner_addr = signer::address_of(owner);
+        permission::assert_owner(owner_addr);
+        assert!(!exists<Pool>(owner_addr), error::invalid_argument(EIS_ALREADY_EXISTED));
         move_to(owner, Pool {
             shadow: coin::zero<USDZ>(),
         });
@@ -828,6 +834,34 @@ module leizd::shadow_pool {
     use leizd::test_coin::{Self,WETH,UNI};
     #[test_only]
     use leizd::test_initializer;
+
+    #[test(owner=@leizd)]
+    public entry fun test_initialize(owner: &signer) acquires Storage {
+        let owner_addr = signer::address_of(owner);
+        account::create_account_for_test(owner_addr);
+
+        initialize(owner);
+        assert!(exists<Pool>(owner_addr), 0);
+        assert!(exists<Storage>(owner_addr), 0);
+        assert!(exists<PoolEventHandle>(owner_addr), 0);
+        let asset_storages = &borrow_global<Storage>(owner_addr).asset_storages;
+        assert!(simple_map::length<String,AssetStorage>(asset_storages) == 0, 0);
+    }
+    #[test(account=@0x111)]
+    #[expected_failure(abort_code = 1)]
+    public entry fun test_initialize_with_not_owner(account: &signer) {
+        initialize(account);
+    }
+    #[test(owner=@leizd)]
+    #[expected_failure(abort_code = 65538)]
+    public entry fun test_initialize_twice(owner: &signer) {
+        let owner_addr = signer::address_of(owner);
+        account::create_account_for_test(owner_addr);
+
+        initialize(owner);
+        initialize(owner);
+    }
+
     #[test_only]
     fun setup_for_test_to_initialize_coins_and_pools(owner: &signer, aptos_framework: &signer) {
         timestamp::set_time_has_started_for_testing(aptos_framework);
@@ -840,7 +874,6 @@ module leizd::shadow_pool {
         pool_manager::add_pool<WETH>(owner);
         pool_manager::add_pool<UNI>(owner);
     }
-
     // for deposit
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
     public entry fun test_deposit_shadow(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {

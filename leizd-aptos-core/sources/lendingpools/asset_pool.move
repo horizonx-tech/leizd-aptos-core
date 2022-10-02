@@ -29,6 +29,7 @@ module leizd::asset_pool {
     friend leizd::money_market;
     friend leizd::pool_manager;
 
+    //// error_code
     const ENOT_INITILIZED: u64 = 1;
     const EIS_ALREADY_EXISTED: u64 = 2;
     const EIS_NOT_EXISTED: u64 = 3;
