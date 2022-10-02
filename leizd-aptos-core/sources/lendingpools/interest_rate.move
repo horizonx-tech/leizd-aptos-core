@@ -1,5 +1,6 @@
 module leizd::interest_rate {
 
+    use std::error;
     use std::signer;
     use std::string::{String};
     use aptos_std::event;
@@ -13,6 +14,8 @@ module leizd::interest_rate {
 
     friend leizd::asset_pool;
     friend leizd::shadow_pool;
+
+    const EINVALID_TIMESTAMP: u64 = 0;
 
     /// PRECISION is 9 decimal points used for integer calculations
     const PRECISION: u128 = 1000000000;
@@ -34,8 +37,6 @@ module leizd::interest_rate {
 
     /// When `b` is greater than `b` in i128.
     const GREATER_THAN: u8 = 2;
-
-    const E_INVALID_TIMESTAMP: u64 = 0;
 
     struct ConfigKey has key {
         config: simple_map::SimpleMap<String,Config>,
@@ -186,7 +187,7 @@ module leizd::interest_rate {
         last_updated: u64,
         now: u64
     ): (u128, u128, bool, u128, bool) {
-        assert!(last_updated <= now, E_INVALID_TIMESTAMP);
+        assert!(last_updated <= now, error::invalid_argument(EINVALID_TIMESTAMP));
 
         let ri_u128 = cref.ri;
         let tcrit = cref.tcrit;

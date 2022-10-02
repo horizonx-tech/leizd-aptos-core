@@ -17,10 +17,7 @@ module leizd::stability_pool {
     friend leizd::asset_pool;
     friend leizd::shadow_pool;
 
-    const PRECISION: u64 = 1000000000;
-    const DEFAULT_ENTRY_FEE: u64 = 1000000000 * 5 / 1000; // 0.5%
-    const DEFAULT_SUPPORT_FEE: u64 = 1000000000 * 1 / 1000; // 0.1%
-
+    //// error_code
     const EALREADY_INITIALIZED: u64 = 1;
     const EINVALID_ENTRY_FEE: u64 = 2;
     const EINVALID_AMOUNT: u64 = 3;
@@ -31,6 +28,10 @@ module leizd::stability_pool {
     const ENOT_ADDED_COIN: u64 = 8;
     const ENOT_SUPPORTED_COIN: u64 = 9;
     const EINVALID_SUPPORT_FEE: u64 = 10;
+
+    const PRECISION: u64 = 1000000000;
+    const DEFAULT_ENTRY_FEE: u64 = 1000000000 * 5 / 1000; // 0.5%
+    const DEFAULT_SUPPORT_FEE: u64 = 1000000000 * 1 / 1000; // 0.1%
 
     struct StabilityPool has key {
         left: coin::Coin<USDZ>,

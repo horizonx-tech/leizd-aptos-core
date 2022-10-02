@@ -119,7 +119,7 @@ module leizd::shadow_pool {
     }
 
     ////////////////////////////////////////////////////
-    /// initialize
+    /// Initialize
     ////////////////////////////////////////////////////
     public entry fun initialize(owner: &signer) {
         let owner_addr = signer::address_of(owner);
