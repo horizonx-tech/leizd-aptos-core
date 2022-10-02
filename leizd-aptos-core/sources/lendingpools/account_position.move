@@ -1060,10 +1060,12 @@ module leizd::account_position {
     #[test_only]
     fun setup_for_test_to_initialize_coins(owner: &signer) {
         account::create_account_for_test(signer::address_of(owner));
-        risk_factor::initialize(owner);
-        risk_factor::new_asset_for_test<WETH>(owner);
-        risk_factor::new_asset_for_test<UNI>(owner);
-        risk_factor::new_asset_for_test<USDC>(owner);
+        test_initializer::initialize(owner);
+        asset_pool::initialize(owner);
+        shadow_pool::initialize(owner);
+        asset_pool::init_pool<WETH>(owner);
+        asset_pool::init_pool<UNI>(owner);
+        asset_pool::init_pool<USDC>(owner);
     }
     #[test_only]
     fun borrow_unsafe_for_test<C,P>(borrower_addr: address, amount: u64) acquires Position, AccountPositionEventHandle {
