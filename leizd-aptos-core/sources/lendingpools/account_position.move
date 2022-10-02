@@ -129,14 +129,14 @@ module leizd::account_position {
     fun is_conly_asset(key: String, depositor_addr: address): bool acquires Position {
         let deposited = deposited_asset_with(key, depositor_addr);
         let conly_deposited = conly_deposited_asset_with(key, depositor_addr);
-        assert!(deposited != 0, 0);
+        assert!(deposited > 0 || conly_deposited > 0, error::invalid_argument(ENO_DEPOSITED));
         conly_deposited > 0
     }
 
     fun is_conly_shadow(key: String, depositor_addr: address): bool acquires Position {
         let deposited = deposited_shadow_with(key, depositor_addr);
         let conly_deposited = conly_deposited_shadow_with(key, depositor_addr);
-        assert!(deposited != 0, 0);
+        assert!(deposited > 0 || conly_deposited > 0, error::invalid_argument(ENO_DEPOSITED));
         conly_deposited > 0
     }
 
@@ -591,8 +591,8 @@ module leizd::account_position {
         assert!(!is_protected_internal(&pos_ref_shadow_to_asset.protected_coins, key1), error::invalid_argument(EALREADY_PROTECTED)); // NOTE: use only Position<ShadowToAsset> to check protected coin
         assert!(!is_protected_internal(&pos_ref_shadow_to_asset.protected_coins, key2), error::invalid_argument(EALREADY_PROTECTED)); // NOTE: use only Position<ShadowToAsset> to check protected coin
 
-        let (possible, _, insufficient) = can_borrow_and_rebalance(addr, key1, key2);
-        assert!(possible, 0);
+        let (is_possible, _, insufficient) = can_borrow_and_rebalance(addr, key1, key2);
+        assert!(is_possible, error::invalid_argument(ECANNOT_REBALANCE));
         update_position_for_borrow<AssetToShadow>(key1, addr, insufficient);
         update_position_for_deposit<ShadowToAsset>(key2, addr, insufficient, is_collateral_only);
 
