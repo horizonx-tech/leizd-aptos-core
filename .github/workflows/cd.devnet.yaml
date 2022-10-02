@@ -40,6 +40,9 @@ jobs:
       - name: release leizd-aptos-trove
         run: aptos move publish --package-dir leizd-aptos-trove --override-size-check --assume-yes
 
+      - name: release leizd-aptos-central-liquidity-pool
+        run: aptos move publish --package-dir leizd-aptos-central-liquidity-pool --override-size-check --assume-yes
+
       - name: release leizd-aptos-logic
         run: aptos move publish --package-dir leizd-aptos-logic --override-size-check --assume-yes
 

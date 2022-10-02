@@ -1,12 +1,11 @@
-module leizd::coin_base {
+module leizd_aptos_central_liquidity_pool::coin_base {
     use std::string;
     use std::signer;
     use std::option;
     use aptos_framework::coin;
     use leizd_aptos_common::permission;
 
-    friend leizd::usdz;
-    friend leizd::stb_usdz;
+    friend leizd_aptos_central_liquidity_pool::stb_usdz;
     
     struct Capabilities<phantom C> has key {
         burn_cap: coin::BurnCapability<C>,
@@ -68,7 +67,7 @@ module leizd::coin_base {
     use aptos_framework::account;
     #[test_only]
     struct Dummy {}
-    #[test(owner = @leizd, account = @0x111)]
+    #[test(owner = @leizd_aptos_central_liquidity_pool, account = @0x111)]
     fun test_end_to_end(owner: &signer, account: &signer) acquires Capabilities {
         let owner_address = signer::address_of(owner);
         let account_address = signer::address_of(account);

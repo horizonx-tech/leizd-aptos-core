@@ -1,11 +1,11 @@
-module leizd::stb_usdz {
+module leizd_aptos_central_liquidity_pool::stb_usdz {
     
     use std::string;
     use aptos_framework::coin;
     use leizd_aptos_trove::usdz::{USDZ};
-    use leizd::coin_base;
+    use leizd_aptos_central_liquidity_pool::coin_base;
 
-    friend leizd::central_liquidity_pool;
+    friend leizd_aptos_central_liquidity_pool::central_liquidity_pool;
 
     struct StabilityCollateral {
         coin: coin::Coin<USDZ>
