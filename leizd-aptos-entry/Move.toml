@@ -11,6 +11,14 @@ subdir = 'aptos-move/framework/aptos-framework'
 [dependencies.LeizdAptosCore]
 local = "../leizd-aptos-core"
 
+[dependencies.LeizdAptosCommon]
+local = "../leizd-aptos-common"
+
+[dependencies.LeizdAptosLogic]
+local = "../leizd-aptos-logic"
+
 [addresses]
 leizd_aptos_entry="0x0123456789ABCDEF"
 leizd_aptos_core="0x0123456789ABCDEF"
+leizd_aptos_common="0x0123456789ABCDEF"
+leizd_aptos_logic="0x0123456789ABCDEF"
