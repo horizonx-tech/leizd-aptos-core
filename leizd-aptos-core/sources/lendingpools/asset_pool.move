@@ -110,13 +110,14 @@ module leizd::asset_pool {
         switch_collateral_event: event::EventHandle<SwitchCollateralEvent>,
     }
 
+    // initialize
     public entry fun initialize(owner: &signer) {
         permission::assert_owner(signer::address_of(owner));
         move_to(owner, Storage {
             assets: simple_map::create<String, AssetStorage>(),
         })
     }
-
+    //// for assets
     /// Initializes a pool with the coin the owner specifies.
     /// The caller is only owner and creates not only a pool but also other resources
     /// such as a treasury for the coin, an interest rate model, and coins of collaterals and debts.

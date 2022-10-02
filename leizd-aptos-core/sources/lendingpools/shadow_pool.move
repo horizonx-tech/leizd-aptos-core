@@ -114,6 +114,9 @@ module leizd::shadow_pool {
         switch_collateral_event: event::EventHandle<SwitchCollateralEvent>,
     }
 
+    ////////////////////////////////////////////////////
+    /// initialize
+    ////////////////////////////////////////////////////
     public entry fun initialize(owner: &signer) {
         permission::assert_owner(signer::address_of(owner));
         move_to(owner, Pool {
@@ -140,6 +143,7 @@ module leizd::shadow_pool {
             harvested_protocol_fees: 0,
         }
     }
+    //// for assets
     fun init_pool_if_necessary(key: String, storage_ref: &mut Storage) {
         if (!is_initialized_asset_with_internal(&key, storage_ref)) {
             simple_map::add<String,AssetStorage>(&mut storage_ref.asset_storages, key, AssetStorage {
@@ -154,6 +158,9 @@ module leizd::shadow_pool {
         }
     }
 
+    ////////////////////////////////////////////////////
+    /// Deposit
+    ////////////////////////////////////////////////////
     public(friend) fun deposit_for<C>(
         account: &signer,
         for_address: address, // only use for event
@@ -221,6 +228,9 @@ module leizd::shadow_pool {
         (amount, user_share)
     }
 
+    ////////////////////////////////////////////////////
+    /// Rebalance
+    ////////////////////////////////////////////////////
     public(friend) fun rebalance_shadow<C1,C2>(
         amount: u64,
         is_collateral_only_C1: bool,
@@ -272,6 +282,7 @@ module leizd::shadow_pool {
         );
     }
 
+    // with borrow
     public(friend) fun borrow_and_rebalance<C1,C2>(amount: u64, is_collateral_only: bool) acquires Storage, PoolEventHandle {
         let key_from = key<C1>();
         let key_to = key<C2>();
@@ -308,6 +319,9 @@ module leizd::shadow_pool {
         );
     }
 
+    ////////////////////////////////////////////////////
+    /// Withdraw
+    ////////////////////////////////////////////////////
     public(friend) fun withdraw_for<C>(
         depositor_addr: address,
         receiver_addr: address,
@@ -387,6 +401,9 @@ module leizd::shadow_pool {
         (amount, withdrawn_user_share)
     }
 
+    ////////////////////////////////////////////////////
+    /// Borrow
+    ////////////////////////////////////////////////////
     public(friend) fun borrow_for<C>(
         borrower_addr: address,
         receiver_addr: address,
@@ -486,6 +503,9 @@ module leizd::shadow_pool {
         )
     }
 
+    ////////////////////////////////////////////////////
+    /// Repay
+    ////////////////////////////////////////////////////
     public(friend) fun repay<C>(
         account: &signer,
         amount: u64,
@@ -539,6 +559,9 @@ module leizd::shadow_pool {
         (amount, user_share)
     }
 
+    ////////////////////////////////////////////////////
+    /// Liquidation
+    ////////////////////////////////////////////////////
     public(friend) fun withdraw_for_liquidation<C>(
         liquidator_addr: address,
         target_addr: address,
@@ -572,6 +595,9 @@ module leizd::shadow_pool {
         );
     }
 
+    ////////////////////////////////////////////////////
+    /// Switch Collateral
+    ////////////////////////////////////////////////////
     public(friend) fun switch_collateral<C>(caller: address, amount: u64, to_collateral_only: bool) acquires Storage, PoolEventHandle {
         switch_collateral_internal(key<C>(), caller, amount, to_collateral_only);
     }
@@ -609,6 +635,7 @@ module leizd::shadow_pool {
         );
     }
 
+    ////// Internal Logics
     /// Borrow the shadow from the stability pool
     /// use when shadow in this pool become insufficient.
     fun borrow_from_stability_pool(key: String, caller_addr: address, amount: u64): coin::Coin<USDZ> {
@@ -710,6 +737,7 @@ module leizd::shadow_pool {
         collect_shadow_fee(pool_ref, (harvested_fee as u64));
     }
 
+    ////// View functions
     public fun total_normal_deposited_amount(): u128 acquires Storage {
         borrow_global<Storage>(permission::owner_address()).total_normal_deposited_amount
     }
