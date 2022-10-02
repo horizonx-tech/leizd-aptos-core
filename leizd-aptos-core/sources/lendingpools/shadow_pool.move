@@ -24,12 +24,12 @@ module leizd::shadow_pool {
     // const ENOT_INITILIZED: u64 = 1;
     const EIS_ALREADY_EXISTED: u64 = 2;
     // const EIS_NOT_EXISTED: u64 = 3;
-    const E_NOT_AVAILABLE_STATUS: u64 = 4;
-    const E_NOT_INITIALIZED_COIN: u64 = 5;
-    const E_AMOUNT_ARG_IS_ZERO: u64 = 11;
-    const E_EXCEED_BORROWABLE_AMOUNT: u64 = 12;
-    const E_INSUFFICIENT_LIQUIDITY: u64 = 13;
-    const E_INSUFFICIENT_CONLY_DEPOSITED: u64 = 14;
+    const ENOT_AVAILABLE_STATUS: u64 = 4;
+    const ENOT_INITIALIZED_COIN: u64 = 5;
+    const EAMOUNT_ARG_IS_ZERO: u64 = 11;
+    const EEXCEED_BORROWABLE_AMOUNT: u64 = 12;
+    const EINSUFFICIENT_LIQUIDITY: u64 = 13;
+    const EINSUFFICIENT_CONLY_DEPOSITED: u64 = 14;
 
     struct Pool has key {
         shadow: coin::Coin<USDZ>
@@ -194,8 +194,8 @@ module leizd::shadow_pool {
         amount: u64,
         is_collateral_only: bool,
     ): (u64, u64) acquires Pool, Storage, PoolEventHandle {
-        assert!(pool_status::can_deposit_with(key), error::invalid_state(E_NOT_AVAILABLE_STATUS));
-        assert!(amount > 0, error::invalid_argument(E_AMOUNT_ARG_IS_ZERO));
+        assert!(pool_status::can_deposit_with(key), error::invalid_state(ENOT_AVAILABLE_STATUS));
+        assert!(amount > 0, error::invalid_argument(EAMOUNT_ARG_IS_ZERO));
 
         let owner_address = permission::owner_address();
         let storage_ref = borrow_global_mut<Storage>(owner_address);
@@ -256,8 +256,8 @@ module leizd::shadow_pool {
     ) acquires Storage, PoolEventHandle {
         let owner_addr = permission::owner_address();
         let storage_ref = borrow_global_mut<Storage>(owner_addr);
-        assert!(is_initialized_asset_with_internal(&key_from, storage_ref), error::invalid_argument(E_NOT_INITIALIZED_COIN));
-        assert!(is_initialized_asset_with_internal(&key_to, storage_ref), error::invalid_argument(E_NOT_INITIALIZED_COIN));
+        assert!(is_initialized_asset_with_internal(&key_from, storage_ref), error::invalid_argument(ENOT_INITIALIZED_COIN));
+        assert!(is_initialized_asset_with_internal(&key_to, storage_ref), error::invalid_argument(ENOT_INITIALIZED_COIN));
 
         let storage_from = simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key_from);
         // TODO: consider share removed
@@ -298,8 +298,8 @@ module leizd::shadow_pool {
     fun borrow_and_rebalance_internal(key_from: String, key_to: String, amount: u64, is_collateral_only: bool) acquires Storage, PoolEventHandle {
         let owner_addr = permission::owner_address();
         let storage_ref = borrow_global_mut<Storage>(owner_addr);
-        assert!(is_initialized_asset_with_internal(&key_from, storage_ref), error::invalid_argument(E_NOT_INITIALIZED_COIN));
-        assert!(is_initialized_asset_with_internal(&key_to, storage_ref), error::invalid_argument(E_NOT_INITIALIZED_COIN));
+        assert!(is_initialized_asset_with_internal(&key_from, storage_ref), error::invalid_argument(ENOT_INITIALIZED_COIN));
+        assert!(is_initialized_asset_with_internal(&key_to, storage_ref), error::invalid_argument(ENOT_INITIALIZED_COIN));
 
         let storage_from = simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key_from);
         storage_from.borrowed_amount = storage_from.borrowed_amount + amount;
@@ -365,8 +365,8 @@ module leizd::shadow_pool {
         is_collateral_only: bool,
         liquidation_fee: u64
     ): (u64, u64) acquires Pool, Storage, PoolEventHandle {
-        assert!(pool_status::can_withdraw_with(key), error::invalid_state(E_NOT_AVAILABLE_STATUS));
-        assert!(amount > 0, error::invalid_argument(E_AMOUNT_ARG_IS_ZERO));
+        assert!(pool_status::can_withdraw_with(key), error::invalid_state(ENOT_AVAILABLE_STATUS));
+        assert!(amount > 0, error::invalid_argument(EAMOUNT_ARG_IS_ZERO));
 
         let owner_address = permission::owner_address();
         let pool_ref = borrow_global_mut<Pool>(owner_address);
@@ -378,7 +378,7 @@ module leizd::shadow_pool {
         let amount_to_transfer = amount - liquidation_fee;
         coin::deposit<USDZ>(receiver_addr, coin::extract(&mut pool_ref.shadow, amount_to_transfer));
 
-        assert!(is_initialized_asset_with_internal(&key, storage_ref), error::invalid_argument(E_NOT_INITIALIZED_COIN));
+        assert!(is_initialized_asset_with_internal(&key, storage_ref), error::invalid_argument(ENOT_INITIALIZED_COIN));
         let asset_storage = simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key);
         let withdrawn_user_share: u64;
         if (is_collateral_only) {
@@ -434,8 +434,8 @@ module leizd::shadow_pool {
         receiver_addr: address,
         amount: u64
     ): (u64, u64) acquires Pool, Storage, PoolEventHandle {
-        assert!(pool_status::can_borrow_with(key), error::invalid_state(E_NOT_AVAILABLE_STATUS));
-        assert!(amount > 0, error::invalid_argument(E_AMOUNT_ARG_IS_ZERO));
+        assert!(pool_status::can_borrow_with(key), error::invalid_state(ENOT_AVAILABLE_STATUS));
+        assert!(amount > 0, error::invalid_argument(EAMOUNT_ARG_IS_ZERO));
 
         let owner_address = permission::owner_address();
         let pool_ref = borrow_global_mut<Pool>(owner_address);
@@ -451,7 +451,7 @@ module leizd::shadow_pool {
 
         // check liquidity
         let total_left = if (stability_pool::is_supported(key)) total_liquidity + stability_pool::left() else total_liquidity;
-        assert!((amount_with_entry_fee as u128) <= total_left, error::invalid_argument(E_EXCEED_BORROWABLE_AMOUNT));
+        assert!((amount_with_entry_fee as u128) <= total_left, error::invalid_argument(EEXCEED_BORROWABLE_AMOUNT));
 
         if ((amount_with_entry_fee as u128) > total_liquidity) {
             // use stability pool
@@ -528,8 +528,8 @@ module leizd::shadow_pool {
     }
 
     fun repay_internal(key: String, account: &signer, amount: u64): (u64, u64) acquires Pool, Storage, PoolEventHandle {
-        assert!(pool_status::can_repay_with(key), error::invalid_state(E_NOT_AVAILABLE_STATUS));
-        assert!(amount > 0, error::invalid_argument(E_AMOUNT_ARG_IS_ZERO));
+        assert!(pool_status::can_repay_with(key), error::invalid_state(ENOT_AVAILABLE_STATUS));
+        assert!(amount > 0, error::invalid_argument(EAMOUNT_ARG_IS_ZERO));
 
         let owner_address = permission::owner_address();
         let storage_ref = borrow_global_mut<Storage>(owner_address);
@@ -609,21 +609,21 @@ module leizd::shadow_pool {
     }
 
     fun switch_collateral_internal(key: String, caller: address, amount: u64, to_collateral_only: bool) acquires Storage, PoolEventHandle {
-        assert!(pool_status::can_switch_collateral_with(key), error::invalid_state(E_NOT_AVAILABLE_STATUS));
-        assert!(amount > 0, error::invalid_argument(E_AMOUNT_ARG_IS_ZERO));
+        assert!(pool_status::can_switch_collateral_with(key), error::invalid_state(ENOT_AVAILABLE_STATUS));
+        assert!(amount > 0, error::invalid_argument(EAMOUNT_ARG_IS_ZERO));
         let owner_address = permission::owner_address();
         let storage_ref = borrow_global_mut<Storage>(owner_address);
         let amount_u128 = (amount as u128);
         // TODO: consider share
         if (to_collateral_only) {
-            assert!(amount <= normal_deposited_amount_internal(key, storage_ref) - conly_deposit_amount_internal(key, storage_ref), error::invalid_argument(E_INSUFFICIENT_LIQUIDITY));
+            assert!(amount <= normal_deposited_amount_internal(key, storage_ref) - conly_deposit_amount_internal(key, storage_ref), error::invalid_argument(EINSUFFICIENT_LIQUIDITY));
             let asset_storage_ref = simple_map::borrow_mut<String, AssetStorage>(&mut storage_ref.asset_storages, &key);
             asset_storage_ref.conly_deposited_amount = asset_storage_ref.conly_deposited_amount + amount;
             storage_ref.total_conly_deposited_amount = storage_ref.total_conly_deposited_amount + amount_u128;
             asset_storage_ref.normal_deposited_amount = asset_storage_ref.normal_deposited_amount - amount;
             storage_ref.total_normal_deposited_amount = storage_ref.total_normal_deposited_amount - amount_u128;
         } else {
-            assert!(amount <= conly_deposit_amount_internal(key, storage_ref), error::invalid_argument(E_INSUFFICIENT_CONLY_DEPOSITED));
+            assert!(amount <= conly_deposit_amount_internal(key, storage_ref), error::invalid_argument(EINSUFFICIENT_CONLY_DEPOSITED));
             let asset_storage_ref = simple_map::borrow_mut<String, AssetStorage>(&mut storage_ref.asset_storages, &key);
             asset_storage_ref.normal_deposited_amount = asset_storage_ref.normal_deposited_amount + amount;
             storage_ref.total_normal_deposited_amount = storage_ref.total_normal_deposited_amount + amount_u128;
