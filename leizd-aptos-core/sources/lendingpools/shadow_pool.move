@@ -15,7 +15,7 @@ module leizd::shadow_pool {
     use leizd_aptos_trove::usdz::{USDZ};
     use leizd::interest_rate;
     use leizd_aptos_logic::risk_factor;
-    use leizd::central_liquidity_pool::{Self, CentralLiquidityPoolKey};
+    use leizd_aptos_central_liquidity_pool::central_liquidity_pool::{Self, CentralLiquidityPoolKey};
     use leizd::treasury;
 
     //// error_code (ref: asset_pool)
