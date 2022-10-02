@@ -14,9 +14,6 @@ module leizd::central_liquidity_pool {
     use leizd_aptos_trove::usdz::{USDZ};
     use leizd::stb_usdz;
 
-    friend leizd::asset_pool;
-    friend leizd::shadow_pool;
-
     //// error_code
     const EALREADY_INITIALIZED: u64 = 1;
     const EINVALID_ENTRY_FEE: u64 = 2;
@@ -184,8 +181,10 @@ module leizd::central_liquidity_pool {
         exists<CentralLiquidityPool>(permission::owner_address())
     }
     //// for assets
-    public(friend) fun init_pool<C>() acquires Balance {
-        let balance = borrow_global_mut<Balance>(permission::owner_address());
+    public fun init_pool<C>(owner: &signer) acquires Balance {
+        let owner_address = signer::address_of(owner);
+        permission::assert_owner(owner_address);
+        let balance = borrow_global_mut<Balance>(owner_address);
         simple_map::add<String,u128>(&mut balance.borrowed, key<C>(), 0);
         simple_map::add<String,u128>(&mut balance.uncollected_entry_fee, key<C>(), 0);
         simple_map::add<String,u128>(&mut balance.uncollected_support_fee, key<C>(), 0);
@@ -318,7 +317,7 @@ module leizd::central_liquidity_pool {
     ////////////////////////////////////////////////////
     /// Borrow
     ////////////////////////////////////////////////////
-    public(friend) fun borrow(
+    public fun borrow(
         key: String,
         addr: address,
         amount: u64,
@@ -382,7 +381,7 @@ module leizd::central_liquidity_pool {
     ////////////////////////////////////////////////////
     /// Repay
     ////////////////////////////////////////////////////
-    public(friend) fun repay(
+    public fun repay(
         key: String,
         account: &signer,
         amount: u64,
@@ -512,7 +511,7 @@ module leizd::central_liquidity_pool {
          user_balance * (reserve_index - user_index) / PRECISION
     }
 
-    public(friend) fun collect_support_fee(
+    public fun collect_support_fee(
         key: String,
         coin: coin::Coin<USDZ>,
         new_uncollected_fee: u128,
@@ -600,7 +599,7 @@ module leizd::central_liquidity_pool {
         initialize(owner);
 
         test_coin::init_weth(owner);
-        init_pool<WETH>();
+        init_pool<WETH>(owner);
     }
     // related initialize
     #[test(owner=@leizd)]
