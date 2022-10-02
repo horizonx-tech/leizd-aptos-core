@@ -1,14 +1,15 @@
 module leizd_aptos_trove::sorted_trove {
+    use std::error;
     use aptos_std::simple_map;
-    use leizd_aptos_lib::constant;
     use leizd_aptos_common::permission;
+    use leizd_aptos_lib::constant;
     use leizd_aptos_trove::trove;
 
     friend leizd_aptos_trove::trove_manager;
 
-    const E_NODE_ALREADY_EXISTS: u64 = 0;
-    const E_EXCEEDS_MAX_NODE_CAP: u64 = 1;
-    const E_NODE_NOT_FOUND: u64 = 2;
+    const ENODE_ALREADY_EXISTS: u64 = 1;
+    const EEXCEEDS_MAX_NODE_CAP: u64 = 2;
+    const ENODE_NOT_FOUND: u64 = 3;
 
     struct Node has store, key, drop, copy {
         next_id: address,
@@ -79,9 +80,9 @@ module leizd_aptos_trove::sorted_trove {
     }
 
     fun insert_internal<C>(id: address, prev_id: address, next_id: address) acquires Data {
-        assert!(!contains<C>(id), E_NODE_ALREADY_EXISTS);
+        assert!(!contains<C>(id), error::invalid_argument(ENODE_ALREADY_EXISTS));
         let data = borrow_global_mut<Data<C>>(permission::owner_address());
-        assert!(data.size < data.max_size, E_EXCEEDS_MAX_NODE_CAP);
+        assert!(data.size < data.max_size, error::invalid_argument(EEXCEEDS_MAX_NODE_CAP));
         let new_node = Node{next_id: @0x0, prev_id: @0x0};
         if (prev_id == @0x0 && next_id == @0x0) {
             data.head = id;
@@ -181,7 +182,7 @@ module leizd_aptos_trove::sorted_trove {
 
     // Remove a node from the list
     fun remove_internal<C>(id: address) acquires Data {
-        assert!(contains<C>(id), E_NODE_NOT_FOUND);
+        assert!(contains<C>(id), error::invalid_argument(ENODE_NOT_FOUND));
         let data = borrow_global_mut<Data<C>>(permission::owner_address());
         let (prev_id, next_id) = prev_next_id_of(id, data);
         if (data.size > 1) {
@@ -294,7 +295,7 @@ module leizd_aptos_trove::sorted_trove {
     }
 
     #[test(owner=@leizd_aptos_trove)]
-    #[expected_failure(abort_code = 1)]
+    #[expected_failure(abort_code = 65538)]
     fun test_node_capacity(owner: &signer) acquires Data {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
@@ -304,7 +305,7 @@ module leizd_aptos_trove::sorted_trove {
     }
 
    #[test(owner=@leizd_aptos_trove)]
-   #[expected_failure(abort_code = 2)]
+   #[expected_failure(abort_code = 65539)]
    fun test_remove_unknown_entry(owner: &signer) acquires Data {
         set_up(owner);
         remove<USDC>(alice(owner));
