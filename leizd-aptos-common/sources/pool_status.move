@@ -11,7 +11,7 @@ module leizd_aptos_common::pool_status {
 
     friend leizd_aptos_common::system_administrator;
 
-    const E_IS_NOT_EXISTED: u64 = 1;
+    const EIS_NOT_EXISTED: u64 = 1;
 
     struct Status has key {
         can_deposit: simple_map::SimpleMap<String,bool>,
@@ -33,22 +33,6 @@ module leizd_aptos_common::pool_status {
 
     struct PoolStatusEventHandle has key, store {
         pool_status_update_event: event::EventHandle<PoolStatusUpdateEvent>
-    }
-
-    fun emit_current_pool_status(key: String) acquires Status, PoolStatusEventHandle{
-        let owner_address = permission::owner_address();
-        let pool_status_ref = borrow_global<Status>(owner_address);
-        event::emit_event<PoolStatusUpdateEvent>(
-            &mut borrow_global_mut<PoolStatusEventHandle>(owner_address).pool_status_update_event,
-                PoolStatusUpdateEvent {
-                    key,
-                    can_deposit: *simple_map::borrow<String,bool>(&pool_status_ref.can_deposit, &key),
-                    can_withdraw: *simple_map::borrow<String,bool>(&pool_status_ref.can_withdraw, &key),
-                    can_borrow: *simple_map::borrow<String,bool>(&pool_status_ref.can_borrow, &key),
-                    can_repay: *simple_map::borrow<String,bool>(&pool_status_ref.can_repay, &key),
-                    can_switch_collateral: *simple_map::borrow<String,bool>(&pool_status_ref.can_switch_collateral, &key)
-            },
-        );
     }
 
     public fun initialize<C>(owner: &signer) acquires Status, PoolStatusEventHandle {
@@ -82,6 +66,22 @@ module leizd_aptos_common::pool_status {
         simple_map::add<String,bool>(&mut status.can_switch_collateral, key, true);
     }
 
+    fun emit_current_pool_status(key: String) acquires Status, PoolStatusEventHandle{
+        let owner_address = permission::owner_address();
+        let pool_status_ref = borrow_global<Status>(owner_address);
+        event::emit_event<PoolStatusUpdateEvent>(
+            &mut borrow_global_mut<PoolStatusEventHandle>(owner_address).pool_status_update_event,
+                PoolStatusUpdateEvent {
+                    key,
+                    can_deposit: *simple_map::borrow<String,bool>(&pool_status_ref.can_deposit, &key),
+                    can_withdraw: *simple_map::borrow<String,bool>(&pool_status_ref.can_withdraw, &key),
+                    can_borrow: *simple_map::borrow<String,bool>(&pool_status_ref.can_borrow, &key),
+                    can_repay: *simple_map::borrow<String,bool>(&pool_status_ref.can_repay, &key),
+                    can_switch_collateral: *simple_map::borrow<String,bool>(&pool_status_ref.can_switch_collateral, &key)
+            },
+        );
+    }
+
     fun is_initialized(owner_address: address, key: String): bool acquires Status {
         if (!exists<Status>(owner_address)) {
             false
@@ -92,9 +92,10 @@ module leizd_aptos_common::pool_status {
     }
 
     fun assert_pool_status_initialized(owner_address: address, key: String) acquires Status {
-        assert!(is_initialized(owner_address, key), error::not_found(E_IS_NOT_EXISTED));
+        assert!(is_initialized(owner_address, key), error::invalid_argument(EIS_NOT_EXISTED));
     }
 
+    //// view functions
     public fun can_deposit<C>(): bool acquires Status {
         can_deposit_with(key<C>())
     }
@@ -161,6 +162,7 @@ module leizd_aptos_common::pool_status {
         system_status::status() && *can_switch_collateral
     }
 
+    //// functions to update status
     public(friend) fun update_deposit_status<C>(active: bool) acquires Status, PoolStatusEventHandle {
         update_deposit_status_with(key<C>(), active);
     }
