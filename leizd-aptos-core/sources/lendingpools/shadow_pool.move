@@ -462,31 +462,31 @@ module leizd::shadow_pool {
         assert!((amount_with_entry_fee as u128) <= total_left, error::invalid_argument(EEXCEED_BORROWABLE_AMOUNT));
 
         if ((amount_with_entry_fee as u128) > total_liquidity) {
-            // use stability pool
+            // use central-liquidity-pool
             if (total_liquidity > 0) {
-                // extract all from shadow_pool, supply the shortage to borrow from stability pool
+                // extract all from shadow_pool, supply the shortage to borrow from central-liquidity-pool
                 let extracted = coin::extract_all(&mut pool_ref.shadow);
-                let borrowing_value_from_stability = amount_with_entry_fee - coin::value(&extracted);
-                let borrowed_from_stability = borrow_from_central_liquidity_pool(key, receiver_addr, borrowing_value_from_stability);
+                let borrowing_value_from_central = amount_with_entry_fee - coin::value(&extracted);
+                let borrowed_from_central = borrow_from_central_liquidity_pool(key, receiver_addr, borrowing_value_from_central);
 
                 // merge coins extracted & distribute calculated values to receiver & shadow_pool
-                coin::merge(&mut extracted, borrowed_from_stability);
+                coin::merge(&mut extracted, borrowed_from_central);
                 let for_entry_fee = coin::extract(&mut extracted, entry_fee);
                 coin::deposit<USDZ>(receiver_addr, extracted); // to receiver
                 treasury::collect_fee<USDZ>(for_entry_fee); // to treasury (collected fee)
 
-                total_fee = total_fee + central_liquidity_pool::calculate_entry_fee(borrowing_value_from_stability);
+                total_fee = total_fee + central_liquidity_pool::calculate_entry_fee(borrowing_value_from_central);
             } else {
-                // when no liquidity in pool, borrow all from stability pool
-                let borrowed_from_stability = borrow_from_central_liquidity_pool(key, receiver_addr, amount_with_entry_fee);
-                let for_entry_fee = coin::extract(&mut borrowed_from_stability, entry_fee);
-                coin::deposit<USDZ>(receiver_addr, borrowed_from_stability); // to receiver
+                // when no liquidity in pool, borrow all from central-liquidity-pool
+                let borrowed_from_central = borrow_from_central_liquidity_pool(key, receiver_addr, amount_with_entry_fee);
+                let for_entry_fee = coin::extract(&mut borrowed_from_central, entry_fee);
+                coin::deposit<USDZ>(receiver_addr, borrowed_from_central); // to receiver
                 treasury::collect_fee<USDZ>(for_entry_fee); // to treasury (collected fee)
 
                 total_fee = total_fee + central_liquidity_pool::calculate_entry_fee(amount_with_entry_fee);
             }
         } else {
-            // not use stability pool
+            // not use central-liquidity-pool
             let extracted = coin::extract(&mut pool_ref.shadow, amount);
             coin::deposit<USDZ>(receiver_addr, extracted);
             collect_shadow_fee(pool_ref, entry_fee); // fee to treasury
@@ -653,13 +653,13 @@ module leizd::shadow_pool {
     }
 
     ////// Internal Logics
-    /// Borrow the shadow from the stability pool
+    /// Borrow the shadow from the central-liquidity-pool
     /// use when shadow in this pool become insufficient.
     fun borrow_from_central_liquidity_pool(key: String, caller_addr: address, amount: u64): coin::Coin<USDZ> {
         central_liquidity_pool::borrow(key, caller_addr, amount)
     }
 
-    /// Repays the shadow to the stability pool
+    /// Repays the shadow to the central-liquidity-pool
     /// use when shadow has already borrowed from this pool.
     /// @return repaid amount
     fun repay_to_central_liquidity_pool(key: String, account: &signer, amount: u64): u64 {
@@ -1548,11 +1548,11 @@ module leizd::shadow_pool {
         //// from both
         borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 10000);
         let from_shadow = 5025;
-        let from_stability = 10050 - from_shadow;
+        let from_central = 10050 - from_shadow;
         assert!(pool_shadow_value(owner_addr) == 0, 0);
         assert!(central_liquidity_pool::borrowed(key<UNI>()) == (from_shadow + 26 as u128), 0); // from_shadow + fee calculated by from_shadow
         assert!(central_liquidity_pool::left() == (50000 - from_shadow as u128) , 0);
-        assert!(borrowed_amount<UNI>() == 5025 + from_shadow + from_stability + 26, 0);
+        assert!(borrowed_amount<UNI>() == 5025 + from_shadow + from_central + 26, 0);
         assert!(usdz::balance_of(borrower_addr) == 15000, 0);
         //// from only central_liquidity_pool
         borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 15000);
@@ -1588,7 +1588,7 @@ module leizd::shadow_pool {
         assert!(borrowed_amount<UNI>() == 0, 0);
         assert!(central_liquidity_pool::borrowed(key<UNI>()) == 0, 0);
         assert!(central_liquidity_pool::left() == 50000, 0);
-        // borrow the amount more than internal_liquidity even though stability pool does not support UNI
+        // borrow the amount more than internal_liquidity even though central-liquidity-pool does not support UNI
         borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 20000);
     }
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
@@ -1798,15 +1798,15 @@ module leizd::shadow_pool {
         central_liquidity_pool::deposit(depositor, 50000);
         //// 1st
         borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 5000);
-        usdz::mint_for_test(borrower_addr, 25 + 26); // fee in shadow + fee in stability
+        usdz::mint_for_test(borrower_addr, 25 + 26); // fee in shadow + fee in central-liquidity-pool
         repay_internal(key<UNI>(), borrower, 5000 + 25 + 26);
         assert!(central_liquidity_pool::borrowed(key<UNI>()) == 0, 0);
         assert!(central_liquidity_pool::uncollected_entry_fee<UNI>() == 0, 0);
         //// 2nd
         borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 10000);
         borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 20000);
-        usdz::mint_for_test(borrower_addr, 100 + 101); // fee in shadow + fee in stability for 20000
-        usdz::mint_for_test(borrower_addr, 50 + 51); // fee in shadow + fee in stability for 10000
+        usdz::mint_for_test(borrower_addr, 100 + 101); // fee in shadow + fee in central-liquidity-pool for 20000
+        usdz::mint_for_test(borrower_addr, 50 + 51); // fee in shadow + fee in central-liquidity-pool for 10000
         repay_internal(key<UNI>(), borrower, 20000 + 100 + 101);
         repay_internal(key<UNI>(), borrower, 10000 + 50 + 51);
         assert!(central_liquidity_pool::borrowed(key<UNI>()) == 0, 0);
