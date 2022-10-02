@@ -41,9 +41,9 @@ module leizd::account_position {
     }
 
     struct Balance has store, drop {
-        normal_deposited: u64,
-        conly_deposited: u64,
-        borrowed: u64,
+        normal_deposited_share: u64,
+        conly_deposited_share: u64,
+        borrowed_share: u64,
     }
 
     // Events
@@ -765,58 +765,58 @@ module leizd::account_position {
         update_position_for_repay<P>(key, depositor_addr, amount)
     }
 
-    fun update_position_for_deposit<P>(key: String, addr: address, amount: u64, is_collateral_only: bool) acquires Position, AccountPositionEventHandle {
+    fun update_position_for_deposit<P>(key: String, addr: address, share: u64, is_collateral_only: bool) acquires Position, AccountPositionEventHandle {
         let position_ref = borrow_global_mut<Position<P>>(addr);
         if (vector::contains<String>(&position_ref.coins, &key)) {
             let balance_ref = simple_map::borrow_mut<String,Balance>(&mut position_ref.balance, &key);
             if (is_collateral_only) {
-                balance_ref.conly_deposited = balance_ref.conly_deposited + amount;
+                balance_ref.conly_deposited_share = balance_ref.conly_deposited_share + share;
             } else {
-                balance_ref.normal_deposited = balance_ref.normal_deposited + amount;
+                balance_ref.normal_deposited_share = balance_ref.normal_deposited_share + share;
             };
             emit_update_position_event<P>(addr, key, balance_ref);
         } else {
-            new_position<P>(addr, amount, 0, is_collateral_only, key);
+            new_position<P>(addr, share, 0, is_collateral_only, key);
         };
     }
 
-    fun update_position_for_withdraw<P>(key: String, addr: address, amount: u64, is_collateral_only: bool): u64 acquires Position, AccountPositionEventHandle {
+    fun update_position_for_withdraw<P>(key: String, addr: address, share: u64, is_collateral_only: bool): u64 acquires Position, AccountPositionEventHandle {
         let position_ref = borrow_global_mut<Position<P>>(addr);
         let balance_ref = simple_map::borrow_mut<String,Balance>(&mut position_ref.balance, &key);
         if (is_collateral_only) {
-            amount = if (amount == constant::u64_max()) balance_ref.conly_deposited else amount;
-            assert!(balance_ref.conly_deposited >= amount, error::invalid_argument(EOVER_DEPOSITED_AMOUNT));
-            balance_ref.conly_deposited = balance_ref.conly_deposited - amount;
+            share = if (share == constant::u64_max()) balance_ref.conly_deposited_share else share;
+            assert!(balance_ref.conly_deposited_share >= share, error::invalid_argument(EOVER_DEPOSITED_AMOUNT));
+            balance_ref.conly_deposited_share = balance_ref.conly_deposited_share - share;
         } else {
-            amount = if (amount == constant::u64_max()) balance_ref.normal_deposited else amount;
-            assert!(balance_ref.normal_deposited >= amount, error::invalid_argument(EOVER_DEPOSITED_AMOUNT));
-            balance_ref.normal_deposited = balance_ref.normal_deposited - amount;
+            share = if (share == constant::u64_max()) balance_ref.normal_deposited_share else share;
+            assert!(balance_ref.normal_deposited_share >= share, error::invalid_argument(EOVER_DEPOSITED_AMOUNT));
+            balance_ref.normal_deposited_share = balance_ref.normal_deposited_share - share;
         };
         emit_update_position_event<P>(addr, key, balance_ref);
         remove_balance_if_unused<P>(addr, key);
-        amount
+        share
     }
 
-    fun update_position_for_borrow<P>(key: String, addr: address, amount: u64) acquires Position, AccountPositionEventHandle {
+    fun update_position_for_borrow<P>(key: String, addr: address, share: u64) acquires Position, AccountPositionEventHandle {
         let position_ref = borrow_global_mut<Position<P>>(addr);
         if (vector::contains<String>(&position_ref.coins, &key)) {
             let balance_ref = simple_map::borrow_mut<String,Balance>(&mut position_ref.balance, &key);
-            balance_ref.borrowed = balance_ref.borrowed + amount;
+            balance_ref.borrowed_share = balance_ref.borrowed_share + share;
             emit_update_position_event<P>(addr, key, balance_ref);
         } else {
-            new_position<P>(addr, 0, amount, false, key);
+            new_position<P>(addr, 0, share, false, key);
         };
     }
 
-    fun update_position_for_repay<P>(key: String, addr: address, amount: u64): u64 acquires Position, AccountPositionEventHandle {
+    fun update_position_for_repay<P>(key: String, addr: address, share: u64): u64 acquires Position, AccountPositionEventHandle {
         let position_ref = borrow_global_mut<Position<P>>(addr);
         let balance_ref = simple_map::borrow_mut<String,Balance>(&mut position_ref.balance, &key);
-        amount = if (amount == constant::u64_max()) balance_ref.borrowed else amount;
-        assert!(balance_ref.borrowed >= amount, error::invalid_argument(EOVER_BORROWED_AMOUNT));
-        balance_ref.borrowed = balance_ref.borrowed - amount;
+        share = if (share == constant::u64_max()) balance_ref.borrowed_share else share;
+        assert!(balance_ref.borrowed_share >= share, error::invalid_argument(EOVER_BORROWED_AMOUNT));
+        balance_ref.borrowed_share = balance_ref.borrowed_share - share;
         emit_update_position_event<P>(addr, key, balance_ref);
         remove_balance_if_unused<P>(addr, key);
-        amount
+        share
     }
 
     fun emit_update_position_event<P>(addr: address, key: String, balance_ref: &Balance) acquires AccountPositionEventHandle {
@@ -824,9 +824,9 @@ module leizd::account_position {
             &mut borrow_global_mut<AccountPositionEventHandle<P>>(addr).update_position_event,
             UpdatePositionEvent {
                 key,
-                normal_deposited: balance_ref.normal_deposited,
-                conly_deposited: balance_ref.conly_deposited,
-                borrowed: balance_ref.borrowed,
+                normal_deposited: balance_ref.normal_deposited_share,
+                conly_deposited: balance_ref.conly_deposited_share,
+                borrowed: balance_ref.borrowed_share,
             },
         );
     }
@@ -837,15 +837,15 @@ module leizd::account_position {
 
         if (is_collateral_only) {
             simple_map::add<String,Balance>(&mut position_ref.balance, key, Balance {
-                normal_deposited: 0,
-                conly_deposited: deposit,
-                borrowed: borrow,
+                normal_deposited_share: 0,
+                conly_deposited_share: deposit,
+                borrowed_share: borrow,
             });
         } else {
             simple_map::add<String,Balance>(&mut position_ref.balance, key, Balance {
-                normal_deposited: deposit,
-                conly_deposited: 0,
-                borrowed: borrow,
+                normal_deposited_share: deposit,
+                conly_deposited_share: 0,
+                borrowed_share: borrow,
             });
         };
 
@@ -856,9 +856,9 @@ module leizd::account_position {
         let position_ref = borrow_global_mut<Position<P>>(addr);
         let balance_ref = simple_map::borrow<String,Balance>(&position_ref.balance, &key);
         if (
-            balance_ref.normal_deposited == 0
-            && balance_ref.conly_deposited == 0
-            && balance_ref.borrowed == 0 // NOTE: maybe actually only `deposited` needs to be checked.
+            balance_ref.normal_deposited_share == 0
+            && balance_ref.conly_deposited_share == 0
+            && balance_ref.borrowed_share == 0 // NOTE: maybe actually only `deposited` needs to be checked.
         ) {
             simple_map::remove<String, Balance>(&mut position_ref.balance, &key);
             let (_, i) = vector::index_of<String>(&position_ref.coins, &key);
