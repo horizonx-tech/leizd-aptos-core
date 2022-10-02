@@ -14,6 +14,7 @@ module leizd_aptos_entry::money_market {
     use std::string::{String};
     use leizd_aptos_common::pool_type;
     use leizd_aptos_common::permission;
+    use leizd_aptos_lib::constant;
     use leizd_aptos_logic::rebalance::{Self,Rebalance};
     use leizd_aptos_central_liquidity_pool::central_liquidity_pool;
     use leizd_aptos_core::asset_pool::{Self, AssetPoolKey};
@@ -70,12 +71,13 @@ module leizd_aptos_entry::money_market {
         pool_type::assert_pool_type<P>();
         let (account_position_key, asset_pool_key, shadow_pool_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
         
-        account_position::deposit<C,P>(account, depositor_addr, amount, is_collateral_only, account_position_key);
+        let user_share: u64;
         if (pool_type::is_type_asset<P>()) {
-            asset_pool::deposit_for<C>(account, depositor_addr, amount, is_collateral_only, asset_pool_key);
+            (_, user_share) = asset_pool::deposit_for<C>(account, depositor_addr, amount, is_collateral_only, asset_pool_key);
         } else {
-            shadow_pool::deposit_for<C>(account, depositor_addr, amount, is_collateral_only, shadow_pool_key);
+            (_, user_share) = shadow_pool::deposit_for<C>(account, depositor_addr, amount, is_collateral_only, shadow_pool_key);
         };
+        account_position::deposit<C,P>(account, depositor_addr, user_share, is_collateral_only, account_position_key);
     }
 
     /// Withdraws an asset or a shadow from the pool.
@@ -98,13 +100,22 @@ module leizd_aptos_entry::money_market {
 
         let depositor_addr = signer::address_of(account);
         let is_collateral_only = account_position::is_conly<C,P>(depositor_addr);
-        let withdrawn_amount = account_position::withdraw<C,P>(depositor_addr, amount, is_collateral_only, account_position_key);
-        if (pool_type::is_type_asset<P>()) {
-            asset_pool::withdraw_for<C>(depositor_addr, receiver_addr, withdrawn_amount, is_collateral_only, asset_pool_key);
+        if (amount == constant::u64_max()) {
+            let withdrawn_amount = account_position::withdraw<C,P>(depositor_addr, amount, is_collateral_only, account_position_key);
+            if (pool_type::is_type_asset<P>()) {
+                asset_pool::withdraw_for<C>(depositor_addr, receiver_addr, withdrawn_amount, is_collateral_only, asset_pool_key);
+            } else {
+                shadow_pool::withdraw_for<C>(depositor_addr, receiver_addr, withdrawn_amount, is_collateral_only, 0, shadow_pool_key);
+            };
         } else {
-            shadow_pool::withdraw_for<C>(depositor_addr, receiver_addr, withdrawn_amount, is_collateral_only, 0, shadow_pool_key);
-        };
-        
+            let withdrawed_user_share: u64;
+            if (pool_type::is_type_asset<P>()) {
+                (_, withdrawed_user_share) = asset_pool::withdraw_for<C>(depositor_addr, receiver_addr, amount, is_collateral_only, asset_pool_key);
+            } else {
+                (_, withdrawed_user_share) = shadow_pool::withdraw_for<C>(depositor_addr, receiver_addr, amount, is_collateral_only, 0, shadow_pool_key);
+            };
+            account_position::withdraw<C,P>(depositor_addr, withdrawed_user_share, is_collateral_only, account_position_key);
+        }
     }
 
     /// Borrow an asset or a shadow from the pool.
@@ -118,13 +129,13 @@ module leizd_aptos_entry::money_market {
         let (account_position_key, asset_pool_key, shadow_pool_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
 
         let borrower_addr = signer::address_of(account);
-        let borrowed_amount: u64;
+        let user_share: u64;
         if (pool_type::is_type_asset<P>()) {
-            (borrowed_amount, _) = asset_pool::borrow_for<C>(borrower_addr, receiver_addr, amount, asset_pool_key);
+            (_, user_share) = asset_pool::borrow_for<C>(borrower_addr, receiver_addr, amount, asset_pool_key);
         } else {
-            (borrowed_amount, _) = shadow_pool::borrow_for<C>(borrower_addr, receiver_addr, amount, shadow_pool_key);
+            (_, user_share) = shadow_pool::borrow_for<C>(borrower_addr, receiver_addr, amount, shadow_pool_key);
         };
-        account_position::borrow<C,P>(account, borrower_addr, borrowed_amount, account_position_key);
+        account_position::borrow<C,P>(account, borrower_addr, user_share, account_position_key);
     }
 
     /// Borrow the coin C with the shadow that is collected from the best pool.
@@ -181,12 +192,22 @@ module leizd_aptos_entry::money_market {
         let (account_position_key, asset_pool_key, shadow_pool_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
 
         let repayer = signer::address_of(account);
-        let repaid_amount = account_position::repay<C,P>(repayer, amount, account_position_key);
-        if (pool_type::is_type_asset<P>()) {
-            asset_pool::repay<C>(account, repaid_amount, asset_pool_key);
+        if (amount == constant::u64_max()) {
+            let repaid_amount = account_position::repay<C,P>(repayer, amount, account_position_key);
+            if (pool_type::is_type_asset<P>()) {
+                asset_pool::repay<C>(account, repaid_amount, asset_pool_key);
+            } else {
+                shadow_pool::repay<C>(account, repaid_amount, shadow_pool_key);
+            };
         } else {
-            shadow_pool::repay<C>(account, repaid_amount, shadow_pool_key);
-        };
+            let repayed_user_share: u64;
+            if (pool_type::is_type_asset<P>()) {
+                (_, repayed_user_share) = asset_pool::repay<C>(account, amount, asset_pool_key);
+            } else {
+                (_, repayed_user_share) = shadow_pool::repay<C>(account, amount, shadow_pool_key);
+            };
+            account_position::repay<C,P>(repayer, repayed_user_share, account_position_key);
+        }
     }
 
     public entry fun repay_shadow_with_rebalance(account: &signer, amount: u64) acquires LendingPoolModKeys {
