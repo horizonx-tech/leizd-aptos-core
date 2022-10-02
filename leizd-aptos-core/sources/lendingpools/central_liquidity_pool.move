@@ -1,4 +1,4 @@
-module leizd::stability_pool {
+module leizd::central_liquidity_pool {
 
     use std::error;
     use std::signer;
@@ -33,7 +33,7 @@ module leizd::stability_pool {
     const DEFAULT_ENTRY_FEE: u64 = 1000000000 * 5 / 1000; // 0.5%
     const DEFAULT_SUPPORT_FEE: u64 = 1000000000 * 1 / 1000; // 0.1%
 
-    struct StabilityPool has key {
+    struct CentralLiquidityPool has key {
         left: coin::Coin<USDZ>,
         total_deposited: u128,
         total_borrowed: u128,
@@ -109,7 +109,7 @@ module leizd::stability_pool {
         entry_fee: u64,
         support_fee: u64,
     }
-    struct StabilityPoolEventHandle has key, store {
+    struct CentralLiquidityPoolEventHandle has key, store {
         deposit_event: event::EventHandle<DepositEvent>,
         withdraw_event: event::EventHandle<WithdrawEvent>,
         borrow_event: event::EventHandle<BorrowEvent>,
@@ -122,13 +122,13 @@ module leizd::stability_pool {
     ////////////////////////////////////////////////////
     /// Initialize
     ////////////////////////////////////////////////////
-    public entry fun initialize(owner: &signer) acquires StabilityPoolEventHandle {
+    public entry fun initialize(owner: &signer) acquires CentralLiquidityPoolEventHandle {
         let owner_address = signer::address_of(owner);
         permission::assert_owner(owner_address);
         assert!(!is_pool_initialized(), error::invalid_state(EALREADY_INITIALIZED));
 
         stb_usdz::initialize(owner);
-        move_to(owner, StabilityPool {
+        move_to(owner, CentralLiquidityPool {
             left: coin::zero<USDZ>(),
             total_deposited: 0,
             total_borrowed: 0,
@@ -150,7 +150,7 @@ module leizd::stability_pool {
             last_updated: 0,
             index: 0,
         });
-        move_to(owner, StabilityPoolEventHandle {
+        move_to(owner, CentralLiquidityPoolEventHandle {
             deposit_event: account::new_event_handle<DepositEvent>(owner),
             withdraw_event: account::new_event_handle<WithdrawEvent>(owner),
             borrow_event: account::new_event_handle<BorrowEvent>(owner),
@@ -160,7 +160,7 @@ module leizd::stability_pool {
             update_config_event: account::new_event_handle<UpdateConfigEvent>(owner),
         });
         event::emit_event<UpdateConfigEvent>(
-            &mut borrow_global_mut<StabilityPoolEventHandle>(owner_address).update_config_event,
+            &mut borrow_global_mut<CentralLiquidityPoolEventHandle>(owner_address).update_config_event,
             UpdateConfigEvent {
                 caller: owner_address,
                 entry_fee: DEFAULT_ENTRY_FEE,
@@ -168,7 +168,7 @@ module leizd::stability_pool {
             }
         );        
         event::emit_event<UpdateStateEvent>(
-            &mut borrow_global_mut<StabilityPoolEventHandle>(owner_address).update_state_event,
+            &mut borrow_global_mut<CentralLiquidityPoolEventHandle>(owner_address).update_state_event,
             UpdateStateEvent {
                 old_index: 0,
                 new_index: 0,
@@ -179,7 +179,7 @@ module leizd::stability_pool {
     }
 
     public fun is_pool_initialized(): bool {
-        exists<StabilityPool>(permission::owner_address())
+        exists<CentralLiquidityPool>(permission::owner_address())
     }
     //// for assets
     public(friend) fun init_pool<C>() acquires Balance {
@@ -197,7 +197,7 @@ module leizd::stability_pool {
         }
     }
 
-    public entry fun update_config(owner: &signer, new_entry_fee: u64, new_support_fee: u64) acquires Config, StabilityPoolEventHandle {
+    public entry fun update_config(owner: &signer, new_entry_fee: u64, new_support_fee: u64) acquires Config, CentralLiquidityPoolEventHandle {
         assert!(new_entry_fee < PRECISION, error::invalid_argument(EINVALID_ENTRY_FEE));
         assert!(new_support_fee < PRECISION, error::invalid_argument(EINVALID_SUPPORT_FEE));
         let owner_address = signer::address_of(owner);
@@ -209,7 +209,7 @@ module leizd::stability_pool {
         config.support_fee = new_support_fee;
 
         event::emit_event<UpdateConfigEvent>(
-            &mut borrow_global_mut<StabilityPoolEventHandle>(owner_address).update_config_event,
+            &mut borrow_global_mut<CentralLiquidityPoolEventHandle>(owner_address).update_config_event,
             UpdateConfigEvent {
                 caller: owner_address,
                 entry_fee: new_entry_fee,
@@ -218,30 +218,30 @@ module leizd::stability_pool {
         );
     }
 
-    public fun is_supported(key: String): bool acquires StabilityPool {
-        let pool = borrow_global<StabilityPool>(permission::owner_address());
+    public fun is_supported(key: String): bool acquires CentralLiquidityPool {
+        let pool = borrow_global<CentralLiquidityPool>(permission::owner_address());
         is_supported_internal(pool, key)
     }
-    fun is_supported_internal(pool: &StabilityPool, key: String): bool {
+    fun is_supported_internal(pool: &CentralLiquidityPool, key: String): bool {
         vector::contains<String>(&pool.supported_pools, &key)
     }
 
-    public entry fun add_supported_pool<C>(owner: &signer) acquires StabilityPool {
+    public entry fun add_supported_pool<C>(owner: &signer) acquires CentralLiquidityPool {
         let owner_addr = signer::address_of(owner);
         permission::assert_owner(owner_addr);
         let key = key<C>();
         assert!(coin::is_coin_initialized<C>(), error::invalid_argument(ENOT_INITIALIZED_COIN));
         assert!(!is_supported(key), error::invalid_argument(EALREADY_ADDED_COIN));
-        let supported_pools = &mut borrow_global_mut<StabilityPool>(owner_addr).supported_pools;
+        let supported_pools = &mut borrow_global_mut<CentralLiquidityPool>(owner_addr).supported_pools;
         vector::push_back<String>(supported_pools, key);
     }
 
-    public entry fun remove_supported_pool<C>(owner: &signer) acquires StabilityPool {
+    public entry fun remove_supported_pool<C>(owner: &signer) acquires CentralLiquidityPool {
         let owner_addr = signer::address_of(owner);
         permission::assert_owner(owner_addr);
         let key = key<C>();
         assert!(is_supported(key), error::invalid_argument(ENOT_ADDED_COIN));
-        let supported_pools = &mut borrow_global_mut<StabilityPool>(owner_addr).supported_pools;
+        let supported_pools = &mut borrow_global_mut<CentralLiquidityPool>(owner_addr).supported_pools;
 
         let i = vector::length<String>(supported_pools);
         while (i > 0) {
@@ -256,14 +256,14 @@ module leizd::stability_pool {
     ////////////////////////////////////////////////////
     /// Deposit
     ////////////////////////////////////////////////////
-    public entry fun deposit(account: &signer, amount: u64) acquires StabilityPool, StabilityPoolEventHandle {
+    public entry fun deposit(account: &signer, amount: u64) acquires CentralLiquidityPool, CentralLiquidityPoolEventHandle {
         assert!(amount > 0, error::invalid_argument(EINVALID_AMOUNT));
         if (!exists<UserDistribution>(signer::address_of(account))) {
             move_to(account, default_user_distribution());
         };
 
         let owner_address = permission::owner_address();
-        let pool_ref = borrow_global_mut<StabilityPool>(owner_address);
+        let pool_ref = borrow_global_mut<CentralLiquidityPool>(owner_address);
 
         pool_ref.total_deposited = pool_ref.total_deposited + (amount as u128);
 
@@ -274,7 +274,7 @@ module leizd::stability_pool {
         };
         stb_usdz::mint(account_addr, amount);
         event::emit_event<DepositEvent>(
-            &mut borrow_global_mut<StabilityPoolEventHandle>(owner_address).deposit_event,
+            &mut borrow_global_mut<CentralLiquidityPoolEventHandle>(owner_address).deposit_event,
             DepositEvent {
                 caller: account_addr,
                 target_account: account_addr,
@@ -287,10 +287,10 @@ module leizd::stability_pool {
     ////////////////////////////////////////////////////
     /// Withdraw
     ////////////////////////////////////////////////////
-    public entry fun withdraw(account: &signer, amount: u64) acquires StabilityPool, StabilityPoolEventHandle {
+    public entry fun withdraw(account: &signer, amount: u64) acquires CentralLiquidityPool, CentralLiquidityPoolEventHandle {
         assert!(amount > 0, error::invalid_argument(EINVALID_AMOUNT));
         let owner_address = permission::owner_address();
-        let pool_ref = borrow_global_mut<StabilityPool>(owner_address);
+        let pool_ref = borrow_global_mut<CentralLiquidityPool>(owner_address);
         assert!(pool_ref.total_deposited >= (amount as u128), error::invalid_argument(EEXCEED_REMAINING_AMOUNT));
 
         pool_ref.total_deposited = pool_ref.total_deposited - (amount as u128);
@@ -298,7 +298,7 @@ module leizd::stability_pool {
         coin::deposit(account_addr, coin::extract(&mut pool_ref.left, amount));
         stb_usdz::burn(account, amount);
         event::emit_event<WithdrawEvent>(
-            &mut borrow_global_mut<StabilityPoolEventHandle>(owner_address).withdraw_event,
+            &mut borrow_global_mut<CentralLiquidityPoolEventHandle>(owner_address).withdraw_event,
             WithdrawEvent {
                 caller: account_addr,
                 target_account: account_addr,
@@ -311,7 +311,7 @@ module leizd::stability_pool {
     ////////////////////////////////////////////////////
     /// Borrow
     ////////////////////////////////////////////////////
-    public(friend) fun borrow(key: String, addr: address, amount: u64): coin::Coin<USDZ> acquires StabilityPool, Config, Balance, StabilityPoolEventHandle {
+    public(friend) fun borrow(key: String, addr: address, amount: u64): coin::Coin<USDZ> acquires CentralLiquidityPool, Config, Balance, CentralLiquidityPoolEventHandle {
         assert!(is_supported(key), error::invalid_argument(ENOT_SUPPORTED_COIN));
         // TODO:
         // if (!exists<UserDistribution>(signer::address_of(account))) {
@@ -319,7 +319,7 @@ module leizd::stability_pool {
         // };
         let (borrowed, total_borrowed) = borrow_internal(key, amount);
         event::emit_event<BorrowEvent>(
-            &mut borrow_global_mut<StabilityPoolEventHandle>(permission::owner_address()).borrow_event,
+            &mut borrow_global_mut<CentralLiquidityPoolEventHandle>(permission::owner_address()).borrow_event,
             BorrowEvent {
                 key,
                 caller: addr,
@@ -330,10 +330,10 @@ module leizd::stability_pool {
         );
         borrowed
     }
-    fun borrow_internal(key: String, amount: u64): (coin::Coin<USDZ>,u128) acquires StabilityPool, Config, Balance {
+    fun borrow_internal(key: String, amount: u64): (coin::Coin<USDZ>,u128) acquires CentralLiquidityPool, Config, Balance {
         assert!(amount > 0, error::invalid_argument(EINVALID_AMOUNT));
         let owner_address = permission::owner_address();
-        let pool_ref = borrow_global_mut<StabilityPool>(owner_address);
+        let pool_ref = borrow_global_mut<CentralLiquidityPool>(owner_address);
         let balance_ref = borrow_global_mut<Balance>(owner_address);
         assert!(coin::value<USDZ>(&pool_ref.left) >= amount, error::invalid_argument(EEXCEED_REMAINING_AMOUNT));
 
@@ -368,11 +368,11 @@ module leizd::stability_pool {
     ////////////////////////////////////////////////////
     /// Repay
     ////////////////////////////////////////////////////
-    public(friend) fun repay(key: String, account: &signer, amount: u64) acquires StabilityPool, Balance, StabilityPoolEventHandle {
+    public(friend) fun repay(key: String, account: &signer, amount: u64) acquires CentralLiquidityPool, Balance, CentralLiquidityPoolEventHandle {
         let total_borrowed = repay_internal(key, account, amount);
         let account_addr = signer::address_of(account);
         event::emit_event<RepayEvent>(
-            &mut borrow_global_mut<StabilityPoolEventHandle>(permission::owner_address()).repay_event,
+            &mut borrow_global_mut<CentralLiquidityPoolEventHandle>(permission::owner_address()).repay_event,
             RepayEvent {
                 key,
                 caller: account_addr,
@@ -382,7 +382,7 @@ module leizd::stability_pool {
             }
         );
     }
-    fun repay_internal(key: String, account: &signer, amount: u64): u128 acquires StabilityPool, Balance {
+    fun repay_internal(key: String, account: &signer, amount: u64): u128 acquires CentralLiquidityPool, Balance {
         assert!(amount > 0, error::invalid_argument(EINVALID_AMOUNT));
         let owner_address = permission::owner_address();
         let balance_ref = borrow_global_mut<Balance>(owner_address);
@@ -390,7 +390,7 @@ module leizd::stability_pool {
         assert!((amount as u128) <= *borrowed, error::invalid_argument(EINVALID_AMOUNT));
 
         *borrowed = *borrowed - (amount as u128);
-        let pool_ref = borrow_global_mut<StabilityPool>(owner_address);
+        let pool_ref = borrow_global_mut<CentralLiquidityPool>(owner_address);
         pool_ref.total_borrowed = pool_ref.total_borrowed - (amount as u128);
         let uncollected_entry_fee = simple_map::borrow_mut<String,u128>(&mut balance_ref.uncollected_entry_fee, &key);
         if (*uncollected_entry_fee > 0) {
@@ -419,10 +419,10 @@ module leizd::stability_pool {
     }
 
     ////// related reward
-    public entry fun claim_reward(account: &signer, amount: u64) acquires DistributionConfig, UserDistribution, StabilityPool, StabilityPoolEventHandle {
+    public entry fun claim_reward(account: &signer, amount: u64) acquires DistributionConfig, UserDistribution, CentralLiquidityPool, CentralLiquidityPoolEventHandle {
         assert!(amount > 0, error::invalid_argument(EINVALID_AMOUNT));
         let owner_address = permission::owner_address();
-        let pool_ref = borrow_global_mut<StabilityPool>(owner_address);
+        let pool_ref = borrow_global_mut<CentralLiquidityPool>(owner_address);
         let account_addr = signer::address_of(account);
         let user_ref = borrow_global<UserDistribution>(account_addr);
 
@@ -441,7 +441,7 @@ module leizd::stability_pool {
 
         coin::deposit<USDZ>(account_addr, coin::extract(&mut pool_ref.collected_fee, amount_to_claim));
         event::emit_event<ClaimRewardEvent>(
-            &mut borrow_global_mut<StabilityPoolEventHandle>(owner_address).claim_reward_event,
+            &mut borrow_global_mut<CentralLiquidityPoolEventHandle>(owner_address).claim_reward_event,
             ClaimRewardEvent {
                 caller: account_addr,
                 deposited: staked_by_user,
@@ -450,7 +450,7 @@ module leizd::stability_pool {
             }
         );
     }
-    fun update_user_asset(addr: address, staked_by_user: u64, total_staked: u64): u64 acquires DistributionConfig, UserDistribution, StabilityPoolEventHandle {
+    fun update_user_asset(addr: address, staked_by_user: u64, total_staked: u64): u64 acquires DistributionConfig, UserDistribution, CentralLiquidityPoolEventHandle {
         let config_ref = borrow_global_mut<DistributionConfig>(permission::owner_address());
         let user_ref = borrow_global_mut<UserDistribution>(addr);
         let accrued_reward = 0;
@@ -461,7 +461,7 @@ module leizd::stability_pool {
         user_ref.index = new_index;
         accrued_reward
     }
-    fun update_asset_state(config_ref: &mut DistributionConfig, total_staked: u64): u64 acquires StabilityPoolEventHandle {
+    fun update_asset_state(config_ref: &mut DistributionConfig, total_staked: u64): u64 acquires CentralLiquidityPoolEventHandle {
         let old_index = config_ref.index;
         let last_updated = config_ref.last_updated;
         let now = timestamp::now_seconds();
@@ -475,7 +475,7 @@ module leizd::stability_pool {
             // update index & emit event
             config_ref.index = new_index;
             event::emit_event<UpdateStateEvent>(
-                &mut borrow_global_mut<StabilityPoolEventHandle>(permission::owner_address()).update_state_event,
+                &mut borrow_global_mut<CentralLiquidityPoolEventHandle>(permission::owner_address()).update_state_event,
                 UpdateStateEvent {
                     old_index,
                     new_index,
@@ -495,10 +495,10 @@ module leizd::stability_pool {
          user_balance * (reserve_index - user_index) / PRECISION
     }
 
-    public(friend) fun collect_support_fee(key: String, coin: coin::Coin<USDZ>, new_uncollected_fee: u128) acquires StabilityPool, Balance {
+    public(friend) fun collect_support_fee(key: String, coin: coin::Coin<USDZ>, new_uncollected_fee: u128) acquires CentralLiquidityPool, Balance {
         let owner_address = permission::owner_address();
         let balance_ref = borrow_global_mut<Balance>(owner_address);
-        let pool_ref = borrow_global_mut<StabilityPool>(owner_address);
+        let pool_ref = borrow_global_mut<CentralLiquidityPool>(owner_address);
 
         let uncollected_support_fee = simple_map::borrow_mut<String,u128>(&mut balance_ref.uncollected_support_fee, &key);
         pool_ref.total_uncollected_fee = pool_ref.total_uncollected_fee - *uncollected_support_fee;
@@ -508,24 +508,24 @@ module leizd::stability_pool {
     }
 
     ////// View functions
-    public fun left(): u128 acquires StabilityPool {
-        (coin::value<USDZ>(&borrow_global<StabilityPool>(permission::owner_address()).left) as u128)
+    public fun left(): u128 acquires CentralLiquidityPool {
+        (coin::value<USDZ>(&borrow_global<CentralLiquidityPool>(permission::owner_address()).left) as u128)
     }
 
-    public fun collected_fee(): u64 acquires StabilityPool {
-        coin::value<USDZ>(&borrow_global<StabilityPool>(permission::owner_address()).collected_fee)
+    public fun collected_fee(): u64 acquires CentralLiquidityPool {
+        coin::value<USDZ>(&borrow_global<CentralLiquidityPool>(permission::owner_address()).collected_fee)
     }
 
-    public fun total_deposited(): u128 acquires StabilityPool {
-        borrow_global<StabilityPool>(permission::owner_address()).total_deposited
+    public fun total_deposited(): u128 acquires CentralLiquidityPool {
+        borrow_global<CentralLiquidityPool>(permission::owner_address()).total_deposited
     }
 
-    public fun total_borrowed(): u128 acquires StabilityPool {
-        borrow_global<StabilityPool>(permission::owner_address()).total_borrowed
+    public fun total_borrowed(): u128 acquires CentralLiquidityPool {
+        borrow_global<CentralLiquidityPool>(permission::owner_address()).total_borrowed
     }
 
-    public fun total_uncollected_fee(): u128 acquires StabilityPool {
-        borrow_global<StabilityPool>(permission::owner_address()).total_uncollected_fee
+    public fun total_uncollected_fee(): u128 acquires CentralLiquidityPool {
+        borrow_global<CentralLiquidityPool>(permission::owner_address()).total_uncollected_fee
     }
 
     public fun borrowed(key: String): u128 acquires Balance {
@@ -567,7 +567,7 @@ module leizd::stability_pool {
         DEFAULT_SUPPORT_FEE
     }
     #[test_only]
-    fun initialize_for_test_to_use_coin(owner: &signer) acquires Balance, StabilityPoolEventHandle {
+    fun initialize_for_test_to_use_coin(owner: &signer) acquires Balance, CentralLiquidityPoolEventHandle {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
 
@@ -579,18 +579,18 @@ module leizd::stability_pool {
     }
     // related initialize
     #[test(owner=@leizd)]
-    public entry fun test_initialize(owner: &signer) acquires StabilityPool, Config, DistributionConfig, StabilityPoolEventHandle {
+    public entry fun test_initialize(owner: &signer) acquires CentralLiquidityPool, Config, DistributionConfig, CentralLiquidityPoolEventHandle {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
         trove_manager::initialize(owner);
 
         initialize(owner);
 
-        assert!(exists<StabilityPool>(owner_addr), 0);
-        let stability_pool_ref = borrow_global<StabilityPool>(owner_addr);
-        assert!(stability_pool_ref.total_deposited == 0, 0);
-        assert!(stability_pool_ref.total_borrowed == 0, 0);
-        assert!(stability_pool_ref.total_uncollected_fee == 0, 0);
+        assert!(exists<CentralLiquidityPool>(owner_addr), 0);
+        let central_liquidity_pool_ref = borrow_global<CentralLiquidityPool>(owner_addr);
+        assert!(central_liquidity_pool_ref.total_deposited == 0, 0);
+        assert!(central_liquidity_pool_ref.total_borrowed == 0, 0);
+        assert!(central_liquidity_pool_ref.total_uncollected_fee == 0, 0);
 
         assert!(exists<Config>(owner_addr), 0);
         let config_ref = borrow_global<Config>(owner_addr);
@@ -603,11 +603,11 @@ module leizd::stability_pool {
         assert!(distribution_config_ref.last_updated == 0, 0);
         assert!(distribution_config_ref.index == 0, 0);
 
-        assert!(exists<StabilityPoolEventHandle>(owner_addr), 0);
+        assert!(exists<CentralLiquidityPoolEventHandle>(owner_addr), 0);
     }
     #[test(owner=@leizd)]
     #[expected_failure(abort_code = 196609)]
-    public entry fun test_initialize_twice(owner: &signer) acquires StabilityPoolEventHandle {
+    public entry fun test_initialize_twice(owner: &signer) acquires CentralLiquidityPoolEventHandle {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
         trove_manager::initialize(owner);
@@ -617,11 +617,11 @@ module leizd::stability_pool {
     }
     #[test(account=@0x111)]
     #[expected_failure(abort_code = 65537)]
-    public entry fun test_initialize_without_owner(account: &signer) acquires StabilityPoolEventHandle {
+    public entry fun test_initialize_without_owner(account: &signer) acquires CentralLiquidityPoolEventHandle {
         initialize(account);
     }
     #[test(owner = @leizd)]
-    fun test_is_supported(owner: &signer) acquires StabilityPool, StabilityPoolEventHandle {
+    fun test_is_supported(owner: &signer) acquires CentralLiquidityPool, CentralLiquidityPoolEventHandle {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
         trove_manager::initialize(owner);
@@ -652,12 +652,12 @@ module leizd::stability_pool {
     }
     #[test(account = @0x111)]
     #[expected_failure(abort_code = 65537)]
-    fun test_add_supported_pool_with_not_owner(account: &signer) acquires StabilityPool {
+    fun test_add_supported_pool_with_not_owner(account: &signer) acquires CentralLiquidityPool {
         add_supported_pool<WETH>(account)
     }
     #[test(owner = @leizd)]
     #[expected_failure(abort_code = 65543)]
-    fun test_add_supported_pool_with_not_initialized_coin(owner: &signer) acquires StabilityPool, StabilityPoolEventHandle {
+    fun test_add_supported_pool_with_not_initialized_coin(owner: &signer) acquires CentralLiquidityPool, CentralLiquidityPoolEventHandle {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
         trove_manager::initialize(owner);
@@ -667,7 +667,7 @@ module leizd::stability_pool {
     }
     #[test(owner = @leizd)]
     #[expected_failure(abort_code = 65542)]
-    fun test_add_supported_pool_if_already_added(owner: &signer) acquires Balance, StabilityPool, StabilityPoolEventHandle {
+    fun test_add_supported_pool_if_already_added(owner: &signer) acquires Balance, CentralLiquidityPool, CentralLiquidityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         assert!(!is_supported(key<WETH>()), 0);
 
@@ -676,12 +676,12 @@ module leizd::stability_pool {
     }
     #[test(account = @0x111)]
     #[expected_failure(abort_code = 65537)]
-    fun test_remove_supported_pool_with_not_owner(account: &signer) acquires StabilityPool {
+    fun test_remove_supported_pool_with_not_owner(account: &signer) acquires CentralLiquidityPool {
         remove_supported_pool<WETH>(account)
     }
     #[test(owner = @leizd)]
     #[expected_failure(abort_code = 65544)]
-    fun test_add_supported_pool_if_already_removed(owner: &signer) acquires Balance, StabilityPool, StabilityPoolEventHandle {
+    fun test_add_supported_pool_if_already_removed(owner: &signer) acquires Balance, CentralLiquidityPool, CentralLiquidityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         assert!(!is_supported(key<WETH>()), 0);
 
@@ -689,7 +689,7 @@ module leizd::stability_pool {
     }
     // for deposit
     #[test(owner=@leizd,account=@0x111)]
-    public entry fun test_deposit(owner: &signer, account: &signer) acquires Balance, StabilityPool, StabilityPoolEventHandle {
+    public entry fun test_deposit(owner: &signer, account: &signer) acquires Balance, CentralLiquidityPool, CentralLiquidityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -703,11 +703,11 @@ module leizd::stability_pool {
         assert!(usdz::balance_of(account_addr) == 600000, 0);
         assert!(stb_usdz::balance_of(account_addr) == 400000, 0);
 
-        assert!(event::counter<DepositEvent>(&borrow_global<StabilityPoolEventHandle>(signer::address_of(owner)).deposit_event) == 1, 0);
+        assert!(event::counter<DepositEvent>(&borrow_global<CentralLiquidityPoolEventHandle>(signer::address_of(owner)).deposit_event) == 1, 0);
     }
     #[test(owner=@leizd,account=@0x111)]
     #[expected_failure(abort_code = 65539)]
-    public entry fun test_deposit_with_no_amount(owner: &signer, account: &signer) acquires Balance, StabilityPool, StabilityPoolEventHandle {
+    public entry fun test_deposit_with_no_amount(owner: &signer, account: &signer) acquires Balance, CentralLiquidityPool, CentralLiquidityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -719,7 +719,7 @@ module leizd::stability_pool {
     }
     #[test(owner=@leizd,account=@0x111)]
     #[expected_failure(abort_code = 65542)]
-    public entry fun test_deposit_with_not_enough_coin(owner: &signer, account: &signer) acquires Balance, StabilityPool, StabilityPoolEventHandle {
+    public entry fun test_deposit_with_not_enough_coin(owner: &signer, account: &signer) acquires Balance, CentralLiquidityPool, CentralLiquidityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -730,7 +730,7 @@ module leizd::stability_pool {
         deposit(account, 1001);
     }
     #[test(owner=@leizd, account=@0x111)]
-    public entry fun test_deposit_more_than_once_sequentially(owner: &signer, account: &signer) acquires Balance, StabilityPool, StabilityPoolEventHandle {
+    public entry fun test_deposit_more_than_once_sequentially(owner: &signer, account: &signer) acquires Balance, CentralLiquidityPool, CentralLiquidityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -754,7 +754,7 @@ module leizd::stability_pool {
 
     // for withdraw
     #[test(owner=@leizd,account=@0x111)]
-    public entry fun test_withdraw(owner: &signer, account: &signer) acquires Balance, StabilityPool, StabilityPoolEventHandle {
+    public entry fun test_withdraw(owner: &signer, account: &signer) acquires Balance, CentralLiquidityPool, CentralLiquidityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -770,11 +770,11 @@ module leizd::stability_pool {
         assert!(usdz::balance_of(account_addr) == 900000, 0);
         assert!(stb_usdz::balance_of(account_addr) == 100000, 0);
 
-        assert!(event::counter<WithdrawEvent>(&borrow_global<StabilityPoolEventHandle>(signer::address_of(owner)).withdraw_event) == 1, 0);
+        assert!(event::counter<WithdrawEvent>(&borrow_global<CentralLiquidityPoolEventHandle>(signer::address_of(owner)).withdraw_event) == 1, 0);
     }
     #[test(owner=@leizd,account=@0x111)]
     #[expected_failure(abort_code = 65539)]
-    public entry fun test_withdraw_with_no_amount(owner: &signer, account: &signer) acquires Balance, StabilityPool, StabilityPoolEventHandle {
+    public entry fun test_withdraw_with_no_amount(owner: &signer, account: &signer) acquires Balance, CentralLiquidityPool, CentralLiquidityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -787,7 +787,7 @@ module leizd::stability_pool {
     }
     #[test(owner=@leizd,account1=@0x111,account2=@0x222)]
     #[expected_failure(abort_code = 65542)]
-    public entry fun test_withdraw_without_any_deposit(owner: &signer, account1: &signer, account2: &signer) acquires Balance, StabilityPool, StabilityPoolEventHandle {
+    public entry fun test_withdraw_without_any_deposit(owner: &signer, account1: &signer, account2: &signer) acquires Balance, CentralLiquidityPool, CentralLiquidityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         let account1_addr = signer::address_of(account1);
         let account2_addr = signer::address_of(account2);
@@ -803,7 +803,7 @@ module leizd::stability_pool {
         withdraw(account2, 300000);
     }
     #[test(owner=@leizd,account=@0x111)]
-    public entry fun test_withdraw_with_amount_is_total_deposited(owner: &signer, account: &signer) acquires Balance, StabilityPool, StabilityPoolEventHandle {
+    public entry fun test_withdraw_with_amount_is_total_deposited(owner: &signer, account: &signer) acquires Balance, CentralLiquidityPool, CentralLiquidityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -819,7 +819,7 @@ module leizd::stability_pool {
     }
     #[test(owner=@leizd,account=@0x111)]
     #[expected_failure(abort_code = 65540)]
-    public entry fun test_withdraw_with_amount_is_greater_than_total_deposited(owner: &signer, account: &signer) acquires Balance, StabilityPool, StabilityPoolEventHandle {
+    public entry fun test_withdraw_with_amount_is_greater_than_total_deposited(owner: &signer, account: &signer) acquires Balance, CentralLiquidityPool, CentralLiquidityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -831,7 +831,7 @@ module leizd::stability_pool {
         withdraw(account, 300001);
     }
     #[test(owner=@leizd, account=@0x111)]
-    public entry fun test_withdraw_more_than_once_sequentially(owner: &signer, account: &signer) acquires Balance, StabilityPool, StabilityPoolEventHandle {
+    public entry fun test_withdraw_more_than_once_sequentially(owner: &signer, account: &signer) acquires Balance, CentralLiquidityPool, CentralLiquidityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -856,7 +856,7 @@ module leizd::stability_pool {
 
     // for borrow
     #[test(owner=@leizd,account1=@0x111,account2=@0x222)]
-    public entry fun test_borrow(owner: &signer, account1: &signer, account2: &signer) acquires StabilityPool, Config, Balance, StabilityPoolEventHandle {
+    public entry fun test_borrow(owner: &signer, account1: &signer, account2: &signer) acquires CentralLiquidityPool, Config, Balance, CentralLiquidityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         add_supported_pool<WETH>(owner);
         let account1_addr = signer::address_of(account1);
@@ -884,11 +884,11 @@ module leizd::stability_pool {
         assert!(stb_usdz::balance_of(account1_addr) == 400000, 0);
         assert!(usdz::balance_of(account2_addr) == 300000, 0);
         //// event
-        assert!(event::counter<BorrowEvent>(&borrow_global<StabilityPoolEventHandle>(signer::address_of(owner)).borrow_event) == 1, 0);
+        assert!(event::counter<BorrowEvent>(&borrow_global<CentralLiquidityPoolEventHandle>(signer::address_of(owner)).borrow_event) == 1, 0);
     }
     #[test(owner=@leizd, account=@0x111)]
     #[expected_failure(abort_code = 65545)]
-    public entry fun test_borrow_with_not_supported_coin(owner: &signer, account: &signer) acquires StabilityPool, Config, Balance, StabilityPoolEventHandle {
+    public entry fun test_borrow_with_not_supported_coin(owner: &signer, account: &signer) acquires CentralLiquidityPool, Config, Balance, CentralLiquidityPoolEventHandle {
         account::create_account_for_test(signer::address_of(owner));
         trove_manager::initialize(owner);
         initialize(owner);
@@ -901,7 +901,7 @@ module leizd::stability_pool {
     }
     #[test(owner=@leizd, account=@0x111)]
     #[expected_failure(abort_code = 65539)]
-    public entry fun test_borrow_with_no_amount(owner: &signer, account: &signer) acquires StabilityPool, Config, Balance, StabilityPoolEventHandle {
+    public entry fun test_borrow_with_no_amount(owner: &signer, account: &signer) acquires CentralLiquidityPool, Config, Balance, CentralLiquidityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         add_supported_pool<WETH>(owner);
         let account_addr = signer::address_of(account);
@@ -915,7 +915,7 @@ module leizd::stability_pool {
     }
     #[test(owner=@leizd, account=@0x111)]
     #[expected_failure(abort_code = 65540)]
-    public entry fun test_borrow_with_amount_is_greater_than_left(owner: &signer, account: &signer) acquires StabilityPool, Config, Balance, StabilityPoolEventHandle {
+    public entry fun test_borrow_with_amount_is_greater_than_left(owner: &signer, account: &signer) acquires CentralLiquidityPool, Config, Balance, CentralLiquidityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         add_supported_pool<WETH>(owner);
         let account_addr = signer::address_of(account);
@@ -928,7 +928,7 @@ module leizd::stability_pool {
         coin::deposit(account_addr, coin);
     }
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222)]
-    public entry fun test_borrow_more_than_once_sequentially(owner: &signer, depositor: &signer, borrower: &signer) acquires StabilityPool, Config, Balance, StabilityPoolEventHandle {
+    public entry fun test_borrow_more_than_once_sequentially(owner: &signer, depositor: &signer, borrower: &signer) acquires CentralLiquidityPool, Config, Balance, CentralLiquidityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         add_supported_pool<WETH>(owner);
         let depositor_addr = signer::address_of(depositor);
@@ -974,7 +974,7 @@ module leizd::stability_pool {
 
     // for repay
     #[test(owner=@leizd,account1=@0x111,account2=@0x222)]
-    public entry fun test_repay(owner: &signer, account1: &signer, account2: &signer) acquires StabilityPool, Config, Balance, StabilityPoolEventHandle {
+    public entry fun test_repay(owner: &signer, account1: &signer, account2: &signer) acquires CentralLiquidityPool, Config, Balance, CentralLiquidityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         let account1_addr = signer::address_of(account1);
         let account2_addr = signer::address_of(account2);
@@ -1002,18 +1002,18 @@ module leizd::stability_pool {
         assert!(usdz::balance_of(account2_addr) == 100000, 0);
         assert!(stb_usdz::balance_of(account1_addr) == 400000, 0);
         //// event
-        assert!(event::counter<RepayEvent>(&borrow_global<StabilityPoolEventHandle>(signer::address_of(owner)).repay_event) == 1, 0);
+        assert!(event::counter<RepayEvent>(&borrow_global<CentralLiquidityPoolEventHandle>(signer::address_of(owner)).repay_event) == 1, 0);
     }
     //// validations
     #[test(owner=@leizd,account=@0x111)]
     #[expected_failure(abort_code = 65539)]
-    public entry fun test_repay_with_zero_amount(owner: &signer, account: &signer) acquires StabilityPool, Balance, StabilityPoolEventHandle {
+    public entry fun test_repay_with_zero_amount(owner: &signer, account: &signer) acquires CentralLiquidityPool, Balance, CentralLiquidityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         repay(key<WETH>(), account, 0);
     }
     #[test(owner=@leizd,account=@0x111)]
     #[expected_failure(abort_code = 65539)]
-    public entry fun test_repay_with_amount_is_greater_than_total_borrowed(owner: &signer, account: &signer) acquires StabilityPool, Config, Balance, StabilityPoolEventHandle {
+    public entry fun test_repay_with_amount_is_greater_than_total_borrowed(owner: &signer, account: &signer) acquires CentralLiquidityPool, Config, Balance, CentralLiquidityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         add_supported_pool<WETH>(owner);
         let owner_addr = signer::address_of(owner);
@@ -1033,7 +1033,7 @@ module leizd::stability_pool {
     }
     //// calculation
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222)]
-    public entry fun test_repay_for_confirming_priority(owner: &signer, depositor: &signer, borrower: &signer) acquires StabilityPool, Config, Balance, StabilityPoolEventHandle {
+    public entry fun test_repay_for_confirming_priority(owner: &signer, depositor: &signer, borrower: &signer) acquires CentralLiquidityPool, Config, Balance, CentralLiquidityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         let depositor_addr = signer::address_of(depositor);
         let borrower_addr = signer::address_of(borrower);
@@ -1099,7 +1099,7 @@ module leizd::stability_pool {
         assert!(usdz::balance_of(borrower_addr) == 0, 0);
     }
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222)]
-    public entry fun test_repay_with_amount_between_total_borrowed_and_uncollected_fee(owner: &signer, depositor: &signer, borrower: &signer) acquires StabilityPool, Config, Balance, StabilityPoolEventHandle {
+    public entry fun test_repay_with_amount_between_total_borrowed_and_uncollected_fee(owner: &signer, depositor: &signer, borrower: &signer) acquires CentralLiquidityPool, Config, Balance, CentralLiquidityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         let depositor_addr = signer::address_of(depositor);
         let borrower_addr = signer::address_of(borrower);
@@ -1142,7 +1142,7 @@ module leizd::stability_pool {
         move_to(account, default_user_distribution());
     }
     #[test(owner=@leizd, account=@0x111, aptos_framework=@aptos_framework)]
-    public entry fun test_claim_reward_temp(owner: &signer, account: &signer, aptos_framework: &signer) acquires Balance, StabilityPool, Config, DistributionConfig, UserDistribution, StabilityPoolEventHandle {
+    public entry fun test_claim_reward_temp(owner: &signer, account: &signer, aptos_framework: &signer) acquires Balance, CentralLiquidityPool, Config, DistributionConfig, UserDistribution, CentralLiquidityPoolEventHandle {
         timestamp::set_time_has_started_for_testing(aptos_framework);
         initialize_for_test_to_use_coin(owner);
         add_supported_pool<WETH>(owner);
@@ -1173,11 +1173,11 @@ module leizd::stability_pool {
         // execute
         claim_reward(account, 5);
         assert!(usdz::balance_of(account_addr) == 5, 0);
-        assert!(event::counter<ClaimRewardEvent>(&borrow_global<StabilityPoolEventHandle>(owner_addr).claim_reward_event) == 1, 0);
+        assert!(event::counter<ClaimRewardEvent>(&borrow_global<CentralLiquidityPoolEventHandle>(owner_addr).claim_reward_event) == 1, 0);
     }
     #[test(owner=@leizd, account=@0x111, aptos_framework=@aptos_framework)]
     #[expected_failure(abort_code = 65541)]
-    public entry fun test_claim_reward_with_no_claimable(owner: &signer, account: &signer, aptos_framework: &signer) acquires Balance, StabilityPool, DistributionConfig, UserDistribution, StabilityPoolEventHandle {
+    public entry fun test_claim_reward_with_no_claimable(owner: &signer, account: &signer, aptos_framework: &signer) acquires Balance, CentralLiquidityPool, DistributionConfig, UserDistribution, CentralLiquidityPoolEventHandle {
         timestamp::set_time_has_started_for_testing(aptos_framework);
         initialize_for_test_to_use_coin(owner);
         init_user_distribution_for_test(account);
@@ -1185,13 +1185,13 @@ module leizd::stability_pool {
     }
     #[test(owner=@leizd, account=@0x111)]
     #[expected_failure(abort_code = 65539)]
-    public entry fun test_claim_reward_with_zero_amount(owner: &signer, account: &signer) acquires Balance, StabilityPool, DistributionConfig, UserDistribution, StabilityPoolEventHandle {
+    public entry fun test_claim_reward_with_zero_amount(owner: &signer, account: &signer) acquires Balance, CentralLiquidityPool, DistributionConfig, UserDistribution, CentralLiquidityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         claim_reward(account, 0);
     }
     //// related functions
     #[test(owner=@leizd, aptos_framework=@aptos_framework, stash=@0x999)]
-    fun test_update_asset_state(owner: &signer, aptos_framework: &signer, stash: &signer) acquires StabilityPoolEventHandle {
+    fun test_update_asset_state(owner: &signer, aptos_framework: &signer, stash: &signer) acquires CentralLiquidityPoolEventHandle {
         let total_staked = 100;
         let emission_per_sec = 10;
         let last_updated_per_sec = 1648738800; // 20220401T00:00:00
@@ -1207,7 +1207,7 @@ module leizd::stability_pool {
         //// for event
         let owner_address = signer::address_of(owner);
         account::create_account_for_test(owner_address);
-        move_to(owner, StabilityPoolEventHandle {
+        move_to(owner, CentralLiquidityPoolEventHandle {
             deposit_event: account::new_event_handle<DepositEvent>(owner),
             withdraw_event: account::new_event_handle<WithdrawEvent>(owner),
             borrow_event: account::new_event_handle<BorrowEvent>(owner),
@@ -1224,13 +1224,13 @@ module leizd::stability_pool {
         assert!(distribution_config.index == expected_new_index, 0);
         assert!(distribution_config.last_updated == last_updated_per_sec + 30, 0);
         assert!(distribution_config.emission_per_sec == emission_per_sec, 0);
-        assert!(event::counter<UpdateStateEvent>(&borrow_global<StabilityPoolEventHandle>(owner_address).update_state_event) == 1, 0);
+        assert!(event::counter<UpdateStateEvent>(&borrow_global<CentralLiquidityPoolEventHandle>(owner_address).update_state_event) == 1, 0);
 
         // post_process
         move_to(stash, distribution_config);
     }
     #[test(owner=@leizd, aptos_framework=@aptos_framework, stash=@0x999)]
-    fun test_update_asset_state_when_index_is_not_updated(owner: &signer, aptos_framework: &signer, stash: &signer) acquires StabilityPoolEventHandle {
+    fun test_update_asset_state_when_index_is_not_updated(owner: &signer, aptos_framework: &signer, stash: &signer) acquires CentralLiquidityPoolEventHandle {
         let total_staked = 100;
         let last_updated_per_sec = 1648738800; // 20220401T00:00:00
 
@@ -1244,7 +1244,7 @@ module leizd::stability_pool {
         //// for event
         let owner_address = signer::address_of(owner);
         account::create_account_for_test(owner_address);
-        move_to(owner, StabilityPoolEventHandle {
+        move_to(owner, CentralLiquidityPoolEventHandle {
             deposit_event: account::new_event_handle<DepositEvent>(owner),
             withdraw_event: account::new_event_handle<WithdrawEvent>(owner),
             borrow_event: account::new_event_handle<BorrowEvent>(owner),
@@ -1259,7 +1259,7 @@ module leizd::stability_pool {
         let index_1 = update_asset_state(&mut distribution_config, total_staked);
         assert!(index_1 == 0, 0);
         assert!(distribution_config.last_updated == last_updated_per_sec + 30, 0);
-        assert!(event::counter<UpdateStateEvent>(&borrow_global<StabilityPoolEventHandle>(owner_address).update_state_event) == 0, 0);
+        assert!(event::counter<UpdateStateEvent>(&borrow_global<CentralLiquidityPoolEventHandle>(owner_address).update_state_event) == 0, 0);
 
         // execute: equal to the calculated result
         let emission_per_sec = 10;
@@ -1272,7 +1272,7 @@ module leizd::stability_pool {
         let index_2 = update_asset_state(&mut distribution_config, total_staked);
         assert!(index_2 == pre_calculated_index, 0);
         assert!(distribution_config.last_updated == last_updated_per_sec + 30 + duration, 0);
-        assert!(event::counter<UpdateStateEvent>(&borrow_global<StabilityPoolEventHandle>(owner_address).update_state_event) == 0, 0);
+        assert!(event::counter<UpdateStateEvent>(&borrow_global<CentralLiquidityPoolEventHandle>(owner_address).update_state_event) == 0, 0);
 
         // post_process
         move_to(stash, distribution_config);
@@ -1295,35 +1295,35 @@ module leizd::stability_pool {
 
     // for related configuration
     #[test(owner = @leizd)]
-    fun test_update_config(owner: &signer) acquires Balance, Config, StabilityPoolEventHandle {
+    fun test_update_config(owner: &signer) acquires Balance, Config, CentralLiquidityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
 
         update_config(owner, PRECISION * 10 / 1000, PRECISION * 10 / 1000);
         assert!(entry_fee() == PRECISION * 10 / 1000, 0);
         assert!(support_fee() == PRECISION * 10 / 1000, 0);
 
-        assert!(event::counter<UpdateConfigEvent>(&borrow_global<StabilityPoolEventHandle>(signer::address_of(owner)).update_config_event) == 2, 0);
+        assert!(event::counter<UpdateConfigEvent>(&borrow_global<CentralLiquidityPoolEventHandle>(signer::address_of(owner)).update_config_event) == 2, 0);
     }
     #[test(owner = @leizd, account = @0x111)]
     #[expected_failure(abort_code = 65537)]
-    fun test_update_config_with_not_owner(owner: &signer, account: &signer) acquires Balance, Config, StabilityPoolEventHandle {
+    fun test_update_config_with_not_owner(owner: &signer, account: &signer) acquires Balance, Config, CentralLiquidityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         update_config(account, PRECISION * 10 / 1000, PRECISION * 10 / 1000);
     }
     #[test(owner = @leizd)]
     #[expected_failure(abort_code = 65538)]
-    fun test_update_config_with_entry_fee_as_equal_to_precision(owner: &signer) acquires Balance, Config, StabilityPoolEventHandle {
+    fun test_update_config_with_entry_fee_as_equal_to_precision(owner: &signer) acquires Balance, Config, CentralLiquidityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         update_config(owner, PRECISION, support_fee());
     }
     #[test(owner = @leizd)]
     #[expected_failure(abort_code = 65546)]
-    fun test_update_config_with_support_fee_as_equal_to_precision(owner: &signer) acquires Balance, Config, StabilityPoolEventHandle {
+    fun test_update_config_with_support_fee_as_equal_to_precision(owner: &signer) acquires Balance, Config, CentralLiquidityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         update_config(owner, entry_fee(), PRECISION);
     }
     #[test(owner = @leizd)]
-    fun test_calculate_entry_fee(owner: &signer) acquires Balance, Config, StabilityPoolEventHandle {
+    fun test_calculate_entry_fee(owner: &signer) acquires Balance, Config, CentralLiquidityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
 
         assert!(calculate_entry_fee(100000) == 500, 0);
@@ -1348,7 +1348,7 @@ module leizd::stability_pool {
         assert!(calculate_entry_fee(1) == 0, 0);
     }
     #[test(owner = @leizd)]
-    fun test_calculate_support_fee(owner: &signer) acquires Balance, Config, StabilityPoolEventHandle {
+    fun test_calculate_support_fee(owner: &signer) acquires Balance, Config, CentralLiquidityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
 
         assert!(calculate_support_fee(100000) == 100, 0);
@@ -1373,7 +1373,7 @@ module leizd::stability_pool {
         assert!(calculate_support_fee(1) == 0, 0);
     }
     #[test(owner = @leizd)]
-    fun test_distribution_config(owner: &signer) acquires DistributionConfig, StabilityPoolEventHandle {
+    fun test_distribution_config(owner: &signer) acquires DistributionConfig, CentralLiquidityPoolEventHandle {
         account::create_account_for_test(signer::address_of(owner));
         trove_manager::initialize(owner);
         initialize(owner);

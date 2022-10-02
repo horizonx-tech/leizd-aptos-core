@@ -5,7 +5,7 @@ module leizd::stb_usdz {
     use leizd_aptos_trove::usdz::{USDZ};
     use leizd::coin_base;
 
-    friend leizd::stability_pool;
+    friend leizd::central_liquidity_pool;
 
     struct StabilityCollateral {
         coin: coin::Coin<USDZ>
