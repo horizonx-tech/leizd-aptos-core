@@ -276,7 +276,7 @@ module leizd::asset_pool {
             asset_storage_ref.total_conly_deposited_amount = asset_storage_ref.total_conly_deposited_amount - amount_u128;
             asset_storage_ref.total_conly_deposited_share = asset_storage_ref.total_conly_deposited_share - withdrawn_user_share_u128;
         } else {
-            withdrawn_user_share_u128 = math128::to_share_roundup(amount_u128, asset_storage_ref.total_normal_deposited_amount, asset_storage_ref.total_normal_deposited_amount);
+            withdrawn_user_share_u128 = math128::to_share_roundup(amount_u128, asset_storage_ref.total_normal_deposited_amount, asset_storage_ref.total_normal_deposited_share);
             asset_storage_ref.total_normal_deposited_amount = asset_storage_ref.total_normal_deposited_amount - amount_u128;
             asset_storage_ref.total_normal_deposited_share = asset_storage_ref.total_normal_deposited_share - withdrawn_user_share_u128;
         };
