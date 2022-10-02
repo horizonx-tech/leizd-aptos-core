@@ -11,9 +11,10 @@ module leizd::account_position {
     use aptos_framework::account;
     use leizd_aptos_logic::rebalance::{Self,Rebalance};
     use leizd_aptos_logic::risk_factor;
+    use leizd_aptos_common::coin_key::{key};
+    use leizd_aptos_common::permission;
     use leizd_aptos_common::pool_type;
     use leizd_aptos_common::position_type::{Self,AssetToShadow,ShadowToAsset};
-    use leizd_aptos_common::coin_key::{key};
     use leizd_aptos_external::price_oracle;
     use leizd_aptos_trove::usdz::{USDZ};
     use leizd_aptos_lib::constant;
@@ -31,6 +32,8 @@ module leizd::account_position {
     const EALREADY_DEPOSITED_AS_COLLATERAL_ONLY: u64 = 9;
     const ECANNOT_REBALANCE: u64 = 10;
     const ENO_DEPOSITED: u64 = 11;
+
+    struct AccountPositionKey has store, drop {} // TODO: remove `drop` ability
 
     /// P: The position type - AssetToShadow or ShadowToAsset.
     struct Position<phantom P> has key {
@@ -57,7 +60,13 @@ module leizd::account_position {
         update_position_event: event::EventHandle<UpdatePositionEvent>,
     }
 
-    fun initialize_if_necessary(account: &signer) {
+    public entry fun initialize(owner: &signer): AccountPositionKey {
+        let owner_addr = signer::address_of(owner);
+        permission::assert_owner(owner_addr);
+        AccountPositionKey {}
+    }
+
+    fun initialize_position_if_necessary(account: &signer) {
         if (!exists<Position<AssetToShadow>>(signer::address_of(account))) {
             move_to(account, Position<AssetToShadow> {
                 coins: vector::empty<String>(),
@@ -81,12 +90,18 @@ module leizd::account_position {
     ////////////////////////////////////////////////////
     /// Deposit
     ////////////////////////////////////////////////////
-    public(friend) fun deposit<C,P>(account: &signer, depositor_addr: address, amount: u64, is_collateral_only: bool) acquires Position, AccountPositionEventHandle {
+    public(friend) fun deposit<C,P>(
+        account: &signer,
+        depositor_addr: address,
+        amount: u64,
+        is_collateral_only: bool,
+        _key: &AccountPositionKey
+    ) acquires Position, AccountPositionEventHandle {
         deposit_internal<C,P>(account, depositor_addr, amount, is_collateral_only);
     }
 
     fun deposit_internal<C,P>(account: &signer, depositor_addr: address, amount: u64, is_collateral_only: bool) acquires Position, AccountPositionEventHandle {
-        initialize_if_necessary(account);
+        initialize_position_if_necessary(account);
         assert!(exists<Position<AssetToShadow>>(depositor_addr), error::invalid_argument(ENO_POSITION_RESOURCE));
 
         if (pool_type::is_type_asset<P>()) {
@@ -143,7 +158,12 @@ module leizd::account_position {
     ////////////////////////////////////////////////////
     /// Withdraw
     ////////////////////////////////////////////////////
-    public(friend) fun withdraw<C,P>(depositor_addr: address, amount: u64, is_collateral_only: bool): u64 acquires Position, AccountPositionEventHandle {
+    public(friend) fun withdraw<C,P>(
+        depositor_addr: address,
+        amount: u64,
+        is_collateral_only: bool,
+        _key: &AccountPositionKey
+    ): u64 acquires Position, AccountPositionEventHandle {
         withdraw_internal<C,P>(depositor_addr, amount, is_collateral_only)
     }
 
@@ -163,12 +183,21 @@ module leizd::account_position {
     ////////////////////////////////////////////////////
     /// Borrow
     ////////////////////////////////////////////////////
-    public(friend) fun borrow<C,P>(account: &signer, borrower_addr: address, amount: u64) acquires Position, AccountPositionEventHandle {
+    public(friend) fun borrow<C,P>(
+        account: &signer,
+        borrower_addr: address,
+        amount: u64,
+        _key: &AccountPositionKey
+    ) acquires Position, AccountPositionEventHandle {
         borrow_internal<C,P>(account, borrower_addr, amount);
     }
 
-    fun borrow_internal<C,P>(account: &signer, borrower_addr: address, amount: u64) acquires Position, AccountPositionEventHandle {
-        initialize_if_necessary(account);
+    fun borrow_internal<C,P>(
+        account: &signer,
+        borrower_addr: address,
+        amount: u64,
+    ) acquires Position, AccountPositionEventHandle {
+        initialize_position_if_necessary(account);
         assert!(exists<Position<AssetToShadow>>(borrower_addr), error::invalid_argument(ENO_POSITION_RESOURCE));
 
         if (pool_type::is_type_asset<P>()) {
@@ -291,7 +320,8 @@ module leizd::account_position {
 
     public(friend) fun borrow_asset_with_rebalance<C>(
         addr: address,
-        amount: u64
+        amount: u64,
+        _key: &AccountPositionKey
     ):(
         vector<Rebalance>,
         vector<Rebalance>,
@@ -344,7 +374,7 @@ module leizd::account_position {
     ////////////////////////////////////////////////////
     /// Repay
     ////////////////////////////////////////////////////
-    public(friend) fun repay<C,P>(addr: address, amount: u64): u64 acquires Position, AccountPositionEventHandle {
+    public(friend) fun repay<C,P>(addr: address, amount: u64,  _key: &AccountPositionKey): u64 acquires Position, AccountPositionEventHandle {
         repay_internal<C, P>(addr, amount)
     }
     fun repay_internal<C,P>(addr: address, amount: u64): u64 acquires Position, AccountPositionEventHandle {
@@ -358,7 +388,7 @@ module leizd::account_position {
     }
 
     /// @return (repay_keys, repay_amounts)
-    public(friend) fun repay_shadow_with_rebalance(addr: address, amount: u64): (vector<String>, vector<u64>) acquires Position, AccountPositionEventHandle {
+    public(friend) fun repay_shadow_with_rebalance(addr: address, amount: u64, _key: &AccountPositionKey): (vector<String>, vector<u64>) acquires Position, AccountPositionEventHandle {
         repay_shadow_with_rebalance_internal(addr, amount)
     }
     fun repay_shadow_with_rebalance_internal(addr: address, amount: u64): (vector<String>, vector<u64>) acquires Position, AccountPositionEventHandle {
@@ -425,7 +455,7 @@ module leizd::account_position {
     ////////////////////////////////////////////////////
     /// Liquidate
     ////////////////////////////////////////////////////
-    public(friend) fun liquidate<C,P>(target_addr: address): (u64,u64,bool) acquires Position, AccountPositionEventHandle {
+    public(friend) fun liquidate<C,P>(target_addr: address, _key: &AccountPositionKey): (u64,u64,bool) acquires Position, AccountPositionEventHandle {
         liquidate_internal<C,P>(target_addr)
     }
 
@@ -472,7 +502,7 @@ module leizd::account_position {
     ////////////////////////////////////////////////////
     /// Rebalance
     ////////////////////////////////////////////////////
-    public(friend) fun rebalance_shadow<C1,C2>(addr: address): (u64,bool,bool) acquires Position, AccountPositionEventHandle {
+    public(friend) fun rebalance_shadow<C1,C2>(addr: address, _key: &AccountPositionKey): (u64,bool,bool) acquires Position, AccountPositionEventHandle {
         let key1 = key<C1>();
         let key2 = key<C2>();
         rebalance_shadow_internal(addr, key1, key2)
@@ -552,7 +582,7 @@ module leizd::account_position {
 
     // Rebalance after borrowing additonal shadow
 
-    public(friend) fun borrow_and_rebalance<C1,C2>(addr: address, is_collateral_only: bool): u64 acquires Position, AccountPositionEventHandle {
+    public(friend) fun borrow_and_rebalance<C1,C2>(addr: address, is_collateral_only: bool, _key: &AccountPositionKey): u64 acquires Position, AccountPositionEventHandle {
         let key1 = key<C1>();
         let key2 = key<C2>();
         borrow_and_rebalance_internal(addr, key1, key2, is_collateral_only)
@@ -653,7 +683,7 @@ module leizd::account_position {
     ////////////////////////////////////////////////////
     /// Switch Collateral
     ////////////////////////////////////////////////////
-    public(friend) fun switch_collateral<C,P>(addr: address, to_collateral_only: bool): u64 acquires Position, AccountPositionEventHandle {
+    public(friend) fun switch_collateral<C,P>(addr: address, to_collateral_only: bool,  _key: &AccountPositionKey): u64 acquires Position, AccountPositionEventHandle {
         switch_collateral_internal<C,P>(addr, to_collateral_only)
     }
     fun switch_collateral_internal<C,P>(addr: address, to_collateral_only: bool): u64 acquires Position, AccountPositionEventHandle {
@@ -979,8 +1009,8 @@ module leizd::account_position {
         };
     }
     #[test_only]
-    public fun initialize_if_necessary_for_test(account: &signer) {
-        initialize_if_necessary(account);
+    public fun initialize_position_if_necessary_for_test(account: &signer) {
+        initialize_position_if_necessary(account);
     }
 
     #[test(account=@0x111)]
@@ -988,7 +1018,7 @@ module leizd::account_position {
         let key = key<WETH>();
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
-        initialize_if_necessary(account);
+        initialize_position_if_necessary(account);
         new_position<ShadowToAsset>(account_addr, 10, 0, false, key);
         assert!(!is_protected<WETH>(account_addr), 0);
 
@@ -1780,7 +1810,7 @@ module leizd::account_position {
         account::create_account_for_test(account_addr);
 
         // prepares (temp)
-        initialize_if_necessary(account);
+        initialize_position_if_necessary(account);
         new_position<AssetToShadow>(account_addr, 0, 0, false, coin_key);
 
         // execute
@@ -1810,7 +1840,7 @@ module leizd::account_position {
         account::create_account_for_test(account_addr);
 
         // prepares (temp)
-        initialize_if_necessary(account);
+        initialize_position_if_necessary(account);
         new_position<ShadowToAsset>(account_addr, 0, 0, false, coin_key);
 
         // execute
@@ -1920,7 +1950,7 @@ module leizd::account_position {
         let account2_addr = signer::address_of(account2);
         account::create_account_for_test(account2_addr);
         deposit_internal<WETH, Shadow>(account2, account2_addr, 2000, false);
-        borrow<WETH, Asset>(account2, account2_addr, 1800);
+        borrow_internal<WETH, Asset>(account2, account2_addr, 1800);
         deposit_internal<UNI, Shadow>(account2, account2_addr, 1000, false);
         borrow_unsafe_for_test<UNI, Asset>(account2_addr, 1200);
         let (insufficient, is_collateral_only_C1, is_collateral_only_C2) = rebalance_shadow_internal(account2_addr, key<WETH>(), key<UNI>());
@@ -2157,7 +2187,7 @@ module leizd::account_position {
         account::create_account_for_test(account1_addr);
 
         deposit_internal<WETH,Asset>(account1, account1_addr, 100000, false); // 100,000*70%=70,000
-        borrow_asset_with_rebalance<UNI>(account1_addr, 10000);
+        borrow_asset_with_rebalance_internal<UNI>(account1_addr, 10000);
         assert!(deposited_asset<WETH>(account1_addr) == 100000, 0);
         assert!(borrowed_shadow<WETH>(account1_addr) == 20000, 0);
         assert!(deposited_shadow<UNI>(account1_addr) == 20000, 0);
@@ -2176,7 +2206,7 @@ module leizd::account_position {
 
         deposit_internal<WETH,Asset>(account1, account1_addr, 100000, false);
         deposit_internal<USDC,Asset>(account1, account1_addr, 100000, false);
-        borrow_asset_with_rebalance<UNI>(account1_addr, 10000);
+        borrow_asset_with_rebalance_internal<UNI>(account1_addr, 10000);
         assert!(deposited_asset<WETH>(account1_addr) == 100000, 0);
         assert!(deposited_asset<USDC>(account1_addr) == 100000, 0);
         assert!(borrowed_shadow<WETH>(account1_addr) == 10000, 0);
