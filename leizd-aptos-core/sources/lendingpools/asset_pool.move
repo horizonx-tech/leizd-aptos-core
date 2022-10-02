@@ -26,7 +26,6 @@ module leizd::asset_pool {
     use leizd::interest_rate;
     use leizd::stability_pool;
 
-    friend leizd::money_market;
     friend leizd::pool_manager;
 
     //// error_code
@@ -38,6 +37,8 @@ module leizd::asset_pool {
     const EAMOUNT_ARG_IS_ZERO: u64 = 11;
     const EINSUFFICIENT_LIQUIDITY: u64 = 12;
     const EINSUFFICIENT_CONLY_DEPOSITED: u64 = 13;
+
+    struct AssetPoolKey has store, drop {} // TODO: remove `drop` ability
 
     /// Asset Pool where users can deposit and borrow.
     /// Each asset is separately deposited into a pool.
@@ -113,24 +114,26 @@ module leizd::asset_pool {
     }
 
     // initialize
-    public entry fun initialize(owner: &signer) {
+    public entry fun initialize(owner: &signer): AssetPoolKey {
         let owner_addr = signer::address_of(owner);
         permission::assert_owner(owner_addr);
         assert!(!exists<Storage>(owner_addr), error::invalid_argument(EIS_ALREADY_EXISTED));
         move_to(owner, Storage {
             assets: simple_map::create<String, AssetStorage>(),
-        })
+        });
+        AssetPoolKey {}
     }
     //// for assets
     /// Initializes a pool with the coin the owner specifies.
     /// The caller is only owner and creates not only a pool but also other resources
     /// such as a treasury for the coin, an interest rate model, and coins of collaterals and debts.
-    public(friend) fun init_pool<C>(owner: &signer) acquires Storage {
+    public fun init_pool<C>(owner: &signer) acquires Storage {
         init_pool_internal<C>(owner);
     }
 
     fun init_pool_internal<C>(owner: &signer) acquires Storage {
         let owner_addr = signer::address_of(owner);
+        permission::assert_owner(owner_addr);
         assert!(exists<Storage>(owner_addr), error::invalid_argument(ENOT_INITILIZED));
         assert!(!is_pool_initialized<C>(), error::invalid_argument(EIS_ALREADY_EXISTED));
         assert!(dex_facade::has_liquidity<C>(), error::invalid_state(EDEX_DOES_NOT_HAVE_LIQUIDITY));
@@ -175,11 +178,12 @@ module leizd::asset_pool {
     /// C is a pool type and a user should select which pool to use.
     /// e.g. Deposit USDZ for WETH Pool -> deposit_for<WETH,Shadow>(x,x,x,x)
     /// e.g. Deposit WBTC for WBTC Pool -> deposit_for<WBTC,Asset>(x,x,x,x)
-    public(friend) fun deposit_for<C>(
+    public fun deposit_for<C>(
         account: &signer,
         for_address: address,
         amount: u64,
         is_collateral_only: bool,
+        _key: &AssetPoolKey
     ): (u64, u64) acquires Pool, Storage, PoolEventHandle {
         deposit_for_internal<C>(
             account,
@@ -229,11 +233,12 @@ module leizd::asset_pool {
     }
 
     /// Withdraws an asset or a shadow from the pool.
-    public(friend) fun withdraw_for<C>(
+    public fun withdraw_for<C>(
         caller_addr: address,
         receiver_addr: address,
         amount: u64,
-        is_collateral_only: bool
+        is_collateral_only: bool,
+        _key: &AssetPoolKey
     ): (u64, u64) acquires Pool, Storage, PoolEventHandle {
         withdraw_for_internal<C>(
             caller_addr,
@@ -290,10 +295,11 @@ module leizd::asset_pool {
     }
 
     /// Borrows an asset or a shadow from the pool.
-    public(friend) fun borrow_for<C>(
+    public fun borrow_for<C>(
         borrower_addr: address,
         receiver_addr: address,
         amount: u64,
+        _key: &AssetPoolKey,
     ): (u64, u64) acquires Pool, Storage, PoolEventHandle {
         borrow_for_internal<C>(borrower_addr, receiver_addr, amount)
     }
@@ -341,9 +347,10 @@ module leizd::asset_pool {
     }
 
     /// Repays an asset or a shadow for the borrowed position.
-    public(friend) fun repay<C>(
+    public fun repay<C>(
         account: &signer,
         amount: u64,
+        _key: &AssetPoolKey,
     ): (u64, u64) acquires Pool, Storage, PoolEventHandle {
         repay_internal<C>(account, amount)
     }
@@ -380,7 +387,17 @@ module leizd::asset_pool {
         (amount, (share_u128 as u64))
     }
 
-    public(friend) fun withdraw_for_liquidation<C>(
+    public fun withdraw_for_liquidation<C>(
+        liquidator_addr: address,
+        target_addr: address,
+        withdrawing: u64,
+        is_collateral_only: bool,
+        _key: &AssetPoolKey,
+    ) acquires Pool, Storage, PoolEventHandle {
+        withdraw_for_liquidation_internal<C>(liquidator_addr, target_addr, withdrawing, is_collateral_only)
+    }
+
+    fun withdraw_for_liquidation_internal<C>(
         liquidator_addr: address,
         target_addr: address,
         withdrawing: u64,
@@ -402,7 +419,7 @@ module leizd::asset_pool {
         );
     }
 
-    public(friend) fun switch_collateral<C>(caller: address, amount: u64, to_collateral_only: bool) acquires Pool, Storage, PoolEventHandle {
+    public fun switch_collateral<C>(caller: address, amount: u64, to_collateral_only: bool, _key: &AssetPoolKey) acquires Pool, Storage, PoolEventHandle {
         switch_collateral_internal<C>(caller, amount, to_collateral_only);
     }
 
@@ -479,7 +496,7 @@ module leizd::asset_pool {
         };
     }
 
-    public(friend) fun harvest_protocol_fees<C>() acquires Pool, Storage{
+    public fun harvest_protocol_fees<C>() acquires Pool, Storage{
         let owner_addr = permission::owner_address();
         let pool_ref = borrow_global_mut<Pool<C>>(owner_addr);
         let asset_storage_ref = borrow_mut_asset_storage<C>(borrow_global_mut<Storage>(owner_addr));
@@ -1279,7 +1296,7 @@ module leizd::asset_pool {
         assert!(coin::balance<WETH>(depositor_addr) == 0, 0);
         assert!(coin::balance<WETH>(liquidator_addr) == 0, 0);
 
-        withdraw_for_liquidation<WETH>(liquidator_addr, liquidator_addr, 1001, false);
+        withdraw_for_liquidation_internal<WETH>(liquidator_addr, liquidator_addr, 1001, false);
         assert!(pool_asset_value<WETH>(owner_address) == 0, 0);
         assert!(total_normal_deposited_amount<WETH>() == 0, 0);
         assert!(total_conly_deposited_amount<WETH>() == 0, 0);
@@ -1307,13 +1324,13 @@ module leizd::asset_pool {
         assert!(total_normal_deposited_amount<WETH>() == 1000, 0);
         assert!(total_conly_deposited_amount<WETH>() == 0, 0);
 
-        switch_collateral<WETH>(account_addr, 800, true);
+        switch_collateral_internal<WETH>(account_addr, 800, true);
         assert!(liquidity<WETH>() == 200, 0);
         assert!(total_normal_deposited_amount<WETH>() == 200, 0);
         assert!(total_conly_deposited_amount<WETH>() == 800, 0);
         assert!(event::counter<SwitchCollateralEvent>(&borrow_global<PoolEventHandle<WETH>>(owner_addr).switch_collateral_event) == 1, 0);
 
-        switch_collateral<WETH>(account_addr, 400, false);
+        switch_collateral_internal<WETH>(account_addr, 400, false);
         assert!(liquidity<WETH>() == 600, 0);
         assert!(total_normal_deposited_amount<WETH>() == 600, 0);
         assert!(total_conly_deposited_amount<WETH>() == 400, 0);
@@ -1330,7 +1347,7 @@ module leizd::asset_pool {
         managed_coin::mint<WETH>(owner, account_addr, 1000);
 
         deposit_for_internal<WETH>(account, account_addr, 1000, false);
-        switch_collateral<WETH>(account_addr, 0, true);
+        switch_collateral_internal<WETH>(account_addr, 0, true);
     }
     #[test(owner=@leizd, account=@0x111, aptos_framework=@aptos_framework)]
     #[expected_failure(abort_code = 65548)]
@@ -1343,7 +1360,7 @@ module leizd::asset_pool {
         managed_coin::mint<WETH>(owner, account_addr, 1000);
 
         deposit_for_internal<WETH>(account, account_addr, 1000, false);
-        switch_collateral<WETH>(account_addr, 1001, true);
+        switch_collateral_internal<WETH>(account_addr, 1001, true);
     }
     #[test(owner=@leizd, account=@0x111, aptos_framework=@aptos_framework)]
     #[expected_failure(abort_code = 65549)]
@@ -1356,7 +1373,7 @@ module leizd::asset_pool {
         managed_coin::mint<WETH>(owner, account_addr, 1000);
 
         deposit_for_internal<WETH>(account, account_addr, 1000, true);
-        switch_collateral<WETH>(account_addr, 1001, false);
+        switch_collateral_internal<WETH>(account_addr, 1001, false);
     }
 
     // for common validations
