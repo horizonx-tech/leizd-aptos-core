@@ -114,11 +114,7 @@ module leizd::shadow_pool {
         switch_collateral_event: event::EventHandle<SwitchCollateralEvent>,
     }
 
-    public fun init_pool(owner: &signer) {
-        init_pool_internal(owner)
-    }
-
-    fun init_pool_internal(owner: &signer) {
+    public entry fun initialize(owner: &signer) {
         permission::assert_owner(signer::address_of(owner));
         move_to(owner, Pool {
             shadow: coin::zero<USDZ>(),
@@ -142,6 +138,19 @@ module leizd::shadow_pool {
             asset_storages: simple_map::create<String,AssetStorage>(),
             protocol_fees: 0,
             harvested_protocol_fees: 0,
+        }
+    }
+    fun init_pool_if_necessary(key: String, storage_ref: &mut Storage) {
+        if (!is_initialized_asset_with_internal(&key, storage_ref)) {
+            simple_map::add<String,AssetStorage>(&mut storage_ref.asset_storages, key, AssetStorage {
+                normal_deposited_amount: 0,
+                normal_deposited_share: 0,
+                conly_deposited_amount: 0,
+                conly_deposited_share: 0,
+                borrowed_amount: 0,
+                borrowed_share: 0,
+                last_updated: 0,
+            });
         }
     }
 
@@ -179,7 +188,7 @@ module leizd::shadow_pool {
         let storage_ref = borrow_global_mut<Storage>(owner_address);
         let pool_ref = borrow_global_mut<Pool>(owner_address);
 
-        initialize_for_asset_if_necessary(key, storage_ref);
+        init_pool_if_necessary(key, storage_ref);
         accrue_interest(key, storage_ref, pool_ref);
 
         coin::merge(&mut pool_ref.shadow, coin::withdraw<USDZ>(account, amount));
@@ -210,19 +219,6 @@ module leizd::shadow_pool {
         );
 
         (amount, user_share)
-    }
-    fun initialize_for_asset_if_necessary(key: String, storage_ref: &mut Storage) {
-        if (!is_initialized_asset_with_internal(&key, storage_ref)) {
-            simple_map::add<String,AssetStorage>(&mut storage_ref.asset_storages, key, AssetStorage {
-                normal_deposited_amount: 0,
-                normal_deposited_share: 0,
-                conly_deposited_amount: 0,
-                conly_deposited_share: 0,
-                borrowed_amount: 0,
-                borrowed_share: 0,
-                last_updated: 0,
-            });
-        }
     }
 
     public(friend) fun rebalance_shadow<C1,C2>(
@@ -422,7 +418,7 @@ module leizd::shadow_pool {
         let pool_ref = borrow_global_mut<Pool>(owner_address);
         let storage_ref = borrow_global_mut<Storage>(owner_address);
 
-        initialize_for_asset_if_necessary(key, storage_ref); // NOTE: because enable to borrow from stability_pool if no deposited
+        init_pool_if_necessary(key, storage_ref); // NOTE: because enable to borrow from stability_pool if no deposited
         accrue_interest(key, storage_ref, pool_ref);
 
         let entry_fee = risk_factor::calculate_entry_fee(amount);
@@ -812,7 +808,7 @@ module leizd::shadow_pool {
         initializer::initialize(owner);
         test_coin::init_weth(owner);
         test_coin::init_uni(owner);
-        init_pool_internal(owner);
+        initialize(owner);
         pool_manager::add_pool<WETH>(owner);
         pool_manager::add_pool<UNI>(owner);
     }
@@ -2013,7 +2009,7 @@ module leizd::shadow_pool {
         initializer::initialize(owner);
         test_coin::init_weth(owner);
         test_coin::init_uni(owner);
-        init_pool_internal(owner);
+        initialize(owner);
         pool_manager::add_pool<WETH>(owner);
 
         rebalance_shadow_internal(key<UNI>(), key<WETH>(), 5000, true, true);
@@ -2027,7 +2023,7 @@ module leizd::shadow_pool {
         initializer::initialize(owner);
         test_coin::init_weth(owner);
         test_coin::init_uni(owner);
-        init_pool_internal(owner);
+        initialize(owner);
         pool_manager::add_pool<WETH>(owner);
 
         rebalance_shadow_internal(key<UNI>(), key<WETH>(), 5000, true, true);

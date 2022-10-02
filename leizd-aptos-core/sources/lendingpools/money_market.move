@@ -258,7 +258,7 @@ module leizd::money_market {
 
         // initialize
         initializer::initialize(owner);
-        shadow_pool::init_pool(owner);
+        shadow_pool::initialize(owner);
 
         // add_pool
         test_coin::init_usdc(owner);
