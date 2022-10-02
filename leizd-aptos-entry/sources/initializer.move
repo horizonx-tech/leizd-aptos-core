@@ -1,4 +1,4 @@
-module leizd::initializer {
+module leizd_aptos_entry::initializer {
 
     use aptos_framework::managed_coin;
     use leizd_aptos_common::system_status;
@@ -28,12 +28,12 @@ module leizd::initializer {
     use aptos_framework::account;
     #[test_only]
     struct TestCoin {}
-    #[test(owner = @leizd)]
+    #[test(owner = @leizd_aptos_entry)]
     fun test_initialize(owner: &signer) {
         account::create_account_for_test(signer::address_of(owner));
         initialize(owner);
     }
-    #[test(owner = @leizd)]
+    #[test(owner = @leizd_aptos_entry)]
     #[expected_failure]
     fun test_initialize_twice(owner: &signer) {
         account::create_account_for_test(signer::address_of(owner));

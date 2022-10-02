@@ -14,9 +14,9 @@ module leizd::test_initializer {
     public entry fun initialize(owner: &signer) {
         system_status::initialize(owner);
         risk_factor::initialize(owner);
+        treasury::initialize(owner);
         trove_manager::initialize(owner);
         stability_pool::initialize(owner);
-        treasury::initialize(owner);
     }
     public entry fun initialize_price_oracle_with_fixed_price_for_test(owner: &signer) {
         price_oracle::initialize_for_test(owner, 1, 0);

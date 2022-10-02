@@ -7,6 +7,7 @@ leizd-aptos-lib ... utilities for calculation etc... (independent)
 leizd-aptos-trove ... CDP (USDZ)
 leizd-aptos-logic ... modules composing lending pools
 leizd-aptos-external ... integrator (for oracle etc)
+leizd-aptos-entry ... entry points
 ```
 
 ## Tips
