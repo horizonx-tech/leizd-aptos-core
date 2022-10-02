@@ -24,6 +24,18 @@ module leizd_aptos_entry::money_market {
         shadow_pool: ShadowPoolKey,
     }
 
+    public entry fun initialize(owner: &signer) {
+        permission::assert_owner(signer::address_of(owner));
+        let account_position_key = account_position::initialize(owner);
+        let asset_pool_key = asset_pool::initialize(owner);
+        let shadow_pool_key = shadow_pool::initialize(owner);
+        move_to(owner, LendingPoolModKeys {
+            account_position: account_position_key,
+            asset_pool: asset_pool_key,
+            shadow_pool: shadow_pool_key
+        });
+    }
+
     fun keys(keys: &LendingPoolModKeys): (&AccountPositionKey, &AssetPoolKey, &ShadowPoolKey) {
         (&keys.account_position, &keys.asset_pool, &keys.shadow_pool)
     }
@@ -281,14 +293,7 @@ module leizd_aptos_entry::money_market {
 
         // initialize
         initializer::initialize(owner);
-        let account_position_key = account_position::initialize(owner);
-        let asset_pool_key = asset_pool::initialize(owner);
-        let shadow_pool_key = shadow_pool::initialize(owner);
-        move_to(owner, LendingPoolModKeys {
-            account_position: account_position_key,
-            asset_pool: asset_pool_key,
-            shadow_pool: shadow_pool_key
-        });
+        initialize(owner);
 
         // add_pool
         test_coin::init_usdc(owner);
