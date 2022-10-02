@@ -496,6 +496,9 @@ module leizd::central_liquidity_pool {
     }
 
     public(friend) fun collect_support_fee(key: String, coin: coin::Coin<USDZ>, new_uncollected_fee: u128) acquires CentralLiquidityPool, Balance {
+        collect_support_fee_internal(key, coin, new_uncollected_fee)
+    }
+    fun collect_support_fee_internal(key: String, coin: coin::Coin<USDZ>, new_uncollected_fee: u128) acquires CentralLiquidityPool, Balance {
         let owner_address = permission::owner_address();
         let balance_ref = borrow_global_mut<Balance>(owner_address);
         let pool_ref = borrow_global_mut<CentralLiquidityPool>(owner_address);
