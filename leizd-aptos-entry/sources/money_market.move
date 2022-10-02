@@ -15,6 +15,7 @@ module leizd_aptos_entry::money_market {
     use leizd_aptos_common::pool_type;
     use leizd_aptos_common::permission;
     use leizd_aptos_logic::rebalance::{Self,Rebalance};
+    use leizd_aptos_central_liquidity_pool::central_liquidity_pool;
     use leizd_aptos_core::asset_pool::{Self, AssetPoolKey};
     use leizd_aptos_core::shadow_pool::{Self, ShadowPoolKey};
     use leizd_aptos_core::account_position::{Self, AccountPositionKey};
@@ -261,6 +262,15 @@ module leizd_aptos_entry::money_market {
         } else {
             shadow_pool::switch_collateral<C>(account_addr, amount, to_collateral_only, shadow_pool_key);
         };
+    }
+
+    /// central liquidity pool
+    public entry fun deposit_to_central_liquidity_pool(account: &signer, amount: u64) {
+        central_liquidity_pool::deposit(account, amount);
+    }
+
+    public entry fun withdraw_from_central_liquidity_pool(account: &signer, amount: u64) {
+        central_liquidity_pool::withdraw(account, amount);
     }
 
     // harvest protocol share fee
