@@ -129,14 +129,14 @@ module leizd::account_position {
     fun is_conly_asset(key: String, depositor_addr: address): bool acquires Position {
         let deposited = deposited_asset_with(key, depositor_addr);
         let conly_deposited = conly_deposited_asset_with(key, depositor_addr);
-        assert!(deposited != 0, 0);
+        assert!(deposited > 0 || conly_deposited > 0, error::invalid_argument(ENO_DEPOSITED));
         conly_deposited > 0
     }
 
     fun is_conly_shadow(key: String, depositor_addr: address): bool acquires Position {
         let deposited = deposited_shadow_with(key, depositor_addr);
         let conly_deposited = conly_deposited_shadow_with(key, depositor_addr);
-        assert!(deposited != 0, 0);
+        assert!(deposited > 0 || conly_deposited > 0, error::invalid_argument(ENO_DEPOSITED));
         conly_deposited > 0
     }
 
@@ -465,10 +465,10 @@ module leizd::account_position {
         let is_collateral_only_C2 = conly_deposited_shadow_with(key2, addr) > 0;
         
         let position_ref = borrow_global<Position<ShadowToAsset>>(addr);
-        assert!(vector::contains<String>(&position_ref.coins, &key1), ENOT_EXISTED);
-        assert!(vector::contains<String>(&position_ref.coins, &key2), ENOT_EXISTED);
-        assert!(!is_protected_internal(&position_ref.protected_coins, key1), EALREADY_PROTECTED);
-        assert!(!is_protected_internal(&position_ref.protected_coins, key2), EALREADY_PROTECTED);
+        assert!(vector::contains<String>(&position_ref.coins, &key1), error::invalid_argument(ENOT_EXISTED));
+        assert!(vector::contains<String>(&position_ref.coins, &key2), error::invalid_argument(ENOT_EXISTED));
+        assert!(!is_protected_internal(&position_ref.protected_coins, key1), error::invalid_argument(EALREADY_PROTECTED));
+        assert!(!is_protected_internal(&position_ref.protected_coins, key2), error::invalid_argument(EALREADY_PROTECTED));
 
         let (can_rebalance,_,insufficient) = can_rebalance_shadow_between(addr, key1, key2);
 
@@ -586,13 +586,13 @@ module leizd::account_position {
     fun borrow_and_rebalance_internal(addr: address, key1:String, key2: String, is_collateral_only: bool): u64 acquires Position, AccountPositionEventHandle {
         let pos_ref_asset_to_shadow = borrow_global<Position<AssetToShadow>>(addr);
         let pos_ref_shadow_to_asset = borrow_global<Position<ShadowToAsset>>(addr);
-        assert!(vector::contains<String>(&pos_ref_asset_to_shadow.coins, &key1), ENOT_EXISTED);
-        assert!(vector::contains<String>(&pos_ref_shadow_to_asset.coins, &key2), ENOT_EXISTED);
-        assert!(!is_protected_internal(&pos_ref_shadow_to_asset.protected_coins, key1), EALREADY_PROTECTED); // NOTE: use only Position<ShadowToAsset> to check protected coin
-        assert!(!is_protected_internal(&pos_ref_shadow_to_asset.protected_coins, key2), EALREADY_PROTECTED); // NOTE: use only Position<ShadowToAsset> to check protected coin
+        assert!(vector::contains<String>(&pos_ref_asset_to_shadow.coins, &key1), error::invalid_argument(ENOT_EXISTED));
+        assert!(vector::contains<String>(&pos_ref_shadow_to_asset.coins, &key2), error::invalid_argument(ENOT_EXISTED));
+        assert!(!is_protected_internal(&pos_ref_shadow_to_asset.protected_coins, key1), error::invalid_argument(EALREADY_PROTECTED)); // NOTE: use only Position<ShadowToAsset> to check protected coin
+        assert!(!is_protected_internal(&pos_ref_shadow_to_asset.protected_coins, key2), error::invalid_argument(EALREADY_PROTECTED)); // NOTE: use only Position<ShadowToAsset> to check protected coin
 
-        let (possible, _, insufficient) = can_borrow_and_rebalance(addr, key1, key2);
-        assert!(possible, 0);
+        let (is_possible, _, insufficient) = can_borrow_and_rebalance(addr, key1, key2);
+        assert!(is_possible, error::invalid_argument(ECANNOT_REBALANCE));
         update_position_for_borrow<AssetToShadow>(key1, addr, insufficient);
         update_position_for_deposit<ShadowToAsset>(key2, addr, insufficient, is_collateral_only);
 
@@ -602,8 +602,8 @@ module leizd::account_position {
     public(friend) fun enable_to_rebalance<C>(account: &signer) acquires Position {
         let key = key<C>();
         let position_ref = borrow_global_mut<Position<ShadowToAsset>>(signer::address_of(account));
-        assert!(vector::contains<String>(&position_ref.coins, &key), ENOT_EXISTED); // TODO
-        assert!(is_protected_internal(&position_ref.protected_coins, key), EALREADY_PROTECTED);
+        assert!(vector::contains<String>(&position_ref.coins, &key), error::invalid_argument(ENOT_EXISTED)); // TODO
+        assert!(is_protected_internal(&position_ref.protected_coins, key), error::invalid_argument(EALREADY_PROTECTED));
 
         simple_map::remove<String,bool>(&mut position_ref.protected_coins, &key);
     }
@@ -611,8 +611,8 @@ module leizd::account_position {
     public(friend) fun unable_to_rebalance<C>(account: &signer) acquires Position {
         let key = key<C>();
         let position_ref = borrow_global_mut<Position<ShadowToAsset>>(signer::address_of(account));
-        assert!(vector::contains<String>(&position_ref.coins, &key), ENOT_EXISTED); // TODO
-        assert!(!is_protected_internal(&position_ref.protected_coins, key), EALREADY_PROTECTED);
+        assert!(vector::contains<String>(&position_ref.coins, &key), error::invalid_argument(ENOT_EXISTED)); // TODO
+        assert!(!is_protected_internal(&position_ref.protected_coins, key), error::invalid_argument(EALREADY_PROTECTED));
 
         simple_map::add<String,bool>(&mut position_ref.protected_coins, key, true);
     }
@@ -1914,7 +1914,7 @@ module leizd::account_position {
         rebalance_shadow<WETH, UNI>(account_addr);
     }
     #[test(owner = @leizd, account = @0x111)]
-    #[expected_failure(abort_code = 3)]
+    #[expected_failure(abort_code = 65539)]
     fun test_rebalance_shadow_if_no_position_of_key1_coin(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle {
         setup_for_test_to_initialize_coins(owner);
         let account_addr = signer::address_of(account);
@@ -1924,7 +1924,7 @@ module leizd::account_position {
         rebalance_shadow<WETH, UNI>(account_addr);
     }
     #[test(owner = @leizd, account = @0x111)]
-    #[expected_failure(abort_code = 3)]
+    #[expected_failure(abort_code = 65539)]
     fun test_rebalance_shadow_if_no_position_of_key2_coin(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle {
         setup_for_test_to_initialize_coins(owner);
         let account_addr = signer::address_of(account);
@@ -1934,7 +1934,7 @@ module leizd::account_position {
         rebalance_shadow<WETH, UNI>(account_addr);
     }
     #[test(owner = @leizd, account = @0x111)]
-    #[expected_failure(abort_code = 4)]
+    #[expected_failure(abort_code = 65540)]
     fun test_rebalance_shadow_if_protect_key1_coin(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle {
         setup_for_test_to_initialize_coins(owner);
         let account_addr = signer::address_of(account);
@@ -1946,7 +1946,7 @@ module leizd::account_position {
         rebalance_shadow<WETH, UNI>(account_addr);
     }
     #[test(owner = @leizd, account = @0x111)]
-    #[expected_failure(abort_code = 4)]
+    #[expected_failure(abort_code = 65540)]
     fun test_rebalance_shadow_if_protect_key2_coin(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle {
         setup_for_test_to_initialize_coins(owner);
         let account_addr = signer::address_of(account);
@@ -2005,7 +2005,7 @@ module leizd::account_position {
 
     }
     #[test(owner = @leizd, account = @0x111)]
-    #[expected_failure(abort_code = 3)]
+    #[expected_failure(abort_code = 65539)]
     fun test_borrow_and_rebalance_if_no_position_of_key1_coin(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle {
         setup_for_test_to_initialize_coins(owner);
         let account_addr = signer::address_of(account);
@@ -2016,7 +2016,7 @@ module leizd::account_position {
         borrow_and_rebalance<WETH, UNI>(account_addr, false);
     }
     #[test(owner = @leizd, account = @0x111)]
-    #[expected_failure(abort_code = 3)]
+    #[expected_failure(abort_code = 65539)]
     fun test_borrow_and_rebalance_if_no_position_of_key2_coin(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle {
         setup_for_test_to_initialize_coins(owner);
         let account_addr = signer::address_of(account);
@@ -2027,7 +2027,7 @@ module leizd::account_position {
         borrow_and_rebalance<WETH, UNI>(account_addr, false);
     }
     #[test(owner = @leizd, account = @0x111)]
-    #[expected_failure(abort_code = 4)]
+    #[expected_failure(abort_code = 65540)]
     fun test_borrow_and_rebalance_if_protect_key1_coin(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle {
         setup_for_test_to_initialize_coins(owner);
         let account_addr = signer::address_of(account);
@@ -2041,7 +2041,7 @@ module leizd::account_position {
         borrow_and_rebalance<WETH, UNI>(account_addr, false);
     }
     #[test(owner = @leizd, account = @0x111)]
-    #[expected_failure(abort_code = 4)]
+    #[expected_failure(abort_code = 65540)]
     fun test_borrow_and_rebalance_if_protect_key2_coin(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle {
         setup_for_test_to_initialize_coins(owner);
         let account_addr = signer::address_of(account);

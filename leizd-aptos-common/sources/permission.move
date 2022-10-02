@@ -1,5 +1,7 @@
 module leizd_aptos_common::permission {
-  const E_NOT_OWNER: u64 = 1;
+  use std::error;
+
+  const ENOT_OWNER: u64 = 1;
 
   public fun owner_address(): address {
     @leizd_aptos_common
@@ -10,6 +12,6 @@ module leizd_aptos_common::permission {
   }
 
   public fun assert_owner(account: address) {
-    assert!(is_owner(account), E_NOT_OWNER);
+    assert!(is_owner(account),error::invalid_argument(ENOT_OWNER));
   }
 }

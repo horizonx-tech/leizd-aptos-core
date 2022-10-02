@@ -7,7 +7,7 @@ module leizd_aptos_common::pool_type {
     struct Asset {}
     struct Shadow {}
 
-    const E_NOT_POOL_TYPE: u64 = 1;
+    const ENOT_POOL_TYPE: u64 = 1;
 
     public fun is_type_asset<P>():bool {
         comparator::is_equal(
@@ -28,7 +28,7 @@ module leizd_aptos_common::pool_type {
     }
 
     public fun assert_pool_type<P>() {
-        assert!(is_type_asset<P>() || is_type_shadow<P>(), error::invalid_argument(E_NOT_POOL_TYPE));
+        assert!(is_type_asset<P>() || is_type_shadow<P>(), error::invalid_argument(ENOT_POOL_TYPE));
     }
 
     #[test_only]

@@ -280,7 +280,7 @@ module leizd::money_market {
         // initialize
         initializer::initialize(owner);
         let asset_pool_key = asset_pool::initialize(owner);
-        let shadow_pool_key = shadow_pool::init_pool(owner);
+        let shadow_pool_key = shadow_pool::initialize(owner);
         move_to(owner, LendingPoolModKeys {
             asset_pool: asset_pool_key,
             shadow_pool: shadow_pool_key

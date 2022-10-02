@@ -7,7 +7,7 @@ module leizd_aptos_common::position_type {
     struct AssetToShadow {}
     struct ShadowToAsset {}
 
-    const E_NOT_POSITION_TYPE: u64 = 1;
+    const ENOT_POSITION_TYPE: u64 = 1;
 
     public fun is_asset_to_shadow<P>():bool {
         comparator::is_equal(
@@ -28,7 +28,7 @@ module leizd_aptos_common::position_type {
     }
 
     public fun assert_position_type<P>() {
-        assert!(is_asset_to_shadow<P>() || is_shadow_to_asset<P>(), error::invalid_argument(E_NOT_POSITION_TYPE));
+        assert!(is_asset_to_shadow<P>() || is_shadow_to_asset<P>(), error::invalid_argument(ENOT_POSITION_TYPE));
     }
 
     #[test_only]

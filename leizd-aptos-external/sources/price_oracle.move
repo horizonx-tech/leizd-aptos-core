@@ -94,7 +94,7 @@ module leizd_aptos_external::price_oracle {
         assert!(exists<AggregatorStorage>(signer::address_of(owner)), 0);
     }
     #[test(account = @0x111)]
-    #[expected_failure(abort_code = 1)]
+    #[expected_failure(abort_code = 65537)]
     fun test_initialize_with_not_owner(account: &signer) {
         account::create_account_for_test(signer::address_of(account));
         initialize(account);
@@ -114,7 +114,7 @@ module leizd_aptos_external::price_oracle {
         assert!(!table::contains<string::String, address>(aggrs, type_info::type_name<USDT>()), 0);
     }
     #[test(owner = @leizd_aptos_external, account = @0x111)]
-    #[expected_failure(abort_code = 1)]
+    #[expected_failure(abort_code = 65537)]
     fun test_add_aggregator_with_not_owner(owner: &signer, account: &signer) acquires AggregatorStorage, OracleEventHandle {
         account::create_account_for_test(signer::address_of(owner));
         account::create_account_for_test(signer::address_of(account));

@@ -107,7 +107,7 @@ module leizd_aptos_external::price_oracle_prod {
         assert!(exists<AggregatorStorage>(owner_addr), 0);
     }
     #[test(account = @0x111)]
-    #[expected_failure(abort_code = 1)]
+    #[expected_failure(abort_code = 65537)]
     fun test_initialize_with_not_owner(account: &signer) {
         initialize(account);
     }
@@ -121,12 +121,12 @@ module leizd_aptos_external::price_oracle_prod {
         assert!(!is_enabled_mocked_price(), 0);
     }
     #[test(account = @0x111)]
-    #[expected_failure(abort_code = 1)]
+    #[expected_failure(abort_code = 65537)]
     fun test_enable_mocked_price_with_not_owner(account: &signer) acquires Config {
         enable_mocked_price(account);
     }
     #[test(account = @0x111)]
-    #[expected_failure(abort_code = 1)]
+    #[expected_failure(abort_code = 65537)]
     fun test_disable_mocked_price_with_not_owner(account: &signer) acquires Config {
         disable_mocked_price(account);
     }
@@ -144,7 +144,7 @@ module leizd_aptos_external::price_oracle_prod {
         assert!(!simple_map::contains_key<string::String, address>(aggrs, &type_info::type_name<USDT>()), 0);
     }
     #[test(owner = @leizd_aptos_external, account = @0x111)]
-    #[expected_failure(abort_code = 1)]
+    #[expected_failure(abort_code = 65537)]
     fun test_add_aggregator_with_not_owner(owner: &signer, account: &signer) acquires AggregatorStorage, OracleEventHandle {
         initialize(owner);
         add_aggregator<USDC>(account, @0x111AAA);

@@ -10,6 +10,14 @@ module leizd_aptos_logic::risk_factor {
     use leizd_aptos_common::permission;
     use leizd_aptos_trove::usdz::{USDZ};
 
+    //// error_codes
+    const EALREADY_ADDED_ASSET: u64 = 1;
+    const EINVALID_THRESHOLD: u64 = 2;
+    const EINVALID_LTV: u64 = 3;
+    const EINVALID_ENTRY_FEE: u64 = 4;
+    const EINVALID_SHARE_FEE: u64 = 5;
+    const EINVALID_LIQUIDATION_FEE: u64 = 6;
+
     const PRECISION: u64 = 1000000000;
     const DEFAULT_ENTRY_FEE: u64 = 1000000000 / 1000 * 5; // 0.5%
     const DEFAULT_SHARE_FEE: u64 = 1000000000 / 1000 * 5; // 0.5%
@@ -18,13 +26,6 @@ module leizd_aptos_logic::risk_factor {
     const DEFAULT_THRESHOLD: u64 = 1000000000 / 100 * 70 ; // 70%
     const SHADOW_LTV: u64 = 1000000000 / 100 * 100; // 100% // TODO: 90%
     const SHADOW_LT: u64 = 1000000000 / 100 * 100; // 100% // TODO: 95%
-
-    const EALREADY_ADDED_ASSET: u64 = 1;
-    const EINVALID_THRESHOLD: u64 = 2;
-    const EINVALID_LTV: u64 = 3;
-    const EINVALID_ENTRY_FEE: u64 = 4;
-    const EINVALID_SHARE_FEE: u64 = 5;
-    const EINVALID_LIQUIDATION_FEE: u64 = 6;
 
     struct ProtocolFees has key, drop {
         entry_fee: u64, // One time protocol fee for opening a borrow position
@@ -268,7 +269,7 @@ module leizd_aptos_logic::risk_factor {
         assert!(event::counter(&event_handle.update_protocol_fees_event) == 1, 0);
     }
     #[test(account = @0x111)]
-    #[expected_failure(abort_code = 1)]
+    #[expected_failure(abort_code = 65537)]
     public entry fun test_initialize_without_owner(account: signer) acquires RepositoryEventHandle {
         initialize(&account);
     }
