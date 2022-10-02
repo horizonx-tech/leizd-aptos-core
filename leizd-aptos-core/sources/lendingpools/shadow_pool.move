@@ -656,7 +656,8 @@ module leizd::shadow_pool {
     /// Borrow the shadow from the central-liquidity-pool
     /// use when shadow in this pool become insufficient.
     fun borrow_from_central_liquidity_pool(key: String, caller_addr: address, amount: u64): coin::Coin<USDZ> {
-        central_liquidity_pool::borrow(key, caller_addr, amount)
+        let (borrowed, _) = central_liquidity_pool::borrow(key, caller_addr, amount);
+        borrowed
     }
 
     /// Repays the shadow to the central-liquidity-pool
