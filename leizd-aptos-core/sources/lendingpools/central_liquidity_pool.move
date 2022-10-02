@@ -371,20 +371,9 @@ module leizd::central_liquidity_pool {
     /// Repay
     ////////////////////////////////////////////////////
     public(friend) fun repay(key: String, account: &signer, amount: u64) acquires CentralLiquidityPool, Balance, CentralLiquidityPoolEventHandle {
-        let total_borrowed = repay_internal(key, account, amount);
-        let account_addr = signer::address_of(account);
-        event::emit_event<RepayEvent>(
-            &mut borrow_global_mut<CentralLiquidityPoolEventHandle>(permission::owner_address()).repay_event,
-            RepayEvent {
-                key,
-                caller: account_addr,
-                target_account: account_addr,
-                amount: amount,
-                total_borrowed: total_borrowed
-            }
-        );
+        repay_internal(key, account, amount);
     }
-    fun repay_internal(key: String, account: &signer, amount: u64): u128 acquires CentralLiquidityPool, Balance {
+    fun repay_internal(key: String, account: &signer, amount: u64) acquires CentralLiquidityPool, Balance, CentralLiquidityPoolEventHandle {
         assert!(amount > 0, error::invalid_argument(EINVALID_AMOUNT));
         let owner_address = permission::owner_address();
         let balance_ref = borrow_global_mut<Balance>(owner_address);
@@ -402,7 +391,6 @@ module leizd::central_liquidity_pool {
                 *uncollected_entry_fee = *uncollected_entry_fee - (amount as u128);
                 pool_ref.total_uncollected_fee = pool_ref.total_uncollected_fee - (amount as u128);
                 coin::merge<USDZ>(&mut pool_ref.collected_fee, coin::withdraw<USDZ>(account, amount));
-                pool_ref.total_borrowed
             } else {
                 // complete uncollected fee, and remaining amount to left
                 let to_fee = (*uncollected_entry_fee as u64);
@@ -411,13 +399,23 @@ module leizd::central_liquidity_pool {
                 pool_ref.total_uncollected_fee = pool_ref.total_uncollected_fee - (to_fee as u128);
                 coin::merge<USDZ>(&mut pool_ref.collected_fee, coin::withdraw<USDZ>(account, to_fee));
                 coin::merge<USDZ>(&mut pool_ref.left, coin::withdraw<USDZ>(account, to_left));
-                pool_ref.total_borrowed
             }
         } else {
             // all amount to left
             coin::merge<USDZ>(&mut pool_ref.left, coin::withdraw<USDZ>(account, amount));
-            pool_ref.total_borrowed
-        }
+        };
+
+        let account_addr = signer::address_of(account);
+        event::emit_event<RepayEvent>(
+            &mut borrow_global_mut<CentralLiquidityPoolEventHandle>(permission::owner_address()).repay_event,
+            RepayEvent {
+                key,
+                caller: account_addr,
+                target_account: account_addr,
+                amount: amount,
+                total_borrowed: pool_ref.total_borrowed
+            }
+        );
     }
 
     ////// related reward
@@ -994,7 +992,7 @@ module leizd::central_liquidity_pool {
         deposit(account1, 400000);
         let (borrowed, _) = borrow_internal(key<WETH>(), account2_addr, 300000);
         coin::deposit(account2_addr, borrowed);
-        repay(key<WETH>(), account2, 200000);
+        repay_internal(key<WETH>(), account2, 200000);
 
         // check
         assert!(left() == 298500, 0);
@@ -1012,7 +1010,7 @@ module leizd::central_liquidity_pool {
     #[expected_failure(abort_code = 65539)]
     public entry fun test_repay_with_zero_amount(owner: &signer, account: &signer) acquires CentralLiquidityPool, Balance, CentralLiquidityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
-        repay(key<WETH>(), account, 0);
+        repay_internal(key<WETH>(), account, 0);
     }
     #[test(owner=@leizd,account=@0x111)]
     #[expected_failure(abort_code = 65539)]
@@ -1029,7 +1027,7 @@ module leizd::central_liquidity_pool {
         // execute
         deposit(owner, 2000);
         let (borrowed, _) = borrow(key<WETH>(), owner_addr, 1000);
-        repay(key<WETH>(), account, 1005 + 1);
+        repay_internal(key<WETH>(), account, 1005 + 1);
 
         // post_process
         coin::deposit(owner_addr, borrowed);
@@ -1169,7 +1167,7 @@ module leizd::central_liquidity_pool {
         deposit(owner, 1500);
         let (borrowed, _) = borrow(key<WETH>(), owner_addr, 1000);
         coin::deposit(owner_addr, borrowed);
-        repay(key<WETH>(), owner, 1005);
+        repay_internal(key<WETH>(), owner, 1005);
         assert!(borrowed(key<WETH>()) == 0, 0);
         assert!(collected_fee() == 5, 0);
         // prepares
