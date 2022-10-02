@@ -16,11 +16,16 @@ module leizd::money_market {
     use leizd_aptos_logic::rebalance::{Self,Rebalance};
     use leizd::asset_pool::{Self, AssetPoolKey};
     use leizd::shadow_pool::{Self, ShadowPoolKey};
-    use leizd::account_position;
+    use leizd::account_position::{Self, AccountPositionKey};
 
     struct LendingPoolModKeys has key {
+        account_position: AccountPositionKey,
         asset_pool: AssetPoolKey,
         shadow_pool: ShadowPoolKey,
+    }
+
+    fun keys(keys: &LendingPoolModKeys): (&AccountPositionKey, &AssetPoolKey, &ShadowPoolKey) {
+        (&keys.account_position, &keys.asset_pool, &keys.shadow_pool)
     }
 
     /// Deposits an asset or a shadow to the pool.
@@ -45,9 +50,9 @@ module leizd::money_market {
         is_collateral_only: bool,
     ) acquires LendingPoolModKeys {
         pool_type::assert_pool_type<P>();
-        let (asset_pool_key, shadow_pool_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
+        let (account_position_key, asset_pool_key, shadow_pool_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
         
-        account_position::deposit<C,P>(account, depositor_addr, amount, is_collateral_only);
+        account_position::deposit<C,P>(account, depositor_addr, amount, is_collateral_only, account_position_key);
         if (pool_type::is_type_asset<P>()) {
             asset_pool::deposit_for<C>(account, depositor_addr, amount, is_collateral_only, asset_pool_key);
         } else {
@@ -71,11 +76,11 @@ module leizd::money_market {
         amount: u64,
     ) acquires LendingPoolModKeys {
         pool_type::assert_pool_type<P>();
-        let (asset_pool_key, shadow_pool_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
+        let (account_position_key, asset_pool_key, shadow_pool_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
 
         let depositor_addr = signer::address_of(account);
         let is_collateral_only = account_position::is_conly<C,P>(depositor_addr);
-        let withdrawn_amount = account_position::withdraw<C,P>(depositor_addr, amount, is_collateral_only);
+        let withdrawn_amount = account_position::withdraw<C,P>(depositor_addr, amount, is_collateral_only, account_position_key);
         if (pool_type::is_type_asset<P>()) {
             asset_pool::withdraw_for<C>(depositor_addr, receiver_addr, withdrawn_amount, is_collateral_only, asset_pool_key);
         } else {
@@ -92,7 +97,7 @@ module leizd::money_market {
 
     public entry fun borrow_for<C,P>(account: &signer, receiver_addr: address, amount: u64) acquires LendingPoolModKeys {
         pool_type::assert_pool_type<P>();
-        let (asset_pool_key, shadow_pool_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
+        let (account_position_key, asset_pool_key, shadow_pool_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
 
         let borrower_addr = signer::address_of(account);
         let borrowed_amount: u64;
@@ -101,7 +106,7 @@ module leizd::money_market {
         } else {
             (borrowed_amount, _) = shadow_pool::borrow_for<C>(borrower_addr, receiver_addr, amount, shadow_pool_key);
         };
-        account_position::borrow<C,P>(account, borrower_addr, borrowed_amount);
+        account_position::borrow<C,P>(account, borrower_addr, borrowed_amount, account_position_key);
     }
 
     /// Borrow the coin C with the shadow that is collected from the best pool.
@@ -113,8 +118,8 @@ module leizd::money_market {
 
     public entry fun borrow_asset_for_with_rebalance<C>(account: &signer, receiver_addr: address, amount: u64) acquires LendingPoolModKeys {
         let borrower_addr = signer::address_of(account);
-        let (asset_pool_key, shadow_pool_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
-        let (deposits, withdraws, borrows, repays) = account_position::borrow_asset_with_rebalance<C>(borrower_addr, amount);
+        let (account_position_key, asset_pool_key, shadow_pool_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
+        let (deposits, withdraws, borrows, repays) = account_position::borrow_asset_with_rebalance<C>(borrower_addr, amount, account_position_key);
 
         // deposit shadow
         let i = vector::length<Rebalance>(&deposits);
@@ -155,10 +160,10 @@ module leizd::money_market {
     /// Repay an asset or a shadow from the pool.
     public entry fun repay<C,P>(account: &signer, amount: u64) acquires LendingPoolModKeys {
         pool_type::assert_pool_type<P>();
-        let (asset_pool_key, shadow_pool_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
+        let (account_position_key, asset_pool_key, shadow_pool_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
 
         let repayer = signer::address_of(account);
-        let repaid_amount = account_position::repay<C,P>(repayer, amount);
+        let repaid_amount = account_position::repay<C,P>(repayer, amount, account_position_key);
         if (pool_type::is_type_asset<P>()) {
             asset_pool::repay<C>(account, repaid_amount, asset_pool_key);
         } else {
@@ -168,8 +173,8 @@ module leizd::money_market {
 
     public entry fun repay_shadow_with_rebalance(account: &signer, amount: u64) acquires LendingPoolModKeys {
         let repayer_addr = signer::address_of(account);
-        let (_, shadow_pool_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
-        let (keys, amounts) = account_position::repay_shadow_with_rebalance(repayer_addr, amount);
+        let (account_position_key, _, shadow_pool_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
+        let (keys, amounts) = account_position::repay_shadow_with_rebalance(repayer_addr, amount, account_position_key);
         let i = vector::length<String>(&keys);
         while (i > 0) {
             let key = vector::borrow<String>(&keys, i-1);
@@ -182,15 +187,15 @@ module leizd::money_market {
     /// Rebalance shadow coin from C1 Pool to C2 Pool.
     /// The amount is automatically calculated to be the insufficient value.
     public entry fun rebalance_shadow<C1,C2>(addr: address) acquires LendingPoolModKeys {
-        let (amount, is_collateral_only_C1, is_collateral_only_C2) = account_position::rebalance_shadow<C1,C2>(addr);
-        let (_, shadow_pool_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
+        let (account_position_key, _, shadow_pool_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
+        let (amount, is_collateral_only_C1, is_collateral_only_C2) = account_position::rebalance_shadow<C1,C2>(addr, account_position_key);
         shadow_pool::rebalance_shadow<C1,C2>(amount, is_collateral_only_C1, is_collateral_only_C2, shadow_pool_key);
     }
 
     /// Borrow shadow and rebalance it to the unhealthy pool.
     public entry fun borrow_and_rebalance<C1,C2>(addr: address) acquires LendingPoolModKeys {
-        let amount = account_position::borrow_and_rebalance<C1,C2>(addr, false);
-        let (_, shadow_pool_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
+        let (account_position_key, _, shadow_pool_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
+        let amount = account_position::borrow_and_rebalance<C1,C2>(addr, false, account_position_key);
         shadow_pool::borrow_and_rebalance<C1,C2>(amount, false, shadow_pool_key);
     }
 
@@ -207,12 +212,13 @@ module leizd::money_market {
     public entry fun liquidate<C,P>(account: &signer, target_addr: address) acquires LendingPoolModKeys {
         pool_type::assert_pool_type<P>();
 
-        let (deposited, borrowed, is_collateral_only) = account_position::liquidate<C,P>(target_addr);
+        let (account_position_key, _, _) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
+        let (deposited, borrowed, is_collateral_only) = account_position::liquidate<C,P>(target_addr, account_position_key);
         liquidate_for_pool<C,P>(account, target_addr, deposited, borrowed, is_collateral_only);
     }
     fun liquidate_for_pool<C,P>(liquidator: &signer, target_addr: address, deposited: u64, borrowed: u64, is_collateral_only: bool) acquires LendingPoolModKeys {
         let liquidator_addr = signer::address_of(liquidator);
-        let (asset_pool_key, shadow_pool_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
+        let (_, asset_pool_key, shadow_pool_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
         if (pool_type::is_type_asset<P>()) {
             shadow_pool::repay<C>(liquidator, borrowed, shadow_pool_key);
             asset_pool::withdraw_for_liquidation<C>(liquidator_addr, target_addr, deposited, is_collateral_only, asset_pool_key);
@@ -229,10 +235,10 @@ module leizd::money_market {
     /// `to_collateral_only` should be false if the user wants to switch it to the borrowable collateral.
     public entry fun switch_collateral<C,P>(account: &signer, to_collateral_only: bool) acquires LendingPoolModKeys {
         pool_type::assert_pool_type<P>();
-        let (asset_pool_key, shadow_pool_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
-
         let account_addr = signer::address_of(account);
-        let amount = account_position::switch_collateral<C,P>(account_addr, to_collateral_only);
+        let (account_position_key, asset_pool_key, shadow_pool_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
+
+        let amount = account_position::switch_collateral<C,P>(account_addr, to_collateral_only, account_position_key);
         if (pool_type::is_type_asset<P>()) {
             asset_pool::switch_collateral<C>(account_addr, amount, to_collateral_only, asset_pool_key);
         } else {
@@ -244,10 +250,6 @@ module leizd::money_market {
     public entry fun harvest_protocol_fees<C>() {
         shadow_pool::harvest_protocol_fees<C>();
         asset_pool::harvest_protocol_fees<C>();
-    }
-
-    fun keys(keys: &LendingPoolModKeys): (&AssetPoolKey, &ShadowPoolKey) {
-        (&keys.asset_pool, &keys.shadow_pool)
     }
 
     #[test_only]
@@ -279,9 +281,11 @@ module leizd::money_market {
 
         // initialize
         initializer::initialize(owner);
+        let account_position_key = account_position::initialize(owner);
         let asset_pool_key = asset_pool::initialize(owner);
         let shadow_pool_key = shadow_pool::initialize(owner);
         move_to(owner, LendingPoolModKeys {
+            account_position: account_position_key,
             asset_pool: asset_pool_key,
             shadow_pool: shadow_pool_key
         });
@@ -350,7 +354,7 @@ module leizd::money_market {
         managed_coin::mint<WETH>(owner, account_addr, 100);
 
         setup_account_for_test(for);
-        account_position::initialize_if_necessary_for_test(for); // NOTE: fail deposit_for if Position resource is initialized
+        account_position::initialize_position_if_necessary_for_test(for); // NOTE: fail deposit_for if Position resource is initialized
 
         let for_addr = signer::address_of(for);
         deposit_for<WETH, Asset>(account, for_addr, 100, false);
@@ -367,7 +371,7 @@ module leizd::money_market {
         usdz::mint_for_test(account_addr, 100);
 
         setup_account_for_test(for);
-        account_position::initialize_if_necessary_for_test(for); // NOTE: fail deposit_for if Position resource is initialized
+        account_position::initialize_position_if_necessary_for_test(for); // NOTE: fail deposit_for if Position resource is initialized
 
         let for_addr = signer::address_of(for);
         deposit_for<WETH, Shadow>(account, for_addr, 100, false);
