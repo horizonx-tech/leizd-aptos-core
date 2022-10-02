@@ -1,0 +1,16 @@
+[package]
+name = 'LeizdAptosEntry'
+version = '0.1.0'
+upgrade_policy = "compatible"
+
+[dependencies.AptosFramework]
+git = 'https://github.com/aptos-labs/aptos-core.git'
+rev = 'devnet'
+subdir = 'aptos-move/framework/aptos-framework'
+
+[dependencies.LeizdAptosCore]
+local = "../leizd-aptos-core"
+
+[addresses]
+leizd_aptos_entry="0x0123456789ABCDEF"
+leizd_aptos_core="0x0123456789ABCDEF"
