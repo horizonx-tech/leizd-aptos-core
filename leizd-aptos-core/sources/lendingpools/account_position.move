@@ -18,6 +18,7 @@ module leizd::account_position {
     use leizd_aptos_external::price_oracle;
     use leizd_aptos_trove::usdz::{USDZ};
     use leizd_aptos_lib::constant;
+    use leizd_aptos_lib::math128;
     use leizd::asset_pool;
     use leizd::shadow_pool;
 
@@ -714,9 +715,16 @@ module leizd::account_position {
 
     fun deposited_volume<P>(addr: address, key: String): u64 acquires Position {
         let position_ref = borrow_global_mut<Position<P>>(addr);
+        deposited_volume_internal<P>(position_ref, key)
+    }
+    fun deposited_volume_internal<P>(position_ref: &Position<P>, key: String): u64 {
         if (vector::contains<String>(&position_ref.coins, &key)) {
             let balance = simple_map::borrow<String,Balance>(&position_ref.balance, &key);
-            price_oracle::volume(&key, balance.normal_deposited + balance.conly_deposited)
+            let (total_amount, total_share) = total_normal_deposited<P>(key);
+            let normal_deposited = if (total_amount == 0 && total_share == 0) (balance.normal_deposited_share as u128) else math128::to_amount((balance.normal_deposited_share as u128), total_amount, total_share);
+            let (total_amount, total_share) = total_conly_deposited<P>(key);
+            let conly_deposited = if (total_amount == 0 && total_share == 0) (balance.conly_deposited_share as u128) else math128::to_amount((balance.conly_deposited_share as u128), total_amount, total_share);
+            price_oracle::volume(&key, ((normal_deposited + conly_deposited) as u64)) // TODO: consider cast
         } else {
             0
         }
@@ -724,9 +732,14 @@ module leizd::account_position {
 
     fun borrowed_volume<P>(addr: address, key: String): u64 acquires Position {
         let position_ref = borrow_global_mut<Position<P>>(addr);
+        borrowed_volume_internal<P>(position_ref, key)
+    }
+    fun borrowed_volume_internal<P>(position_ref: &Position<P>, key: String): u64 {
         if (vector::contains<String>(&position_ref.coins, &key)) {
-            let borrowed = simple_map::borrow<String,Balance>(&position_ref.balance, &key).borrowed;
-            price_oracle::volume(&key, borrowed)
+            let (total_amount, total_share) = total_borrowed<P>(key);
+            let borrowed_share = simple_map::borrow<String,Balance>(&position_ref.balance, &key).borrowed_share;
+            let borrowed = if (total_amount == 0 && total_share == 0) (borrowed_share as u128) else math128::to_amount((borrowed_share as u128), total_amount, total_share);
+            price_oracle::volume(&key, (borrowed as u64)) // TODO: consider cast
         } else {
             0
         }
@@ -886,15 +899,14 @@ module leizd::account_position {
 
     fun utilization_of<P>(position_ref: &Position<P>, key: String): u64 {
         if (vector::contains<String>(&position_ref.coins, &key)) {
-            let balance = simple_map::borrow<String,Balance>(&position_ref.balance, &key);
-            let deposited = balance.normal_deposited + balance.conly_deposited;
-            let borrowed = simple_map::borrow<String,Balance>(&position_ref.balance, &key).borrowed;
+            let deposited = deposited_volume_internal(position_ref, key);
+            let borrowed = borrowed_volume_internal(position_ref, key);
             if (deposited == 0 && borrowed != 0) {
                 return constant::u64_max()
             } else if (deposited == 0) { 
                 return 0 
             };
-            price_oracle::volume(&key, borrowed) * risk_factor::precision() / price_oracle::volume(&key, deposited)
+            borrowed * risk_factor::precision() / deposited // TODO: check calculation order (division is last?)
         } else {
             0
         }
