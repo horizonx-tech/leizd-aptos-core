@@ -49,6 +49,9 @@ jobs:
       - name: release leizd-aptos-core
         run: aptos move publish --package-dir leizd-aptos-core --override-size-check --assume-yes --included-artifacts none
 
+      - name: release leizd-aptos-entry
+        run: aptos move publish --package-dir leizd-aptos-entry --override-size-check --assume-yes
+
       - name: Slack Notification on Success
         if: success()
         uses: rtCamp/action-slack-notify@v2.0.2
