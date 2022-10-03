@@ -80,7 +80,7 @@ module leizd::interest_rate {
         permission::assert_owner(signer::address_of(owner));
         AssetManagerKey {}
     }
-    public(friend) fun initialize_for_asset<C>(
+    public fun initialize_for_asset<C>(
         owner: &signer,
         _key: &AssetManagerKey
     ) acquires ConfigKey, InterestRateEventHandle {
@@ -90,7 +90,7 @@ module leizd::interest_rate {
         let config = default_config();
         let owner_address = signer::address_of(owner);
         assert_config(config);
-        if (!exists<ConfigKey>(signer::address_of(owner))) {
+        if (!exists<ConfigKey>(owner_address)) {
             move_to(owner, ConfigKey {
                 config: simple_map::create<String,Config>()
             });

@@ -49,7 +49,6 @@ module leizd_aptos_common::pool_status {
     }
     fun initialize_for_asset_internal<C>(owner: &signer) acquires Status, PoolStatusEventHandle {
         let owner_addr = signer::address_of(owner);
-        permission::assert_owner(owner_addr); // NOTE: remove this validation if permission less
         let key = key<C>();
         if (exists<Status>(owner_addr)) {
             let status = borrow_global_mut<Status>(owner_addr);

@@ -112,8 +112,6 @@ module leizd_aptos_logic::risk_factor {
     }
     fun initialize_for_asset_internal<C>(account: &signer) acquires Config, RepositoryAssetEventHandle {
         let owner_addr = signer::address_of(account);
-        permission::assert_owner(owner_addr); // NOTE: remove this validation if permission less
-
         let config_ref = borrow_global_mut<Config>(owner_addr);
         let key = key<C>();
         assert!(!table::contains<string::String, u64>(&config_ref.ltv, key), error::invalid_argument(EALREADY_ADDED_ASSET));

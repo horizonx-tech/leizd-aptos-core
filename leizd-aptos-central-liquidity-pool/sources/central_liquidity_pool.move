@@ -189,9 +189,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         initialize_for_asset_internal<C>(owner);
     }
     fun initialize_for_asset_internal<C>(owner: &signer) acquires Balance {
-        let owner_address = signer::address_of(owner);
-        permission::assert_owner(owner_address);
-        let balance = borrow_global_mut<Balance>(owner_address);
+        let balance = borrow_global_mut<Balance>(signer::address_of(owner));
         simple_map::add<String,u128>(&mut balance.borrowed, key<C>(), 0);
         simple_map::add<String,u128>(&mut balance.uncollected_entry_fee, key<C>(), 0);
         simple_map::add<String,u128>(&mut balance.uncollected_support_fee, key<C>(), 0);
