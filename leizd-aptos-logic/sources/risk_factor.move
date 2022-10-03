@@ -22,10 +22,10 @@ module leizd_aptos_logic::risk_factor {
     const DEFAULT_ENTRY_FEE: u64 = 1000000000 / 1000 * 5; // 0.5%
     const DEFAULT_SHARE_FEE: u64 = 1000000000 / 1000 * 5; // 0.5%
     const DEFAULT_LIQUIDATION_FEE: u64 = 1000000000 / 1000 * 5; // 0.5%
-    const DEFAULT_LTV: u64 = 1000000000 / 100 * 50; // 50%
-    const DEFAULT_THRESHOLD: u64 = 1000000000 / 100 * 70 ; // 70%
-    const SHADOW_LTV: u64 = 1000000000 / 100 * 100; // 100% // TODO: 90%
-    const SHADOW_LT: u64 = 1000000000 / 100 * 100; // 100% // TODO: 95%
+    const DEFAULT_LTV: u64 = 1000000000 / 100 * 70; // 70%
+    const DEFAULT_THRESHOLD: u64 = 1000000000 / 100 * 85 ; // 85%
+    const SHADOW_LTV: u64 = 1000000000 / 100 * 90; // 90%
+    const SHADOW_LT: u64 = 1000000000 / 100 * 95; // 95%
 
     //// resources
     /// access control
@@ -411,8 +411,11 @@ module leizd_aptos_logic::risk_factor {
         account::create_account_for_test(owner_addr);
         initialize(owner);
         initialize_for_asset_internal<TestAsset>(owner);
-
         let name = key<TestAsset>();
+        assert!(ltv<TestAsset>() == PRECISION / 100 * 70, 0);
+        assert!(lt<TestAsset>() == PRECISION / 100 * 85, 0);
+        assert!(lt_of(name) == PRECISION / 100 * 85, 0);
+
         update_config<TestAsset>(owner, PRECISION / 100 * 70, PRECISION / 100 * 90);
         let config = borrow_global<Config>(permission::owner_address());
         let new_ltv = table::borrow<string::String,u64>(&config.ltv, name);
