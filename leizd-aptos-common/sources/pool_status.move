@@ -42,16 +42,16 @@ module leizd_aptos_common::pool_status {
         AssetManagerKey {}
     }
     public fun initialize_for_asset<C>(
-        owner: &signer,
+        account: &signer,
         _key: &AssetManagerKey
     ) acquires Status, PoolStatusEventHandle {
-        initialize_for_asset_internal<C>(owner);
+        initialize_for_asset_internal<C>(account);
     }
-    fun initialize_for_asset_internal<C>(owner: &signer) acquires Status, PoolStatusEventHandle {
-        let owner_addr = signer::address_of(owner);
+    fun initialize_for_asset_internal<C>(account: &signer) acquires Status, PoolStatusEventHandle {
+        let account_addr = signer::address_of(account);
         let key = key<C>();
-        if (exists<Status>(owner_addr)) {
-            let status = borrow_global_mut<Status>(owner_addr);
+        if (exists<Status>(account_addr)) {
+            let status = borrow_global_mut<Status>(account_addr);
             initialize_status(key, status);
         } else {
             let status = Status {
@@ -62,9 +62,9 @@ module leizd_aptos_common::pool_status {
                 can_switch_collateral: simple_map::create<String,bool>(),
             };
             initialize_status(key, &mut status);
-            move_to(owner, status);
-            move_to(owner, PoolStatusEventHandle {
-                pool_status_update_event: account::new_event_handle<PoolStatusUpdateEvent>(owner),
+            move_to(account, status); // TODO: separate initialize module (for owner) and initialize asset (for anyone)
+            move_to(account, PoolStatusEventHandle {
+                pool_status_update_event: account::new_event_handle<PoolStatusUpdateEvent>(account),
             });
         };
         emit_current_pool_status(key);

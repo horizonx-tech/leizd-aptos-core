@@ -161,36 +161,35 @@ module leizd::asset_pool {
     /// Initializes a pool with the coin the owner specifies.
     /// The caller is only owner and creates not only a pool but also other resources
     /// such as a treasury for the coin, an interest rate model, and coins of collaterals and debts.
-    public fun init_pool<C>(owner: &signer) acquires Storage, AssetManagerKeys {
-        init_pool_internal<C>(owner);
+    public fun init_pool<C>(account: &signer) acquires Storage, AssetManagerKeys {
+        init_pool_internal<C>(account);
     }
 
-    fun init_pool_internal<C>(owner: &signer) acquires Storage, AssetManagerKeys {
-        let owner_addr = signer::address_of(owner);
-        permission::assert_owner(owner_addr);
+    fun init_pool_internal<C>(account: &signer) acquires Storage, AssetManagerKeys {
+        let owner_addr = permission::owner_address();
         assert!(exists<Storage>(owner_addr), error::invalid_argument(ENOT_INITILIZED));
         assert!(!is_pool_initialized<C>(), error::invalid_argument(EIS_ALREADY_EXISTED));
         assert!(dex_facade::has_liquidity<C>(), error::invalid_state(EDEX_DOES_NOT_HAVE_LIQUIDITY));
 
         let keys = borrow_global<AssetManagerKeys>(owner_addr);
-        treasury::add_coin<C>(owner, &keys.treasury);
-        risk_factor::initialize_for_asset<C>(owner, &keys.risk_factor);
-        interest_rate::initialize_for_asset<C>(owner, &keys.interest_rate);
-        central_liquidity_pool::initialize_for_asset<C>(owner, &keys.central_liquidity_pool);
-        pool_status::initialize_for_asset<C>(owner, &keys.pool_status);
+        treasury::add_coin<C>(account, &keys.treasury);
+        risk_factor::initialize_for_asset<C>(account, &keys.risk_factor);
+        interest_rate::initialize_for_asset<C>(account, &keys.interest_rate);
+        central_liquidity_pool::initialize_for_asset<C>(account, &keys.central_liquidity_pool);
+        pool_status::initialize_for_asset<C>(account, &keys.pool_status);
 
-        move_to(owner, Pool<C> {
+        move_to(account, Pool<C> {
             asset: coin::zero<C>()
         });
         let storage_ref = borrow_global_mut<Storage>(owner_addr);
         simple_map::add<String, AssetStorage>(&mut storage_ref.assets, key<C>(), default_asset_storage());
-        move_to(owner, PoolEventHandle<C> {
-            deposit_event: account::new_event_handle<DepositEvent>(owner),
-            withdraw_event: account::new_event_handle<WithdrawEvent>(owner),
-            borrow_event: account::new_event_handle<BorrowEvent>(owner),
-            repay_event: account::new_event_handle<RepayEvent>(owner),
-            liquidate_event: account::new_event_handle<LiquidateEvent>(owner),
-            switch_collateral_event: account::new_event_handle<SwitchCollateralEvent>(owner),
+        move_to(account, PoolEventHandle<C> {
+            deposit_event: account::new_event_handle<DepositEvent>(account),
+            withdraw_event: account::new_event_handle<WithdrawEvent>(account),
+            borrow_event: account::new_event_handle<BorrowEvent>(account),
+            repay_event: account::new_event_handle<RepayEvent>(account),
+            liquidate_event: account::new_event_handle<LiquidateEvent>(account),
+            switch_collateral_event: account::new_event_handle<SwitchCollateralEvent>(account),
         });
     }
     fun default_asset_storage(): AssetStorage {
