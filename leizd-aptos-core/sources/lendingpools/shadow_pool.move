@@ -11,7 +11,7 @@ module leizd::shadow_pool {
     use leizd_aptos_common::coin_key::{key};
     use leizd_aptos_common::permission;
     use leizd_aptos_common::pool_status;
-    use leizd_aptos_lib::math64;
+    use leizd_aptos_lib::math128;
     use leizd_aptos_trove::usdz::{USDZ};
     use leizd::interest_rate;
     use leizd_aptos_logic::risk_factor;
@@ -47,12 +47,12 @@ module leizd::shadow_pool {
         harvested_protocol_fees: u64,
     }
     struct AssetStorage has store {
-        normal_deposited_amount: u64, // borrowable
-        normal_deposited_share: u64, // borrowable
-        conly_deposited_amount: u64, // collateral only
-        conly_deposited_share: u64, // collateral only
-        borrowed_amount: u64,
-        borrowed_share: u64,
+        normal_deposited_amount: u128, // borrowable
+        normal_deposited_share: u128, // borrowable
+        conly_deposited_amount: u128, // collateral only
+        conly_deposited_share: u128, // collateral only
+        borrowed_amount: u128,
+        borrowed_share: u128,
         last_updated: u64,
     }
 
@@ -220,17 +220,18 @@ module leizd::shadow_pool {
         coin::merge(&mut pool_ref.shadow, coin::withdraw<USDZ>(account, amount));
 
         let asset_storage = simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key);
-        let user_share: u64;
+        let amount_u128: u128 = (amount as u128);
+        let user_share_u128: u128;
         if (is_collateral_only) {
-            storage_ref.total_conly_deposited_amount = storage_ref.total_conly_deposited_amount + (amount as u128);
-            user_share = math64::to_share(amount, asset_storage.conly_deposited_amount, asset_storage.conly_deposited_share);
-            asset_storage.conly_deposited_amount = asset_storage.conly_deposited_amount + amount;
-            asset_storage.conly_deposited_share = asset_storage.conly_deposited_share + user_share;
+            storage_ref.total_conly_deposited_amount = storage_ref.total_conly_deposited_amount + amount_u128;
+            user_share_u128 = math128::to_share((amount as u128), asset_storage.conly_deposited_amount, asset_storage.conly_deposited_share);
+            asset_storage.conly_deposited_amount = asset_storage.conly_deposited_amount + amount_u128;
+            asset_storage.conly_deposited_share = asset_storage.conly_deposited_share + user_share_u128;
         } else {
-            storage_ref.total_normal_deposited_amount = storage_ref.total_normal_deposited_amount + (amount as u128);
-            user_share = math64::to_share(amount, asset_storage.normal_deposited_amount, asset_storage.normal_deposited_share);
-            asset_storage.normal_deposited_amount = asset_storage.normal_deposited_amount + amount;
-            asset_storage.normal_deposited_share = asset_storage.normal_deposited_share + user_share;
+            storage_ref.total_normal_deposited_amount = storage_ref.total_normal_deposited_amount + amount_u128;
+            user_share_u128 = math128::to_share((amount as u128), asset_storage.normal_deposited_amount, asset_storage.normal_deposited_share);
+            asset_storage.normal_deposited_amount = asset_storage.normal_deposited_amount + amount_u128;
+            asset_storage.normal_deposited_share = asset_storage.normal_deposited_share + user_share_u128;
         };
 
         event::emit_event<DepositEvent>(
@@ -244,7 +245,7 @@ module leizd::shadow_pool {
             },
         );
 
-        (amount, user_share)
+        (amount, (user_share_u128 as u64))
     }
 
     ////////////////////////////////////////////////////
@@ -274,19 +275,20 @@ module leizd::shadow_pool {
         assert!(is_initialized_asset_with_internal(&key_to, storage_ref), error::invalid_argument(ENOT_INITIALIZED_COIN));
 
         let storage_from = simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key_from);
+        let amount_u128: u128 = (amount as u128);
         // TODO: consider share removed
         if (is_collateral_only_C1) {
-            storage_from.conly_deposited_amount = storage_from.conly_deposited_amount - amount;
+            storage_from.conly_deposited_amount = storage_from.conly_deposited_amount - amount_u128;
         } else {
-            storage_from.normal_deposited_amount = storage_from.normal_deposited_amount - amount;
+            storage_from.normal_deposited_amount = storage_from.normal_deposited_amount - amount_u128;
         };
 
         let storage_to = simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key_to);
         // TODO: consider share added
         if (is_collateral_only_C2) {
-            storage_to.conly_deposited_amount = storage_to.conly_deposited_amount + amount;
+            storage_to.conly_deposited_amount = storage_to.conly_deposited_amount + amount_u128;
         } else {
-            storage_to.normal_deposited_amount = storage_to.normal_deposited_amount + amount;
+            storage_to.normal_deposited_amount = storage_to.normal_deposited_amount + amount_u128;
         };
 
         event::emit_event<RebalanceEvent>(
@@ -315,15 +317,16 @@ module leizd::shadow_pool {
         assert!(is_initialized_asset_with_internal(&key_from, storage_ref), error::invalid_argument(ENOT_INITIALIZED_COIN));
         assert!(is_initialized_asset_with_internal(&key_to, storage_ref), error::invalid_argument(ENOT_INITIALIZED_COIN));
 
+        let amount_u128: u128 = (amount as u128);
         let storage_from = simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key_from);
-        storage_from.borrowed_amount = storage_from.borrowed_amount + amount;
+        storage_from.borrowed_amount = storage_from.borrowed_amount + amount_u128;
 
         let storage_to = simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key_to);
         // TODO: consider share
         if (is_collateral_only) {
-            storage_to.conly_deposited_amount = storage_to.conly_deposited_amount + amount;
+            storage_to.conly_deposited_amount = storage_to.conly_deposited_amount + amount_u128;
         } else {
-            storage_to.normal_deposited_amount = storage_to.normal_deposited_amount + amount;
+            storage_to.normal_deposited_amount = storage_to.normal_deposited_amount + amount_u128;
         };
 
         event::emit_event<RebalanceEvent>(
@@ -396,17 +399,18 @@ module leizd::shadow_pool {
 
         assert!(is_initialized_asset_with_internal(&key, storage_ref), error::invalid_argument(ENOT_INITIALIZED_COIN));
         let asset_storage = simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key);
-        let withdrawn_user_share: u64;
+        let amount_u128: u128 = (amount as u128);
+        let withdrawn_user_share_u128: u128;
         if (is_collateral_only) {
             storage_ref.total_conly_deposited_amount = storage_ref.total_conly_deposited_amount - (amount as u128);
-            withdrawn_user_share = math64::to_share(amount, asset_storage.conly_deposited_amount, asset_storage.conly_deposited_share);
-            asset_storage.conly_deposited_amount = asset_storage.conly_deposited_amount - amount;
-            asset_storage.conly_deposited_share = asset_storage.conly_deposited_share - withdrawn_user_share;
+            withdrawn_user_share_u128 = math128::to_share(amount_u128, asset_storage.conly_deposited_amount, asset_storage.conly_deposited_share);
+            asset_storage.conly_deposited_amount = asset_storage.conly_deposited_amount - amount_u128;
+            asset_storage.conly_deposited_share = asset_storage.conly_deposited_share - withdrawn_user_share_u128;
         } else {
             storage_ref.total_normal_deposited_amount = storage_ref.total_normal_deposited_amount - (amount as u128);
-            withdrawn_user_share = math64::to_share(amount, asset_storage.normal_deposited_amount, asset_storage.normal_deposited_share);
-            asset_storage.normal_deposited_amount = asset_storage.normal_deposited_amount - amount;
-            asset_storage.normal_deposited_share = asset_storage.normal_deposited_share - withdrawn_user_share;
+            withdrawn_user_share_u128 = math128::to_share(amount_u128, asset_storage.normal_deposited_amount, asset_storage.normal_deposited_share);
+            asset_storage.normal_deposited_amount = asset_storage.normal_deposited_amount - amount_u128;
+            asset_storage.normal_deposited_share = asset_storage.normal_deposited_share - withdrawn_user_share_u128;
         };
 
         event::emit_event<WithdrawEvent>(
@@ -420,7 +424,7 @@ module leizd::shadow_pool {
             },
         );
 
-        (amount, withdrawn_user_share)
+        (amount, (withdrawn_user_share_u128 as u64))
     }
 
     ////////////////////////////////////////////////////
@@ -503,12 +507,12 @@ module leizd::shadow_pool {
         };
 
         // update borrowed stats
-        let amount_with_total_fee = amount + total_fee;
-        storage_ref.total_borrowed_amount = storage_ref.total_borrowed_amount + (amount_with_total_fee as u128);
+        let amount_with_total_fee_u128 = ((amount + total_fee) as u128);
+        storage_ref.total_borrowed_amount = storage_ref.total_borrowed_amount + amount_with_total_fee_u128;
         let asset_storage_ref = simple_map::borrow_mut<String, AssetStorage>(&mut storage_ref.asset_storages, &key);
-        let user_share = math64::to_share(amount_with_total_fee, asset_storage_ref.borrowed_amount, asset_storage_ref.borrowed_share);
-        asset_storage_ref.borrowed_amount = asset_storage_ref.borrowed_amount + amount_with_total_fee;
-        asset_storage_ref.borrowed_share = asset_storage_ref.borrowed_share + user_share;
+        let user_share_u128 = math128::to_share(amount_with_total_fee_u128, asset_storage_ref.borrowed_amount, asset_storage_ref.borrowed_share);
+        asset_storage_ref.borrowed_amount = asset_storage_ref.borrowed_amount + amount_with_total_fee_u128;
+        asset_storage_ref.borrowed_share = asset_storage_ref.borrowed_share + user_share_u128;
 
         event::emit_event<BorrowEvent>(
             &mut borrow_global_mut<PoolEventHandle>(owner_address).borrow_event,
@@ -522,8 +526,8 @@ module leizd::shadow_pool {
         );
 
         (
-            amount_with_total_fee, // TODO: only amount
-            user_share
+            (amount_with_total_fee_u128 as u64), // TODO: only amount
+            (user_share_u128 as u64)
         )
     }
 
@@ -565,11 +569,12 @@ module leizd::shadow_pool {
             coin::merge(&mut pool_ref.shadow, withdrawn);
         };
 
-        storage_ref.total_borrowed_amount = storage_ref.total_borrowed_amount - (amount as u128);
+        let amount_u128 = (amount as u128);
+        storage_ref.total_borrowed_amount = storage_ref.total_borrowed_amount - amount_u128;
         let asset_storage_ref = simple_map::borrow_mut<String, AssetStorage>(&mut storage_ref.asset_storages, &key);
-        let user_share = math64::to_share(amount, asset_storage_ref.borrowed_amount, asset_storage_ref.borrowed_share);
-        asset_storage_ref.borrowed_amount = asset_storage_ref.borrowed_amount - amount;
-        asset_storage_ref.borrowed_share = asset_storage_ref.borrowed_share - user_share;
+        let user_share_u128 = math128::to_share(amount_u128, asset_storage_ref.borrowed_amount, asset_storage_ref.borrowed_share);
+        asset_storage_ref.borrowed_amount = asset_storage_ref.borrowed_amount - amount_u128;
+        asset_storage_ref.borrowed_share = asset_storage_ref.borrowed_share - user_share_u128;
 
         let account_addr = signer::address_of(account);
         event::emit_event<RepayEvent>(
@@ -582,7 +587,7 @@ module leizd::shadow_pool {
             },
         );
 
-        (amount, user_share)
+        (amount, (user_share_u128 as u64))
     }
 
     ////////////////////////////////////////////////////
@@ -637,18 +642,18 @@ module leizd::shadow_pool {
         let amount_u128 = (amount as u128);
         // TODO: consider share
         if (to_collateral_only) {
-            assert!(amount <= normal_deposited_amount_internal(key, storage_ref) - conly_deposited_amount_internal(key, storage_ref), error::invalid_argument(EINSUFFICIENT_LIQUIDITY));
+            assert!(amount_u128 <= normal_deposited_amount_internal(key, storage_ref) - conly_deposited_amount_internal(key, storage_ref), error::invalid_argument(EINSUFFICIENT_LIQUIDITY));
             let asset_storage_ref = simple_map::borrow_mut<String, AssetStorage>(&mut storage_ref.asset_storages, &key);
-            asset_storage_ref.conly_deposited_amount = asset_storage_ref.conly_deposited_amount + amount;
+            asset_storage_ref.conly_deposited_amount = asset_storage_ref.conly_deposited_amount + amount_u128;
             storage_ref.total_conly_deposited_amount = storage_ref.total_conly_deposited_amount + amount_u128;
-            asset_storage_ref.normal_deposited_amount = asset_storage_ref.normal_deposited_amount - amount;
+            asset_storage_ref.normal_deposited_amount = asset_storage_ref.normal_deposited_amount - amount_u128;
             storage_ref.total_normal_deposited_amount = storage_ref.total_normal_deposited_amount - amount_u128;
         } else {
-            assert!(amount <= conly_deposited_amount_internal(key, storage_ref), error::invalid_argument(EINSUFFICIENT_CONLY_DEPOSITED));
+            assert!(amount_u128 <= conly_deposited_amount_internal(key, storage_ref), error::invalid_argument(EINSUFFICIENT_CONLY_DEPOSITED));
             let asset_storage_ref = simple_map::borrow_mut<String, AssetStorage>(&mut storage_ref.asset_storages, &key);
-            asset_storage_ref.normal_deposited_amount = asset_storage_ref.normal_deposited_amount + amount;
+            asset_storage_ref.normal_deposited_amount = asset_storage_ref.normal_deposited_amount + amount_u128;
             storage_ref.total_normal_deposited_amount = storage_ref.total_normal_deposited_amount + amount_u128;
-            asset_storage_ref.conly_deposited_amount = asset_storage_ref.conly_deposited_amount - amount;
+            asset_storage_ref.conly_deposited_amount = asset_storage_ref.conly_deposited_amount - amount_u128;
             storage_ref.total_conly_deposited_amount = storage_ref.total_conly_deposited_amount - amount_u128;
         };
         event::emit_event<SwitchCollateralEvent>(
@@ -741,9 +746,9 @@ module leizd::shadow_pool {
             central_liquidity_pool::collect_support_fee(key, fee_extracted, uncollected_support_fee, key_for_central);
         };
 
-        asset_storage_ref.borrowed_amount = asset_storage_ref.borrowed_amount + (accrued_interest as u64);
+        asset_storage_ref.borrowed_amount = asset_storage_ref.borrowed_amount + accrued_interest;
         storage_ref.total_borrowed_amount = storage_ref.total_borrowed_amount + accrued_interest;
-        asset_storage_ref.normal_deposited_amount = asset_storage_ref.normal_deposited_amount + (depositors_share as u64);
+        asset_storage_ref.normal_deposited_amount = asset_storage_ref.normal_deposited_amount + depositors_share;
         storage_ref.total_normal_deposited_amount = storage_ref.total_normal_deposited_amount + depositors_share;
         storage_ref.protocol_fees = new_protocol_fees;
         asset_storage_ref.last_updated = now;
@@ -800,30 +805,30 @@ module leizd::shadow_pool {
         simple_map::contains_key<String, AssetStorage>(&storage_ref.asset_storages, key)
     }
 
-    public fun normal_deposited_amount<C>(): u64 acquires Storage {
+    public fun normal_deposited_amount<C>(): u128 acquires Storage {
         let storage_ref = borrow_global<Storage>(permission::owner_address());
         normal_deposited_amount_internal(key<C>(), storage_ref)
     }
-    public fun normal_deposited_amount_with(key: String): u64 acquires Storage {
+    public fun normal_deposited_amount_with(key: String): u128 acquires Storage {
         let storage_ref = borrow_global<Storage>(permission::owner_address());
         normal_deposited_amount_internal(key, storage_ref)
     }
-    fun normal_deposited_amount_internal(key: String, storage: &Storage): u64 {
+    fun normal_deposited_amount_internal(key: String, storage: &Storage): u128 {
         if (is_initialized_asset_with_internal(&key, storage)) {
             simple_map::borrow<String, AssetStorage>(&storage.asset_storages, &key).normal_deposited_amount
         } else {
             0
         }
     }
-    public fun normal_deposited_share<C>(): u64 acquires Storage {
+    public fun normal_deposited_share<C>(): u128 acquires Storage {
         let storage_ref = borrow_global<Storage>(permission::owner_address());
         normal_deposited_share_internal(key<C>(), storage_ref)
     }
-    public fun normal_deposited_share_with(key: String): u64 acquires Storage {
+    public fun normal_deposited_share_with(key: String): u128 acquires Storage {
         let storage_ref = borrow_global<Storage>(permission::owner_address());
         normal_deposited_share_internal(key, storage_ref)
     }
-    fun normal_deposited_share_internal(key: String, storage: &Storage): u64 {
+    fun normal_deposited_share_internal(key: String, storage: &Storage): u128 {
         if (is_initialized_asset_with_internal(&key, storage)) {
             simple_map::borrow<String, AssetStorage>(&storage.asset_storages, &key).normal_deposited_share
         } else {
@@ -831,30 +836,30 @@ module leizd::shadow_pool {
         }
     }
 
-    public fun conly_deposited_amount<C>(): u64 acquires Storage {
+    public fun conly_deposited_amount<C>(): u128 acquires Storage {
         let storage_ref = borrow_global<Storage>(permission::owner_address());
         conly_deposited_amount_internal(key<C>(), storage_ref)
     }
-    public fun conly_deposited_amount_with(key: String): u64 acquires Storage {
+    public fun conly_deposited_amount_with(key: String): u128 acquires Storage {
         let storage_ref = borrow_global<Storage>(permission::owner_address());
         conly_deposited_amount_internal(key, storage_ref)
     }
-    fun conly_deposited_amount_internal(key: String, storage: &Storage): u64 {
+    fun conly_deposited_amount_internal(key: String, storage: &Storage): u128 {
         if (is_initialized_asset_with_internal(&key, storage)) {
             simple_map::borrow<String, AssetStorage>(&storage.asset_storages, &key).conly_deposited_amount
         } else {
             0
         }
     }
-    public fun conly_deposited_share<C>(): u64 acquires Storage {
+    public fun conly_deposited_share<C>(): u128 acquires Storage {
         let storage_ref = borrow_global<Storage>(permission::owner_address());
         conly_deposited_share_internal(key<C>(), storage_ref)
     }
-    public fun conly_deposited_share_with(key: String): u64 acquires Storage {
+    public fun conly_deposited_share_with(key: String): u128 acquires Storage {
         let storage_ref = borrow_global<Storage>(permission::owner_address());
         conly_deposited_share_internal(key, storage_ref)
     }
-    fun conly_deposited_share_internal(key: String, storage: &Storage): u64 {
+    fun conly_deposited_share_internal(key: String, storage: &Storage): u128 {
         if (is_initialized_asset_with_internal(&key, storage)) {
             simple_map::borrow<String, AssetStorage>(&storage.asset_storages, &key).conly_deposited_share
         } else {
@@ -862,30 +867,30 @@ module leizd::shadow_pool {
         }
     }
 
-    public fun borrowed_amount<C>(): u64 acquires Storage {
+    public fun borrowed_amount<C>(): u128 acquires Storage {
         let storage_ref = borrow_global<Storage>(permission::owner_address());
         borrowed_amount_internal(key<C>(), storage_ref)
     }
-    public fun borrowed_amount_with(key: String): u64 acquires Storage {
+    public fun borrowed_amount_with(key: String): u128 acquires Storage {
         let storage_ref = borrow_global<Storage>(permission::owner_address());
         borrowed_amount_internal(key, storage_ref)
     }
-    fun borrowed_amount_internal(key: String, storage: &Storage): u64 {
+    fun borrowed_amount_internal(key: String, storage: &Storage): u128 {
         if (is_initialized_asset_with_internal(&key, storage)) {
             simple_map::borrow<String, AssetStorage>(&storage.asset_storages, &key).borrowed_amount
         } else {
             0
         }
     }
-    public fun borrowed_share<C>(): u64 acquires Storage {
+    public fun borrowed_share<C>(): u128 acquires Storage {
         let storage_ref = borrow_global<Storage>(permission::owner_address());
         borrowed_amount_internal(key<C>(), storage_ref)
     }
-    public fun borrowed_share_with(key: String): u64 acquires Storage {
+    public fun borrowed_share_with(key: String): u128 acquires Storage {
         let storage_ref = borrow_global<Storage>(permission::owner_address());
         borrowed_amount_internal(key, storage_ref)
     }
-    fun borrowed_share_internal(key: String, storage: &Storage): u64 {
+    fun borrowed_share_internal(key: String, storage: &Storage): u128 {
         if (is_initialized_asset_with_internal(&key, storage)) {
             simple_map::borrow<String, AssetStorage>(&storage.asset_storages, &key).borrowed_share
         } else {

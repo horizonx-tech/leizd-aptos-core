@@ -1010,7 +1010,7 @@ module leizd::account_position {
     fun total_normal_deposited_for_shadow(key: String): (u128, u128) {
         let total_amount = shadow_pool::normal_deposited_amount_with(key);
         let total_shares = shadow_pool::normal_deposited_share_with(key);
-        ((total_amount as u128), (total_shares as u128)) // TODO: use u128 in pool (temp, cast to u128)
+        (total_amount, total_shares)
     }
     fun total_conly_deposited<P>(key: String): (u128, u128) {
         if (pool_type::is_type_asset<P>()) {
@@ -1022,12 +1022,12 @@ module leizd::account_position {
     fun total_conly_deposited_for_asset(key: String): (u128, u128) {
         let total_amount = asset_pool::total_conly_deposited_amount_with(key);
         let total_shares = asset_pool::total_conly_deposited_share_with(key);
-        (total_amount, total_shares) // TODO: use u128 in pool (temp, cast to u128)
+        (total_amount, total_shares)
     }
     fun total_conly_deposited_for_shadow(key: String): (u128, u128) {
         let total_amount = shadow_pool::conly_deposited_amount_with(key);
         let total_shares = shadow_pool::conly_deposited_share_with(key);
-        ((total_amount as u128), (total_shares as u128))
+        (total_amount, total_shares)
     }
     fun total_borrowed<P>(key: String): (u128, u128) {
         if (pool_type::is_type_asset<P>()) {
@@ -1044,7 +1044,7 @@ module leizd::account_position {
     fun total_borrowed_for_shadow(key: String): (u128, u128) {
         let total_amount = shadow_pool::borrowed_amount_with(key);
         let total_shares = shadow_pool::borrowed_share_with(key);
-        ((total_amount as u128), (total_shares as u128)) // TODO: use u128 in pool (temp, cast to u128)
+        (total_amount, total_shares)
     }
 
     // #[test_only]
