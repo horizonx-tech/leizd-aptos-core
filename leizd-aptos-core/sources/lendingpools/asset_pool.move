@@ -897,7 +897,7 @@ module leizd::asset_pool {
         assert!(amount == 1000, 0);
         assert!(share == 1000, 0);
 
-        //// update total_deposited (instead of interest by accrue_interest)
+        //// update total_xxxx (instead of interest by accrue_interest)
         let total_normal_deposited_amount = &mut borrow_mut_asset_storage<WETH>(borrow_global_mut<Storage>(owner_addr)).total_normal_deposited_amount;
         *total_normal_deposited_amount = *total_normal_deposited_amount + 1000;
 
@@ -905,7 +905,7 @@ module leizd::asset_pool {
         assert!(amount == 500, 0);
         assert!(share == 250, 0); 
 
-        //// update total_deposited (instead of interest by accrue_interest)
+        //// update total_xxxx (instead of interest by accrue_interest)
         let total_normal_deposited_amount = &mut borrow_mut_asset_storage<WETH>(borrow_global_mut<Storage>(owner_addr)).total_normal_deposited_amount;
         *total_normal_deposited_amount = *total_normal_deposited_amount + 2500;
 
@@ -1037,7 +1037,7 @@ module leizd::asset_pool {
         assert!(total_normal_deposited_amount<WETH>() == 10000, 0);
         assert!(total_normal_deposited_share<WETH>() == 10000, 0);
 
-        //// update total_deposited (instead of interest by accrue_interest)
+        //// update total_xxxx (instead of interest by accrue_interest)
         let total_normal_deposited_amount = &mut borrow_mut_asset_storage<WETH>(borrow_global_mut<Storage>(owner_addr)).total_normal_deposited_amount;
         *total_normal_deposited_amount = *total_normal_deposited_amount - 9000;
         assert!(total_normal_deposited_amount<WETH>() == 1000, 0);
@@ -1049,7 +1049,7 @@ module leizd::asset_pool {
         assert!(total_normal_deposited_amount<WETH>() == 500, 0);
         assert!(total_normal_deposited_share<WETH>() == 5000, 0);
 
-        //// update total_deposited (instead of interest by accrue_interest)
+        //// update total_xxxx (instead of interest by accrue_interest)
         let total_normal_deposited_amount = &mut borrow_mut_asset_storage<WETH>(borrow_global_mut<Storage>(owner_addr)).total_normal_deposited_amount;
         *total_normal_deposited_amount = *total_normal_deposited_amount + 1500;
         assert!(total_normal_deposited_amount<WETH>() == 2000, 0);
@@ -1249,7 +1249,7 @@ module leizd::asset_pool {
         assert!(total_borrowed_amount<WETH>() == 100500, 0);
         assert!(total_borrowed_share<WETH>() == 100500, 0);
 
-        //// update total_deposited (instead of interest by accrue_interest)
+        //// update total_xxxx (instead of interest by accrue_interest)
         let total_borrowed_amount = &mut borrow_mut_asset_storage<WETH>(borrow_global_mut<Storage>(owner_addr)).total_borrowed_amount;
         *total_borrowed_amount = *total_borrowed_amount + 100500;
         assert!(total_borrowed_amount<WETH>() == 201000, 0);
@@ -1423,6 +1423,62 @@ module leizd::asset_pool {
 
         let event_handle = borrow_global<PoolEventHandle<UNI>>(signer::address_of(owner));
         assert!(event::counter<RepayEvent>(&event_handle.repay_event) == 3, 0);
+    }
+    #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
+    public entry fun test_repay_to_check_share(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, AssetManagerKeys, PoolEventHandle {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        let owner_addr = permission::owner_address();
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+        managed_coin::register<WETH>(account);
+        managed_coin::mint<WETH>(owner, account_addr, 1000000);
+
+        // execute
+        deposit_for_internal<WETH>(account, account_addr, 500000, false);
+        assert!(total_normal_deposited_amount<WETH>() == 500000, 0);
+        assert!(total_normal_deposited_share<WETH>() == 500000, 0);
+
+        let (amount, share) = borrow_for_internal<WETH>(account_addr, account_addr, 100000);
+        assert!(amount == 100500, 0);
+        assert!(share == 100500, 0);
+        assert!(total_borrowed_amount<WETH>() == 100500, 0);
+        assert!(total_borrowed_share<WETH>() == 100500, 0);
+
+        let (amount, share) = repay_internal<WETH>(account, 80500);
+        assert!(amount == 80500, 0);
+        assert!(share == 80500, 0);
+        assert!(total_borrowed_amount<WETH>() == 20000, 0);
+        assert!(total_borrowed_share<WETH>() == 20000, 0);
+
+        //// update total_xxxx (instead of interest by accrue_interest)
+        let total_borrowed_amount = &mut borrow_mut_asset_storage<WETH>(borrow_global_mut<Storage>(owner_addr)).total_borrowed_amount;
+        *total_borrowed_amount = *total_borrowed_amount - 10000;
+        assert!(total_borrowed_amount<WETH>() == 10000, 0);
+        assert!(total_borrowed_share<WETH>() == 20000, 0);
+
+        let (amount, share) = repay_internal<WETH>(account, 7500);
+        assert!(amount == 7500, 0);
+        assert!(share == 15000, 0);
+        assert!(total_borrowed_amount<WETH>() == 2500, 0);
+        assert!(total_borrowed_share<WETH>() == 5000, 0);
+
+        //// update total_xxxx (instead of interest by accrue_interest)
+        let total_borrowed_amount = &mut borrow_mut_asset_storage<WETH>(borrow_global_mut<Storage>(owner_addr)).total_borrowed_amount;
+        *total_borrowed_amount = *total_borrowed_amount + 397500;
+        assert!(total_borrowed_amount<WETH>() == 400000, 0);
+        assert!(total_borrowed_share<WETH>() == 5000, 0);
+
+        let (amount, share) = repay_internal<WETH>(account, 320000);
+        assert!(amount == 320000, 0);
+        assert!(share == 4000, 0);
+        assert!(total_borrowed_amount<WETH>() == 80000, 0);
+        assert!(total_borrowed_share<WETH>() == 1000, 0);
+
+        let (amount, share) = repay_internal<WETH>(account, 80000);
+        assert!(amount == 80000, 0);
+        assert!(share == 1000, 0);
+        assert!(total_borrowed_amount<WETH>() == 0, 0);
+        assert!(total_borrowed_share<WETH>() == 0, 0);
     }
 
     // for liquidation
