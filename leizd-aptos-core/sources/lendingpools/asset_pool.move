@@ -798,8 +798,10 @@ module leizd::asset_pool {
 
         timestamp::update_global_time_for_test(1662125899730897);
         let (amount, _) = deposit_for_internal<WETH>(account, account_addr, 400000, false);
+        assert!(amount == 400000, 0);
         timestamp::update_global_time_for_test(1662125899830897);
-        deposit_for_internal<WETH>(account, account_addr, 400000, false);
+        let (amount, _) = deposit_for_internal<WETH>(account, account_addr, 400000, false);
+        assert!(amount == 400000, 0);
         assert!(coin::balance<WETH>(account_addr) == 200000, 0);
         assert!(total_normal_deposited_amount<WETH>() == 800000, 0);
         assert!(total_conly_deposited_amount<WETH>() == 0, 0);
@@ -849,7 +851,8 @@ module leizd::asset_pool {
         managed_coin::mint<WETH>(owner, account_addr, 1000000);
         assert!(coin::balance<WETH>(account_addr) == 1000000, 0);
 
-        deposit_for_internal<WETH>(account, account_addr, 800000, true);
+        let (amount, _) = deposit_for_internal<WETH>(account, account_addr, 800000, true);
+        assert!(amount == 800000, 0);
         assert!(coin::balance<WETH>(account_addr) == 200000, 0);
         assert!(liquidity<WETH>() == 0, 0);
         assert!(total_normal_deposited_amount<WETH>() == 0, 0);
@@ -878,6 +881,37 @@ module leizd::asset_pool {
 
         let event_handle = borrow_global<PoolEventHandle<WETH>>(signer::address_of(owner));
         assert!(event::counter<DepositEvent>(&event_handle.deposit_event) == 2, 0);
+    }
+
+    #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
+    public entry fun test_deposit_to_check_share(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, AssetManagerKeys, PoolEventHandle {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        let owner_addr = permission::owner_address();
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+        managed_coin::register<WETH>(account);
+        managed_coin::mint<WETH>(owner, account_addr, 50000);
+
+        // execute
+        let (amount, share) = deposit_for_internal<WETH>(account, account_addr, 1000, false);
+        assert!(amount == 1000, 0);
+        assert!(share == 1000, 0);
+
+        //// update total_deposited (instead of interest by accrue_interest)
+        let total_normal_deposited_amount = &mut borrow_mut_asset_storage<WETH>(borrow_global_mut<Storage>(owner_addr)).total_normal_deposited_amount;
+        *total_normal_deposited_amount = *total_normal_deposited_amount + 1000;
+
+        let (amount, share) = deposit_for_internal<WETH>(account, account_addr, 500, false);
+        assert!(amount == 500, 0);
+        assert!(share == 250, 0);
+
+        //// update total_deposited (instead of interest by accrue_interest)
+        let total_normal_deposited_amount = &mut borrow_mut_asset_storage<WETH>(borrow_global_mut<Storage>(owner_addr)).total_normal_deposited_amount;
+        *total_normal_deposited_amount = *total_normal_deposited_amount + 2500;
+
+        let (amount, share) = deposit_for_internal<WETH>(account, account_addr, 20000, false);
+        assert!(amount == 20000, 0);
+        assert!(share == 5000, 0);
     }
 
     // for withdraw
