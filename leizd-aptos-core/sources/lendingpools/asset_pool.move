@@ -127,7 +127,8 @@ module leizd::asset_pool {
 
         initialize_module(owner);
         connect_with_mods_to_manage_assets(owner);
-        publish_operator_key(owner)
+        let key = publish_operator_key(owner);
+        key
     }
     fun initialize_module(owner: &signer) {
         let owner_addr = signer::address_of(owner);
