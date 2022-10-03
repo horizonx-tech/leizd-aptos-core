@@ -73,7 +73,10 @@ module leizd::interest_rate {
         set_config_event: event::EventHandle<SetConfigEvent>,
     }
 
-    public(friend) fun initialize<C>(owner: &signer) acquires ConfigKey, InterestRateEventHandle {
+    public(friend) fun initialize_for_asset<C>(owner: &signer) acquires ConfigKey, InterestRateEventHandle {
+        initialize_for_asset_internal<C>(owner);
+    }
+    fun initialize_for_asset_internal<C>(owner: &signer) acquires ConfigKey, InterestRateEventHandle {
         let config = default_config();
         let owner_address = signer::address_of(owner);
         assert_config(config);

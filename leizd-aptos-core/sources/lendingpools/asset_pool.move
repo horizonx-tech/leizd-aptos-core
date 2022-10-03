@@ -139,10 +139,10 @@ module leizd::asset_pool {
         assert!(dex_facade::has_liquidity<C>(), error::invalid_state(EDEX_DOES_NOT_HAVE_LIQUIDITY));
 
         treasury::add_coin<C>(owner);
-        risk_factor::new_asset<C>(owner);
-        interest_rate::initialize<C>(owner);
-        central_liquidity_pool::init_pool<C>(owner);
-        pool_status::initialize<C>(owner);
+        risk_factor::initialize_for_asset<C>(owner);
+        interest_rate::initialize_for_asset<C>(owner);
+        central_liquidity_pool::initialize_for_asset<C>(owner);
+        pool_status::initialize_for_asset<C>(owner);
 
         move_to(owner, Pool<C> {
             asset: coin::zero<C>()

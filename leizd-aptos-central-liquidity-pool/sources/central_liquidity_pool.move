@@ -181,7 +181,10 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         exists<CentralLiquidityPool>(permission::owner_address())
     }
     //// for assets
-    public fun init_pool<C>(owner: &signer) acquires Balance {
+    public fun initialize_for_asset<C>(owner: &signer) acquires Balance {
+        initialize_for_asset_internal<C>(owner);
+    }
+    fun initialize_for_asset_internal<C>(owner: &signer) acquires Balance {
         let owner_address = signer::address_of(owner);
         permission::assert_owner(owner_address);
         let balance = borrow_global_mut<Balance>(owner_address);
@@ -599,7 +602,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         initialize(owner);
 
         test_coin::init_weth(owner);
-        init_pool<WETH>(owner);
+        initialize_for_asset_internal<WETH>(owner);
     }
     // related initialize
     #[test(owner=@leizd_aptos_central_liquidity_pool)]

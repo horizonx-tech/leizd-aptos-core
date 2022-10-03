@@ -52,6 +52,9 @@ module leizd_aptos_treasury::treasury {
     }
 
     public fun add_coin<C>(owner: &signer) acquires SupportedTreasuries {
+        add_coin_internal<C>(owner);
+    }
+    public fun add_coin_internal<C>(owner: &signer) acquires SupportedTreasuries {
         assert!(!is_coin_supported<C>(), error::invalid_argument(EALREADY_ADDED));
         move_to(owner, Treasury<C> {
             coin: coin::zero<C>(),
@@ -113,7 +116,7 @@ module leizd_aptos_treasury::treasury {
         managed_coin::mint<WETH>(owner, account_address, 1000);
         usdz::mint_for_test(account_address, 500);
         initialize(owner);
-        add_coin<WETH>(owner);
+        add_coin_internal<WETH>(owner);
         assert!(balance<WETH>() == 0, 0);
         assert!(balance<USDZ>() == 0, 0);
 
@@ -153,14 +156,14 @@ module leizd_aptos_treasury::treasury {
     #[expected_failure(abort_code = 65537)]
     fun test_withdraw_asset_fee_with_not_owner(account: &signer) acquires Treasury, SupportedTreasuries {
         initialize(account);
-        add_coin<WETH>(account);
+        add_coin_internal<WETH>(account);
         withdraw_fee<WETH>(account, 0);
     }
     #[test(account = @0x111)]
     #[expected_failure(abort_code = 65537)]
     fun test_withdraw_shadow_fee_with_not_owner(account: &signer) acquires Treasury, SupportedTreasuries {
         initialize(account);
-        add_coin<WETH>(account);
+        add_coin_internal<WETH>(account);
         withdraw_fee<WETH>(account, 0);
     }
 
@@ -181,8 +184,7 @@ module leizd_aptos_treasury::treasury {
     #[expected_failure(abort_code = 65539)]
     fun test_add_coin_multiple_times(owner: &signer) acquires SupportedTreasuries{
         initialize(owner);
-        add_coin<WETH>(owner);
-        add_coin<WETH>(owner);
+        add_coin_internal<WETH>(owner);
+        add_coin_internal<WETH>(owner);
     }
-
 }

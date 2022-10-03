@@ -97,10 +97,10 @@ module leizd_aptos_logic::risk_factor {
         )
     }
 
-    public fun new_asset<C>(account: &signer) acquires Config, RepositoryAssetEventHandle {
-        new_asset_internal<C>(account);
+    public fun initialize_for_asset<C>(account: &signer) acquires Config, RepositoryAssetEventHandle {
+        initialize_for_asset_internal<C>(account);
     }
-    fun new_asset_internal<C>(account: &signer) acquires Config, RepositoryAssetEventHandle {
+    fun initialize_for_asset_internal<C>(account: &signer) acquires Config, RepositoryAssetEventHandle {
         let owner_addr = signer::address_of(account);
         permission::assert_owner(owner_addr); // NOTE: remove this validation if permission less
 
@@ -251,10 +251,6 @@ module leizd_aptos_logic::risk_factor {
     public fun default_liquidation_fee(): u64 {
         DEFAULT_LIQUIDATION_FEE
     }
-    #[test_only]
-    public fun new_asset_for_test<C>(account: &signer) acquires Config, RepositoryAssetEventHandle {
-        new_asset_internal<C>(account);
-    }
     #[test(owner = @leizd_aptos_logic)]
     public entry fun test_initialize(owner: signer) acquires ProtocolFees, RepositoryEventHandle {
         let owner_addr = signer::address_of(&owner);
@@ -282,7 +278,7 @@ module leizd_aptos_logic::risk_factor {
 
         test_coin::init_weth(&owner);
         initialize(&owner);
-        new_asset<WETH>(&owner);
+        initialize_for_asset_internal<WETH>(&owner);
         managed_coin::register<WETH>(&account1);
         managed_coin::mint<WETH>(&owner, account1_addr, 1000000);
 
@@ -305,7 +301,7 @@ module leizd_aptos_logic::risk_factor {
         let owner_addr = signer::address_of(&owner);
         account::create_account_for_test(owner_addr);
         initialize(&owner);
-        new_asset<WETH>(&owner);
+        initialize_for_asset_internal<WETH>(&owner);
 
         let new_protocol_fees = ProtocolFees {
             entry_fee: PRECISION / 1000 * 8, // 0.8%
@@ -320,7 +316,7 @@ module leizd_aptos_logic::risk_factor {
         let owner_addr = signer::address_of(&owner);
         account::create_account_for_test(owner_addr);
         initialize(&owner);
-        new_asset<WETH>(&owner);
+        initialize_for_asset_internal<WETH>(&owner);
 
         let new_protocol_fees = ProtocolFees {
             entry_fee: PRECISION / 1000 * 8, // 0.8%
@@ -335,7 +331,7 @@ module leizd_aptos_logic::risk_factor {
         let owner_addr = signer::address_of(&owner);
         account::create_account_for_test(owner_addr);
         initialize(&owner);
-        new_asset<WETH>(&owner);
+        initialize_for_asset_internal<WETH>(&owner);
 
         let new_protocol_fees = ProtocolFees {
             entry_fee: PRECISION,
@@ -347,11 +343,11 @@ module leizd_aptos_logic::risk_factor {
     #[test_only]
     struct TestAsset {}
     #[test(owner = @leizd_aptos_logic)]
-    public entry fun test_new_asset(owner: &signer) acquires Config, RepositoryAssetEventHandle, RepositoryEventHandle {
+    public entry fun test_initialize_for_asset(owner: &signer) acquires Config, RepositoryAssetEventHandle, RepositoryEventHandle {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
         initialize(owner);
-        new_asset<TestAsset>(owner);
+        initialize_for_asset_internal<TestAsset>(owner);
 
         let name = key<TestAsset>();
         let config = borrow_global<Config>(owner_addr);
@@ -363,11 +359,11 @@ module leizd_aptos_logic::risk_factor {
     }
 
     // #[test(owner = @leizd_aptos_logic, account = @0x111)] // TODO: permission less or instead of friend visibility
-    // public entry fun test_new_asset_without_owner(owner: &signer, account: &signer) acquires Config, RepositoryAssetEventHandle, RepositoryEventHandle {
+    // public entry fun test_initialize_for_asset_without_owner(owner: &signer, account: &signer) acquires Config, RepositoryAssetEventHandle, RepositoryEventHandle {
     //     let owner_addr = signer::address_of(owner);
     //     account::create_account_for_test(owner_addr);
     //     initialize(owner);
-    //     new_asset<TestAsset>(account);
+    //     initialize_for_asset_internal<TestAsset>(account);
 
     //     let key = key<TestAsset>();
     //     let config = borrow_global<Config>(owner_addr);
@@ -379,19 +375,19 @@ module leizd_aptos_logic::risk_factor {
     // }
     #[test(owner = @leizd_aptos_logic)]
     #[expected_failure(abort_code = 65537)]
-    public entry fun test_new_asset_twice(owner: &signer) acquires Config, RepositoryAssetEventHandle, RepositoryEventHandle {
+    public entry fun test_initialize_for_asset_twice(owner: &signer) acquires Config, RepositoryAssetEventHandle, RepositoryEventHandle {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
         initialize(owner);
-        new_asset<TestAsset>(owner);
-        new_asset<TestAsset>(owner);
+        initialize_for_asset_internal<TestAsset>(owner);
+        initialize_for_asset_internal<TestAsset>(owner);
     }
     #[test(owner=@leizd_aptos_logic)]
     public entry fun test_update_config(owner: &signer) acquires Config, RepositoryAssetEventHandle, RepositoryEventHandle {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
         initialize(owner);
-        new_asset<TestAsset>(owner);
+        initialize_for_asset_internal<TestAsset>(owner);
 
         let name = key<TestAsset>();
         update_config<TestAsset>(owner, PRECISION / 100 * 70, PRECISION / 100 * 90);
@@ -432,7 +428,7 @@ module leizd_aptos_logic::risk_factor {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
         initialize(owner);
-        new_asset<TestAsset>(owner);
+        initialize_for_asset_internal<TestAsset>(owner);
         update_config<TestAsset>(owner, 1, PRECISION + 1);
     }
     #[test(owner=@leizd_aptos_logic)]
@@ -441,7 +437,7 @@ module leizd_aptos_logic::risk_factor {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
         initialize(owner);
-        new_asset<TestAsset>(owner);
+        initialize_for_asset_internal<TestAsset>(owner);
         update_config<TestAsset>(owner, 0, PRECISION);
     }
     #[test(owner=@leizd_aptos_logic)]
@@ -449,7 +445,7 @@ module leizd_aptos_logic::risk_factor {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
         initialize(owner);
-        new_asset<TestAsset>(owner);
+        initialize_for_asset_internal<TestAsset>(owner);
         update_config<TestAsset>(owner, PRECISION / 100 * 50, PRECISION / 100 * 50);
         assert!(ltv<TestAsset>() == PRECISION / 100 * 50, 0);
         assert!(lt<TestAsset>() == PRECISION / 100 * 50, 0);

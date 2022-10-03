@@ -35,7 +35,10 @@ module leizd_aptos_common::pool_status {
         pool_status_update_event: event::EventHandle<PoolStatusUpdateEvent>
     }
 
-    public fun initialize<C>(owner: &signer) acquires Status, PoolStatusEventHandle {
+    public fun initialize_for_asset<C>(owner: &signer) acquires Status, PoolStatusEventHandle {
+        initialize_for_asset_internal<C>(owner);
+    }
+    fun initialize_for_asset_internal<C>(owner: &signer) acquires Status, PoolStatusEventHandle {
         let owner_addr = signer::address_of(owner);
         permission::assert_owner(owner_addr); // NOTE: remove this validation if permission less
         let key = key<C>();
@@ -259,7 +262,7 @@ module leizd_aptos_common::pool_status {
     fun test_end_to_end(owner: &signer) acquires Status, PoolStatusEventHandle {
         account::create_account_for_test(signer::address_of(owner));
         system_status::initialize(owner);
-        initialize<DummyStruct>(owner);
+        initialize_for_asset_internal<DummyStruct>(owner);
         assert!(can_deposit<DummyStruct>(), 0);
         assert!(can_withdraw<DummyStruct>(), 0);
         assert!(can_borrow<DummyStruct>(), 0);
