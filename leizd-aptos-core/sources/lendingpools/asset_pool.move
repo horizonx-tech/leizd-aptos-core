@@ -130,7 +130,7 @@ module leizd::asset_pool {
         });
         OperatorKey {}
     }
-    public entry fun connect_to_mods_depended_on(owner: &signer) {
+    public entry fun connect_with_mods_to_manage_assets(owner: &signer) {
         let owner_addr = signer::address_of(owner);
         permission::assert_owner(owner_addr);
 
@@ -650,6 +650,7 @@ module leizd::asset_pool {
         test_coin::init_weth(owner);
         test_initializer::initialize(owner);
         initialize(owner);
+        connect_with_mods_to_manage_assets(owner);
         
         init_pool<WETH>(owner);
 
@@ -680,6 +681,7 @@ module leizd::asset_pool {
         test_coin::init_weth(owner);
         test_initializer::initialize(owner);
         initialize(owner);
+        connect_with_mods_to_manage_assets(owner);
 
         init_pool<WETH>(owner);
         init_pool<WETH>(owner);
@@ -693,6 +695,7 @@ module leizd::asset_pool {
         test_initializer::initialize(owner);
         //// init coin & pool
         initialize(owner);
+        connect_with_mods_to_manage_assets(owner);
         test_coin::init_weth(owner);
         init_pool<WETH>(owner);
         test_coin::init_usdc(owner);
@@ -717,6 +720,7 @@ module leizd::asset_pool {
         test_coin::init_uni(owner);
 
         initialize(owner);
+        connect_with_mods_to_manage_assets(owner);
         init_pool<USDC>(owner);
         init_pool<USDT>(owner);
         init_pool<WETH>(owner);

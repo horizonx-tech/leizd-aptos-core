@@ -1062,6 +1062,7 @@ module leizd::account_position {
         account::create_account_for_test(signer::address_of(owner));
         test_initializer::initialize(owner);
         asset_pool::initialize(owner);
+        asset_pool::connect_with_mods_to_manage_assets(owner);
         shadow_pool::initialize(owner);
         asset_pool::init_pool<WETH>(owner);
         asset_pool::init_pool<UNI>(owner);
