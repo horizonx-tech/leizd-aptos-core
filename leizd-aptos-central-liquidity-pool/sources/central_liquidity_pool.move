@@ -30,8 +30,10 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
     const DEFAULT_ENTRY_FEE: u64 = 1000000000 * 5 / 1000; // 0.5%
     const DEFAULT_SUPPORT_FEE: u64 = 1000000000 * 1 / 1000; // 0.1%
 
-    struct OperatorKey has store, drop {} // TODO: remove `drop` ability
-    struct AssetManagerKey has store, drop {} // TODO: remove `drop` ability
+    //// resources
+    /// access control
+    struct OperatorKey has store, drop {}
+    struct AssetManagerKey has store, drop {}
 
     struct CentralLiquidityPool has key {
         left: coin::Coin<USDZ>,

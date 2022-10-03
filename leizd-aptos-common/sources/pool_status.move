@@ -13,7 +13,9 @@ module leizd_aptos_common::pool_status {
 
     const EIS_NOT_EXISTED: u64 = 1;
 
-    struct AssetManagerKey has store, drop {} // TODO: remove `drop` ability
+    //// resources
+    /// access control
+    struct AssetManagerKey has store, drop {}
 
     struct Status has key {
         can_deposit: simple_map::SimpleMap<String,bool>,

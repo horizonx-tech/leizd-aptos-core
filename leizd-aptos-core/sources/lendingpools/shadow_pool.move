@@ -29,7 +29,9 @@ module leizd::shadow_pool {
     const EINSUFFICIENT_LIQUIDITY: u64 = 13;
     const EINSUFFICIENT_CONLY_DEPOSITED: u64 = 14;
 
-    struct OperatorKey has store, drop {} // TODO: remove `drop` ability
+    //// resources
+    /// access control
+    struct OperatorKey has store, drop {}
     struct Keys has key {
         central_liquidity_pool: CentralLiquidityPoolKey
     }

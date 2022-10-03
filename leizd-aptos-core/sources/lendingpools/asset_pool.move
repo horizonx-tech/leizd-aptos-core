@@ -38,7 +38,9 @@ module leizd::asset_pool {
     const EINSUFFICIENT_LIQUIDITY: u64 = 12;
     const EINSUFFICIENT_CONLY_DEPOSITED: u64 = 13;
 
-    struct OperatorKey has store, drop {} // TODO: remove `drop` ability
+    //// resources
+    /// access control
+    struct OperatorKey has store, drop {}
     struct AssetManagerKeys has key {
         treasury: TreasuryKey,
         risk_factor: RiskFactorKey,

@@ -34,7 +34,9 @@ module leizd::account_position {
     const ECANNOT_REBALANCE: u64 = 10;
     const ENO_DEPOSITED: u64 = 11;
 
-    struct OperatorKey has store, drop {} // TODO: remove `drop` ability
+    //// resources
+    /// access control
+    struct OperatorKey has store, drop {}
 
     /// P: The position type - AssetToShadow or ShadowToAsset.
     struct Position<phantom P> has key {

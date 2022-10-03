@@ -27,7 +27,9 @@ module leizd_aptos_logic::risk_factor {
     const SHADOW_LTV: u64 = 1000000000 / 100 * 100; // 100% // TODO: 90%
     const SHADOW_LT: u64 = 1000000000 / 100 * 100; // 100% // TODO: 95%
 
-    struct AssetManagerKey has store, drop {} // TODO: remove `drop` ability
+    //// resources
+    /// access control
+    struct AssetManagerKey has store, drop {}
 
     struct ProtocolFees has key, drop {
         entry_fee: u64, // One time protocol fee for opening a borrow position

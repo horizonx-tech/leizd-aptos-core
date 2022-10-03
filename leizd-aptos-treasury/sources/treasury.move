@@ -16,7 +16,9 @@ module leizd_aptos_treasury::treasury {
     const ECOIN_UNSUPPORTED: u64 = 2;
     const EALREADY_ADDED: u64 = 3;
 
-    struct AssetManagerKey has store, drop {} // TODO: remove `drop` ability
+    //// resources
+    /// access control
+    struct AssetManagerKey has store, drop {}
 
     struct Treasury<phantom C> has key {
         coin: coin::Coin<C>,
