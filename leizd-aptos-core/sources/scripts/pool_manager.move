@@ -97,6 +97,8 @@ module leizd::pool_manager {
   #[test_only]
   use leizd::central_liquidity_pool;
   #[test_only]
+  use leizd::pool_status;
+  #[test_only]
   use leizd_aptos_trove::usdz;
   #[test_only]
   fun set_up(owner: &signer) {
@@ -108,6 +110,7 @@ module leizd::pool_manager {
     test_coin::init_usdt(owner);
     risk_factor::initialize(owner);
     treasury::initialize(owner);
+    pool_status::initialize(owner);
     asset_pool::initialize(owner);
   }
   
