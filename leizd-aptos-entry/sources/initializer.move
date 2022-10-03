@@ -7,7 +7,6 @@ module leizd_aptos_entry::initializer {
     use leizd_aptos_treasury::treasury;
     use leizd_aptos_logic::risk_factor;
     use leizd_aptos_core::pool_manager;
-    use leizd_aptos_core::asset_pool;
     use leizd_aptos_core::shadow_pool;
 
     /// Called only once by the owner.
@@ -18,7 +17,6 @@ module leizd_aptos_entry::initializer {
         trove_manager::initialize(owner);
         pool_manager::initialize(owner);
         central_liquidity_pool::initialize(owner);
-        asset_pool::connect_with_mods_to_manage_assets(owner);
         shadow_pool::connect_to_central_liduidity_pool(owner);
     }
 

@@ -961,7 +961,7 @@ module leizd::shadow_pool {
         test_coin::init_uni(owner);
         initialize(owner);
         asset_pool::initialize(owner);
-        asset_pool::connect_with_mods_to_manage_assets(owner);
+
         pool_manager::add_pool<WETH>(owner);
         pool_manager::add_pool<UNI>(owner);
     }
@@ -2174,7 +2174,6 @@ module leizd::shadow_pool {
         test_coin::init_uni(owner);
         initialize(owner);
         asset_pool::initialize(owner);
-        asset_pool::connect_with_mods_to_manage_assets(owner);
         pool_manager::add_pool<WETH>(owner);
 
         rebalance_shadow_internal(key<UNI>(), key<WETH>(), 5000, true, true);
@@ -2191,7 +2190,6 @@ module leizd::shadow_pool {
         test_coin::init_uni(owner);
         initialize(owner);
         asset_pool::initialize(owner);
-        asset_pool::connect_with_mods_to_manage_assets(owner);
         pool_manager::add_pool<WETH>(owner);
 
         rebalance_shadow_internal(key<UNI>(), key<WETH>(), 5000, true, true);

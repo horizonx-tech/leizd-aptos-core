@@ -124,13 +124,21 @@ module leizd::asset_pool {
     public entry fun initialize(owner: &signer): OperatorKey {
         let owner_addr = signer::address_of(owner);
         permission::assert_owner(owner_addr);
+
+        initialize_module(owner);
+        connect_with_mods_to_manage_assets(owner);
+        publish_operator_key(owner)
+    }
+    fun initialize_module(owner: &signer) {
+        let owner_addr = signer::address_of(owner);
+        permission::assert_owner(owner_addr);
+
         assert!(!exists<Storage>(owner_addr), error::invalid_argument(EIS_ALREADY_EXISTED));
         move_to(owner, Storage {
             assets: simple_map::create<String, AssetStorage>(),
         });
-        OperatorKey {}
     }
-    public entry fun connect_with_mods_to_manage_assets(owner: &signer) {
+    fun connect_with_mods_to_manage_assets(owner: &signer) {
         let owner_addr = signer::address_of(owner);
         permission::assert_owner(owner_addr);
 
@@ -141,6 +149,12 @@ module leizd::asset_pool {
             central_liquidity_pool: central_liquidity_pool::publish_asset_manager_key(owner),
             pool_status: pool_status::publish_asset_manager_key(owner)
         });
+    }
+    fun publish_operator_key(owner: &signer): OperatorKey {
+        let owner_addr = signer::address_of(owner);
+        permission::assert_owner(owner_addr);
+
+        OperatorKey {}
     }
     //// for assets
     /// Initializes a pool with the coin the owner specifies.
@@ -650,7 +664,6 @@ module leizd::asset_pool {
         test_coin::init_weth(owner);
         test_initializer::initialize(owner);
         initialize(owner);
-        connect_with_mods_to_manage_assets(owner);
         
         init_pool<WETH>(owner);
 
@@ -681,7 +694,6 @@ module leizd::asset_pool {
         test_coin::init_weth(owner);
         test_initializer::initialize(owner);
         initialize(owner);
-        connect_with_mods_to_manage_assets(owner);
 
         init_pool<WETH>(owner);
         init_pool<WETH>(owner);
@@ -695,7 +707,6 @@ module leizd::asset_pool {
         test_initializer::initialize(owner);
         //// init coin & pool
         initialize(owner);
-        connect_with_mods_to_manage_assets(owner);
         test_coin::init_weth(owner);
         init_pool<WETH>(owner);
         test_coin::init_usdc(owner);
@@ -720,7 +731,6 @@ module leizd::asset_pool {
         test_coin::init_uni(owner);
 
         initialize(owner);
-        connect_with_mods_to_manage_assets(owner);
         init_pool<USDC>(owner);
         init_pool<USDT>(owner);
         init_pool<WETH>(owner);

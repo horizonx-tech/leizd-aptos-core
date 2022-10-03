@@ -109,7 +109,6 @@ module leizd::pool_manager {
     risk_factor::initialize(owner);
     treasury::initialize(owner);
     asset_pool::initialize(owner);
-    asset_pool::connect_with_mods_to_manage_assets(owner);
   }
   
   #[test_only]
