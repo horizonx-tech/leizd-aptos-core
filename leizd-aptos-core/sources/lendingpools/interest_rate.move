@@ -73,6 +73,19 @@ module leizd::interest_rate {
         set_config_event: event::EventHandle<SetConfigEvent>,
     }
 
+    public fun initialize(owner: &signer) {
+        initialize_internal(owner);
+    }
+    fun initialize_internal(owner: &signer) {
+        permission::assert_owner(signer::address_of(owner));
+        move_to(owner, ConfigKey {
+            config: simple_map::create<String,Config>()
+        });
+        move_to(owner, InterestRateEventHandle {
+            set_config_event: account::new_event_handle<SetConfigEvent>(owner)
+        });
+    }
+
     public(friend) fun initialize_for_asset<C>(owner: &signer) acquires ConfigKey, InterestRateEventHandle {
         initialize_for_asset_internal<C>(owner);
     }
@@ -80,14 +93,6 @@ module leizd::interest_rate {
         let config = default_config();
         let owner_address = signer::address_of(owner);
         assert_config(config);
-        if (!exists<ConfigKey>(signer::address_of(owner))) {
-            move_to(owner, ConfigKey {
-                config: simple_map::create<String,Config>()
-            });
-            move_to(owner, InterestRateEventHandle {
-                set_config_event: account::new_event_handle<SetConfigEvent>(owner)
-            });
-        };
         let config_ref = borrow_global_mut<ConfigKey>(signer::address_of(owner));
         simple_map::add<String,Config>(&mut config_ref.config, key<C>(), config);
         event::emit_event<SetConfigEvent>(

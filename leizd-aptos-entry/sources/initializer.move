@@ -6,6 +6,7 @@ module leizd_aptos_entry::initializer {
     use leizd_aptos_central_liquidity_pool::central_liquidity_pool;
     use leizd_aptos_treasury::treasury;
     use leizd_aptos_logic::risk_factor;
+    use leizd_aptos_core::interest_rate;
     use leizd_aptos_core::pool_status;
     use leizd_aptos_core::pool_manager;
     use leizd_aptos_core::shadow_pool;
@@ -16,6 +17,7 @@ module leizd_aptos_entry::initializer {
         risk_factor::initialize(owner);
         treasury::initialize(owner);
         trove_manager::initialize(owner);
+        interest_rate::initialize(owner);
         pool_status::initialize(owner);
         pool_manager::initialize(owner);
         central_liquidity_pool::initialize(owner);
