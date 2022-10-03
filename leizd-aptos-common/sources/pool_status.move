@@ -36,37 +36,39 @@ module leizd_aptos_common::pool_status {
         pool_status_update_event: event::EventHandle<PoolStatusUpdateEvent>
     }
 
+    public fun initialize(owner: &signer) {
+        initialize_internal(owner);
+    }
+    fun initialize_internal(owner: &signer) {
+        permission::assert_owner(signer::address_of(owner));
+        move_to(owner, Status {
+            can_deposit: simple_map::create<String,bool>(),
+            can_withdraw: simple_map::create<String,bool>(),
+            can_borrow: simple_map::create<String,bool>(),
+            can_repay: simple_map::create<String,bool>(),
+            can_switch_collateral: simple_map::create<String,bool>(),
+        });
+        move_to(owner, PoolStatusEventHandle {
+            pool_status_update_event: account::new_event_handle<PoolStatusUpdateEvent>(owner),
+        });
+    }
     //// access control
     public fun publish_asset_manager_key(owner: &signer): AssetManagerKey {
         permission::assert_owner(signer::address_of(owner));
         AssetManagerKey {}
     }
+
     public fun initialize_for_asset<C>(
         account: &signer,
         _key: &AssetManagerKey
     ) acquires Status, PoolStatusEventHandle {
         initialize_for_asset_internal<C>(account);
     }
-    fun initialize_for_asset_internal<C>(account: &signer) acquires Status, PoolStatusEventHandle {
-        let account_addr = signer::address_of(account);
+    fun initialize_for_asset_internal<C>(_account: &signer) acquires Status, PoolStatusEventHandle {
+        let owner_addr = permission::owner_address();
         let key = key<C>();
-        if (exists<Status>(account_addr)) {
-            let status = borrow_global_mut<Status>(account_addr);
-            initialize_status(key, status);
-        } else {
-            let status = Status {
-                can_deposit: simple_map::create<String,bool>(),
-                can_withdraw: simple_map::create<String,bool>(),
-                can_borrow: simple_map::create<String,bool>(),
-                can_repay: simple_map::create<String,bool>(),
-                can_switch_collateral: simple_map::create<String,bool>(),
-            };
-            initialize_status(key, &mut status);
-            move_to(account, status); // TODO: separate initialize module (for owner) and initialize asset (for anyone)
-            move_to(account, PoolStatusEventHandle {
-                pool_status_update_event: account::new_event_handle<PoolStatusUpdateEvent>(account),
-            });
-        };
+        let status = borrow_global_mut<Status>(owner_addr);
+        initialize_status(key, status);
         emit_current_pool_status(key);
     }
     fun initialize_status(key: String, status: &mut Status) {
@@ -274,6 +276,7 @@ module leizd_aptos_common::pool_status {
     fun test_end_to_end(owner: &signer) acquires Status, PoolStatusEventHandle {
         account::create_account_for_test(signer::address_of(owner));
         system_status::initialize(owner);
+        initialize(owner);
         initialize_for_asset_internal<DummyStruct>(owner);
         assert!(can_deposit<DummyStruct>(), 0);
         assert!(can_withdraw<DummyStruct>(), 0);
