@@ -31,6 +31,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
     const DEFAULT_SUPPORT_FEE: u64 = 1000000000 * 1 / 1000; // 0.1%
 
     struct OperatorKey has store, drop {} // TODO: remove `drop` ability
+    struct AssetManagerKey has store, drop {} // TODO: remove `drop` ability
 
     struct CentralLiquidityPool has key {
         left: coin::Coin<USDZ>,
@@ -181,21 +182,26 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         exists<CentralLiquidityPool>(permission::owner_address())
     }
     //// for assets
-    public fun initialize_for_asset<C>(owner: &signer) acquires Balance {
-        initialize_for_asset_internal<C>(owner);
+    public fun initialize_for_asset<C>(
+        account: &signer,
+        _key: &AssetManagerKey
+    ) acquires Balance {
+        initialize_for_asset_internal<C>(account);
     }
-    fun initialize_for_asset_internal<C>(owner: &signer) acquires Balance {
-        let owner_address = signer::address_of(owner);
-        permission::assert_owner(owner_address);
-        let balance = borrow_global_mut<Balance>(owner_address);
+    fun initialize_for_asset_internal<C>(_account: &signer) acquires Balance {
+        let balance = borrow_global_mut<Balance>(permission::owner_address());
         simple_map::add<String,u128>(&mut balance.borrowed, key<C>(), 0);
         simple_map::add<String,u128>(&mut balance.uncollected_entry_fee, key<C>(), 0);
         simple_map::add<String,u128>(&mut balance.uncollected_support_fee, key<C>(), 0);
     }
     //// access control
-    public fun publish_key(owner: &signer): OperatorKey {
+    public fun publish_operator_key(owner: &signer): OperatorKey {
         permission::assert_owner(signer::address_of(owner));
         OperatorKey {}
+    }
+    public fun publish_asset_manager_key(owner: &signer): AssetManagerKey {
+        permission::assert_owner(signer::address_of(owner));
+        AssetManagerKey {}
     }
 
     public fun default_user_distribution(): UserDistribution {

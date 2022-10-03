@@ -38,6 +38,8 @@ module leizd::interest_rate {
     /// When `b` is greater than `b` in i128.
     const GREATER_THAN: u8 = 2;
 
+    struct AssetManagerKey has store, drop {} // TODO: remove `drop` ability
+
     struct ConfigKey has key {
         config: simple_map::SimpleMap<String,Config>,
     }
@@ -85,20 +87,27 @@ module leizd::interest_rate {
             set_config_event: account::new_event_handle<SetConfigEvent>(owner)
         });
     }
-
-    public(friend) fun initialize_for_asset<C>(owner: &signer) acquires ConfigKey, InterestRateEventHandle {
-        initialize_for_asset_internal<C>(owner);
+    //// access control
+    public fun publish_asset_manager_key(owner: &signer): AssetManagerKey {
+        permission::assert_owner(signer::address_of(owner));
+        AssetManagerKey {}
     }
-    fun initialize_for_asset_internal<C>(owner: &signer) acquires ConfigKey, InterestRateEventHandle {
+    public fun initialize_for_asset<C>(
+        account: &signer,
+        _key: &AssetManagerKey
+    ) acquires ConfigKey, InterestRateEventHandle {
+        initialize_for_asset_internal<C>(account);
+    }
+    fun initialize_for_asset_internal<C>(account: &signer) acquires ConfigKey, InterestRateEventHandle {
         let config = default_config();
-        let owner_address = signer::address_of(owner);
+        let owner_addr = permission::owner_address();
         assert_config(config);
-        let config_ref = borrow_global_mut<ConfigKey>(signer::address_of(owner));
+        let config_ref = borrow_global_mut<ConfigKey>(owner_addr);
         simple_map::add<String,Config>(&mut config_ref.config, key<C>(), config);
         event::emit_event<SetConfigEvent>(
-            &mut borrow_global_mut<InterestRateEventHandle>(owner_address).set_config_event,
+            &mut borrow_global_mut<InterestRateEventHandle>(owner_addr).set_config_event,
             SetConfigEvent {
-                caller: owner_address,
+                caller: signer::address_of(account),
                 uopt: config.uopt,
                 ucrit: config.ucrit,
                 ulow: config.ulow,

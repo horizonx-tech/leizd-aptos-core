@@ -54,7 +54,7 @@ module leizd_aptos_common::system_administrator {
         account::create_account_for_test(signer::address_of(owner));
         system_status::initialize(owner);
         pool_status::initialize(owner);
-        pool_status::initialize_for_asset<WETH>(owner);
+        pool_status::initialize_for_asset_for_test<WETH>(owner);
     }
     #[test(owner = @leizd_aptos_common)]
     fun test_operate_pool_to_deactivate(owner: &signer) {

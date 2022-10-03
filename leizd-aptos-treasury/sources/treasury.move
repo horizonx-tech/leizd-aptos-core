@@ -16,6 +16,8 @@ module leizd_aptos_treasury::treasury {
     const ECOIN_UNSUPPORTED: u64 = 2;
     const EALREADY_ADDED: u64 = 3;
 
+    struct AssetManagerKey has store, drop {} // TODO: remove `drop` ability
+
     struct Treasury<phantom C> has key {
         coin: coin::Coin<C>,
     }
@@ -38,6 +40,12 @@ module leizd_aptos_treasury::treasury {
         });
     }
 
+    //// access control
+    public fun publish_asset_manager_key(owner: &signer): AssetManagerKey {
+        permission::assert_owner(signer::address_of(owner));
+        AssetManagerKey {}
+    }
+
     public fun initialized(): bool {
         exists<SupportedTreasuries>(permission::owner_address())
     }
@@ -51,7 +59,10 @@ module leizd_aptos_treasury::treasury {
         option::none<address>()
     }
 
-    public fun add_coin<C>(owner: &signer) acquires SupportedTreasuries {
+    public fun add_coin<C>(
+        owner: &signer,
+        _key: &AssetManagerKey
+    ) acquires SupportedTreasuries {
         add_coin_internal<C>(owner);
     }
     public fun add_coin_internal<C>(owner: &signer) acquires SupportedTreasuries {

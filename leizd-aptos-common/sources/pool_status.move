@@ -13,6 +13,8 @@ module leizd_aptos_common::pool_status {
 
     const EIS_NOT_EXISTED: u64 = 1;
 
+    struct AssetManagerKey has store, drop {} // TODO: remove `drop` ability
+
     struct Status has key {
         can_deposit: simple_map::SimpleMap<String,bool>,
         can_withdraw: simple_map::SimpleMap<String,bool>,
@@ -50,13 +52,20 @@ module leizd_aptos_common::pool_status {
             pool_status_update_event: account::new_event_handle<PoolStatusUpdateEvent>(owner),
         });
     }
-
-    public fun initialize_for_asset<C>(owner: &signer) acquires Status, PoolStatusEventHandle {
-        initialize_for_asset_internal<C>(owner);
+    //// access control
+    public fun publish_asset_manager_key(owner: &signer): AssetManagerKey {
+        permission::assert_owner(signer::address_of(owner));
+        AssetManagerKey {}
     }
-    fun initialize_for_asset_internal<C>(owner: &signer) acquires Status, PoolStatusEventHandle {
-        let owner_addr = signer::address_of(owner);
-        permission::assert_owner(owner_addr); // NOTE: remove this validation if permission less
+
+    public fun initialize_for_asset<C>(
+        account: &signer,
+        _key: &AssetManagerKey
+    ) acquires Status, PoolStatusEventHandle {
+        initialize_for_asset_internal<C>(account);
+    }
+    fun initialize_for_asset_internal<C>(_account: &signer) acquires Status, PoolStatusEventHandle {
+        let owner_addr = permission::owner_address();
         let key = key<C>();
         let status = borrow_global_mut<Status>(owner_addr);
         initialize_status(key, status);
@@ -238,7 +247,9 @@ module leizd_aptos_common::pool_status {
     }
 
     #[test_only]
-    struct DummyStruct {}
+    public fun initialize_for_asset_for_test<C>(owner: &signer) acquires Status, PoolStatusEventHandle {
+        initialize_for_asset_internal<C>(owner);
+    }
     #[test_only]
     public fun update_deposit_status_for_test<C>(active: bool) acquires Status, PoolStatusEventHandle {
         update_deposit_status<C>(active);
@@ -259,6 +270,8 @@ module leizd_aptos_common::pool_status {
     public fun update_switch_collateral_status_for_test<C>(active: bool) acquires Status, PoolStatusEventHandle {
         update_switch_collateral_status<C>(active);
     }
+    #[test_only]
+    struct DummyStruct {}
     #[test(owner = @leizd_aptos_common)]
     fun test_end_to_end(owner: &signer) acquires Status, PoolStatusEventHandle {
         account::create_account_for_test(signer::address_of(owner));

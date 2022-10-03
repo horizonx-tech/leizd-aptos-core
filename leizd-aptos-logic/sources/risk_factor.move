@@ -27,6 +27,8 @@ module leizd_aptos_logic::risk_factor {
     const SHADOW_LTV: u64 = 1000000000 / 100 * 100; // 100% // TODO: 90%
     const SHADOW_LT: u64 = 1000000000 / 100 * 100; // 100% // TODO: 95%
 
+    struct AssetManagerKey has store, drop {} // TODO: remove `drop` ability
+
     struct ProtocolFees has key, drop {
         entry_fee: u64, // One time protocol fee for opening a borrow position
         share_fee: u64, // Protocol revenue share in interest
@@ -96,14 +98,20 @@ module leizd_aptos_logic::risk_factor {
                 }
         )
     }
+    //// access control
+    public fun publish_asset_manager_key(owner: &signer): AssetManagerKey {
+        permission::assert_owner(signer::address_of(owner));
+        AssetManagerKey {}
+    }
 
-    public fun initialize_for_asset<C>(account: &signer) acquires Config, RepositoryAssetEventHandle {
+    public fun initialize_for_asset<C>(
+        account: &signer,
+        _key: &AssetManagerKey
+    ) acquires Config, RepositoryAssetEventHandle {
         initialize_for_asset_internal<C>(account);
     }
     fun initialize_for_asset_internal<C>(account: &signer) acquires Config, RepositoryAssetEventHandle {
-        let owner_addr = signer::address_of(account);
-        permission::assert_owner(owner_addr); // NOTE: remove this validation if permission less
-
+        let owner_addr = permission::owner_address();
         let config_ref = borrow_global_mut<Config>(owner_addr);
         let key = key<C>();
         assert!(!table::contains<string::String, u64>(&config_ref.ltv, key), error::invalid_argument(EALREADY_ADDED_ASSET));
@@ -112,7 +120,7 @@ module leizd_aptos_logic::risk_factor {
         event::emit_event<UpdateConfigEvent>(
             &mut borrow_global_mut<RepositoryAssetEventHandle>(owner_addr).update_config_event,
             UpdateConfigEvent {
-                caller: owner_addr,
+                caller: signer::address_of(account),
                 key: key,
                 ltv: DEFAULT_LTV,
                 lt: DEFAULT_THRESHOLD,

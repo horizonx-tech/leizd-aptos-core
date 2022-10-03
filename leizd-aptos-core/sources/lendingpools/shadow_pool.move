@@ -125,6 +125,14 @@ module leizd::shadow_pool {
     /// Initialize
     ////////////////////////////////////////////////////
     public entry fun initialize(owner: &signer): OperatorKey {
+        permission::assert_owner(signer::address_of(owner));
+
+        initialize_module(owner);
+        connect_to_central_liduidity_pool(owner);
+        let key = publish_operator_key(owner);
+        key
+    }
+    fun initialize_module(owner: &signer) {
         let owner_addr = signer::address_of(owner);
         permission::assert_owner(owner_addr);
         assert!(!exists<Pool>(owner_addr), error::invalid_argument(EIS_ALREADY_EXISTED));
@@ -141,7 +149,6 @@ module leizd::shadow_pool {
             rebalance_event: account::new_event_handle<RebalanceEvent>(owner),
             switch_collateral_event: account::new_event_handle<SwitchCollateralEvent>(owner),
         });
-        OperatorKey {}
     }
     fun default_storage(): Storage {
         Storage {
@@ -154,11 +161,18 @@ module leizd::shadow_pool {
         }
     }
     //// for connecting to central liquidity pool
-    public entry fun connect_to_central_liduidity_pool(owner: &signer) {
+    fun connect_to_central_liduidity_pool(owner: &signer) {
         let owner_addr = signer::address_of(owner);
         permission::assert_owner(owner_addr);
-        let central_liquidity_pool_key = central_liquidity_pool::publish_key(owner);
+        let central_liquidity_pool_key = central_liquidity_pool::publish_operator_key(owner);
         move_to(owner, Keys { central_liquidity_pool: central_liquidity_pool_key });
+    }
+    //// access control
+    fun publish_operator_key(owner: &signer): OperatorKey {
+        let owner_addr = signer::address_of(owner);
+        permission::assert_owner(owner_addr);
+
+        OperatorKey {}
     }
     //// for assets
     fun init_pool_if_necessary(key: String, storage_ref: &mut Storage) {
@@ -961,6 +975,7 @@ module leizd::shadow_pool {
         test_coin::init_uni(owner);
         initialize(owner);
         asset_pool::initialize(owner);
+
         pool_manager::add_pool<WETH>(owner);
         pool_manager::add_pool<UNI>(owner);
     }
@@ -1372,7 +1387,6 @@ module leizd::shadow_pool {
     public entry fun test_repay(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
-        connect_to_central_liduidity_pool(owner); // memo: is it really necessary?
 
         let owner_address = signer::address_of(owner);
         let depositor_addr = signer::address_of(depositor);
@@ -1407,7 +1421,6 @@ module leizd::shadow_pool {
     public entry fun test_repay_with_same_as_total_borrowed_amount(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
-        connect_to_central_liduidity_pool(owner); // memo: is it really necessary?
 
         let owner_address = signer::address_of(owner);
         let depositor_addr = signer::address_of(depositor);
@@ -1436,7 +1449,6 @@ module leizd::shadow_pool {
     public entry fun test_repay_with_more_than_total_borrowed_amount(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
-        connect_to_central_liduidity_pool(owner); // memo: is it really necessary?
 
         let depositor_addr = signer::address_of(depositor);
         let borrower_addr = signer::address_of(borrower);
@@ -1458,7 +1470,6 @@ module leizd::shadow_pool {
     public entry fun test_repay_more_than_once_sequentially(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
-        connect_to_central_liduidity_pool(owner); // memo: is it really necessary?
 
         let owner_address = signer::address_of(owner);
         let depositor_addr = signer::address_of(depositor);
@@ -1596,7 +1607,6 @@ module leizd::shadow_pool {
     public entry fun test_with_central_liquidity_pool_to_borrow(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
-        connect_to_central_liduidity_pool(owner);
         central_liquidity_pool::add_supported_pool<UNI>(owner);
 
         let owner_addr = signer::address_of(owner);
@@ -1649,7 +1659,6 @@ module leizd::shadow_pool {
     public entry fun test_with_central_liquidity_pool_to_borrow_when_not_supported(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
-        connect_to_central_liduidity_pool(owner);
 
         let owner_addr = signer::address_of(owner);
         let depositor_addr = signer::address_of(depositor);
@@ -1679,7 +1688,6 @@ module leizd::shadow_pool {
     public entry fun test_with_central_liquidity_pool_to_borrow_with_cannot_borrowed_amount(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
-        connect_to_central_liduidity_pool(owner);
         central_liquidity_pool::add_supported_pool<UNI>(owner);
 
         let depositor_addr = signer::address_of(depositor);
@@ -1757,7 +1765,6 @@ module leizd::shadow_pool {
     public entry fun test_with_central_liquidity_pool_to_repay(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
-        connect_to_central_liduidity_pool(owner);
         central_liquidity_pool::add_supported_pool<UNI>(owner);
         central_liquidity_pool::update_config(owner, central_liquidity_pool::entry_fee(), 0);
 
@@ -1863,7 +1870,6 @@ module leizd::shadow_pool {
     public entry fun test_with_central_liquidity_pool_to_open_position_more_than_once(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
-        connect_to_central_liduidity_pool(owner);
         central_liquidity_pool::add_supported_pool<UNI>(owner);
         central_liquidity_pool::update_config(owner, central_liquidity_pool::entry_fee(), 0);
 
@@ -1915,7 +1921,6 @@ module leizd::shadow_pool {
     public entry fun test_with_central_liquidity_pool_to_open_multi_position(owner: &signer, depositor: &signer, borrower1: &signer, borrower2: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
-        connect_to_central_liduidity_pool(owner);
         central_liquidity_pool::add_supported_pool<UNI>(owner);
         central_liquidity_pool::add_supported_pool<WETH>(owner);
         central_liquidity_pool::update_config(owner, central_liquidity_pool::entry_fee(), 0);

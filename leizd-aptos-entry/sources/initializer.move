@@ -9,7 +9,6 @@ module leizd_aptos_entry::initializer {
     use leizd_aptos_core::interest_rate;
     use leizd_aptos_core::pool_status;
     use leizd_aptos_core::pool_manager;
-    use leizd_aptos_core::shadow_pool;
 
     /// Called only once by the owner.
     public entry fun initialize(owner: &signer) {
@@ -21,7 +20,6 @@ module leizd_aptos_entry::initializer {
         pool_status::initialize(owner);
         pool_manager::initialize(owner);
         central_liquidity_pool::initialize(owner);
-        shadow_pool::connect_to_central_liduidity_pool(owner);
     }
 
     public entry fun register<C>(account: &signer) {
