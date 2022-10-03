@@ -13,7 +13,7 @@ module leizd_aptos_trove::usdz {
             owner,
             string::utf8(b"USDZ"),
             string::utf8(b"USDZ"),
-            18,
+            8,
         );
     }
 

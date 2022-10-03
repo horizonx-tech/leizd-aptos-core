@@ -240,9 +240,9 @@ module leizd_aptos_trove::trove_manager {
         open_trove<USDC>(&alice, 100);
         open_trove<USDC>(&bob, 1000);
         open_trove<USDC>(&carol, 10000);
-        coin::transfer<usdz::USDZ>(&carol, signer::address_of(&alice), 5000 * math64::pow(10, 12));
+        coin::transfer<usdz::USDZ>(&carol, signer::address_of(&alice), 5000 * math64::pow(10, 8 - 6));
         let alice_claims_usdc = 5000 + 100;
-        let alice_usdz_balance_before = alice_claims_usdc * math64::pow(10, 12);
+        let alice_usdz_balance_before = alice_claims_usdc * math64::pow(10, 8 - 6);
         assert!(coin::balance<usdz::USDZ>(signer::address_of(&alice)) == alice_usdz_balance_before, 0);
         redeem<USDC>(&alice, alice_claims_usdc);
         assert!(coin::balance<usdz::USDZ>(signer::address_of(&alice)) == 0, 0);

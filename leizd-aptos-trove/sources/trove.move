@@ -216,7 +216,7 @@ module leizd_aptos_trove::trove {
         set_up(&owner, &account1);
         let account1_addr = signer::address_of(&account1);
         let usdc_amt = 10000;
-        let want = usdc_amt * math64::pow(10, 12);
+        let want = usdc_amt * math64::pow(10, 8 - 6);
         open_trove<USDC>(&account1, 10000);
         assert!(comparator::is_equal(&comparator::compare(
             &usdz::balance_of(account1_addr),
@@ -270,7 +270,7 @@ module leizd_aptos_trove::trove {
         let owner_addr = signer::address_of(&owner);
         account::create_account_for_test(owner_addr);
         let usdc_amt = 12345678;
-        let usdc_want = usdc_amt * math64::pow(10, 12);
+        let usdc_want = usdc_amt * math64::pow(10, 8 - 6);
         test_coin::init_usdc(&owner);
         initialize(&owner);
         assert!(comparator::is_equal(&comparator::compare(
