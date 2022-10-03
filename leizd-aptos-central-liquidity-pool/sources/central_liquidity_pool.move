@@ -31,6 +31,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
     const DEFAULT_SUPPORT_FEE: u64 = 1000000000 * 1 / 1000; // 0.1%
 
     struct OperatorKey has store, drop {} // TODO: remove `drop` ability
+    struct AssetManagerKey has store, drop {} // TODO: remove `drop` ability
 
     struct CentralLiquidityPool has key {
         left: coin::Coin<USDZ>,
@@ -181,7 +182,10 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         exists<CentralLiquidityPool>(permission::owner_address())
     }
     //// for assets
-    public fun initialize_for_asset<C>(owner: &signer) acquires Balance {
+    public fun initialize_for_asset<C>(
+        owner: &signer,
+        _key: &AssetManagerKey
+    ) acquires Balance {
         initialize_for_asset_internal<C>(owner);
     }
     fun initialize_for_asset_internal<C>(owner: &signer) acquires Balance {

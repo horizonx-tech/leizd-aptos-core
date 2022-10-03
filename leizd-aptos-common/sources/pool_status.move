@@ -13,6 +13,8 @@ module leizd_aptos_common::pool_status {
 
     const EIS_NOT_EXISTED: u64 = 1;
 
+    struct AssetManagerKey has store, drop {} // TODO: remove `drop` ability
+
     struct Status has key {
         can_deposit: simple_map::SimpleMap<String,bool>,
         can_withdraw: simple_map::SimpleMap<String,bool>,
@@ -30,12 +32,14 @@ module leizd_aptos_common::pool_status {
         can_switch_collateral: bool,
     }
 
-
     struct PoolStatusEventHandle has key, store {
         pool_status_update_event: event::EventHandle<PoolStatusUpdateEvent>
     }
 
-    public fun initialize_for_asset<C>(owner: &signer) acquires Status, PoolStatusEventHandle {
+    public fun initialize_for_asset<C>(
+        owner: &signer,
+        _key: &AssetManagerKey
+    ) acquires Status, PoolStatusEventHandle {
         initialize_for_asset_internal<C>(owner);
     }
     fun initialize_for_asset_internal<C>(owner: &signer) acquires Status, PoolStatusEventHandle {

@@ -38,6 +38,8 @@ module leizd::interest_rate {
     /// When `b` is greater than `b` in i128.
     const GREATER_THAN: u8 = 2;
 
+    struct AssetManagerKey has store, drop {} // TODO: remove `drop` ability
+
     struct ConfigKey has key {
         config: simple_map::SimpleMap<String,Config>,
     }
@@ -73,7 +75,10 @@ module leizd::interest_rate {
         set_config_event: event::EventHandle<SetConfigEvent>,
     }
 
-    public(friend) fun initialize_for_asset<C>(owner: &signer) acquires ConfigKey, InterestRateEventHandle {
+    public(friend) fun initialize_for_asset<C>(
+        owner: &signer,
+        _key: &AssetManagerKey
+    ) acquires ConfigKey, InterestRateEventHandle {
         initialize_for_asset_internal<C>(owner);
     }
     fun initialize_for_asset_internal<C>(owner: &signer) acquires ConfigKey, InterestRateEventHandle {
