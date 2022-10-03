@@ -15,7 +15,7 @@ module leizd::shadow_pool {
     use leizd_aptos_trove::usdz::{USDZ};
     use leizd::interest_rate;
     use leizd_aptos_logic::risk_factor;
-    use leizd_aptos_central_liquidity_pool::central_liquidity_pool::{Self, CentralLiquidityPoolKey};
+    use leizd_aptos_central_liquidity_pool::central_liquidity_pool::{Self, OperatorKey as CentralLiquidityPoolKey};
     use leizd::treasury;
 
     //// error_code (ref: asset_pool)
@@ -29,7 +29,7 @@ module leizd::shadow_pool {
     const EINSUFFICIENT_LIQUIDITY: u64 = 13;
     const EINSUFFICIENT_CONLY_DEPOSITED: u64 = 14;
 
-    struct ShadowPoolKey has store, drop {} // TODO: remove `drop` ability
+    struct OperatorKey has store, drop {} // TODO: remove `drop` ability
     struct Keys has key {
         central_liquidity_pool: CentralLiquidityPoolKey
     }
@@ -124,7 +124,7 @@ module leizd::shadow_pool {
     ////////////////////////////////////////////////////
     /// Initialize
     ////////////////////////////////////////////////////
-    public entry fun initialize(owner: &signer): ShadowPoolKey {
+    public entry fun initialize(owner: &signer): OperatorKey {
         let owner_addr = signer::address_of(owner);
         permission::assert_owner(owner_addr);
         assert!(!exists<Pool>(owner_addr), error::invalid_argument(EIS_ALREADY_EXISTED));
@@ -141,7 +141,7 @@ module leizd::shadow_pool {
             rebalance_event: account::new_event_handle<RebalanceEvent>(owner),
             switch_collateral_event: account::new_event_handle<SwitchCollateralEvent>(owner),
         });
-        ShadowPoolKey {}
+        OperatorKey {}
     }
     fun default_storage(): Storage {
         Storage {
@@ -183,7 +183,7 @@ module leizd::shadow_pool {
         for_address: address, // only use for event
         amount: u64,
         is_collateral_only: bool,
-        _key: &ShadowPoolKey
+        _key: &OperatorKey
     ): (u64, u64) acquires Pool, Storage, PoolEventHandle, Keys {
         let key = key<C>();
         deposit_for_internal(key, account, for_address, amount, is_collateral_only)
@@ -195,7 +195,7 @@ module leizd::shadow_pool {
         for_address: address,
         amount: u64,
         is_collateral_only: bool,
-        _key: &ShadowPoolKey
+        _key: &OperatorKey
     ): (u64, u64) acquires Pool, Storage, PoolEventHandle, Keys {
         deposit_for_internal(key, account, for_address, amount, is_collateral_only)
     }
@@ -254,7 +254,7 @@ module leizd::shadow_pool {
         amount: u64,
         is_collateral_only_C1: bool,
         is_collateral_only_C2: bool,
-        _key: &ShadowPoolKey
+        _key: &OperatorKey
     ) acquires Storage, PoolEventHandle {
         let key_from = key<C1>();
         let key_to = key<C2>();
@@ -303,7 +303,7 @@ module leizd::shadow_pool {
     }
 
     // with borrow
-    public fun borrow_and_rebalance<C1,C2>(amount: u64, is_collateral_only: bool, _key: &ShadowPoolKey) acquires Storage, PoolEventHandle {
+    public fun borrow_and_rebalance<C1,C2>(amount: u64, is_collateral_only: bool, _key: &OperatorKey) acquires Storage, PoolEventHandle {
         let key_from = key<C1>();
         let key_to = key<C2>();
         borrow_and_rebalance_internal(key_from, key_to, amount, is_collateral_only)
@@ -348,7 +348,7 @@ module leizd::shadow_pool {
         amount: u64,
         is_collateral_only: bool,
         liquidation_fee: u64,
-        _key: &ShadowPoolKey
+        _key: &OperatorKey
     ): (u64, u64) acquires Pool, Storage, PoolEventHandle, Keys {
         let key = key<C>();
         withdraw_for_internal(
@@ -368,7 +368,7 @@ module leizd::shadow_pool {
         amount: u64,
         is_collateral_only: bool,
         liquidation_fee: u64,
-        _key: &ShadowPoolKey
+        _key: &OperatorKey
     ): (u64, u64) acquires Pool, Storage, PoolEventHandle, Keys {
         withdraw_for_internal(key, depositor_addr, reciever_addr, amount, is_collateral_only, liquidation_fee)
     }
@@ -430,7 +430,7 @@ module leizd::shadow_pool {
         borrower_addr: address,
         receiver_addr: address,
         amount: u64,
-        _key: &ShadowPoolKey
+        _key: &OperatorKey
     ): (u64, u64) acquires Pool, Storage, PoolEventHandle, Keys {
         let key = key<C>();
         borrow_for_internal(key, borrower_addr, receiver_addr, amount)
@@ -441,7 +441,7 @@ module leizd::shadow_pool {
         borrower_addr: address,
         receiver_addr: address,
         amount: u64,
-        _key: &ShadowPoolKey
+        _key: &OperatorKey
     ): (u64, u64) acquires Pool, Storage, PoolEventHandle, Keys {
         borrow_for_internal(key, borrower_addr, receiver_addr, amount)
     }
@@ -533,7 +533,7 @@ module leizd::shadow_pool {
     public fun repay<C>(
         account: &signer,
         amount: u64,
-        _key: &ShadowPoolKey
+        _key: &OperatorKey
     ): (u64, u64) acquires Pool, Storage, PoolEventHandle, Keys {
         repay_internal(key<C>(), account, amount)
     }
@@ -542,7 +542,7 @@ module leizd::shadow_pool {
         key: String,
         account: &signer,
         amount: u64,
-        _key: &ShadowPoolKey
+        _key: &OperatorKey
     ): (u64, u64) acquires Pool, Storage, PoolEventHandle, Keys {
         repay_internal(key, account, amount)
     }
@@ -593,7 +593,7 @@ module leizd::shadow_pool {
         target_addr: address,
         withdrawing: u64,
         is_collateral_only: bool,
-        _key: &ShadowPoolKey
+        _key: &OperatorKey
     ) acquires Pool, Storage, PoolEventHandle, Keys {
         withdraw_for_liquidation_internal(key<C>(), liquidator_addr, target_addr, withdrawing, is_collateral_only);
     }
@@ -625,7 +625,7 @@ module leizd::shadow_pool {
     ////////////////////////////////////////////////////
     /// Switch Collateral
     ////////////////////////////////////////////////////
-    public fun switch_collateral<C>(caller: address, amount: u64, to_collateral_only: bool, _key: &ShadowPoolKey) acquires Storage, PoolEventHandle {
+    public fun switch_collateral<C>(caller: address, amount: u64, to_collateral_only: bool, _key: &OperatorKey) acquires Storage, PoolEventHandle {
         switch_collateral_internal(key<C>(), caller, amount, to_collateral_only);
     }
 

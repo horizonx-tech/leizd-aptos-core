@@ -17,9 +17,9 @@ module leizd_aptos_entry::money_market {
     use leizd_aptos_lib::constant;
     use leizd_aptos_logic::rebalance::{Self,Rebalance};
     use leizd_aptos_central_liquidity_pool::central_liquidity_pool;
-    use leizd_aptos_core::asset_pool::{Self, AssetPoolKey};
-    use leizd_aptos_core::shadow_pool::{Self, ShadowPoolKey};
-    use leizd_aptos_core::account_position::{Self, AccountPositionKey};
+    use leizd_aptos_core::asset_pool::{Self, OperatorKey as AssetPoolKey};
+    use leizd_aptos_core::shadow_pool::{Self, OperatorKey as ShadowPoolKey};
+    use leizd_aptos_core::account_position::{Self, OperatorKey as AccountPositionKey};
 
     const EALREADY_INITIALIZED: u64 = 1;
 

@@ -30,7 +30,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
     const DEFAULT_ENTRY_FEE: u64 = 1000000000 * 5 / 1000; // 0.5%
     const DEFAULT_SUPPORT_FEE: u64 = 1000000000 * 1 / 1000; // 0.1%
 
-    struct CentralLiquidityPoolKey has store, drop {} // TODO: remove `drop` ability
+    struct OperatorKey has store, drop {} // TODO: remove `drop` ability
 
     struct CentralLiquidityPool has key {
         left: coin::Coin<USDZ>,
@@ -190,9 +190,9 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         simple_map::add<String,u128>(&mut balance.uncollected_support_fee, key<C>(), 0);
     }
     //// access control
-    public fun publish_key(owner: &signer): CentralLiquidityPoolKey {
+    public fun publish_key(owner: &signer): OperatorKey {
         permission::assert_owner(signer::address_of(owner));
-        CentralLiquidityPoolKey {}
+        OperatorKey {}
     }
 
     public fun default_user_distribution(): UserDistribution {
@@ -321,7 +321,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         key: String,
         addr: address,
         amount: u64,
-        _key: &CentralLiquidityPoolKey
+        _key: &OperatorKey
     ): (coin::Coin<USDZ>,u128) acquires CentralLiquidityPool, Config, Balance, CentralLiquidityPoolEventHandle {
         borrow_internal(key, addr, amount)
     }
@@ -385,7 +385,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         key: String,
         account: &signer,
         amount: u64,
-        _key: &CentralLiquidityPoolKey
+        _key: &OperatorKey
     ) acquires CentralLiquidityPool, Balance, CentralLiquidityPoolEventHandle {
         repay_internal(key, account, amount);
     }
@@ -515,7 +515,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         key: String,
         coin: coin::Coin<USDZ>,
         new_uncollected_fee: u128,
-        _key: &CentralLiquidityPoolKey
+        _key: &OperatorKey
     ) acquires CentralLiquidityPool, Balance {
         collect_support_fee_internal(key, coin, new_uncollected_fee)
     }

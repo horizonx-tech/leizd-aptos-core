@@ -38,7 +38,7 @@ module leizd::asset_pool {
     const EINSUFFICIENT_LIQUIDITY: u64 = 12;
     const EINSUFFICIENT_CONLY_DEPOSITED: u64 = 13;
 
-    struct AssetPoolKey has store, drop {} // TODO: remove `drop` ability
+    struct OperatorKey has store, drop {} // TODO: remove `drop` ability
 
     /// Asset Pool where users can deposit and borrow.
     /// Each asset is separately deposited into a pool.
@@ -114,14 +114,14 @@ module leizd::asset_pool {
     }
 
     // initialize
-    public entry fun initialize(owner: &signer): AssetPoolKey {
+    public entry fun initialize(owner: &signer): OperatorKey {
         let owner_addr = signer::address_of(owner);
         permission::assert_owner(owner_addr);
         assert!(!exists<Storage>(owner_addr), error::invalid_argument(EIS_ALREADY_EXISTED));
         move_to(owner, Storage {
             assets: simple_map::create<String, AssetStorage>(),
         });
-        AssetPoolKey {}
+        OperatorKey {}
     }
     //// for assets
     /// Initializes a pool with the coin the owner specifies.
@@ -183,7 +183,7 @@ module leizd::asset_pool {
         for_address: address,
         amount: u64,
         is_collateral_only: bool,
-        _key: &AssetPoolKey
+        _key: &OperatorKey
     ): (u64, u64) acquires Pool, Storage, PoolEventHandle {
         deposit_for_internal<C>(
             account,
@@ -238,7 +238,7 @@ module leizd::asset_pool {
         receiver_addr: address,
         amount: u64,
         is_collateral_only: bool,
-        _key: &AssetPoolKey
+        _key: &OperatorKey
     ): (u64, u64) acquires Pool, Storage, PoolEventHandle {
         withdraw_for_internal<C>(
             caller_addr,
@@ -299,7 +299,7 @@ module leizd::asset_pool {
         borrower_addr: address,
         receiver_addr: address,
         amount: u64,
-        _key: &AssetPoolKey,
+        _key: &OperatorKey,
     ): (u64, u64) acquires Pool, Storage, PoolEventHandle {
         borrow_for_internal<C>(borrower_addr, receiver_addr, amount)
     }
@@ -350,7 +350,7 @@ module leizd::asset_pool {
     public fun repay<C>(
         account: &signer,
         amount: u64,
-        _key: &AssetPoolKey,
+        _key: &OperatorKey,
     ): (u64, u64) acquires Pool, Storage, PoolEventHandle {
         repay_internal<C>(account, amount)
     }
@@ -392,7 +392,7 @@ module leizd::asset_pool {
         target_addr: address,
         withdrawing: u64,
         is_collateral_only: bool,
-        _key: &AssetPoolKey,
+        _key: &OperatorKey,
     ) acquires Pool, Storage, PoolEventHandle {
         withdraw_for_liquidation_internal<C>(liquidator_addr, target_addr, withdrawing, is_collateral_only)
     }
@@ -419,7 +419,7 @@ module leizd::asset_pool {
         );
     }
 
-    public fun switch_collateral<C>(caller: address, amount: u64, to_collateral_only: bool, _key: &AssetPoolKey) acquires Pool, Storage, PoolEventHandle {
+    public fun switch_collateral<C>(caller: address, amount: u64, to_collateral_only: bool, _key: &OperatorKey) acquires Pool, Storage, PoolEventHandle {
         switch_collateral_internal<C>(caller, amount, to_collateral_only);
     }
 
