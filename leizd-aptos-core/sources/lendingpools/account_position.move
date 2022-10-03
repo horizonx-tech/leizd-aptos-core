@@ -246,7 +246,7 @@ module leizd::account_position {
 
         // try to rebalance between pools
         let required_shadow = required_shadow(key<C>(), borrowed_asset_share<C>(addr), deposited_shadow_share<C>(addr));
-        (result_amount_deposited, result_amount_withdrawed) = deposit_and_withdraw_evenly(addr, required_shadow, result_amount_deposited);
+        (result_amount_deposited, result_amount_withdrawed) = deposit_and_withdraw_evenly(addr, result_amount_deposited);
         if (vector::length<Rebalance>(&result_amount_deposited) != 0 
             || vector::length<Rebalance>(&result_amount_withdrawed) != 0) {
             return (result_amount_deposited, result_amount_withdrawed, result_amount_borrowed, result_amount_repaid)
@@ -256,7 +256,7 @@ module leizd::account_position {
         (result_amount_borrowed, result_amount_deposited) = borrow_and_deposit_if_has_capacity(addr, required_shadow);
         if (vector::length<Rebalance>(&result_amount_borrowed) != 0
             || vector::length<Rebalance>(&result_amount_deposited) != 0) {
-            (result_amount_deposited, result_amount_withdrawed) = deposit_and_withdraw_evenly(addr, required_shadow, result_amount_deposited);
+            (result_amount_deposited, result_amount_withdrawed) = deposit_and_withdraw_evenly(addr, result_amount_deposited);
             return (result_amount_deposited, result_amount_withdrawed, result_amount_borrowed, result_amount_repaid)
         };
         abort 0
@@ -271,7 +271,7 @@ module leizd::account_position {
     }
 
     /// @returns (result_amount_deposited, result_amount_withdrawed)
-    fun deposit_and_withdraw_evenly(addr: address, required_amount: u64, result_amount_deposited: vector<Rebalance>): (vector<Rebalance>, vector<Rebalance>) acquires Position, AccountPositionEventHandle {
+    fun deposit_and_withdraw_evenly(addr: address, result_amount_deposited: vector<Rebalance>): (vector<Rebalance>, vector<Rebalance>) acquires Position, AccountPositionEventHandle {
         let position_ref = borrow_global<Position<ShadowToAsset>>(addr);
         let coins = position_ref.coins;
         let protected_coins = position_ref.protected_coins;
@@ -1111,8 +1111,6 @@ module leizd::account_position {
         (total_amount, total_shares)
     }
 
-    // #[test_only]
-    // use aptos_framework::debug;
     #[test_only]
     use leizd_aptos_common::pool_type::{Asset,Shadow};
     #[test_only]
@@ -1497,11 +1495,7 @@ module leizd::account_position {
         borrow_asset_with_rebalance_internal<UNI>(account1_addr, 10000);
         assert!(deposited_asset_share<WETH>(account1_addr) == 100000, 0);
         assert!(deposited_shadow_share<USDC>(account1_addr) == 90000, 0);
-        debug::print(&deposited_shadow_share<UNI>(account1_addr));
-        // debug::print(&deposited_shadow<UNI>(account1_addr));
-        // debug::print(&borrowed_asset<UNI>(account1_addr));
         assert!(borrowed_shadow_share<WETH>(account1_addr) == 0, 0);
-        // assert!(deposited_shadow<UNI>(account1_addr) == 20000, 0);
         assert!(borrowed_asset_share<UNI>(account1_addr) == 10000, 0);
     }
 
@@ -1520,7 +1514,6 @@ module leizd::account_position {
     //     assert!(borrowed_asset<UNI>(account1_addr) == 10000, 0);
     // }
     // use std::debug;
-    use std::debug;
     // #[test(owner=@leizd,account1=@0x111)]
     // public entry fun test_borrow_asset_with_rebalance_two(owner: &signer, account1: &signer) acquires Position, AccountPositionEventHandle {
     //     setup_for_test_to_initialize_coins(owner);
@@ -2263,18 +2256,18 @@ module leizd::account_position {
         account::create_account_for_test(account1_addr);
 
         deposit_internal<WETH,Asset>(account1, account1_addr, 100000, false);
-        borrow_internal<WETH,Shadow>(account1, account1_addr, 30000);
+        borrow_internal<WETH,Shadow>(account1, account1_addr, 30000); //  LTV:30% - MAX:50%
         deposit_internal<UNI,Shadow>(account1, account1_addr, 100000, false);
-        borrow_internal<UNI,Asset>(account1, account1_addr, 90000);
+        borrow_internal<UNI,Asset>(account1, account1_addr, 90000); // LTV:90% - MAX:100% // TODO: put actual ltv
         borrow_unsafe_for_test<UNI,Asset>(account1_addr, 20000);
         assert!(deposited_asset_share<WETH>(account1_addr) == 100000, 0);
-        assert!(borrowed_shadow_share<WETH>(account1_addr) == 50000, 0);
+        assert!(borrowed_shadow_share<WETH>(account1_addr) == 30000, 0);
         assert!(deposited_shadow_share<UNI>(account1_addr) == 100000, 0);
         assert!(borrowed_asset_share<UNI>(account1_addr) == 110000, 0);
 
         borrow_and_rebalance_internal(account1_addr, key<WETH>(), key<UNI>(), false);
         assert!(deposited_asset_share<WETH>(account1_addr) == 100000, 0);
-        assert!(borrowed_shadow_share<WETH>(account1_addr) == 60000, 0);
+        assert!(borrowed_shadow_share<WETH>(account1_addr) == 40000, 0);
         assert!(deposited_shadow_share<UNI>(account1_addr) == 110000, 0);
 
         assert!(event::counter<UpdatePositionEvent>(&borrow_global<AccountPositionEventHandle<AssetToShadow>>(account1_addr).update_position_event) == 3, 0);
@@ -2449,10 +2442,10 @@ module leizd::account_position {
         borrow_asset_with_rebalance_internal<UNI>(account1_addr, 10000);
         assert!(deposited_asset_share<WETH>(account1_addr) == 100000, 0);
         assert!(deposited_asset_share<USDC>(account1_addr) == 100000, 0);
-        assert!(borrowed_shadow_share<WETH>(account1_addr) == 10000, 0);
-        assert!(borrowed_shadow_share<USDC>(account1_addr) == 10000, 0);
-        assert!(deposited_shadow_share<UNI>(account1_addr) == 20000, 0);
+        assert!(deposited_shadow_share<UNI>(account1_addr) == 10000, 0);
         assert!(borrowed_asset_share<UNI>(account1_addr) == 10000, 0);
+        assert!(borrowed_shadow_share<WETH>(account1_addr) == 0, 0);
+        assert!(borrowed_shadow_share<USDC>(account1_addr) == 20000, 0);
 
         // assert!(event::counter<UpdatePositionEvent>(&borrow_global<AccountPositionEventHandle<ShadowToAsset>>(account1_addr).update_position_event) == 7, 0);
     }
