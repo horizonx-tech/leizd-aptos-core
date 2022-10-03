@@ -98,6 +98,11 @@ module leizd_aptos_logic::risk_factor {
                 }
         )
     }
+    //// access control
+    public fun publish_asset_manager_key(owner: &signer): AssetManagerKey {
+        permission::assert_owner(signer::address_of(owner));
+        AssetManagerKey {}
+    }
 
     public fun initialize_for_asset<C>(
         account: &signer,

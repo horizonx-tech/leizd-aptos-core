@@ -75,6 +75,11 @@ module leizd::interest_rate {
         set_config_event: event::EventHandle<SetConfigEvent>,
     }
 
+    //// access control
+    public fun publish_asset_manager_key(owner: &signer): AssetManagerKey {
+        permission::assert_owner(signer::address_of(owner));
+        AssetManagerKey {}
+    }
     public(friend) fun initialize_for_asset<C>(
         owner: &signer,
         _key: &AssetManagerKey

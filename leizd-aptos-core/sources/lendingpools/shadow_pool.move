@@ -157,7 +157,7 @@ module leizd::shadow_pool {
     public entry fun connect_to_central_liduidity_pool(owner: &signer) {
         let owner_addr = signer::address_of(owner);
         permission::assert_owner(owner_addr);
-        let central_liquidity_pool_key = central_liquidity_pool::publish_key(owner);
+        let central_liquidity_pool_key = central_liquidity_pool::publish_operator_key(owner);
         move_to(owner, Keys { central_liquidity_pool: central_liquidity_pool_key });
     }
     //// for assets

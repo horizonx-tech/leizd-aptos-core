@@ -36,6 +36,11 @@ module leizd_aptos_common::pool_status {
         pool_status_update_event: event::EventHandle<PoolStatusUpdateEvent>
     }
 
+    //// access control
+    public fun publish_asset_manager_key(owner: &signer): AssetManagerKey {
+        permission::assert_owner(signer::address_of(owner));
+        AssetManagerKey {}
+    }
     public fun initialize_for_asset<C>(
         owner: &signer,
         _key: &AssetManagerKey
@@ -241,7 +246,9 @@ module leizd_aptos_common::pool_status {
     }
 
     #[test_only]
-    struct DummyStruct {}
+    public fun initialize_for_asset_for_test<C>(owner: &signer) acquires Status, PoolStatusEventHandle {
+        initialize_for_asset_internal<C>(owner);
+    }
     #[test_only]
     public fun update_deposit_status_for_test<C>(active: bool) acquires Status, PoolStatusEventHandle {
         update_deposit_status<C>(active);
@@ -262,6 +269,8 @@ module leizd_aptos_common::pool_status {
     public fun update_switch_collateral_status_for_test<C>(active: bool) acquires Status, PoolStatusEventHandle {
         update_switch_collateral_status<C>(active);
     }
+    #[test_only]
+    struct DummyStruct {}
     #[test(owner = @leizd_aptos_common)]
     fun test_end_to_end(owner: &signer) acquires Status, PoolStatusEventHandle {
         account::create_account_for_test(signer::address_of(owner));

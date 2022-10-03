@@ -197,9 +197,13 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         simple_map::add<String,u128>(&mut balance.uncollected_support_fee, key<C>(), 0);
     }
     //// access control
-    public fun publish_key(owner: &signer): OperatorKey {
+    public fun publish_operator_key(owner: &signer): OperatorKey {
         permission::assert_owner(signer::address_of(owner));
         OperatorKey {}
+    }
+    public fun publish_asset_manager_key(owner: &signer): AssetManagerKey {
+        permission::assert_owner(signer::address_of(owner));
+        AssetManagerKey {}
     }
 
     public fun default_user_distribution(): UserDistribution {

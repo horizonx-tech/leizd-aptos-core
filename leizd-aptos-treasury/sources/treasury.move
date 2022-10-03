@@ -40,6 +40,12 @@ module leizd_aptos_treasury::treasury {
         });
     }
 
+    //// access control
+    public fun publish_asset_manager_key(owner: &signer): AssetManagerKey {
+        permission::assert_owner(signer::address_of(owner));
+        AssetManagerKey {}
+    }
+
     public fun initialized(): bool {
         exists<SupportedTreasuries>(permission::owner_address())
     }
