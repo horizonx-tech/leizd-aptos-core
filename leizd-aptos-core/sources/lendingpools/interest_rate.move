@@ -93,21 +93,21 @@ module leizd::interest_rate {
         AssetManagerKey {}
     }
     public fun initialize_for_asset<C>(
-        owner: &signer,
+        account: &signer,
         _key: &AssetManagerKey
     ) acquires ConfigKey, InterestRateEventHandle {
-        initialize_for_asset_internal<C>(owner);
+        initialize_for_asset_internal<C>(account);
     }
-    fun initialize_for_asset_internal<C>(owner: &signer) acquires ConfigKey, InterestRateEventHandle {
+    fun initialize_for_asset_internal<C>(account: &signer) acquires ConfigKey, InterestRateEventHandle {
         let config = default_config();
-        let owner_address = signer::address_of(owner);
+        let owner_addr = permission::owner_address();
         assert_config(config);
-        let config_ref = borrow_global_mut<ConfigKey>(signer::address_of(owner));
+        let config_ref = borrow_global_mut<ConfigKey>(owner_addr);
         simple_map::add<String,Config>(&mut config_ref.config, key<C>(), config);
         event::emit_event<SetConfigEvent>(
-            &mut borrow_global_mut<InterestRateEventHandle>(owner_address).set_config_event,
+            &mut borrow_global_mut<InterestRateEventHandle>(owner_addr).set_config_event,
             SetConfigEvent {
-                caller: owner_address,
+                caller: signer::address_of(account),
                 uopt: config.uopt,
                 ucrit: config.ucrit,
                 ulow: config.ulow,
