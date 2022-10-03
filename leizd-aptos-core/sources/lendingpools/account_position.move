@@ -1063,9 +1063,9 @@ module leizd::account_position {
         test_initializer::initialize(owner);
         asset_pool::initialize(owner);
         shadow_pool::initialize(owner);
-        asset_pool::init_pool<WETH>(owner);
-        asset_pool::init_pool<UNI>(owner);
-        asset_pool::init_pool<USDC>(owner);
+        asset_pool::init_pool_for_test<WETH>(owner);
+        asset_pool::init_pool_for_test<UNI>(owner);
+        asset_pool::init_pool_for_test<USDC>(owner);
     }
     #[test_only]
     fun borrow_unsafe_for_test<C,P>(borrower_addr: address, amount: u64) acquires Position, AccountPositionEventHandle {

@@ -319,6 +319,8 @@ module leizd_aptos_entry::money_market {
     #[test_only]
     use leizd::treasury;
     #[test_only]
+    use leizd::pool_manager;
+    #[test_only]
     use leizd::initializer;
     #[test(owner=@leizd)]
     fun test_initialize(owner: &signer) {
@@ -355,10 +357,10 @@ module leizd_aptos_entry::money_market {
         test_coin::init_usdt(owner);
         test_coin::init_weth(owner);
         test_coin::init_uni(owner);
-        asset_pool::init_pool<USDC>(owner);
-        asset_pool::init_pool<USDT>(owner);
-        asset_pool::init_pool<WETH>(owner);
-        asset_pool::init_pool<UNI>(owner);
+        pool_manager::add_pool<USDC>(owner);
+        pool_manager::add_pool<USDT>(owner);
+        pool_manager::add_pool<WETH>(owner);
+        pool_manager::add_pool<UNI>(owner);
     }
     #[test_only]
     fun setup_account_for_test(account: &signer) {

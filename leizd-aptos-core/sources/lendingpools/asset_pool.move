@@ -161,7 +161,7 @@ module leizd::asset_pool {
     /// Initializes a pool with the coin the owner specifies.
     /// The caller is only owner and creates not only a pool but also other resources
     /// such as a treasury for the coin, an interest rate model, and coins of collaterals and debts.
-    public fun init_pool<C>(account: &signer) acquires Storage, AssetManagerKeys {
+    public(friend) fun init_pool<C>(account: &signer) acquires Storage, AssetManagerKeys {
         init_pool_internal<C>(account);
     }
 
@@ -640,6 +640,10 @@ module leizd::asset_pool {
     #[test_only]
     use leizd::test_initializer;
 
+    #[test_only]
+    public fun init_pool_for_test<C>(owner: &signer) acquires Storage, AssetManagerKeys {
+        init_pool_internal<C>(owner);
+    }
     #[test(owner=@leizd)]
     public entry fun test_initialize(owner: &signer) {
         initialize(owner);
