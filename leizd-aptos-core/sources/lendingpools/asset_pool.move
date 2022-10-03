@@ -751,7 +751,8 @@ module leizd::asset_pool {
         managed_coin::mint<WETH>(owner, account_addr, 1000000);
         assert!(coin::balance<WETH>(account_addr) == 1000000, 0);
 
-        deposit_for_internal<WETH>(account, account_addr, 800000, false);
+        let (amount, _) = deposit_for_internal<WETH>(account, account_addr, 800000, false);
+        assert!(amount == 800000, 0);
         assert!(coin::balance<WETH>(account_addr) == 200000, 0);
         assert!(total_normal_deposited_amount<WETH>() == 800000, 0);
         assert!(liquidity<WETH>() == 800000, 0);
@@ -769,7 +770,8 @@ module leizd::asset_pool {
         managed_coin::register<WETH>(account);
         managed_coin::mint<WETH>(owner, account_addr, 1000000);
 
-        deposit_for_internal<WETH>(account, account_addr, 1000000, false);
+        let (amount, _) = deposit_for_internal<WETH>(account, account_addr, 1000000, false);
+        assert!(amount == 1000000, 0);
         assert!(coin::balance<WETH>(account_addr) == 0, 0);
         assert!(total_normal_deposited_amount<WETH>() == 1000000, 0);
         assert!(total_conly_deposited_amount<WETH>() == 0, 0);
@@ -795,7 +797,7 @@ module leizd::asset_pool {
         assert!(coin::balance<WETH>(account_addr) == 1000000, 0);
 
         timestamp::update_global_time_for_test(1662125899730897);
-        deposit_for_internal<WETH>(account, account_addr, 400000, false);
+        let (amount, _) = deposit_for_internal<WETH>(account, account_addr, 400000, false);
         timestamp::update_global_time_for_test(1662125899830897);
         deposit_for_internal<WETH>(account, account_addr, 400000, false);
         assert!(coin::balance<WETH>(account_addr) == 200000, 0);
