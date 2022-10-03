@@ -1229,6 +1229,38 @@ module leizd::asset_pool {
         // borrow UNI
         borrow_for_internal<UNI>(borrower_addr, borrower_addr, 120);
     }
+    #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
+    public entry fun test_borrow_to_check_share(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, AssetManagerKeys, PoolEventHandle {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        let owner_addr = permission::owner_address();
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+        managed_coin::register<WETH>(account);
+        managed_coin::mint<WETH>(owner, account_addr, 500000);
+
+        // execute
+        deposit_for_internal<WETH>(account, account_addr, 500000, false);
+        assert!(total_normal_deposited_amount<WETH>() == 500000, 0);
+        assert!(total_normal_deposited_share<WETH>() == 500000, 0);
+
+        let (amount, share) = borrow_for_internal<WETH>(account_addr, account_addr, 100000);
+        assert!(amount == 100000 + 500, 0);
+        assert!(share == 100000 + 500, 0);
+        assert!(total_borrowed_amount<WETH>() == 100500, 0);
+        assert!(total_borrowed_share<WETH>() == 100500, 0);
+
+        //// update total_deposited (instead of interest by accrue_interest)
+        let total_borrowed_amount = &mut borrow_mut_asset_storage<WETH>(borrow_global_mut<Storage>(owner_addr)).total_borrowed_amount;
+        *total_borrowed_amount = *total_borrowed_amount + 100500;
+        assert!(total_borrowed_amount<WETH>() == 201000, 0);
+        assert!(total_borrowed_share<WETH>() == 100500, 0);
+
+        let (amount, share) = borrow_for_internal<WETH>(account_addr, account_addr, 50000);
+        assert!(amount == 50000 + 250, 0);
+        assert!(share == 25125, 0);
+        assert!(total_borrowed_amount<WETH>() == 250000 + 1250, 0);
+        assert!(total_borrowed_share<WETH>() == 125000 + 625, 0);
+    }
 
     // for repay
     #[test_only]
