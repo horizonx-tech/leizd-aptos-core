@@ -277,38 +277,28 @@ module leizd::account_position {
         let protected_coins = position_ref.protected_coins;
         let result_amount_withdrawed = vector::empty<Rebalance>();
 
-        let (sum_extra_shadow, sum_insufficient_shadow, _, _) = sum_extra_and_insufficient_shadow(&coins, &protected_coins, addr);
+        let (sum_extra_shadow, sum_insufficient_shadow, sum_deposited, sum_borrowed) = sum_extra_and_insufficient_shadow(&coins, &protected_coins, addr);
         if (sum_extra_shadow >= sum_insufficient_shadow) {
             // reallocation
             let i = vector::length<String>(&coins);
+            let opt_hf = health_factor(sum_deposited, sum_borrowed);
             while (i > 0) {
                 let key = *vector::borrow<String>(&coins, i-1);
-                if (!is_protected_internal(&protected_coins, key)) {
-                    let (_, insufficient) = extra_and_insufficient_shadow(key, addr);
-                    while (insufficient > 0) {
-                        // deposit the insufficient amount
-                        let j = vector::length<String>(&coins);
-                        while (j > 0 && insufficient > 0) {
-                            let key_j = *vector::borrow<String>(&coins, j-1);
-                            if (!is_protected_internal(&protected_coins, key)) {
-                                let (extra, _) = extra_and_insufficient_shadow(key_j, addr);
-                                if (extra > 0) {
-                                    let deposit_amount;
-                                    if (extra > insufficient) {
-                                        deposit_amount = insufficient;
-                                    } else {
-                                        deposit_amount = extra;
-                                    };
-                                    update_position_for_deposit<ShadowToAsset>(key, addr, deposit_amount, false); // TODO: collateral_only
-                                    vector::push_back<Rebalance>(&mut result_amount_deposited, rebalance::create(key, deposit_amount));
-                                    update_position_for_withdraw<ShadowToAsset>(key_j, addr, deposit_amount, false); // TODO: collateral_only
-                                    vector::push_back<Rebalance>(&mut result_amount_withdrawed, rebalance::create(key, deposit_amount));
-                                    insufficient = insufficient - deposit_amount;
-                                };
-                            };
-                            j = j - 1;
-                        };      
-                    };
+                if (is_protected_internal(&protected_coins, key)) continue;
+
+                let (_, _,deposited,borrowed) = extra_and_insufficient_shadow(key, addr);
+                let hf = health_factor(deposited, borrowed);
+                let opt_deposit = borrowed / (risk_factor::precision() - opt_hf) / risk_factor::ltv_of_shadow();
+                if (hf > opt_hf) {
+                    // withdraw
+                    let diff = deposited - opt_deposit;
+                    update_position_for_withdraw<ShadowToAsset>(key, addr, diff, false); // TODO: collateral_only
+                    vector::push_back<Rebalance>(&mut result_amount_withdrawed, rebalance::create(key, diff));
+                } else if (opt_hf > hf) {
+                    // deposit
+                    let diff = opt_deposit - deposited;
+                    update_position_for_deposit<ShadowToAsset>(key, addr, diff, false); // TODO: collateral_only
+                    vector::push_back<Rebalance>(&mut result_amount_deposited, rebalance::create(key, diff));
                 };
                 i = i -1;
             }
@@ -316,25 +306,33 @@ module leizd::account_position {
         (result_amount_deposited, result_amount_withdrawed)
     }
 
+    fun health_factor(deposited: u64, borrowed: u64): u64 {
+        if (deposited == 0) {
+            0
+        } else {
+            risk_factor::precision() - (borrowed * risk_factor::precision() / (deposited * risk_factor::ltv_of_shadow() / risk_factor::precision()))
+        }
+    }
+
     fun sum_extra_and_insufficient_shadow(coins: &vector<String>, protected_coins: &SimpleMap<String,bool>, addr: address): (u64,u64,u64,u64) acquires Position {
         let i = vector::length<String>(coins);
         let sum_extra_shadow = 0;
         let sum_insufficient_shadow = 0;
-        let extra_position_count = 0;
-        let insufficient_position_count = 0;
+        let sum_deposited = 0;
+        let sum_borrowed = 0;
 
         while (i > 0) {
             let key = vector::borrow<String>(coins, i-1);
             if (!is_protected_internal(protected_coins, *key)) {
-                let (extra, insufficient) = extra_and_insufficient_shadow(*key, addr);
+                let (extra, insufficient, deposited, borrowed) = extra_and_insufficient_shadow(*key, addr);
                 sum_extra_shadow = sum_extra_shadow + extra;
                 sum_insufficient_shadow = sum_insufficient_shadow + insufficient;
-                extra_position_count = extra_position_count + 1;
-                insufficient_position_count = insufficient_position_count + 1;
+                sum_deposited = sum_deposited + deposited;
+                sum_borrowed = sum_borrowed + borrowed;
             };
             i = i - 1;
         };
-        (sum_extra_shadow, sum_insufficient_shadow, extra_position_count, insufficient_position_count)
+        (sum_extra_shadow, sum_insufficient_shadow, sum_deposited, sum_borrowed)
     }
 
     fun sum_capacity_and_overdebt_shadow(coins: &vector<String>, protected_coins: &SimpleMap<String,bool>, addr: address): (u64,u64,u64,u64) acquires Position {
@@ -586,7 +584,7 @@ module leizd::account_position {
         (capacity, overdebt)
     }
 
-    fun extra_and_insufficient_shadow(key: String, addr: address): (u64,u64) acquires Position {
+    fun extra_and_insufficient_shadow(key: String, addr: address): (u64,u64,u64,u64) acquires Position {
         let extra = 0;
         let insufficient = 0;
         
@@ -598,7 +596,7 @@ module leizd::account_position {
         } else {
             extra = extra + (deposited - required_deposit);
         };
-        (extra, insufficient)
+        (extra, insufficient, deposited, borrowed)
     }
 
     fun can_rebalance_shadow_between(addr: address, key1: String, key2: String): (bool,u64,u64) acquires Position {
@@ -608,7 +606,7 @@ module leizd::account_position {
         };
 
         // extra in key1
-        let (extra, _) = extra_and_insufficient_shadow(key1, addr);
+        let (extra,_,_,_) = extra_and_insufficient_shadow(key1, addr);
         if (extra == 0) return (false, 0, 0);
 
         // insufficient in key2
@@ -1481,7 +1479,7 @@ module leizd::account_position {
         deposit_internal<WETH,Asset>(account, account_addr, 10000, false);
         borrow_internal<WETH,Shadow>(account, account_addr, 8500);
     }
-
+    use std::debug;
     // borrow shadow with rebalance
     #[test(owner=@leizd,account1=@0x111)]
     public entry fun test_borrow_asset_with_rebalance(owner: &signer, account1: &signer) acquires Position, AccountPositionEventHandle {
@@ -1493,10 +1491,14 @@ module leizd::account_position {
         deposit_internal<WETH,Asset>(account1, account1_addr, 100000, false);
         deposit_internal<USDC,Shadow>(account1, account1_addr, 100000, false);
         borrow_asset_with_rebalance_internal<UNI>(account1_addr, 10000);
+        debug::print(&borrowed_shadow_share<WETH>(account1_addr));
+        debug::print(&deposited_shadow_share<USDC>(account1_addr));
+        debug::print(&borrowed_shadow_share<WETH>(account1_addr));
         assert!(deposited_asset_share<WETH>(account1_addr) == 100000, 0);
-        assert!(deposited_shadow_share<USDC>(account1_addr) == 88889, 0);
+        assert!(deposited_shadow_share<USDC>(account1_addr) == 0, 0);
         assert!(borrowed_shadow_share<WETH>(account1_addr) == 0, 0);
         assert!(borrowed_asset_share<UNI>(account1_addr) == 10000, 0);
+        assert!(deposited_shadow_share<UNI>(account1_addr) == 0, 0);
     }
 
     // #[test(owner=@leizd,account1=@0x111)]
