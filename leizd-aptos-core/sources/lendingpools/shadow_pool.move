@@ -993,7 +993,8 @@ module leizd::shadow_pool {
         usdz::mint_for_test(account_addr, 1000000);
         assert!(coin::balance<USDZ>(account_addr) == 1000000, 0);
 
-        deposit_for_internal(key<WETH>(), account, account_addr, 800000, false);
+        let (amount, _) = deposit_for_internal(key<WETH>(), account, account_addr, 800000, false);
+        assert!(amount == 800000, 0);
         assert!(coin::balance<USDZ>(account_addr) == 200000, 0);
         assert!(total_normal_deposited_amount() == 800000, 0);
         assert!(normal_deposited_amount<WETH>() == 800000, 0);
@@ -1015,7 +1016,8 @@ module leizd::shadow_pool {
         managed_coin::register<USDZ>(account);
         usdz::mint_for_test(account_addr, 100);
 
-        deposit_for_internal(key<WETH>(), account, account_addr, 100, false);
+        let (amount, _) = deposit_for_internal(key<WETH>(), account, account_addr, 100, false);
+        assert!(amount == 100, 0);
         assert!(coin::balance<USDZ>(account_addr) == 0, 0);
         assert!(total_normal_deposited_amount() == 100, 0);
         assert!(normal_deposited_amount<WETH>() == 100, 0);
@@ -1073,7 +1075,8 @@ module leizd::shadow_pool {
 
         usdz::mint_for_test(account_addr, 1000000);
 
-        deposit_for_internal(key<WETH>(), account, account_addr, 800000, true);
+        let (amount, _) = deposit_for_internal(key<WETH>(), account, account_addr, 800000, true);
+        assert!(amount == 800000, 0);
         assert!(coin::balance<USDZ>(account_addr) == 200000, 0);
         assert!(total_liquidity() == 0, 0);
         // assert!(total_deposited() == 0, 0); // TODO: check
@@ -1082,6 +1085,37 @@ module leizd::shadow_pool {
         assert!(normal_deposited_amount<WETH>() == 0, 0);
         assert!(conly_deposited_amount<WETH>() == 800000, 0);
         assert!(borrowed_amount<WETH>() == 0, 0);
+    }
+    #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
+    public entry fun test_deposit_to_check_share(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, Keys, PoolEventHandle {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        let owner_addr = permission::owner_address();
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+        managed_coin::register<USDZ>(account);
+        usdz::mint_for_test(account_addr, 50000);
+        let key = key<WETH>();
+
+        // execute
+        let (amount, share) = deposit_for_internal(key, account, account_addr, 1000, false);
+        assert!(amount == 1000, 0);
+        assert!(share == 1000, 0);
+
+        //// update total_xxxx (instead of interest by accrue_interest)
+        let normal_deposited_amount = &mut simple_map::borrow_mut<String,AssetStorage>(&mut borrow_global_mut<Storage>(owner_addr).asset_storages, &key).normal_deposited_amount;
+        *normal_deposited_amount = *normal_deposited_amount + 1000;
+
+        let (amount, share) = deposit_for_internal(key<WETH>(), account, account_addr, 500, false);
+        assert!(amount == 500, 0);
+        assert!(share == 250, 0); 
+
+        //// update total_xxxx (instead of interest by accrue_interest)
+        let normal_deposited_amount = &mut simple_map::borrow_mut<String,AssetStorage>(&mut borrow_global_mut<Storage>(owner_addr).asset_storages, &key).normal_deposited_amount;
+        *normal_deposited_amount = *normal_deposited_amount + 2500;
+
+        let (amount, share) = deposit_for_internal(key<WETH>(), account, account_addr, 20000, false);
+        assert!(amount == 20000, 0);
+        assert!(share == 5000, 0);
     }
 
     // for withdraw
