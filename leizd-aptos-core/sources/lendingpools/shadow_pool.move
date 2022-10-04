@@ -900,11 +900,11 @@ module leizd::shadow_pool {
     }
     public fun borrowed_share<C>(): u128 acquires Storage {
         let storage_ref = borrow_global<Storage>(permission::owner_address());
-        borrowed_amount_internal(key<C>(), storage_ref)
+        borrowed_share_internal(key<C>(), storage_ref)
     }
     public fun borrowed_share_with(key: String): u128 acquires Storage {
         let storage_ref = borrow_global<Storage>(permission::owner_address());
-        borrowed_amount_internal(key, storage_ref)
+        borrowed_share_internal(key, storage_ref)
     }
     fun borrowed_share_internal(key: String, storage: &Storage): u128 {
         if (is_initialized_asset_with_internal(&key, storage)) {
@@ -1456,6 +1456,39 @@ module leizd::shadow_pool {
         deposit_for_internal(key<UNI>(), depositor, depositor_addr, 50, true);
         // borrow UNI
         borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 120);
+    }
+    #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
+    public entry fun test_borrow_to_check_share(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, Keys, PoolEventHandle {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        let owner_addr = permission::owner_address();
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+        managed_coin::register<USDZ>(account);
+        usdz::mint_for_test(account_addr, 500000);
+        let key = key<WETH>();
+
+        // execute
+        deposit_for_internal(key, account, account_addr, 500000, false);
+        assert!(normal_deposited_amount<WETH>() == 500000, 0);
+        assert!(normal_deposited_share<WETH>() == 500000, 0);
+
+        let (amount, share) = borrow_for_internal(key, account_addr, account_addr, 100000);
+        assert!(amount == 100000 + 500, 0);
+        assert!(share == 100000 + 500, 0);
+        assert!(borrowed_amount<WETH>() == 100500, 0);
+        assert!(borrowed_share<WETH>() == 100500, 0);
+
+        //// update total_xxxx (instead of interest by accrue_interest)
+        let borrowed_amount = &mut simple_map::borrow_mut<String,AssetStorage>(&mut borrow_global_mut<Storage>(owner_addr).asset_storages, &key).borrowed_amount;
+        *borrowed_amount = *borrowed_amount + 100500;
+        assert!(borrowed_amount<WETH>() == 201000, 0);
+        assert!(borrowed_share<WETH>() == 100500, 0);
+
+        let (amount, share) = borrow_for_internal(key, account_addr, account_addr, 50000);
+        assert!(amount == 50000 + 250, 0);
+        assert!(share == 25125, 0);
+        assert!(borrowed_amount<WETH>() == 250000 + 1250, 0);
+        assert!(borrowed_share<WETH>() == 125000 + 625, 0);
     }
 
     // for repay
