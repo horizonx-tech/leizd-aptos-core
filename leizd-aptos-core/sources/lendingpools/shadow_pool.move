@@ -1100,22 +1100,41 @@ module leizd::shadow_pool {
         let (amount, share) = deposit_for_internal(key, account, account_addr, 1000, false);
         assert!(amount == 1000, 0);
         assert!(share == 1000, 0);
+        assert!(normal_deposited_amount<WETH>() == 1000, 0);
+        assert!(normal_deposited_share<WETH>() == 1000, 0);
+        assert!(total_normal_deposited_amount() == 1000, 0);
 
         //// update total_xxxx (instead of interest by accrue_interest)
-        let normal_deposited_amount = &mut simple_map::borrow_mut<String,AssetStorage>(&mut borrow_global_mut<Storage>(owner_addr).asset_storages, &key).normal_deposited_amount;
+        let storage_ref = borrow_global_mut<Storage>(owner_addr);
+        let normal_deposited_amount = &mut simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key).normal_deposited_amount;
+        storage_ref.total_normal_deposited_amount = storage_ref.total_normal_deposited_amount + 1000;
         *normal_deposited_amount = *normal_deposited_amount + 1000;
+        assert!(normal_deposited_amount<WETH>() == 2000, 0);
+        assert!(normal_deposited_share<WETH>() == 1000, 0);
+        assert!(total_normal_deposited_amount() == 2000, 0);
 
         let (amount, share) = deposit_for_internal(key<WETH>(), account, account_addr, 500, false);
         assert!(amount == 500, 0);
-        assert!(share == 250, 0); 
+        assert!(share == 250, 0);
+        assert!(normal_deposited_amount<WETH>() == 2500, 0);
+        assert!(normal_deposited_share<WETH>() == 1250, 0);
+        assert!(total_normal_deposited_amount() == 2500, 0);
 
         //// update total_xxxx (instead of interest by accrue_interest)
-        let normal_deposited_amount = &mut simple_map::borrow_mut<String,AssetStorage>(&mut borrow_global_mut<Storage>(owner_addr).asset_storages, &key).normal_deposited_amount;
+        let storage_ref = borrow_global_mut<Storage>(owner_addr);
+        let normal_deposited_amount = &mut simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key).normal_deposited_amount;
+        storage_ref.total_normal_deposited_amount = storage_ref.total_normal_deposited_amount + 2500;
         *normal_deposited_amount = *normal_deposited_amount + 2500;
+        assert!(normal_deposited_amount<WETH>() == 5000, 0);
+        assert!(normal_deposited_share<WETH>() == 1250, 0);
+        assert!(total_normal_deposited_amount() == 5000, 0);
 
         let (amount, share) = deposit_for_internal(key<WETH>(), account, account_addr, 20000, false);
         assert!(amount == 20000, 0);
         assert!(share == 5000, 0);
+        assert!(normal_deposited_amount<WETH>() == 25000, 0);
+        assert!(normal_deposited_share<WETH>() == 6250, 0);
+        assert!(total_normal_deposited_amount() == 25000, 0);
     }
 
     // for withdraw
@@ -1252,7 +1271,9 @@ module leizd::shadow_pool {
         assert!(normal_deposited_share<WETH>() == 10000, 0);
 
         //// update total_xxxx (instead of interest by accrue_interest)
-        let normal_deposited_amount = &mut simple_map::borrow_mut<String,AssetStorage>(&mut borrow_global_mut<Storage>(owner_addr).asset_storages, &key).normal_deposited_amount;
+        let storage_ref = borrow_global_mut<Storage>(owner_addr);
+        let normal_deposited_amount = &mut simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key).normal_deposited_amount;
+        storage_ref.total_normal_deposited_amount = storage_ref.total_normal_deposited_amount - 9000;
         *normal_deposited_amount = *normal_deposited_amount - 9000;
         assert!(normal_deposited_amount<WETH>() == 1000, 0);
         assert!(normal_deposited_share<WETH>() == 10000, 0);
@@ -1264,7 +1285,9 @@ module leizd::shadow_pool {
         assert!(normal_deposited_share<WETH>() == 5000, 0);
 
         //// update total_xxxx (instead of interest by accrue_interest)
-        let normal_deposited_amount = &mut simple_map::borrow_mut<String,AssetStorage>(&mut borrow_global_mut<Storage>(owner_addr).asset_storages, &key).normal_deposited_amount;
+        let storage_ref = borrow_global_mut<Storage>(owner_addr);
+        let normal_deposited_amount = &mut simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key).normal_deposited_amount;
+        storage_ref.total_normal_deposited_amount = storage_ref.total_normal_deposited_amount + 1500;
         *normal_deposited_amount = *normal_deposited_amount + 1500;
         assert!(normal_deposited_amount<WETH>() == 2000, 0);
         assert!(normal_deposited_share<WETH>() == 5000, 0);
@@ -1471,7 +1494,7 @@ module leizd::shadow_pool {
         deposit_for_internal(key, account, account_addr, 500000, false);
         assert!(normal_deposited_amount<WETH>() == 500000, 0);
         assert!(normal_deposited_share<WETH>() == 500000, 0);
-        assert!(total_borrowed_amount() == 500000, 0);
+        assert!(total_borrowed_amount() == 0, 0);
 
         let (amount, share) = borrow_for_internal(key, account_addr, account_addr, 100000);
         assert!(amount == 100000 + 500, 0);
@@ -1700,7 +1723,7 @@ module leizd::shadow_pool {
         deposit_for_internal(key, account, account_addr, 500000, false);
         assert!(normal_deposited_amount<WETH>() == 500000, 0);
         assert!(normal_deposited_share<WETH>() == 500000, 0);
-        assert!(total_borrowed_amount() == 500000, 0);
+        assert!(total_borrowed_amount() == 0, 0);
 
         let (amount, share) = borrow_for_internal(key, account_addr, account_addr, 100000);
         assert!(amount == 100500, 0);
