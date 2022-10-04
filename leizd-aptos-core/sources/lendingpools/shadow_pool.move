@@ -2770,6 +2770,20 @@ module leizd::shadow_pool {
     // }
 
     // scenario
+    #[test_only]
+    public fun earn_interest_without_using_interest_rate_module_for_test<C>(
+        rcomp: u128,
+        share_fee: u64
+    ) acquires Pool, Storage, Keys {
+        let owner_addr = permission::owner_address();
+        save_calculated_values_by_rcomp(
+            key<C>(),
+            borrow_global_mut<Storage>(owner_addr),
+            rcomp,
+            share_fee,
+            borrow_global_mut<Pool>(owner_addr)
+        );
+    }
     #[test(owner=@leizd,depositor1=@0x111,depositor2=@0x222,borrower1=@0x333,borrower2=@0x444,aptos_framework=@aptos_framework)]
     public entry fun test_scenario_to_confirm_coins_moving(owner: &signer, depositor1: &signer, depositor2: &signer, borrower1: &signer, borrower2: &signer, aptos_framework: &signer) acquires Pool, Storage, Keys, PoolEventHandle {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
