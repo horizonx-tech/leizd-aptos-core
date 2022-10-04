@@ -2768,4 +2768,98 @@ module leizd::shadow_pool {
     //     let event_handle = borrow_global<PoolEventHandle>(signer::address_of(owner));
     //     assert!(event::counter<RepayEvent>(&event_handle.repay_event) == 1, 0);
     // }
+
+    // scenario
+    #[test(owner=@leizd,depositor1=@0x111,depositor2=@0x222,borrower1=@0x333,borrower2=@0x444,aptos_framework=@aptos_framework)]
+    public entry fun test_scenario_to_confirm_coins_moving(owner: &signer, depositor1: &signer, depositor2: &signer, borrower1: &signer, borrower2: &signer, aptos_framework: &signer) acquires Pool, Storage, Keys, PoolEventHandle {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        let owner_addr = signer::address_of(owner);
+
+        let depositor1_addr = signer::address_of(depositor1);
+        account::create_account_for_test(depositor1_addr);
+        managed_coin::register<USDZ>(depositor1);
+        usdz::mint_for_test(depositor1_addr, 500000);
+        let depositor2_addr = signer::address_of(depositor2);
+        account::create_account_for_test(depositor2_addr);
+        managed_coin::register<USDZ>(depositor2);
+
+        let borrower1_addr = signer::address_of(borrower1);
+        account::create_account_for_test(borrower1_addr);
+        managed_coin::register<USDZ>(borrower1);
+        let borrower2_addr = signer::address_of(borrower2);
+        account::create_account_for_test(borrower2_addr);
+        managed_coin::register<USDZ>(borrower2);
+
+        // execute
+        //// deposit
+        deposit_for_internal(key<WETH>(), depositor1, depositor1_addr, 400000, false);
+        deposit_for_internal(key<WETH>(), depositor1, depositor2_addr, 100000, false);
+        assert!(normal_deposited_amount<WETH>() == 500000, 0);
+        assert!(normal_deposited_share<WETH>() == 500000, 0);
+        assert!(pool_shadow_value(owner_addr) == 500000, 0);
+        assert!(coin::balance<USDZ>(depositor1_addr) == 0, 0);
+
+        //// borrow
+        borrow_for_internal(key<WETH>(), borrower1_addr, borrower1_addr, 75000);
+        assert!(borrowed_amount<WETH>() == 75375, 0);
+        assert!(borrowed_share<WETH>() == 75375, 0);
+        assert!(treasury::balance<USDZ>() == 375, 0);
+        borrow_for_internal(key<WETH>(), borrower1_addr, borrower2_addr, 25000);
+        assert!(borrowed_amount<WETH>() == 100500, 0);
+        assert!(borrowed_share<WETH>() == 100500, 0);
+        assert!(treasury::balance<USDZ>() == 500, 0);
+
+        assert!(pool_shadow_value(owner_addr) == 399500, 0);
+        assert!(coin::balance<USDZ>(borrower1_addr) == 75000, 0);
+        assert!(coin::balance<USDZ>(borrower2_addr) == 25000, 0);
+
+        //// update total_xxxx (instead of interest by accrue_interest)
+        save_calculated_values_by_rcomp(
+            key<WETH>(),
+            borrow_global_mut<Storage>(owner_addr),
+            ((risk_factor::precision() / 1000 * 100) as u128), // 10% (dummy value)
+            risk_factor::precision() / 1000 * 200, // 20% (dummy value)
+            borrow_global_mut<Pool>(owner_addr)
+        );
+        assert!(borrowed_amount<WETH>() == 100500 + 10050, 0);
+        assert!(normal_deposited_amount<WETH>() == 500000 + 8040, 0);
+        assert!(protocol_fees() == 2010, 0);
+        assert!(harvested_protocol_fees() == 0, 0);
+
+        //// repay
+        usdz::mint_for_test(borrower1_addr, 88440 - 75000); // make up for the shortfall
+        repay_internal(key<WETH>(), borrower1, 88440); // 80400 + (10050 * 80%)
+        assert!(borrowed_amount<WETH>() == 22110, 0); // 20100 + (10050 * 20%)
+        assert!(borrowed_share<WETH>() == 20100, 0);
+        ////// remains
+        repay_internal(key<WETH>(), borrower2, 22110);
+        assert!(borrowed_amount<WETH>() == 0, 0);
+        assert!(borrowed_share<WETH>() == 0, 0);
+        assert!(pool_shadow_value(owner_addr) == 500000 + 10050, 0);
+        assert!(coin::balance<USDZ>(borrower1_addr) == 0, 0);
+        assert!(coin::balance<USDZ>(borrower2_addr) == 25000 - 22110, 0);
+
+        //// harvest
+        harvest_protocol_fees<WETH>();
+        assert!(protocol_fees() == 2010, 0);
+        assert!(harvested_protocol_fees() == 2010, 0);
+        assert!(pool_shadow_value(owner_addr) == 510050 - 2010, 0);
+        assert!(treasury::balance<USDZ>() == 500 + 2010, 0);
+
+        //// withdraw
+        let (_, share) = withdraw_for_internal(key<WETH>(), depositor1_addr, depositor1_addr, 304824, false, 0); // 300000 + (8040 * 60%)
+        assert!(share == 300000, 0);
+        assert!(normal_deposited_amount<WETH>() == 203216, 0); // 200000 + (8040 * 40%)
+        assert!(normal_deposited_share<WETH>() == 200000, 0);
+        assert!(pool_shadow_value(owner_addr) == 508040 - 304824, 0);
+        ////// remains
+        let (_, share) = withdraw_for_internal(key<WETH>(), depositor1_addr, depositor2_addr, 203216, false, 0); // 200000 + (8040 * 40%)
+        assert!(share == 200000, 0);
+        assert!(normal_deposited_amount<WETH>() == 0, 0);
+        assert!(normal_deposited_share<WETH>() == 0, 0);
+        assert!(pool_shadow_value(owner_addr) == 0, 0);
+
+        assert!(coin::balance<USDZ>(depositor1_addr) == 304824, 0);
+        assert!(coin::balance<USDZ>(depositor2_addr) == 203216, 0);
+    }
 }
