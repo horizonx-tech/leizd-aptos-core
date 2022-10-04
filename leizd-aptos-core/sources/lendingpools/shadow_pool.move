@@ -1130,8 +1130,9 @@ module leizd::shadow_pool {
         usdz::mint_for_test(account_addr, 1000000);
 
         deposit_for_internal(key<WETH>(), account, account_addr, 700000, false);
-        withdraw_for_internal(key<WETH>(), account_addr, account_addr, 600000, false, 0);
+        let (amount, _) = withdraw_for_internal(key<WETH>(), account_addr, account_addr, 600000, false, 0);
 
+        assert!(amount == 600000, 0);
         assert!(coin::balance<USDZ>(account_addr) == 900000, 0);
         assert!(total_normal_deposited_amount() == 100000, 0);
         assert!(normal_deposited_amount<WETH>() == 100000, 0);
@@ -1155,8 +1156,9 @@ module leizd::shadow_pool {
         usdz::mint_for_test(account_addr, 100);
 
         deposit_for_internal(key<WETH>(), account, account_addr, 100, false);
-        withdraw_for_internal(key<WETH>(), account_addr, account_addr, 100, false, 0);
+        let (amount, _) = withdraw_for_internal(key<WETH>(), account_addr, account_addr, 100, false, 0);
 
+        assert!(amount == 100, 0);
         assert!(coin::balance<USDZ>(account_addr) == 100, 0);
         assert!(total_normal_deposited_amount() == 0, 0);
         assert!(normal_deposited_amount<WETH>() == 0, 0);
@@ -1220,8 +1222,9 @@ module leizd::shadow_pool {
         usdz::mint_for_test(account_addr, 1000000);
 
         deposit_for_internal(key<WETH>(), account, account_addr, 700000, true);
-        withdraw_for_internal(key<WETH>(), account_addr, account_addr, 600000, true, 0);
+        let (amount, _) = withdraw_for_internal(key<WETH>(), account_addr, account_addr, 600000, true, 0);
 
+        assert!(amount == 600000, 0);
         assert!(coin::balance<USDZ>(account_addr) == 900000, 0);
         assert!(total_liquidity() == 0, 0);
         // assert!(total_deposited() == 0, 0); // TODO: check
