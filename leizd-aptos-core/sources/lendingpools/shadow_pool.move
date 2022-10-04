@@ -1471,24 +1471,30 @@ module leizd::shadow_pool {
         deposit_for_internal(key, account, account_addr, 500000, false);
         assert!(normal_deposited_amount<WETH>() == 500000, 0);
         assert!(normal_deposited_share<WETH>() == 500000, 0);
+        assert!(total_borrowed_amount() == 500000, 0);
 
         let (amount, share) = borrow_for_internal(key, account_addr, account_addr, 100000);
         assert!(amount == 100000 + 500, 0);
         assert!(share == 100000 + 500, 0);
         assert!(borrowed_amount<WETH>() == 100500, 0);
         assert!(borrowed_share<WETH>() == 100500, 0);
+        assert!(total_borrowed_amount() == 100500, 0);
 
         //// update total_xxxx (instead of interest by accrue_interest)
-        let borrowed_amount = &mut simple_map::borrow_mut<String,AssetStorage>(&mut borrow_global_mut<Storage>(owner_addr).asset_storages, &key).borrowed_amount;
+        let storage_ref = borrow_global_mut<Storage>(owner_addr);
+        let borrowed_amount = &mut simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key).borrowed_amount;
+        storage_ref.total_borrowed_amount = storage_ref.total_borrowed_amount + 100500;
         *borrowed_amount = *borrowed_amount + 100500;
         assert!(borrowed_amount<WETH>() == 201000, 0);
         assert!(borrowed_share<WETH>() == 100500, 0);
+        assert!(total_borrowed_amount() == 201000, 0);
 
         let (amount, share) = borrow_for_internal(key, account_addr, account_addr, 50000);
         assert!(amount == 50000 + 250, 0);
         assert!(share == 25125, 0);
         assert!(borrowed_amount<WETH>() == 250000 + 1250, 0);
         assert!(borrowed_share<WETH>() == 125000 + 625, 0);
+        assert!(total_borrowed_amount() == 250000 + 1250, 0);
     }
 
     // for repay
@@ -1521,8 +1527,8 @@ module leizd::shadow_pool {
         assert!(pool_shadow_value(owner_address) == 10050 - (5000 + 25), 0);
         assert!(borrowed_amount<UNI>() == 5025, 0);
         assert!(coin::balance<USDZ>(borrower_addr) == 5000, 0);
-        let (repaid_amount, _) = repay_internal(key<UNI>(), borrower, 2000);
-        assert!(repaid_amount == 2000, 0);
+        let (amount, _) = repay_internal(key<UNI>(), borrower, 2000);
+        assert!(amount == 2000, 0);
         assert!(pool_shadow_value(owner_address) == 7025, 0);
         assert!(borrowed_amount<UNI>() == 3025, 0);
         assert!(coin::balance<USDZ>(borrower_addr) == 3000, 0);
@@ -1551,8 +1557,8 @@ module leizd::shadow_pool {
         deposit_for_internal(key<UNI>(), depositor, depositor_addr, 1005, false);
         borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 1000);
         usdz::mint_for_test(borrower_addr, 5);
-        let (repaid_amount, _) = repay_internal(key<UNI>(), borrower, 1005);
-        assert!(repaid_amount == 1005, 0);
+        let (amount, _) = repay_internal(key<UNI>(), borrower, 1005);
+        assert!(amount == 1005, 0);
         assert!(pool_shadow_value(owner_address) == 1005, 0);
         assert!(borrowed_amount<UNI>() == 0, 0);
         assert!(coin::balance<USDZ>(borrower_addr) == 0, 0);
@@ -1680,6 +1686,75 @@ module leizd::shadow_pool {
     //     let event_handle = borrow_global<PoolEventHandle>(signer::address_of(owner));
     //     assert!(event::counter<RepayEvent>(&event_handle.repay_event) == 3, 0);
     // }
+   #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
+    public entry fun test_repay_to_check_share(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, Keys, PoolEventHandle {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        let owner_addr = permission::owner_address();
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+        managed_coin::register<USDZ>(account);
+        usdz::mint_for_test(account_addr, 1000000);
+        let key = key<WETH>();
+
+        // execute
+        deposit_for_internal(key, account, account_addr, 500000, false);
+        assert!(normal_deposited_amount<WETH>() == 500000, 0);
+        assert!(normal_deposited_share<WETH>() == 500000, 0);
+        assert!(total_borrowed_amount() == 500000, 0);
+
+        let (amount, share) = borrow_for_internal(key, account_addr, account_addr, 100000);
+        assert!(amount == 100500, 0);
+        assert!(share == 100500, 0);
+        assert!(borrowed_amount<WETH>() == 100500, 0);
+        assert!(borrowed_share<WETH>() == 100500, 0);
+        assert!(total_borrowed_amount() == 100500, 0);
+
+        let (amount, share) = repay_internal(key, account, 80500);
+        assert!(amount == 80500, 0);
+        assert!(share == 80500, 0);
+        assert!(borrowed_amount<WETH>() == 20000, 0);
+        assert!(borrowed_share<WETH>() == 20000, 0);
+        assert!(total_borrowed_amount() == 20000, 0);
+
+        //// update total_xxxx (instead of interest by accrue_interest)
+        let storage_ref = borrow_global_mut<Storage>(owner_addr);
+        let borrowed_amount = &mut simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key).borrowed_amount;
+        storage_ref.total_borrowed_amount = storage_ref.total_borrowed_amount - 10000;
+        *borrowed_amount = *borrowed_amount - 10000;
+        assert!(borrowed_amount<WETH>() == 10000, 0);
+        assert!(borrowed_share<WETH>() == 20000, 0);
+        assert!(total_borrowed_amount() == 10000, 0);
+
+        let (amount, share) = repay_internal(key, account, 7500);
+        assert!(amount == 7500, 0);
+        assert!(share == 15000, 0);
+        assert!(borrowed_amount<WETH>() == 2500, 0);
+        assert!(borrowed_share<WETH>() == 5000, 0);
+        assert!(total_borrowed_amount() == 2500, 0);
+
+        //// update total_xxxx (instead of interest by accrue_interest)
+        let storage_ref = borrow_global_mut<Storage>(owner_addr);
+        let borrowed_amount = &mut simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key).borrowed_amount;
+        storage_ref.total_borrowed_amount = storage_ref.total_borrowed_amount + 397500;
+        *borrowed_amount = *borrowed_amount + 397500;
+        assert!(borrowed_amount<WETH>() == 400000, 0);
+        assert!(borrowed_share<WETH>() == 5000, 0);
+        assert!(total_borrowed_amount() == 400000, 0);
+
+        let (amount, share) = repay_internal(key, account, 320000);
+        assert!(amount == 320000, 0);
+        assert!(share == 4000, 0);
+        assert!(borrowed_amount<WETH>() == 80000, 0);
+        assert!(borrowed_share<WETH>() == 1000, 0);
+        assert!(total_borrowed_amount() == 80000, 0);
+
+        let (amount, share) = repay_internal(key, account, 80000);
+        assert!(amount == 80000, 0);
+        assert!(share == 1000, 0);
+        assert!(borrowed_amount<WETH>() == 0, 0);
+        assert!(borrowed_share<WETH>() == 0, 0);
+        assert!(total_borrowed_amount() == 0, 0);
+    }
 
     // for liquidation
     #[test(owner=@leizd,depositor=@0x111,liquidator=@0x222,aptos_framework=@aptos_framework)]
