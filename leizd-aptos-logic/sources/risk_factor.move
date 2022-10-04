@@ -130,18 +130,23 @@ module leizd_aptos_logic::risk_factor {
         )
     }
 
-    public entry fun update_protocol_fees(owner: &signer, fees: ProtocolFees) acquires ProtocolFees, RepositoryEventHandle {
+    public entry fun update_protocol_fees(
+        owner: &signer,
+        new_entry_fee: u64,
+        new_share_fee: u64,
+        new_liquidation_fee: u64
+    ) acquires ProtocolFees, RepositoryEventHandle {
         let owner_address = signer::address_of(owner);
         permission::assert_owner(owner_address);
 
-        assert!(fees.entry_fee < PRECISION, error::invalid_argument(EINVALID_ENTRY_FEE));
-        assert!(fees.share_fee < PRECISION, error::invalid_argument(EINVALID_SHARE_FEE));
-        assert!(fees.liquidation_fee < PRECISION, error::invalid_argument(EINVALID_LIQUIDATION_FEE));
+        assert!(new_entry_fee < PRECISION, error::invalid_argument(EINVALID_ENTRY_FEE));
+        assert!(new_share_fee < PRECISION, error::invalid_argument(EINVALID_SHARE_FEE));
+        assert!(new_liquidation_fee < PRECISION, error::invalid_argument(EINVALID_LIQUIDATION_FEE));
 
-        let _fees = borrow_global_mut<ProtocolFees>(owner_address);
-        _fees.entry_fee = fees.entry_fee;
-        _fees.share_fee = fees.share_fee;
-        _fees.liquidation_fee = fees.liquidation_fee;
+        let fees = borrow_global_mut<ProtocolFees>(owner_address);
+        fees.entry_fee = new_entry_fee;
+        fees.share_fee = new_share_fee;
+        fees.liquidation_fee = new_liquidation_fee;
         event::emit_event<UpdateProtocolFeesEvent>(
             &mut borrow_global_mut<RepositoryEventHandle>(owner_address).update_protocol_fees_event,
             UpdateProtocolFeesEvent {
@@ -292,12 +297,10 @@ module leizd_aptos_logic::risk_factor {
         managed_coin::register<WETH>(&account1);
         managed_coin::mint<WETH>(&owner, account1_addr, 1000000);
 
-        let new_protocol_fees = ProtocolFees {
-            entry_fee: PRECISION / 1000 * 8, // 0.8%
-            share_fee: PRECISION / 1000 * 7, // 0.7%,
-            liquidation_fee: PRECISION / 1000 * 6, // 0.6%,
-        };
-        update_protocol_fees(&owner, new_protocol_fees);
+        let new_entry_fee = PRECISION / 1000 * 8; // 0.8%
+        let new_share_fee = PRECISION / 1000 * 7; // 0.7%,
+        let new_liquidation_fee = PRECISION / 1000 * 6; // 0.6%,
+        update_protocol_fees(&owner, new_entry_fee, new_share_fee, new_liquidation_fee);
         let fees = borrow_global<ProtocolFees>(permission::owner_address());
         assert!(fees.entry_fee == PRECISION / 1000 * 8, 0);
         assert!(fees.share_fee == PRECISION / 1000 * 7, 0);
@@ -313,12 +316,10 @@ module leizd_aptos_logic::risk_factor {
         initialize(&owner);
         initialize_for_asset_internal<WETH>(&owner);
 
-        let new_protocol_fees = ProtocolFees {
-            entry_fee: PRECISION / 1000 * 8, // 0.8%
-            share_fee: PRECISION,
-            liquidation_fee: PRECISION / 1000 * 6, // 0.6%,
-        };
-        update_protocol_fees(&owner, new_protocol_fees);
+        let new_entry_fee = PRECISION / 1000 * 8; // 0.8%
+        let new_share_fee = PRECISION;
+        let new_liquidation_fee = PRECISION / 1000 * 6; // 0.6%,
+        update_protocol_fees(&owner, new_entry_fee, new_share_fee, new_liquidation_fee);
     }
     #[test(owner=@leizd_aptos_logic)]
     #[expected_failure(abort_code = 65542)]
@@ -328,12 +329,10 @@ module leizd_aptos_logic::risk_factor {
         initialize(&owner);
         initialize_for_asset_internal<WETH>(&owner);
 
-        let new_protocol_fees = ProtocolFees {
-            entry_fee: PRECISION / 1000 * 8, // 0.8%
-            share_fee: PRECISION / 1000 * 7, // 0.7%,
-            liquidation_fee: PRECISION,
-        };
-        update_protocol_fees(&owner, new_protocol_fees);
+        let new_entry_fee = PRECISION / 1000 * 8; // 0.8%
+        let new_share_fee = PRECISION / 1000 * 7; // 0.7%,
+        let new_liquidation_fee = PRECISION;
+        update_protocol_fees(&owner, new_entry_fee, new_share_fee, new_liquidation_fee);
     }
     #[test(owner=@leizd_aptos_logic)]
     #[expected_failure(abort_code = 65540)]
@@ -343,12 +342,10 @@ module leizd_aptos_logic::risk_factor {
         initialize(&owner);
         initialize_for_asset_internal<WETH>(&owner);
 
-        let new_protocol_fees = ProtocolFees {
-            entry_fee: PRECISION,
-            share_fee: PRECISION / 1000 * 7, // 0.7%,
-            liquidation_fee: PRECISION / 1000 * 6, // 0.6%,
-        };
-        update_protocol_fees(&owner, new_protocol_fees);
+        let new_entry_fee = PRECISION;
+        let new_share_fee = PRECISION / 1000 * 7; // 0.7%,
+        let new_liquidation_fee = PRECISION / 1000 * 6; // 0.6%,
+        update_protocol_fees(&owner, new_entry_fee, new_share_fee, new_liquidation_fee);
     }
     #[test_only]
     struct TestAsset {}
