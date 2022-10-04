@@ -616,7 +616,7 @@ module leizd::shadow_pool {
         is_collateral_only: bool,
         _key: &OperatorKey
     ): (u64, u64) acquires Pool, Storage, PoolEventHandle, Keys {
-        withdraw_for_liquidation_internal(key<C>(), liquidator_addr, target_addr, withdrawing, is_collateral_only);
+        withdraw_for_liquidation_internal(key<C>(), liquidator_addr, target_addr, withdrawing, is_collateral_only)
     }
 
     fun withdraw_for_liquidation_internal(
