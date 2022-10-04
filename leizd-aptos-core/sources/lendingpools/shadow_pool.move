@@ -734,7 +734,7 @@ module leizd::shadow_pool {
             now,
         );
         let accrued_interest = (asset_storage_ref.borrowed_amount as u128) * rcomp / interest_rate::precision();
-        let protocol_share = accrued_interest * (protocol_share_fee as u128) / interest_rate::precision();
+        let protocol_share = accrued_interest * (protocol_share_fee as u128) / (risk_factor::precision() as u128);
         let new_protocol_fees = storage_ref.protocol_fees + (protocol_share as u64);
 
         let depositors_share = accrued_interest - protocol_share;
