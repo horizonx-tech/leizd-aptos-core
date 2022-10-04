@@ -1231,6 +1231,47 @@ module leizd::shadow_pool {
         assert!(conly_deposited_amount<WETH>() == 100000, 0);
         assert!(borrowed_amount<WETH>() == 0, 0);
     }
+    #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
+    public entry fun test_withdraw_to_check_share(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, Keys, PoolEventHandle {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        let owner_addr = permission::owner_address();
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+        managed_coin::register<USDZ>(account);
+        usdz::mint_for_test(account_addr, 50000);
+        let key = key<WETH>();
+
+        // execute
+        let (amount, share) = deposit_for_internal(key, account, account_addr, 10000, false);
+        assert!(amount == 10000, 0);
+        assert!(share == 10000, 0);
+        assert!(normal_deposited_amount<WETH>() == 10000, 0);
+        assert!(normal_deposited_share<WETH>() == 10000, 0);
+
+        //// update total_xxxx (instead of interest by accrue_interest)
+        let normal_deposited_amount = &mut simple_map::borrow_mut<String,AssetStorage>(&mut borrow_global_mut<Storage>(owner_addr).asset_storages, &key).normal_deposited_amount;
+        *normal_deposited_amount = *normal_deposited_amount - 9000;
+        assert!(normal_deposited_amount<WETH>() == 1000, 0);
+        assert!(normal_deposited_share<WETH>() == 10000, 0);
+
+        let (amount, share) = withdraw_for_internal(key, account_addr, account_addr, 500, false, 0);
+        assert!(amount == 500, 0);
+        assert!(share == 5000, 0);
+        assert!(normal_deposited_amount<WETH>() == 500, 0);
+        assert!(normal_deposited_share<WETH>() == 5000, 0);
+
+        //// update total_xxxx (instead of interest by accrue_interest)
+        let normal_deposited_amount = &mut simple_map::borrow_mut<String,AssetStorage>(&mut borrow_global_mut<Storage>(owner_addr).asset_storages, &key).normal_deposited_amount;
+        *normal_deposited_amount = *normal_deposited_amount + 1500;
+        assert!(normal_deposited_amount<WETH>() == 2000, 0);
+        assert!(normal_deposited_share<WETH>() == 5000, 0);
+
+        let (amount, share) = withdraw_for_internal(key, account_addr, account_addr, 2000, false, 0);
+        assert!(amount == 2000, 0);
+        assert!(share == 5000, 0);
+        assert!(normal_deposited_amount<WETH>() == 0, 0);
+        assert!(normal_deposited_share<WETH>() == 0, 0);
+    }
 
     // for borrow
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
