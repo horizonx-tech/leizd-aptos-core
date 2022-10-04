@@ -2796,6 +2796,7 @@ module leizd::shadow_pool {
         deposit_for_internal(key<WETH>(), depositor1, depositor2_addr, 100000, false);
         assert!(normal_deposited_amount<WETH>() == 500000, 0);
         assert!(normal_deposited_share<WETH>() == 500000, 0);
+        assert!(total_normal_deposited_amount() == 500000, 0);
         assert!(pool_shadow_value(owner_addr) == 500000, 0);
         assert!(coin::balance<USDZ>(depositor1_addr) == 0, 0);
 
@@ -2804,10 +2805,12 @@ module leizd::shadow_pool {
         assert!(borrowed_amount<WETH>() == 75375, 0);
         assert!(borrowed_share<WETH>() == 75375, 0);
         assert!(treasury::balance<USDZ>() == 375, 0);
+        assert!(total_borrowed_amount() == 75375, 0);
         borrow_for_internal(key<WETH>(), borrower1_addr, borrower2_addr, 25000);
         assert!(borrowed_amount<WETH>() == 100500, 0);
         assert!(borrowed_share<WETH>() == 100500, 0);
         assert!(treasury::balance<USDZ>() == 500, 0);
+        assert!(total_borrowed_amount() == 100500, 0);
 
         assert!(pool_shadow_value(owner_addr) == 399500, 0);
         assert!(coin::balance<USDZ>(borrower1_addr) == 75000, 0);
@@ -2823,6 +2826,8 @@ module leizd::shadow_pool {
         );
         assert!(borrowed_amount<WETH>() == 100500 + 10050, 0);
         assert!(normal_deposited_amount<WETH>() == 500000 + 8040, 0);
+        assert!(total_borrowed_amount() == 100500 + 10050, 0);
+        assert!(total_normal_deposited_amount() == 500000 + 8040, 0);
         assert!(protocol_fees() == 2010, 0);
         assert!(harvested_protocol_fees() == 0, 0);
 
@@ -2831,10 +2836,13 @@ module leizd::shadow_pool {
         repay_internal(key<WETH>(), borrower1, 88440); // 80400 + (10050 * 80%)
         assert!(borrowed_amount<WETH>() == 22110, 0); // 20100 + (10050 * 20%)
         assert!(borrowed_share<WETH>() == 20100, 0);
+        assert!(total_borrowed_amount() == 22110, 0);
         ////// remains
         repay_internal(key<WETH>(), borrower2, 22110);
         assert!(borrowed_amount<WETH>() == 0, 0);
         assert!(borrowed_share<WETH>() == 0, 0);
+        assert!(total_borrowed_amount() == 0, 0);
+
         assert!(pool_shadow_value(owner_addr) == 500000 + 10050, 0);
         assert!(coin::balance<USDZ>(borrower1_addr) == 0, 0);
         assert!(coin::balance<USDZ>(borrower2_addr) == 25000 - 22110, 0);
@@ -2851,12 +2859,14 @@ module leizd::shadow_pool {
         assert!(share == 300000, 0);
         assert!(normal_deposited_amount<WETH>() == 203216, 0); // 200000 + (8040 * 40%)
         assert!(normal_deposited_share<WETH>() == 200000, 0);
+        assert!(total_normal_deposited_amount() == 203216, 0);
         assert!(pool_shadow_value(owner_addr) == 508040 - 304824, 0);
         ////// remains
         let (_, share) = withdraw_for_internal(key<WETH>(), depositor1_addr, depositor2_addr, 203216, false, 0); // 200000 + (8040 * 40%)
         assert!(share == 200000, 0);
         assert!(normal_deposited_amount<WETH>() == 0, 0);
         assert!(normal_deposited_share<WETH>() == 0, 0);
+        assert!(total_normal_deposited_amount() == 0, 0);
         assert!(pool_shadow_value(owner_addr) == 0, 0);
 
         assert!(coin::balance<USDZ>(depositor1_addr) == 304824, 0);
