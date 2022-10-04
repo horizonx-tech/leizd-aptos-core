@@ -429,7 +429,7 @@ module leizd::asset_pool {
         withdrawing: u64,
         is_collateral_only: bool,
         _key: &OperatorKey,
-    ) acquires Pool, Storage, PoolEventHandle {
+    ): (u64, u64) acquires Pool, Storage, PoolEventHandle {
         withdraw_for_liquidation_internal<C>(liquidator_addr, target_addr, withdrawing, is_collateral_only)
     }
 
@@ -438,13 +438,13 @@ module leizd::asset_pool {
         target_addr: address,
         withdrawing: u64,
         is_collateral_only: bool,
-    ) acquires Pool, Storage, PoolEventHandle {
+    ): (u64, u64) acquires Pool, Storage, PoolEventHandle {
         let owner_address = permission::owner_address();
         let asset_storage_ref = borrow_mut_asset_storage<C>(borrow_global_mut<Storage>(owner_address));
 
         accrue_interest<C>(asset_storage_ref);
         let liquidation_fee = risk_factor::calculate_liquidation_fee(withdrawing);
-        withdraw_for_internal<C>(liquidator_addr, liquidator_addr, withdrawing, is_collateral_only, liquidation_fee);
+        let (amount, share) = withdraw_for_internal<C>(liquidator_addr, liquidator_addr, withdrawing, is_collateral_only, liquidation_fee);
 
         event::emit_event<LiquidateEvent>(
             &mut borrow_global_mut<PoolEventHandle<C>>(owner_address).liquidate_event,
@@ -453,6 +453,8 @@ module leizd::asset_pool {
                 target: target_addr,
             }
         );
+
+        (amount, share)
     }
 
     public fun switch_collateral<C>(caller: address, amount: u64, to_collateral_only: bool, _key: &OperatorKey) acquires Pool, Storage, PoolEventHandle {
@@ -1503,7 +1505,8 @@ module leizd::asset_pool {
         assert!(coin::balance<WETH>(depositor_addr) == 0, 0);
         assert!(coin::balance<WETH>(liquidator_addr) == 0, 0);
 
-        withdraw_for_liquidation_internal<WETH>(liquidator_addr, liquidator_addr, 1001, false);
+        let (amount, _) = withdraw_for_liquidation_internal<WETH>(liquidator_addr, liquidator_addr, 1001, false);
+        assert!(amount == 1001, 0);
         assert!(pool_asset_value<WETH>(owner_address) == 0, 0);
         assert!(total_normal_deposited_amount<WETH>() == 0, 0);
         assert!(total_conly_deposited_amount<WETH>() == 0, 0);

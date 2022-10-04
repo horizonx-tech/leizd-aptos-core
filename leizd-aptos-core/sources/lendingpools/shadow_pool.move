@@ -615,7 +615,7 @@ module leizd::shadow_pool {
         withdrawing: u64,
         is_collateral_only: bool,
         _key: &OperatorKey
-    ) acquires Pool, Storage, PoolEventHandle, Keys {
+    ): (u64, u64) acquires Pool, Storage, PoolEventHandle, Keys {
         withdraw_for_liquidation_internal(key<C>(), liquidator_addr, target_addr, withdrawing, is_collateral_only);
     }
 
@@ -625,13 +625,13 @@ module leizd::shadow_pool {
         target_addr: address,
         withdrawing: u64,
         is_collateral_only: bool,
-    ) acquires Pool, Storage, PoolEventHandle, Keys {
+    ): (u64, u64) acquires Pool, Storage, PoolEventHandle, Keys {
         let owner_address = permission::owner_address();
         let storage_ref = borrow_global_mut<Storage>(owner_address);
         let pool_ref = borrow_global_mut<Pool>(owner_address);
         accrue_interest(key, storage_ref, pool_ref);
         let liquidation_fee = risk_factor::calculate_liquidation_fee(withdrawing);
-        withdraw_for_internal(key, liquidator_addr, target_addr, withdrawing, is_collateral_only, liquidation_fee);
+        let (amount, share) = withdraw_for_internal(key, liquidator_addr, target_addr, withdrawing, is_collateral_only, liquidation_fee);
 
         event::emit_event<LiquidateEvent>(
             &mut borrow_global_mut<PoolEventHandle>(owner_address).liquidate_event,
@@ -641,6 +641,7 @@ module leizd::shadow_pool {
                 target: target_addr,
             }
         );
+        (amount, share)
     }
 
     ////////////////////////////////////////////////////
@@ -1806,7 +1807,8 @@ module leizd::shadow_pool {
         assert!(coin::balance<USDZ>(depositor_addr) == 0, 0);
         assert!(coin::balance<USDZ>(liquidator_addr) == 0, 0);
 
-        withdraw_for_liquidation_internal(key<WETH>(), liquidator_addr, liquidator_addr, 1001, false);
+        let (amount, _) = withdraw_for_liquidation_internal(key<WETH>(), liquidator_addr, liquidator_addr, 1001, false);
+        assert!(amount == 1001, 0);
         assert!(pool_shadow_value(owner_address) == 0, 0);
         assert!(total_normal_deposited_amount() == 0, 0);
         assert!(total_conly_deposited_amount() == 0, 0);
