@@ -1,11 +1,3 @@
-/// Main point of interaction with Leizd Protocol
-/// Users can:
-/// # Deposit
-/// # Withdraw
-/// # Borrow
-/// # Repay
-/// # Liquidate
-/// # Rebalance
 module leizd::asset_pool {
 
     use std::error;
@@ -122,7 +114,9 @@ module leizd::asset_pool {
         switch_collateral_event: event::EventHandle<SwitchCollateralEvent>,
     }
 
-    // initialize
+    ////////////////////////////////////////////////////
+    /// Initialize
+    ////////////////////////////////////////////////////
     public entry fun initialize(owner: &signer): OperatorKey {
         let owner_addr = signer::address_of(owner);
         permission::assert_owner(owner_addr);
@@ -209,6 +203,9 @@ module leizd::asset_pool {
         }
     }
 
+    ////////////////////////////////////////////////////
+    /// Deposit
+    ////////////////////////////////////////////////////
     /// Deposits an asset or a shadow to the pool.
     /// If a user wants to protect the asset, it's possible that it can be used only for the collateral.
     /// C is a pool type and a user should select which pool to use.
@@ -268,7 +265,9 @@ module leizd::asset_pool {
         (amount, (user_share_u128 as u64))
     }
 
-    /// Withdraws an asset or a shadow from the pool.
+    ////////////////////////////////////////////////////
+    /// Withdraw
+    ////////////////////////////////////////////////////
     public fun withdraw_for<C>(
         caller_addr: address,
         receiver_addr: address,
@@ -330,7 +329,9 @@ module leizd::asset_pool {
         (amount, (withdrawn_user_share_u128 as u64))
     }
 
-    /// Borrows an asset or a shadow from the pool.
+    ////////////////////////////////////////////////////
+    /// Borrow
+    ////////////////////////////////////////////////////
     public fun borrow_for<C>(
         borrower_addr: address,
         receiver_addr: address,
@@ -382,7 +383,9 @@ module leizd::asset_pool {
         )
     }
 
-    /// Repays an asset or a shadow for the borrowed position.
+    ////////////////////////////////////////////////////
+    /// Repay
+    ////////////////////////////////////////////////////
     public fun repay<C>(
         account: &signer,
         amount: u64,
@@ -457,6 +460,9 @@ module leizd::asset_pool {
         (amount, share)
     }
 
+    ////////////////////////////////////////////////////
+    /// Switch Collateral
+    ////////////////////////////////////////////////////
     public fun switch_collateral<C>(caller: address, amount: u64, to_collateral_only: bool, _key: &OperatorKey) acquires Pool, Storage, PoolEventHandle {
         switch_collateral_internal<C>(caller, amount, to_collateral_only);
     }
@@ -486,10 +492,6 @@ module leizd::asset_pool {
                 to_collateral_only,
             },
         );
-    }
-
-    public fun is_pool_initialized<C>(): bool {
-        exists<Pool<C>>(permission::owner_address())
     }
 
     /// This function is called on every user action.
@@ -553,22 +555,16 @@ module leizd::asset_pool {
         collect_asset_fee<C>(pool_ref, (harvested_fee as u64));
     }
 
-
-    public fun protocol_fees<C>(): u64 acquires Storage {
-        let asset_storage_ref = borrow_mut_asset_storage<C>(borrow_global_mut<Storage>(permission::owner_address()));
-        asset_storage_ref.protocol_fees
-    }
-
-    public fun harvested_protocol_fees<C>(): u64 acquires Storage {
-        let asset_storage_ref = borrow_mut_asset_storage<C>(borrow_global_mut<Storage>(permission::owner_address()));
-        asset_storage_ref.harvested_protocol_fees
-    }
-
+    ////// View functions
     fun borrow_mut_asset_storage<C>(storage_ref: &mut Storage): &mut AssetStorage {
         borrow_mut_asset_storage_with(storage_ref, key<C>())
     }
     fun borrow_mut_asset_storage_with(storage_ref: &mut Storage, key: String): &mut AssetStorage {
         simple_map::borrow_mut<String, AssetStorage>(&mut storage_ref.assets, &key)
+    }
+
+    public fun is_pool_initialized<C>(): bool {
+        exists<Pool<C>>(permission::owner_address())
     }
 
     public fun liquidity<C>(): u128 acquires Pool, Storage {
@@ -627,6 +623,16 @@ module leizd::asset_pool {
     public fun total_borrowed_share_with(key: String): u128 acquires Storage {
         let asset_storage_ref = borrow_mut_asset_storage_with(borrow_global_mut<Storage>(permission::owner_address()), key);
         asset_storage_ref.total_borrowed_share
+    }
+
+    public fun protocol_fees<C>(): u64 acquires Storage {
+        let asset_storage_ref = borrow_mut_asset_storage<C>(borrow_global_mut<Storage>(permission::owner_address()));
+        asset_storage_ref.protocol_fees
+    }
+
+    public fun harvested_protocol_fees<C>(): u64 acquires Storage {
+        let asset_storage_ref = borrow_mut_asset_storage<C>(borrow_global_mut<Storage>(permission::owner_address()));
+        asset_storage_ref.harvested_protocol_fees
     }
 
     public fun last_updated<C>(): u64 acquires Storage {
