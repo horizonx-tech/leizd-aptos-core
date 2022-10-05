@@ -19,7 +19,7 @@ module leizd::shadow_pool {
     use leizd::treasury;
 
     //// error_code (ref: asset_pool)
-    // const ENOT_INITILIZED: u64 = 1;
+    // const ENOT_INITIALIZED: u64 = 1;
     const EIS_ALREADY_EXISTED: u64 = 2;
     // const EIS_NOT_EXISTED: u64 = 3;
     const ENOT_AVAILABLE_STATUS: u64 = 4;
@@ -130,7 +130,7 @@ module leizd::shadow_pool {
         permission::assert_owner(signer::address_of(owner));
 
         initialize_module(owner);
-        connect_to_central_liduidity_pool(owner);
+        connect_to_central_liquidity_pool(owner);
         let key = publish_operator_key(owner);
         key
     }
@@ -163,7 +163,7 @@ module leizd::shadow_pool {
         }
     }
     //// for connecting to central liquidity pool
-    fun connect_to_central_liduidity_pool(owner: &signer) {
+    fun connect_to_central_liquidity_pool(owner: &signer) {
         let owner_addr = signer::address_of(owner);
         permission::assert_owner(owner_addr);
         let central_liquidity_pool_key = central_liquidity_pool::publish_operator_key(owner);
@@ -383,13 +383,13 @@ module leizd::shadow_pool {
     public fun withdraw_for_with(
         key: String,
         depositor_addr: address,
-        reciever_addr: address,
+        receiver_addr: address,
         amount: u64,
         is_collateral_only: bool,
         liquidation_fee: u64,
         _key: &OperatorKey
     ): (u64, u64) acquires Pool, Storage, PoolEventHandle, Keys {
-        withdraw_for_internal(key, depositor_addr, reciever_addr, amount, is_collateral_only, liquidation_fee)
+        withdraw_for_internal(key, depositor_addr, receiver_addr, amount, is_collateral_only, liquidation_fee)
     }
 
     fun withdraw_for_internal(
@@ -749,7 +749,7 @@ module leizd::shadow_pool {
         storage_ref: &mut Storage,
         rcomp: u128,
         share_fee: u64,
-        // for support fee from central-liqudiity-pool
+        // for support fee from central-liqudity-pool
         pool_ref: &mut Pool
     ) acquires Keys {
         let asset_storage_ref = simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key);
@@ -766,7 +766,7 @@ module leizd::shadow_pool {
 
             let uncollected_support_fee = central_liquidity_pool::uncollected_support_fee(key) + generated_support_fee;
             let collected_support_fee: u128;
-            // TOOD: check - can use total liquidity? (not for a asset?)
+            // TODO: check - can use total liquidity? (not for a asset?)
             // HACK: duplicated to total_liquidity_internal
             let liquidity = (coin::value(&pool_ref.shadow) as u128) - storage_ref.total_conly_deposited_amount;
             // let liquidity = total_liquidity_internal(pool_ref, storage_ref);

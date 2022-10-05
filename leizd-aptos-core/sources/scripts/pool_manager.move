@@ -195,7 +195,7 @@ module leizd::pool_manager {
     }
     #[test(owner = @leizd, account = @0x111)]
     #[expected_failure(abort_code = 65539)]
-    fun test_add_pool_with_not_initilized_coin(owner: &signer, account: &signer) acquires PoolList, PoolManagerEventHandle {
+    fun test_add_pool_with_not_initialized_coin(owner: &signer, account: &signer) acquires PoolList, PoolManagerEventHandle {
         set_up(owner);
         account::create_account_for_test(signer::address_of(account));
 

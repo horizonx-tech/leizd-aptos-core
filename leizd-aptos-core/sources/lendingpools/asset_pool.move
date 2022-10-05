@@ -21,7 +21,7 @@ module leizd::asset_pool {
     friend leizd::pool_manager;
 
     //// error_code
-    const ENOT_INITILIZED: u64 = 1;
+    const ENOT_INITIALIZED: u64 = 1;
     const EIS_ALREADY_EXISTED: u64 = 2;
     const EIS_NOT_EXISTED: u64 = 3;
     const EDEX_DOES_NOT_HAVE_LIQUIDITY: u64 = 4;
@@ -163,7 +163,7 @@ module leizd::asset_pool {
 
     fun init_pool_internal<C>(account: &signer) acquires Storage, AssetManagerKeys {
         let owner_addr = permission::owner_address();
-        assert!(exists<Storage>(owner_addr), error::invalid_argument(ENOT_INITILIZED));
+        assert!(exists<Storage>(owner_addr), error::invalid_argument(ENOT_INITIALIZED));
         assert!(!is_pool_initialized<C>(), error::invalid_argument(EIS_ALREADY_EXISTED));
         assert!(dex_facade::has_liquidity<C>(), error::invalid_state(EDEX_DOES_NOT_HAVE_LIQUIDITY));
 

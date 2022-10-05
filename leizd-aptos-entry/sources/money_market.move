@@ -200,13 +200,13 @@ module leizd_aptos_entry::money_market {
                 shadow_pool::repay<C>(account, repaid_amount, shadow_pool_key);
             };
         } else {
-            let repayed_user_share: u64;
+            let repaid_user_share: u64;
             if (pool_type::is_type_asset<P>()) {
-                (_, repayed_user_share) = asset_pool::repay<C>(account, amount, asset_pool_key);
+                (_, repaid_user_share) = asset_pool::repay<C>(account, amount, asset_pool_key);
             } else {
-                (_, repayed_user_share) = shadow_pool::repay<C>(account, amount, shadow_pool_key);
+                (_, repaid_user_share) = shadow_pool::repay<C>(account, amount, shadow_pool_key);
             };
-            account_position::repay<C,P>(repayer, repayed_user_share, account_position_key);
+            account_position::repay<C,P>(repayer, repaid_user_share, account_position_key);
         }
     }
 
