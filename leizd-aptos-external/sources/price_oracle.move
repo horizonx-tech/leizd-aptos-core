@@ -77,14 +77,6 @@ module leizd_aptos_external::price_oracle {
         amount * 1
     }
 
-    public fun amount(name: &string::String, volume: u64): u64 {
-        // let (value, dec) = price_of(name);
-        // let result = (volume as u128) * math::pow_10(dec) / value;
-        // (result as u64) // TODO: use u128
-        name;
-        volume / 1
-    }
-
     #[test_only]
     use leizd_aptos_common::test_coin::{USDC, WETH, UNI, USDT};
     #[test(owner = @leizd_aptos_external)]
