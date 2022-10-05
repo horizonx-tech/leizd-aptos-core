@@ -715,7 +715,7 @@ module leizd::account_position {
         deposited
     }
 
-    fun deposited_volume<P>(addr: address, key: String): u64 acquires Position {
+    public fun deposited_volume<P>(addr: address, key: String): u64 acquires Position {
         let position_ref = borrow_global_mut<Position<P>>(addr);
         deposited_volume_internal<P>(position_ref, key)
     }
@@ -732,7 +732,7 @@ module leizd::account_position {
         }
     }
 
-    fun borrowed_volume<P>(addr: address, key: String): u64 acquires Position {
+    public fun borrowed_volume<P>(addr: address, key: String): u64 acquires Position {
         let position_ref = borrow_global_mut<Position<P>>(addr);
         borrowed_volume_internal<P>(position_ref, key)
     }
@@ -998,7 +998,7 @@ module leizd::account_position {
 
     //// get total from pools
     fun total_normal_deposited<P>(key: String): (u128, u128) {
-        if (pool_type::is_type_asset<P>()) {
+        if (position_type::is_asset_to_shadow<P>()) {
             total_normal_deposited_for_asset(key)
         } else {
             total_normal_deposited_for_shadow(key)
@@ -1015,7 +1015,7 @@ module leizd::account_position {
         (total_amount, total_shares)
     }
     fun total_conly_deposited<P>(key: String): (u128, u128) {
-        if (pool_type::is_type_asset<P>()) {
+        if (position_type::is_asset_to_shadow<P>()) {
             total_conly_deposited_for_asset(key)
         } else {
             total_conly_deposited_for_shadow(key)
@@ -1032,7 +1032,8 @@ module leizd::account_position {
         (total_amount, total_shares)
     }
     fun total_borrowed<P>(key: String): (u128, u128) {
-        if (pool_type::is_type_asset<P>()) {
+        // NOTE: when you want to know borrowing asset's volume by depositing shadow (= position type is ShadowToAsset), check asset_pool's total about borrowed.
+        if (position_type::is_shadow_to_asset<P>()) {
             total_borrowed_for_asset(key)
         } else {
             total_borrowed_for_shadow(key)

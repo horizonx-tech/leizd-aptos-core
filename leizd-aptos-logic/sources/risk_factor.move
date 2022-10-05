@@ -143,14 +143,22 @@ module leizd_aptos_logic::risk_factor {
         assert!(new_share_fee < PRECISION, error::invalid_argument(EINVALID_SHARE_FEE));
         assert!(new_liquidation_fee < PRECISION, error::invalid_argument(EINVALID_LIQUIDATION_FEE));
 
-        let fees = borrow_global_mut<ProtocolFees>(owner_address);
+        update_protocol_fees_internal(owner_address, new_entry_fee, new_share_fee, new_liquidation_fee);
+    }
+    fun update_protocol_fees_internal(
+        owner_addr: address,
+        new_entry_fee: u64,
+        new_share_fee: u64,
+        new_liquidation_fee: u64
+    ) acquires ProtocolFees, RepositoryEventHandle {
+        let fees = borrow_global_mut<ProtocolFees>(owner_addr);
         fees.entry_fee = new_entry_fee;
         fees.share_fee = new_share_fee;
         fees.liquidation_fee = new_liquidation_fee;
         event::emit_event<UpdateProtocolFeesEvent>(
-            &mut borrow_global_mut<RepositoryEventHandle>(owner_address).update_protocol_fees_event,
+            &mut borrow_global_mut<RepositoryEventHandle>(owner_addr).update_protocol_fees_event,
             UpdateProtocolFeesEvent {
-                caller: owner_address,
+                caller: owner_addr,
                 entry_fee: fees.entry_fee,
                 share_fee: fees.share_fee,
                 liquidation_fee: fees.liquidation_fee,
@@ -265,6 +273,14 @@ module leizd_aptos_logic::risk_factor {
     #[test_only]
     public fun default_liquidation_fee(): u64 {
         DEFAULT_LIQUIDATION_FEE
+    }
+    #[test_only]
+    public fun update_protocol_fees_unsafe(
+        new_entry_fee: u64,
+        new_share_fee: u64,
+        new_liquidation_fee: u64
+    ) acquires ProtocolFees, RepositoryEventHandle {
+        update_protocol_fees_internal(permission::owner_address(), new_entry_fee, new_share_fee, new_liquidation_fee);
     }
     #[test(owner = @leizd_aptos_logic)]
     public entry fun test_initialize(owner: signer) acquires ProtocolFees, RepositoryEventHandle {
