@@ -313,11 +313,11 @@ module leizd_aptos_entry::money_market {
     #[test_only]
     use leizd_aptos_trove::usdz::{Self, USDZ};
     #[test_only]
-    use leizd::pool_type::{Asset, Shadow};
+    use leizd_aptos_common::pool_type::{Asset, Shadow};
     #[test_only]
     use leizd_aptos_logic::risk_factor;
     #[test_only]
-    use leizd::treasury;
+    use leizd_aptos_treasury::treasury;
     #[test_only]
     use leizd::pool_manager;
     #[test_only]

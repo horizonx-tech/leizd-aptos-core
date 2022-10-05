@@ -13,10 +13,10 @@ module leizd::asset_pool {
     use leizd_aptos_common::pool_status::{Self, AssetManagerKey as PoolStatusKey};
     use leizd_aptos_external::dex_facade;
     use leizd_aptos_lib::math128;
-    use leizd_aptos_logic::risk_factor::{Self, AssetManagerKey as RiskFactorKey};
     use leizd_aptos_treasury::treasury::{Self, AssetManagerKey as TreasuryKey};
+    use leizd_aptos_central_liquidity_pool::central_liquidity_pool::{Self, AssetManagerKey as CentralLiquidityPoolKey};
+    use leizd_aptos_logic::risk_factor::{Self, AssetManagerKey as RiskFactorKey};
     use leizd::interest_rate::{Self, AssetManagerKey as InterestRateKey};
-    use leizd::central_liquidity_pool::{Self, AssetManagerKey as CentralLiquidityPoolKey};
 
     friend leizd::pool_manager;
 
