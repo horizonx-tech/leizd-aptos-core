@@ -17,6 +17,7 @@ module leizd_aptos_entry::scenario {
     use leizd_aptos_logic::risk_factor;
     use leizd_aptos_core::interest_rate;
     use leizd_aptos_core::asset_pool;
+    use leizd_aptos_core::shadow_pool;
     use leizd_aptos_core::pool_manager;
     use leizd_aptos_core::account_position;
     use leizd_aptos_entry::money_market;
@@ -126,5 +127,53 @@ module leizd_aptos_entry::scenario {
         money_market::repay<WETH, Asset>(account1, 5625);
         assert!(account_position::borrowed_volume<ShadowToAsset>(account1_addr, key<WETH>()) == 16875, 0);
         assert!(coin::balance<WETH>(account1_addr) == 12500 + 110000 - 5625, 0);
+    }
+    #[test(owner = @leizd_aptos_entry, aptos_framework = @aptos_framework)]
+    fun test_can_earn_interest_about_shadow_by_withdrawing_after_depositing_except_interest_rate_calculation(owner: &signer, aptos_framework: &signer) {
+        initialize_scenario(owner, aptos_framework);
+        let signers = initialize_signer_for_test(2);
+        let (account1, account1_addr) = borrow_account(&signers, 0);
+        usdz::mint_for_test(account1_addr, 300000);
+        managed_coin::mint<WETH>(owner, account1_addr, 100000);
+        let (account2, account2_addr) = borrow_account(&signers, 1);
+        usdz::mint_for_test(account2_addr, 100000);
+        managed_coin::mint<WETH>(owner, account2_addr, 100000);
+        pool_manager::add_pool<WETH>(owner);
+
+        risk_factor::update_protocol_fees_unsafe(
+            0,
+            0,
+            risk_factor::default_liquidation_fee(),
+        ); // NOTE: remove entry fee / share fee to make it easy to calcurate borrowed amount/share
+
+        money_market::deposit<WETH, Shadow>(account1, 300000, false);
+        money_market::deposit<WETH, Asset>(account1, 100000, false); // as collateral
+        money_market::borrow<WETH, Shadow>(account1, 12500);
+        money_market::deposit<WETH, Shadow>(account2, 100000, false);
+        money_market::deposit<WETH, Asset>(account2, 100000, false); // as collateral
+        money_market::borrow<WETH, Shadow>(account2, 37500);
+        assert!(coin::balance<USDZ>(account1_addr) == 12500, 0);
+        assert!(coin::balance<USDZ>(account2_addr) == 37500, 0);
+
+        shadow_pool::earn_interest_without_using_interest_rate_module_for_test<WETH>(
+            ((interest_rate::precision() / 1000 * 800) as u128) // 80%
+        );
+
+        assert!(shadow_pool::normal_deposited_amount<WETH>() == 400000 + 40000, 0);
+        assert!(shadow_pool::borrowed_amount<WETH>() == 50000 + 40000, 0);
+        assert!(account_position::deposited_volume<ShadowToAsset>(account1_addr, key<WETH>()) == 300000 + 30000, 0);
+        assert!(account_position::deposited_volume<ShadowToAsset>(account2_addr, key<WETH>()) == 100000 + 10000, 0);
+        assert!(account_position::borrowed_volume<AssetToShadow>(account1_addr, key<WETH>()) == 12500 + 10000, 0);
+        assert!(account_position::borrowed_volume<ShadowToAsset>(account1_addr, key<WETH>()) == 0, 0);
+        assert!(account_position::borrowed_volume<AssetToShadow>(account2_addr, key<WETH>()) == 37500 + 30000, 0);
+        assert!(account_position::borrowed_volume<ShadowToAsset>(account2_addr, key<WETH>()) == 0, 0);
+
+        money_market::withdraw<WETH, Shadow>(account1, 110000);
+        assert!(account_position::deposited_volume<ShadowToAsset>(account1_addr, key<WETH>()) == 220000, 0);
+        assert!(coin::balance<USDZ>(account1_addr) == 12500 + 110000, 0);
+
+        money_market::repay<WETH, Shadow>(account1, 5625);
+        assert!(account_position::borrowed_volume<AssetToShadow>(account1_addr, key<WETH>()) == 16875, 0);
+        assert!(coin::balance<USDZ>(account1_addr) == 12500 + 110000 - 5625, 0);
     }
 }
