@@ -82,6 +82,7 @@ module leizd_aptos_entry::scenario {
     // TODO: scale amount's unit to standard decimals
     #[test(owner = @leizd_aptos_entry, aptos_framework = @aptos_framework)]
     fun test_can_earn_interest_about_asset_by_withdrawing_after_depositing_except_interest_rate_calculation(owner: &signer, aptos_framework: &signer) {
+        // prepares
         initialize_scenario(owner, aptos_framework);
         let signers = initialize_signer_for_test(2);
         let (account1, account1_addr) = borrow_account(&signers, 0);
@@ -98,6 +99,7 @@ module leizd_aptos_entry::scenario {
             risk_factor::default_liquidation_fee(),
         ); // NOTE: remove entry fee / share fee to make it easy to calcurate borrowed amount/share
 
+        // deposit & borrow
         money_market::deposit<WETH, Asset>(account1, 300000, false);
         money_market::deposit<WETH, Shadow>(account1, 100000, false); // as collateral
         money_market::borrow<WETH, Asset>(account1, 12500);
@@ -107,10 +109,10 @@ module leizd_aptos_entry::scenario {
         assert!(coin::balance<WETH>(account1_addr) == 12500, 0);
         assert!(coin::balance<WETH>(account2_addr) == 37500, 0);
 
+        // earn interest
         asset_pool::earn_interest_without_using_interest_rate_module_for_test<WETH>(
             ((interest_rate::precision() / 1000 * 800) as u128) // 80%
         );
-
         assert!(asset_pool::total_normal_deposited_amount<WETH>() == 400000 + 40000, 0);
         assert!(asset_pool::total_borrowed_amount<WETH>() == 50000 + 40000, 0);
         assert!(account_position::deposited_volume<AssetToShadow>(account1_addr, key<WETH>()) == 300000 + 30000, 0);
@@ -120,16 +122,18 @@ module leizd_aptos_entry::scenario {
         assert!(account_position::borrowed_volume<ShadowToAsset>(account2_addr, key<WETH>()) == 37500 + 30000, 0);
         assert!(account_position::borrowed_volume<AssetToShadow>(account2_addr, key<WETH>()) == 0, 0);
 
+        // withdraw
         money_market::withdraw<WETH, Asset>(account1, 110000);
         assert!(account_position::deposited_volume<AssetToShadow>(account1_addr, key<WETH>()) == 220000, 0);
         assert!(coin::balance<WETH>(account1_addr) == 12500 + 110000, 0);
-
+        // repay
         money_market::repay<WETH, Asset>(account1, 5625);
         assert!(account_position::borrowed_volume<ShadowToAsset>(account1_addr, key<WETH>()) == 16875, 0);
         assert!(coin::balance<WETH>(account1_addr) == 12500 + 110000 - 5625, 0);
     }
     #[test(owner = @leizd_aptos_entry, aptos_framework = @aptos_framework)]
     fun test_can_earn_interest_about_shadow_by_withdrawing_after_depositing_except_interest_rate_calculation(owner: &signer, aptos_framework: &signer) {
+        // prepares
         initialize_scenario(owner, aptos_framework);
         let signers = initialize_signer_for_test(2);
         let (account1, account1_addr) = borrow_account(&signers, 0);
@@ -146,6 +150,7 @@ module leizd_aptos_entry::scenario {
             risk_factor::default_liquidation_fee(),
         ); // NOTE: remove entry fee / share fee to make it easy to calcurate borrowed amount/share
 
+        // deposit & borrow
         money_market::deposit<WETH, Shadow>(account1, 300000, false);
         money_market::deposit<WETH, Asset>(account1, 100000, false); // as collateral
         money_market::borrow<WETH, Shadow>(account1, 12500);
@@ -155,10 +160,10 @@ module leizd_aptos_entry::scenario {
         assert!(coin::balance<USDZ>(account1_addr) == 12500, 0);
         assert!(coin::balance<USDZ>(account2_addr) == 37500, 0);
 
+        // earn interest
         shadow_pool::earn_interest_without_using_interest_rate_module_for_test<WETH>(
             ((interest_rate::precision() / 1000 * 800) as u128) // 80%
         );
-
         assert!(shadow_pool::normal_deposited_amount<WETH>() == 400000 + 40000, 0);
         assert!(shadow_pool::borrowed_amount<WETH>() == 50000 + 40000, 0);
         assert!(account_position::deposited_volume<ShadowToAsset>(account1_addr, key<WETH>()) == 300000 + 30000, 0);
@@ -168,10 +173,11 @@ module leizd_aptos_entry::scenario {
         assert!(account_position::borrowed_volume<AssetToShadow>(account2_addr, key<WETH>()) == 37500 + 30000, 0);
         assert!(account_position::borrowed_volume<ShadowToAsset>(account2_addr, key<WETH>()) == 0, 0);
 
+        // withdraw
         money_market::withdraw<WETH, Shadow>(account1, 110000);
         assert!(account_position::deposited_volume<ShadowToAsset>(account1_addr, key<WETH>()) == 220000, 0);
         assert!(coin::balance<USDZ>(account1_addr) == 12500 + 110000, 0);
-
+        // repay
         money_market::repay<WETH, Shadow>(account1, 5625);
         assert!(account_position::borrowed_volume<AssetToShadow>(account1_addr, key<WETH>()) == 16875, 0);
         assert!(coin::balance<USDZ>(account1_addr) == 12500 + 110000 - 5625, 0);
