@@ -271,7 +271,7 @@ module leizd::account_position {
         (sum_extra_shadow, result_amount_deposited, result_amount_withdrawed)
     }
 
-    /// @returns (sum_extra_shadow, borrowed_sum, repaid_sum, result_amount_borrowed, result_amount_repaied)
+    /// @returns (sum_extra_shadow, borrowed_sum, repaid_sum, result_amount_borrowed, result_amount_repaid)
     fun borrow_and_repay_evenly(addr: address, required_shadow: u64, sum_extra_shadow: u64): (u64,u64,u64,vector<Rebalance>, vector<Rebalance>) acquires Position, AccountPositionEventHandle {
         let position_ref = borrow_global<Position<AssetToShadow>>(addr);
         let coins = position_ref.coins;
@@ -583,7 +583,7 @@ module leizd::account_position {
         option::none()
     }
 
-    // Rebalance after borrowing additonal shadow
+    // Rebalance after borrowing additional shadow
 
     public fun borrow_and_rebalance<C1,C2>(addr: address, is_collateral_only: bool, _key: &OperatorKey): u64 acquires Position, AccountPositionEventHandle {
         let key1 = key<C1>();
