@@ -41,7 +41,6 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         total_deposited: u128,
         total_borrowed: u128,
         total_uncollected_fee: u128,
-        collected_fee: coin::Coin<USDZ>,
         supported_pools: vector<String>, // e.g. 0x1::module_name::WBTC
     }
 
@@ -110,7 +109,6 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
             total_deposited: 0,
             total_borrowed: 0,
             total_uncollected_fee: 0,
-            collected_fee: coin::zero<USDZ>(),
             supported_pools: vector::empty<String>(),
         });
         move_to(owner, Balance {
@@ -256,16 +254,19 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         let owner_address = permission::owner_address();
         let account_addr = signer::address_of(account);
         let pool_ref = borrow_global_mut<CentralLiquidityPool>(owner_address);
+        let user_share = (stb_usdz::balance_of(account_addr) as u128);
+        let withdrawable_amount = math128::to_amount(user_share, pool_ref.total_deposited, stb_usdz::supply());
+
         let burned_share: u128;
         let withdrawn_amount: u128;
         if (amount == constant::u64_max()) {
-            burned_share = (stb_usdz::balance_of(account_addr) as u128);
-            withdrawn_amount = math128::to_amount(burned_share, pool_ref.total_deposited, stb_usdz::supply());
+            burned_share = user_share;
+            withdrawn_amount = withdrawable_amount;
         } else {
+            assert!(withdrawable_amount >= (amount as u128), error::invalid_argument(EEXCEED_DEPOSITED_AMOUNT));
             burned_share = math128::to_share_roundup((amount as u128), pool_ref.total_deposited, stb_usdz::supply());
             withdrawn_amount = (amount as u128);
         };
-        assert!(pool_ref.total_deposited >= withdrawn_amount, error::invalid_argument(EEXCEED_DEPOSITED_AMOUNT));
         assert!((coin::value<USDZ>(&pool_ref.left) as u128) >= withdrawn_amount, error::invalid_argument(EEXCEED_REMAINING_AMOUNT));
         pool_ref.total_deposited = pool_ref.total_deposited - withdrawn_amount;
         coin::deposit(account_addr, coin::extract(&mut pool_ref.left, (withdrawn_amount as u64)));
@@ -294,10 +295,6 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
     }
     fun borrow_internal(key: String, addr: address, amount: u64): (coin::Coin<USDZ>,u128) acquires CentralLiquidityPool, Config, Balance, CentralLiquidityPoolEventHandle {
         assert!(is_supported(key), error::invalid_argument(ENOT_SUPPORTED_COIN));
-        // TODO:
-        // if (!exists<UserDistribution>(signer::address_of(account))) {
-        //     move_to(account, UserDistribution { index: 0 });
-        // };
         assert!(amount > 0, error::invalid_argument(EINVALID_AMOUNT));
         let owner_address = permission::owner_address();
         let pool_ref = borrow_global_mut<CentralLiquidityPool>(owner_address);
@@ -373,15 +370,15 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
                 // all amount to fee
                 *uncollected_entry_fee = *uncollected_entry_fee - (amount as u128);
                 pool_ref.total_uncollected_fee = pool_ref.total_uncollected_fee - (amount as u128);
-                coin::merge<USDZ>(&mut pool_ref.collected_fee, coin::withdraw<USDZ>(account, amount));
+                pool_ref.total_deposited = pool_ref.total_deposited + (amount as u128);
+                coin::merge<USDZ>(&mut pool_ref.left, coin::withdraw<USDZ>(account, amount));
             } else {
                 // complete uncollected fee, and remaining amount to left
                 let to_fee = (*uncollected_entry_fee as u64);
-                let to_left = amount - to_fee;
                 *uncollected_entry_fee = 0;
                 pool_ref.total_uncollected_fee = pool_ref.total_uncollected_fee - (to_fee as u128);
-                coin::merge<USDZ>(&mut pool_ref.collected_fee, coin::withdraw<USDZ>(account, to_fee));
-                coin::merge<USDZ>(&mut pool_ref.left, coin::withdraw<USDZ>(account, to_left));
+                pool_ref.total_deposited = pool_ref.total_deposited + (to_fee as u128);
+                coin::merge<USDZ>(&mut pool_ref.left, coin::withdraw<USDZ>(account, amount));
             }
         } else {
             // all amount to left
@@ -418,16 +415,13 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         pool_ref.total_uncollected_fee = pool_ref.total_uncollected_fee - *uncollected_support_fee;
         *uncollected_support_fee = new_uncollected_fee;
         pool_ref.total_uncollected_fee = pool_ref.total_uncollected_fee + new_uncollected_fee;
-        coin::merge<USDZ>(&mut pool_ref.collected_fee, coin);
+        pool_ref.total_deposited = pool_ref.total_deposited + (coin::value<USDZ>(&coin) as u128);
+        coin::merge<USDZ>(&mut pool_ref.left, coin);
     }
 
     ////// View functions
     public fun left(): u128 acquires CentralLiquidityPool {
         (coin::value<USDZ>(&borrow_global<CentralLiquidityPool>(permission::owner_address()).left) as u128)
-    }
-
-    public fun collected_fee(): u64 acquires CentralLiquidityPool {
-        coin::value<USDZ>(&borrow_global<CentralLiquidityPool>(permission::owner_address()).collected_fee)
     }
 
     public fun total_deposited(): u128 acquires CentralLiquidityPool {
@@ -689,7 +683,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         withdraw(account, 0);
     }
     #[test(owner=@leizd_aptos_central_liquidity_pool,account1=@0x111,account2=@0x222)]
-    #[expected_failure(abort_code = 65542)]
+    #[expected_failure(abort_code = 65541)]
     public entry fun test_withdraw_without_any_deposit(owner: &signer, account1: &signer, account2: &signer) acquires Balance, CentralLiquidityPool, CentralLiquidityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         let account1_addr = signer::address_of(account1);
@@ -898,9 +892,8 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         repay_internal(key<WETH>(), account2, 200000);
 
         // check
-        assert!(left() == 298500, 0);
-        assert!(collected_fee() == 1500, 0);
-        assert!(total_deposited() == 400000, 0);
+        assert!(left() == (298500 + 1500), 0);
+        assert!(total_deposited() == (400000 + 1500), 0);
         assert!(total_borrowed() == 101500, 0);
         assert!(borrowed(key<WETH>()) == 101500, 0);
         assert!(usdz::balance_of(account2_addr) == 100000, 0);
@@ -958,7 +951,6 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         coin::deposit(borrower_addr, borrowed);
         assert!(total_deposited() == 10000, 0);
         assert!(left() == 0, 0);
-        assert!(collected_fee() == 0, 0);
         assert!(total_borrowed() == 10050, 0);
         assert!(borrowed(key<WETH>()) == 10050, 0);
         assert!(uncollected_entry_fee<WETH>() == 50, 0);
@@ -967,8 +959,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         assert!(usdz::balance_of(borrower_addr) == 10000, 0);
         //// repay (take a priority to uncollected_fee)
         repay_internal(key<WETH>(), borrower, 49);
-        assert!(left() == 0, 0);
-        assert!(collected_fee() == 49, 0);
+        assert!(left() == 49, 0);
         assert!(total_borrowed() == 10001, 0);
         assert!(borrowed(key<WETH>()) == 10001, 0);
         assert!(uncollected_entry_fee<WETH>() == 1, 0);
@@ -976,8 +967,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         assert!(usdz::balance_of(borrower_addr) == 9951, 0);
         ////// repay to remained uncollected_fee
         repay_internal(key<WETH>(), borrower, 1);
-        assert!(left() == 0, 0);
-        assert!(collected_fee() == 50, 0);
+        assert!(left() == 50, 0);
         assert!(total_borrowed() == 10000, 0);
         assert!(borrowed(key<WETH>()) == 10000, 0);
         assert!(uncollected_entry_fee<WETH>() == 0, 0);
@@ -985,8 +975,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         assert!(usdz::balance_of(borrower_addr) == 9950, 0);
         //// repay to total_borrowed
         repay_internal(key<WETH>(), borrower, 9900);
-        assert!(left() == 9900, 0);
-        assert!(collected_fee() == 50, 0);
+        assert!(left() == (9900 + 50), 0);
         assert!(total_borrowed() == 100, 0);
         assert!(borrowed(key<WETH>()) == 100, 0);
         assert!(uncollected_entry_fee<WETH>() == 0, 0);
@@ -995,8 +984,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         ////// repay to remained total_borrowed
         usdz::mint_for_test(borrower_addr, 50);
         repay_internal(key<WETH>(), borrower, 100);
-        assert!(left() == 10000, 0);
-        assert!(collected_fee() == 50, 0);
+        assert!(left() == (10000 + 50), 0);
         assert!(total_borrowed() == 0, 0);
         assert!(borrowed(key<WETH>()) == 0, 0);
         assert!(uncollected_entry_fee<WETH>() == 0, 0);
@@ -1025,7 +1013,6 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         coin::deposit(borrower_addr, borrowed);
         assert!(total_deposited() == 10000, 0);
         assert!(left() == 0, 0);
-        assert!(collected_fee() == 0, 0);
         assert!(total_borrowed() == 10050, 0);
         assert!(borrowed(key<WETH>()) == 10050, 0);
         assert!(uncollected_entry_fee<WETH>() == 50, 0);
@@ -1033,8 +1020,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         assert!(usdz::balance_of(borrower_addr) == 10000, 0);
         //// repay
         repay_internal(key<WETH>(), borrower, 100);
-        assert!(left() == 50, 0);
-        assert!(collected_fee() == 50, 0);
+        assert!(left() == (50 + 50), 0);
         assert!(total_borrowed() == 9950, 0);
         assert!(borrowed(key<WETH>()) == 9950, 0);
         assert!(uncollected_entry_fee<WETH>() == 0, 0);
@@ -1160,7 +1146,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         assert!(stb_usdz::balance_of(account_addr2) == (1000 * 500 / 500), 0);
         assert!(stb_usdz::supply() == 1500, 0);
 
-        // account2 withdraw all
+        // // account2 withdraw all
         withdraw(account2, constant::u64_max());
         assert!(usdz::balance_of(account_addr2) == 1000, 0);
         assert!(total_deposited() == 500, 0);

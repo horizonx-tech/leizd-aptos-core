@@ -2029,21 +2029,21 @@ module leizd::shadow_pool {
         assert!(pool_value(owner_addr) == 0, 0);
         assert!(borrowed_amount<UNI>() == ((1000 + 5) + (2000 + 10 + 11)) - 1800, 0);
         assert!(central_liquidity_pool::borrowed(key<UNI>()) == (5 + 2000 + 10 + 11) - 1800, 0);
-        assert!(central_liquidity_pool::left() == 5000 - (5 + 2000 + 10) + (1800 - 11), 0);
+        assert!(central_liquidity_pool::left() == 5000 - (5 + 2000 + 10) + 1800, 0); //TODO:
         assert!(usdz::balance_of(borrower_addr) == 1200, 0);
         //// from both
         repay_internal(key<UNI>(), borrower, 1000);
         assert!(pool_value(owner_addr) == 1000 - 226, 0);
         assert!(borrowed_amount<UNI>() == ((1000 + 5) + (2000 + 10 + 11)) - 1800 - 1000, 0);
         assert!(central_liquidity_pool::borrowed(key<UNI>()) == 0, 0);
-        assert!(central_liquidity_pool::left() == 5000, 0);
+        assert!(central_liquidity_pool::left() == 5000 + 11, 0);
         assert!(usdz::balance_of(borrower_addr) == 200, 0);
         //// from only shadow_pool
         repay_internal(key<UNI>(), borrower, 200);
         assert!(pool_value(owner_addr) == 1000 - 26, 0);
         assert!(borrowed_amount<UNI>() == 5 + 10 + 11, 0);
         assert!(central_liquidity_pool::borrowed(key<UNI>()) == 0, 0);
-        assert!(central_liquidity_pool::left() == 5000, 0);
+        assert!(central_liquidity_pool::left() == 5000 + 11, 0);
         assert!(usdz::balance_of(borrower_addr) == 0, 0);
     }
     // TODO: fail because of total_borrowed increased by interest_rate (as time passes)
