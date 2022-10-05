@@ -291,14 +291,15 @@ module leizd::account_position {
                 };
                 let (_, _,deposited,borrowed) = extra_and_insufficient_shadow(key, addr);
                 let hf = health_factor(deposited, borrowed);
-                let opt_deposit = (borrowed * risk_factor::precision() / (risk_factor::precision() - opt_hf)) * risk_factor::precision() / risk_factor::lt_of_shadow();
                 if (hf > opt_hf) {
                     // withdraw
+                    let opt_deposit = (borrowed * risk_factor::precision() / (risk_factor::precision() - opt_hf)) * risk_factor::precision() / risk_factor::lt_of_shadow();
                     let diff = deposited - opt_deposit;
                     update_position_for_withdraw<ShadowToAsset>(key, addr, diff, false); // TODO: collateral_only
                     vector::push_back<Rebalance>(&mut result_amount_withdrawed, rebalance::create(key, diff));
                 } else if (opt_hf > hf) {
                     // deposit
+                    let opt_deposit = (borrowed * risk_factor::precision() / (risk_factor::precision() - opt_hf)) * risk_factor::precision() / risk_factor::lt_of_shadow();
                     let diff = opt_deposit - deposited;
                     update_position_for_deposit<ShadowToAsset>(key, addr, diff, false); // TODO: collateral_only
                     vector::push_back<Rebalance>(&mut result_amount_deposited, rebalance::create(key, diff));
@@ -316,11 +317,11 @@ module leizd::account_position {
         let protected_coins = position_ref.protected_coins;
         let result_amount_repaid = vector::empty<Rebalance>();
 
-        let (sum_capacity_shadow,sum_overdebt_shadow,sum_deposited, sum_borrowed) = sum_capacity_and_overdebt_shadow(&coins, &protected_coins, addr);
+        let (sum_capacity_shadow,sum_overdebt_shadow,sum_deposited,sum_borrowed) = sum_capacity_and_overdebt_shadow(&coins, &protected_coins, addr);
         if (sum_capacity_shadow >= sum_overdebt_shadow) {
             // reallocation
             let i = vector::length<String>(&coins);
-            let opt_hf = health_factor(sum_deposited, sum_borrowed);
+            let opt_hf = health_factor_of(key<WETH>(), sum_deposited, sum_borrowed); // TODO: 
             while (i > 0) {
                 let key = *vector::borrow<String>(&coins, i-1);
                 if (is_protected_internal(&protected_coins, key)) {
@@ -328,16 +329,17 @@ module leizd::account_position {
                     continue
                 };
                 let (_, _,deposited,borrowed) = capacity_and_overdebt_shadow(key, addr);
-                let hf = health_factor(deposited, borrowed);
-                let opt_deposit = (borrowed * risk_factor::precision() / (risk_factor::precision() - opt_hf)) * risk_factor::precision() / risk_factor::lt_of(key);
+                let hf = health_factor_of(key, deposited, borrowed);
                 if (hf > opt_hf) {
                     // borrow
-                    let diff = deposited - opt_deposit;
+                    let opt_borrow = (deposited * (risk_factor::lt_of(key) * ((risk_factor::precision() - opt_hf)) / risk_factor::precision())) / risk_factor::precision();
+                    let diff = opt_borrow - borrowed;
                     update_position_for_borrow<AssetToShadow>(key, addr, diff);
                     vector::push_back<Rebalance>(&mut result_amount_borrowed, rebalance::create(key, diff));
                 } else if (opt_hf > hf) {
                     // repay
-                    let diff = opt_deposit - deposited;
+                    let opt_borrow = (deposited * (risk_factor::lt_of(key) * ((risk_factor::precision() - opt_hf)) / risk_factor::precision())) / risk_factor::precision();
+                    let diff = borrowed - opt_borrow;
                     update_position_for_repay<AssetToShadow>(key, addr, diff);
                     vector::push_back<Rebalance>(&mut result_amount_repaid, rebalance::create(key, diff));
                 };
@@ -352,6 +354,19 @@ module leizd::account_position {
             0
         } else {
             let u = (borrowed * risk_factor::precision() / (deposited * risk_factor::lt_of_shadow() / risk_factor::precision()));
+            if (risk_factor::precision() < u) {
+                0
+            } else {
+                risk_factor::precision() - u
+            }
+        }
+    }
+
+    fun health_factor_of(key: String, deposited: u64, borrowed: u64): u64 {
+        if (deposited == 0) {
+            0
+        } else {
+            let u = (borrowed * risk_factor::precision() / (deposited * risk_factor::lt_of(key) / risk_factor::precision()));
             if (risk_factor::precision() < u) {
                 0
             } else {
@@ -1612,7 +1627,7 @@ module leizd::account_position {
         assert!(borrowed_asset_share<UNI>(account1_addr) == 10000, 0);
     }
 
-    use std::debug;
+    // use std::debug;
     #[test(owner=@leizd,account1=@0x111)]
     public entry fun test_borrow_asset_with_rebalance__borrow_and_deposit(owner: &signer, account1: &signer) acquires Position, AccountPositionEventHandle {
         setup_for_test_to_initialize_coins(owner);
@@ -1624,13 +1639,10 @@ module leizd::account_position {
 
         borrow_asset_with_rebalance_internal<UNI>(account1_addr, 10000);
         assert!(deposited_asset_share<WETH>(account1_addr) == 100000, 0);
-        debug::print(&borrowed_shadow_share<WETH>(account1_addr));
-        debug::print(&deposited_shadow_share<UNI>(account1_addr));
         assert!(borrowed_shadow_share<WETH>(account1_addr) == 11111, 0);
         assert!(deposited_shadow_share<UNI>(account1_addr) == 11110, 0); // TODO: 11111?
         assert!(borrowed_asset_share<UNI>(account1_addr) == 10000, 0);
     }
-
     #[test(owner=@leizd,account1=@0x111)]
     public entry fun test_borrow_asset_with_rebalance__borrow_and_deposit2(owner: &signer, account1: &signer) acquires Position, AccountPositionEventHandle {
         setup_for_test_to_initialize_coins(owner);
@@ -1644,10 +1656,10 @@ module leizd::account_position {
         borrow_asset_with_rebalance_internal<UNI>(account1_addr, 10000);
         assert!(deposited_asset_share<WETH>(account1_addr) == 100000, 0);
         assert!(deposited_asset_share<USDC>(account1_addr) == 50000, 0);
-        assert!(borrowed_shadow_share<WETH>(account1_addr) == 0, 0);
-        assert!(borrowed_shadow_share<USDC>(account1_addr) == 11111, 0);
+        assert!(borrowed_shadow_share<WETH>(account1_addr) == 7407, 0);
+        assert!(borrowed_shadow_share<USDC>(account1_addr) == 3703, 0); // TODO: 3704?
         assert!(deposited_shadow_share<UNI>(account1_addr) == 11110, 0); // TODO: 11111?
-        assert!(borrowed_asset_share<UNI>(account1_addr) == 10000, 0);
+        assert!(borrowed_asset_share<UNI>(account1_addr) == 10000, 0);        
     }
 
         // update_on_borrow<UNI,ShadowToAsset>(account1_addr, 10000);
