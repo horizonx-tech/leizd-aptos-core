@@ -2773,14 +2773,13 @@ module leizd::shadow_pool {
     #[test_only]
     public fun earn_interest_without_using_interest_rate_module_for_test<C>(
         rcomp: u128,
-        share_fee: u64
     ) acquires Pool, Storage, Keys {
         let owner_addr = permission::owner_address();
         save_calculated_values_by_rcomp(
             key<C>(),
             borrow_global_mut<Storage>(owner_addr),
             rcomp,
-            share_fee,
+            risk_factor::share_fee(),
             borrow_global_mut<Pool>(owner_addr)
         );
     }

@@ -1797,14 +1797,13 @@ module leizd::asset_pool {
     #[test_only]
     public fun earn_interest_without_using_interest_rate_module_for_test<C>(
         rcomp: u128,
-        share_fee: u64
     ) acquires Storage {
         let owner_addr = permission::owner_address();
         let asset_storage_ref = borrow_mut_asset_storage<C>(borrow_global_mut<Storage>(owner_addr));
         save_calculated_values_by_rcomp(
             asset_storage_ref,
             rcomp,
-            share_fee
+            risk_factor::share_fee(),
         );
     }
     #[test(owner=@leizd,depositor1=@0x111,depositor2=@0x222,borrower1=@0x333,borrower2=@0x444,aptos_framework=@aptos_framework)]
