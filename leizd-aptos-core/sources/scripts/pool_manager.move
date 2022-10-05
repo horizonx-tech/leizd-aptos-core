@@ -91,15 +91,15 @@ module leizd::pool_manager {
     #[test_only]
     use leizd_aptos_common::test_coin::{Self, WETH, USDC, USDT, UNI};
     #[test_only]
+    use leizd_aptos_common::pool_status;
+    #[test_only]
     use leizd_aptos_logic::risk_factor;
     #[test_only]
     use leizd_aptos_treasury::treasury;
     #[test_only]
-    use leizd::central_liquidity_pool;
+    use leizd_aptos_central_liquidity_pool::central_liquidity_pool;
     #[test_only]
     use leizd::interest_rate;
-    #[test_only]
-    use leizd::pool_status;
     #[test_only]
     use leizd_aptos_trove::usdz;
     #[test_only]

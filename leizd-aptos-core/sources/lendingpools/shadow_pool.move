@@ -12,11 +12,11 @@ module leizd::shadow_pool {
     use leizd_aptos_common::permission;
     use leizd_aptos_common::pool_status;
     use leizd_aptos_lib::math128;
+    use leizd_aptos_treasury::treasury;
     use leizd_aptos_trove::usdz::{USDZ};
-    use leizd::interest_rate;
-    use leizd_aptos_logic::risk_factor;
     use leizd_aptos_central_liquidity_pool::central_liquidity_pool::{Self, OperatorKey as CentralLiquidityPoolKey};
-    use leizd::treasury;
+    use leizd_aptos_logic::risk_factor;
+    use leizd::interest_rate;
 
     //// error_code (ref: asset_pool)
     // const ENOT_INITIALIZED: u64 = 1;
@@ -949,9 +949,9 @@ module leizd::shadow_pool {
     #[test_only]
     use leizd_aptos_common::system_administrator;
     #[test_only]
-    use leizd_aptos_trove::usdz;
-    #[test_only]
     use leizd_aptos_common::test_coin::{Self,WETH,UNI};
+    #[test_only]
+    use leizd_aptos_trove::usdz;
     #[test_only]
     use leizd::asset_pool;
     #[test_only]
