@@ -1852,8 +1852,8 @@ module leizd::asset_pool {
         //// update total_xxxx (instead of interest by accrue_interest)
         save_calculated_values_by_rcomp(
             borrow_mut_asset_storage<WETH>(borrow_global_mut<Storage>(owner_addr)),
-            ((risk_factor::precision() / 1000 * 100) as u128), // 10% (dummy value)
-            risk_factor::precision() / 1000 * 200 // 20% (dummy value)
+            interest_rate::precision() / 1000 * 100, // rcomp: 10% (dummy value)
+            risk_factor::precision() / 1000 * 200 // share_fee: 20% (dummy value)
         );
         assert!(total_borrowed_amount<WETH>() == 100500 + 10050, 0);
         assert!(total_normal_deposited_amount<WETH>() == 500000 + 8040, 0);

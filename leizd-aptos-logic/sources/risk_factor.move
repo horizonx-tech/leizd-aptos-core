@@ -19,14 +19,14 @@ module leizd_aptos_logic::risk_factor {
     const EINVALID_SHARE_FEE: u64 = 5;
     const EINVALID_LIQUIDATION_FEE: u64 = 6;
 
-    const PRECISION: u64 = 1000000000;
-    const DEFAULT_ENTRY_FEE: u64 = 1000000000 / 1000 * 5; // 0.5%
-    const DEFAULT_SHARE_FEE: u64 = 1000000000 / 1000 * 5; // 0.5%
-    const DEFAULT_LIQUIDATION_FEE: u64 = 1000000000 / 1000 * 5; // 0.5%
-    const DEFAULT_LTV: u64 = 1000000000 / 100 * 70; // 70%
-    const DEFAULT_THRESHOLD: u64 = 1000000000 / 100 * 85 ; // 85%
-    const SHADOW_LTV: u64 = 1000000000 / 100 * 90; // 90%
-    const SHADOW_LT: u64 = 1000000000 / 100 * 95; // 95%
+    const PRECISION: u64 = 1000000;
+    const DEFAULT_ENTRY_FEE: u64 = 1000000 / 1000 * 5; // 0.5%
+    const DEFAULT_SHARE_FEE: u64 = 1000000 / 1000 * 5; // 0.5%
+    const DEFAULT_LIQUIDATION_FEE: u64 = 1000000 / 1000 * 5; // 0.5%
+    const DEFAULT_LTV: u64 = 1000000 / 100 * 70; // 70%
+    const DEFAULT_THRESHOLD: u64 = 1000000 / 100 * 85 ; // 85%
+    const SHADOW_LTV: u64 = 1000000 / 100 * 90; // 90%
+    const SHADOW_LT: u64 = 1000000 / 100 * 95; // 95%
 
     //// resources
     /// access control
