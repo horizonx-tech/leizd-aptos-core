@@ -282,7 +282,7 @@ module leizd::account_position {
         if (sum_extra_shadow >= sum_insufficient_shadow) {
             // reallocation
             let i = vector::length<String>(&coins);
-            let opt_hf = health_factor(sum_deposited, sum_borrowed);
+            let opt_hf = risk_factor::health_factor_of(key<USDZ>(), sum_deposited, sum_borrowed);
             while (i > 0) {
                 let key = *vector::borrow<String>(&coins, i-1);
                 if (is_protected_internal(&protected_coins, key)) {
@@ -290,7 +290,7 @@ module leizd::account_position {
                     continue
                 };
                 let (_, _,deposited,borrowed) = extra_and_insufficient_shadow(key, addr);
-                let hf = health_factor(deposited, borrowed);
+                let hf = risk_factor::health_factor_of(key<USDZ>(), deposited, borrowed);
                 if (hf > opt_hf) {
                     // withdraw
                     let opt_deposit = (borrowed * risk_factor::precision() / (risk_factor::precision() - opt_hf)) * risk_factor::precision() / risk_factor::lt_of_shadow();
@@ -321,7 +321,7 @@ module leizd::account_position {
         if (sum_capacity_shadow >= sum_overdebt_shadow) {
             // reallocation
             let i = vector::length<String>(&coins);
-            let opt_hf = health_factor_of(key<WETH>(), sum_deposited, sum_borrowed); // TODO: 
+            let opt_hf = risk_factor::health_factor_of(key<WETH>(), sum_deposited, sum_borrowed); // TODO: 
             while (i > 0) {
                 let key = *vector::borrow<String>(&coins, i-1);
                 if (is_protected_internal(&protected_coins, key)) {
@@ -329,7 +329,7 @@ module leizd::account_position {
                     continue
                 };
                 let (_, _,deposited,borrowed) = capacity_and_overdebt_shadow(key, addr);
-                let hf = health_factor_of(key, deposited, borrowed);
+                let hf = risk_factor::health_factor_of(key, deposited, borrowed);
                 if (hf > opt_hf) {
                     // borrow
                     let opt_borrow = (deposited * (risk_factor::lt_of(key) * ((risk_factor::precision() - opt_hf)) / risk_factor::precision())) / risk_factor::precision();
@@ -347,32 +347,6 @@ module leizd::account_position {
             }
         };
         (result_amount_borrowed, result_amount_repaid)
-    }
-
-    fun health_factor(deposited: u64, borrowed: u64): u64 {
-        if (deposited == 0) {
-            0
-        } else {
-            let u = (borrowed * risk_factor::precision() / (deposited * risk_factor::lt_of_shadow() / risk_factor::precision()));
-            if (risk_factor::precision() < u) {
-                0
-            } else {
-                risk_factor::precision() - u
-            }
-        }
-    }
-
-    fun health_factor_of(key: String, deposited: u64, borrowed: u64): u64 {
-        if (deposited == 0) {
-            0
-        } else {
-            let u = (borrowed * risk_factor::precision() / (deposited * risk_factor::lt_of(key) / risk_factor::precision()));
-            if (risk_factor::precision() < u) {
-                0
-            } else {
-                risk_factor::precision() - u
-            }
-        }
     }
 
     fun sum_extra_and_insufficient_shadow(coins: &vector<String>, protected_coins: &SimpleMap<String,bool>, addr: address): (u64,u64,u64,u64) acquires Position {

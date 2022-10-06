@@ -2,7 +2,7 @@ module leizd_aptos_logic::risk_factor {
 
     use std::error;
     use std::signer;
-    use std::string;
+    use std::string::{Self,String};
     use aptos_std::event;
     use aptos_framework::account;
     use aptos_framework::table;
@@ -218,6 +218,19 @@ module leizd_aptos_logic::risk_factor {
     public fun lt_of_shadow(): u64 acquires Config {
         let config = borrow_global<Config>(permission::owner_address());
         *table::borrow<string::String,u64>(&config.lt, key<USDZ>())
+    }
+
+    public fun health_factor_of(key: String, deposited: u64, borrowed: u64): u64 acquires Config {
+        if (deposited == 0) {
+            0
+        } else {
+            let u = (borrowed * precision() / (deposited * lt_of(key) / precision()));
+            if (precision() < u) {
+                0
+            } else {
+                precision() - u
+            }
+        }
     }
 
     // about fee
