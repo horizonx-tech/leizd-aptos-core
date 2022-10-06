@@ -2,7 +2,9 @@ module leizd_aptos_external::switchboard_adaptor {
     use std::error;
     use std::signer;
     use std::string::String;
+    use aptos_std::event;
     use aptos_std::simple_map;
+    use aptos_framework::account;
     use leizd_aptos_common::permission;
     use leizd_aptos_common::coin_key::{key};
     use switchboard::aggregator;
@@ -17,17 +19,28 @@ module leizd_aptos_external::switchboard_adaptor {
         aggregators: simple_map::SimpleMap<String, address>
     }
 
+    struct UpdateAggregatorEvent has store, drop {
+        key: String,
+        aggregator: address,
+    }
+    struct SwitchboardAdaptorEventHandle has key {
+        update_aggregator_event: event::EventHandle<UpdateAggregatorEvent>,
+    }
+
     ////////////////////////////////////////////////////
     /// Manage module
     ////////////////////////////////////////////////////
     public entry fun initialize(owner: &signer) {
         let owner_addr = signer::address_of(owner);
-        permission::assert_owner(signer::address_of(owner));
+        permission::assert_owner(owner_addr);
         assert!(!exists<Storage>(owner_addr), error::invalid_argument(EALREADY_INITIALIZED));
-        move_to(owner, Storage { aggregators: simple_map::create<String, address>() })
+        move_to(owner, Storage { aggregators: simple_map::create<String, address>() });
+        move_to(owner, SwitchboardAdaptorEventHandle {
+            update_aggregator_event: account::new_event_handle<UpdateAggregatorEvent>(owner),
+        });
     }
 
-    public entry fun add_aggregator<C>(owner: &signer, aggregator: address) acquires Storage {
+    public entry fun add_aggregator<C>(owner: &signer, aggregator: address) acquires Storage, SwitchboardAdaptorEventHandle {
         let owner_addr = signer::address_of(owner);
         permission::assert_owner(owner_addr);
         let key = key<C>();
@@ -35,6 +48,10 @@ module leizd_aptos_external::switchboard_adaptor {
         assert!(!is_registered(key), error::invalid_argument(EALREADY_REGISTERED));
         let aggrs = &mut borrow_global_mut<Storage>(owner_addr).aggregators;
         simple_map::add<String, address>(aggrs, key, aggregator);
+        event::emit_event<UpdateAggregatorEvent>(
+            &mut borrow_global_mut<SwitchboardAdaptorEventHandle>(owner_addr).update_aggregator_event,
+            UpdateAggregatorEvent { key, aggregator },
+        );
     }
     fun is_registered(key: String): bool acquires Storage {
         let storage_ref = borrow_global<Storage>(permission::owner_address());
@@ -79,8 +96,11 @@ module leizd_aptos_external::switchboard_adaptor {
     use leizd_aptos_common::test_coin::{WETH, USDC};
     #[test(owner = @leizd_aptos_external)]
     fun test_initialize(owner: &signer) {
+        let owner_addr = signer::address_of(owner);
+        account::create_account_for_test(owner_addr);
         initialize(owner);
-        assert!(exists<Storage>(signer::address_of(owner)), 0);
+        assert!(exists<Storage>(owner_addr), 0);
+        assert!(exists<SwitchboardAdaptorEventHandle>(owner_addr), 0);
     }
     #[test(account = @0x111)]
     #[expected_failure(abort_code = 65537)]
@@ -90,38 +110,45 @@ module leizd_aptos_external::switchboard_adaptor {
     #[test(owner = @leizd_aptos_external)]
     #[expected_failure(abort_code = 65538)]
     fun test_initialize_twice(owner: &signer) {
+        account::create_account_for_test(signer::address_of(owner));
         initialize(owner);
         initialize(owner);
     }
     #[test(owner = @leizd_aptos_external)]
-    fun test_add_aggregator(owner: &signer) acquires Storage {
+    fun test_add_aggregator(owner: &signer) acquires Storage, SwitchboardAdaptorEventHandle {
+        let owner_addr = signer::address_of(owner);
+        account::create_account_for_test(owner_addr);
         initialize(owner);
         add_aggregator<WETH>(owner, @0xAAA);
-        let aggregator = simple_map::borrow(&borrow_global<Storage>(signer::address_of(owner)).aggregators, &key<WETH>());
+        let aggregator = simple_map::borrow(&borrow_global<Storage>(owner_addr).aggregators, &key<WETH>());
         assert!(aggregator == &@0xAAA, 0);
+        assert!(event::counter<UpdateAggregatorEvent>(&borrow_global<SwitchboardAdaptorEventHandle>(owner_addr).update_aggregator_event) == 1, 0);
     }
     #[test(account = @0x111)]
     #[expected_failure(abort_code = 65537)]
-    fun test_add_aggregator_with_not_owner(account: &signer) acquires Storage {
+    fun test_add_aggregator_with_not_owner(account: &signer) acquires Storage, SwitchboardAdaptorEventHandle {
         add_aggregator<WETH>(account, @0xAAA);
     }
     #[test(owner = @leizd_aptos_external)]
     #[expected_failure(abort_code = 65537)]
-    fun test_add_aggregator_before_initialize(owner: &signer) acquires Storage {
+    fun test_add_aggregator_before_initialize(owner: &signer) acquires Storage, SwitchboardAdaptorEventHandle {
         add_aggregator<WETH>(owner, @0xAAA);
     }
     #[test(owner = @leizd_aptos_external)]
     #[expected_failure(abort_code = 65540)]
-    fun test_add_aggregator_twice(owner: &signer) acquires Storage {
+    fun test_add_aggregator_twice(owner: &signer) acquires Storage, SwitchboardAdaptorEventHandle {
+        let owner_addr = signer::address_of(owner);
+        account::create_account_for_test(owner_addr);
         initialize(owner);
         add_aggregator<WETH>(owner, @0xAAA);
         add_aggregator<WETH>(owner, @0xAAA);
     }
     #[test(owner = @leizd_aptos_external, usdc_aggr = @0x111AAA, weth_aggr = @0x222AAA)]
-    fun test_end_to_end(owner: &signer, usdc_aggr: &signer, weth_aggr: &signer) acquires Storage {
+    fun test_end_to_end(owner: &signer, usdc_aggr: &signer, weth_aggr: &signer) acquires Storage, SwitchboardAdaptorEventHandle {
         aggregator::new_test(usdc_aggr, 2, 0, false);
         aggregator::new_test(weth_aggr, 3, 0, false);
 
+        account::create_account_for_test(signer::address_of(owner));
         initialize(owner);
         add_aggregator<USDC>(owner, signer::address_of(usdc_aggr));
         add_aggregator<WETH>(owner, signer::address_of(weth_aggr));
