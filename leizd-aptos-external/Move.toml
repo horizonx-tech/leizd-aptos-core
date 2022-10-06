@@ -13,11 +13,15 @@ subdir = 'aptos-move/framework/aptos-framework'
 #rev = 'main'
 #subdir = 'switchboard-move/switchboard'
 
+[dependencies.LeizdAptosLib]
+local = "../leizd-aptos-lib"
+
 [dependencies.LeizdAptosCommon]
 local = "../leizd-aptos-common"
 
 [addresses]
 leizd_aptos_external="0x0123456789ABCDEF"
+leizd_aptos_lib="0x0123456789ABCDEF"
 leizd_aptos_common="0x0123456789ABCDEF"
 #switchboard = "0x14611263909398572be034debb2e61b6751cafbeaddd994b9a1250cb76b99d38" # devnet
 #switchboard = "0xb27f7bbf7caf2368b08032d005e8beab151a885054cdca55c4cc644f0a308d2b" # testnet
