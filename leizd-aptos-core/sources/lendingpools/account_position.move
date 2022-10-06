@@ -72,17 +72,17 @@ module leizd::account_position {
     }
 
     struct GlobalPositionEventHandle<phantom P> has key, store {
-        update_position_event: event::EventHandle<UpdateUserPositionEvent>,
+        update_global_position_event: event::EventHandle<UpdateUserPositionEvent>,
     }
 
     public entry fun initialize(owner: &signer): OperatorKey {
         let owner_addr = signer::address_of(owner);
         permission::assert_owner(owner_addr);
         move_to(owner, GlobalPositionEventHandle<AssetToShadow> {
-            update_position_event: account::new_event_handle<UpdateUserPositionEvent>(owner),
+            update_global_position_event: account::new_event_handle<UpdateUserPositionEvent>(owner),
         });
         move_to(owner, GlobalPositionEventHandle<ShadowToAsset> {
-            update_position_event: account::new_event_handle<UpdateUserPositionEvent>(owner),
+            update_global_position_event: account::new_event_handle<UpdateUserPositionEvent>(owner),
         });
         OperatorKey {}
     }
@@ -965,7 +965,7 @@ module leizd::account_position {
         );
         let owner_address = permission::owner_address();
         event::emit_event<UpdateUserPositionEvent>(
-            &mut borrow_global_mut<GlobalPositionEventHandle<P>>(owner_address).update_position_event,
+            &mut borrow_global_mut<GlobalPositionEventHandle<P>>(owner_address).update_global_position_event,
             UpdateUserPositionEvent {
                 account: addr,
                 key,
