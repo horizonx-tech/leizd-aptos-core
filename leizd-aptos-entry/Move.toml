@@ -23,6 +23,9 @@ local = "../leizd-aptos-trove"
 [dependencies.LeizdAptosCentralLiquidityPool]
 local = "../leizd-aptos-central-liquidity-pool"
 
+[dependencies.LeizdAptosExternal]
+local = "../leizd-aptos-external"
+
 [dependencies.LeizdAptosTreasury]
 local = "../leizd-aptos-treasury"
 
@@ -33,5 +36,6 @@ leizd_aptos_common="0x0123456789ABCDEF"
 leizd_aptos_logic="0x0123456789ABCDEF"
 leizd_aptos_trove="0x0123456789ABCDEF"
 leizd_aptos_central_liquidity_pool="0x0123456789ABCDEF"
+leizd_aptos_external="0x0123456789ABCDEF"
 leizd_aptos_treasury="0x0123456789ABCDEF"
 aptos_framework="0x1"

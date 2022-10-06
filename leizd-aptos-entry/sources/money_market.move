@@ -321,6 +321,8 @@ module leizd_aptos_entry::money_market {
     #[test_only]
     use leizd_aptos_treasury::treasury;
     #[test_only]
+    use leizd_aptos_core::test_initializer;
+    #[test_only]
     use leizd::pool_manager;
     #[test_only]
     use leizd::initializer;
@@ -352,6 +354,7 @@ module leizd_aptos_entry::money_market {
 
         // initialize
         initializer::initialize(owner);
+        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner); // TODO: clean
         initialize(owner);
 
         // add_pool

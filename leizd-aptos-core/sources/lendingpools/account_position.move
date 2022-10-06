@@ -2413,6 +2413,7 @@ module leizd::account_position {
     #[expected_failure(abort_code = 65546)]
     fun test_rebalance_shadow_with_no_need_to_rebalance(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
         setup(owner);
+        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
 
@@ -2537,6 +2538,7 @@ module leizd::account_position {
     #[expected_failure(abort_code = 65540)]
     fun test_borrow_and_rebalance_if_protect_key1_coin(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
         setup(owner);
+        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
 
@@ -2551,6 +2553,7 @@ module leizd::account_position {
     #[expected_failure(abort_code = 65540)]
     fun test_borrow_and_rebalance_if_protect_key2_coin(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
         setup(owner);
+        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
 
@@ -2566,6 +2569,7 @@ module leizd::account_position {
     #[test(owner = @leizd, account = @0x111)]
     fun test_can_rebalance_shadow_between(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
         setup(owner);
+        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
 
@@ -2580,6 +2584,7 @@ module leizd::account_position {
     #[test(owner = @leizd, account = @0x111)]
     fun test_can_rebalance_shadow_between_with_insufficient_extra(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
         setup(owner);
+        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
 
@@ -2594,6 +2599,7 @@ module leizd::account_position {
     #[test(owner = @leizd, account = @0x111)]
     fun test_can_rebalance_shadow_between_with_no_extra(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
         setup(owner);
+        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
 
@@ -2608,6 +2614,7 @@ module leizd::account_position {
     #[test(owner = @leizd, account = @0x111)]
     fun test_can_rebalance_shadow_between_with_no_insufficient(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
         setup(owner);
+        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
 

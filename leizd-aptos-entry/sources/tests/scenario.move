@@ -20,6 +20,7 @@ module leizd_aptos_entry::scenario {
     use leizd_aptos_core::shadow_pool;
     use leizd_aptos_core::pool_manager;
     use leizd_aptos_core::account_position;
+    use leizd_aptos_core::test_initializer;
     use leizd_aptos_entry::money_market;
     use leizd_aptos_entry::initializer;
 
@@ -57,6 +58,7 @@ module leizd_aptos_entry::scenario {
 
         initializer::initialize(owner);
         money_market::initialize(owner);
+        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner); // TODO: clean
     }
     #[test_only]
     fun register_all_coins(account: &signer) {
