@@ -15,6 +15,7 @@ module leizd_aptos_external::price_oracle {
 
     const INACTIVE: u8 = 0;
     const FIXED_PRICE: u8 = 1;
+    const SWITCHBOARD: u8 = 2;
 
     struct Storage has key {
         oracles: simple_map::SimpleMap<String, OracleContainer>
@@ -113,6 +114,7 @@ module leizd_aptos_external::price_oracle {
         assert!(is_registered(*key), error::invalid_argument(ENOT_REGISTERED));
         let oracle = simple_map::borrow(&borrow_global<Storage>(permission::owner_address()).oracles, key);
         if (oracle.mode == FIXED_PRICE) return (oracle.fixed_price.value, oracle.fixed_price.dec);
+        if (oracle.mode == SWITCHBOARD) return leizd_aptos_external::switchboard_adaptor::price_of(key);
         abort error::invalid_argument(EINACTIVE)
     }
 
