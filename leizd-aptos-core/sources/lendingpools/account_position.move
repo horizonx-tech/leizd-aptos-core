@@ -114,23 +114,23 @@ module leizd::account_position {
     public fun deposit<C,P>(
         account: &signer,
         depositor_addr: address,
-        amount: u64,
+        share: u64,
         is_collateral_only: bool,
         _key: &OperatorKey
     ) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        deposit_internal<C,P>(account, depositor_addr, amount, is_collateral_only);
+        deposit_internal<C,P>(account, depositor_addr, share, is_collateral_only);
     }
 
-    fun deposit_internal<C,P>(account: &signer, depositor_addr: address, amount: u64, is_collateral_only: bool) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
+    fun deposit_internal<C,P>(account: &signer, depositor_addr: address, share: u64, is_collateral_only: bool) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
         initialize_position_if_necessary(account);
         assert!(exists<Position<AssetToShadow>>(depositor_addr), error::invalid_argument(ENO_POSITION_RESOURCE));
 
         if (pool_type::is_type_asset<P>()) {
             assert_invalid_deposit_asset<C>(depositor_addr, is_collateral_only);
-            update_on_deposit<C,AssetToShadow>(depositor_addr, amount, is_collateral_only);
+            update_on_deposit<C,AssetToShadow>(depositor_addr, share, is_collateral_only);
         } else {
             assert_invalid_deposit_shadow<C>(depositor_addr, is_collateral_only);
-            update_on_deposit<C,ShadowToAsset>(depositor_addr, amount, is_collateral_only);
+            update_on_deposit<C,ShadowToAsset>(depositor_addr, share, is_collateral_only);
         };
     }
 
@@ -181,20 +181,20 @@ module leizd::account_position {
     ////////////////////////////////////////////////////
     public fun withdraw<C,P>(
         depositor_addr: address,
-        amount: u64,
+        share: u64,
         is_collateral_only: bool,
         _key: &OperatorKey
     ): u64 acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        withdraw_internal<C,P>(depositor_addr, amount, is_collateral_only)
+        withdraw_internal<C,P>(depositor_addr, share, is_collateral_only)
     }
 
-    fun withdraw_internal<C,P>(depositor_addr: address, amount: u64, is_collateral_only: bool): u64 acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
+    fun withdraw_internal<C,P>(depositor_addr: address, share: u64, is_collateral_only: bool): u64 acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
         let withdrawn_amount;
         if (pool_type::is_type_asset<P>()) {
-            withdrawn_amount = update_on_withdraw<C,AssetToShadow>(depositor_addr, amount, is_collateral_only);
+            withdrawn_amount = update_on_withdraw<C,AssetToShadow>(depositor_addr, share, is_collateral_only);
             assert!(is_safe<C,AssetToShadow>(depositor_addr), error::invalid_state(ENO_SAFE_POSITION));
         } else {
-            withdrawn_amount = update_on_withdraw<C,ShadowToAsset>(depositor_addr, amount, is_collateral_only);
+            withdrawn_amount = update_on_withdraw<C,ShadowToAsset>(depositor_addr, share, is_collateral_only);
             assert!(is_safe<C,ShadowToAsset>(depositor_addr), error::invalid_state(ENO_SAFE_POSITION));
         };
         withdrawn_amount
@@ -207,25 +207,25 @@ module leizd::account_position {
     public fun borrow<C,P>(
         account: &signer,
         borrower_addr: address,
-        amount: u64,
+        share: u64,
         _key: &OperatorKey
     ) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        borrow_internal<C,P>(account, borrower_addr, amount);
+        borrow_internal<C,P>(account, borrower_addr, share);
     }
 
     fun borrow_internal<C,P>(
         account: &signer,
         borrower_addr: address,
-        amount: u64,
+        share: u64,
     ) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
         initialize_position_if_necessary(account);
         assert!(exists<Position<AssetToShadow>>(borrower_addr), error::invalid_argument(ENO_POSITION_RESOURCE));
 
         if (pool_type::is_type_asset<P>()) {
-            update_on_borrow<C,ShadowToAsset>(borrower_addr, amount);
+            update_on_borrow<C,ShadowToAsset>(borrower_addr, share);
             assert!(is_safe<C,ShadowToAsset>(borrower_addr), error::invalid_state(ENO_SAFE_POSITION));
         } else {
-            update_on_borrow<C,AssetToShadow>(borrower_addr, amount);
+            update_on_borrow<C,AssetToShadow>(borrower_addr, share);
             assert!(is_safe<C,AssetToShadow>(borrower_addr), error::invalid_state(ENO_SAFE_POSITION));
         };
     }
@@ -452,15 +452,15 @@ module leizd::account_position {
     ////////////////////////////////////////////////////
     /// Repay
     ////////////////////////////////////////////////////
-    public fun repay<C,P>(addr: address, amount: u64,  _key: &OperatorKey): u64 acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        repay_internal<C, P>(addr, amount)
+    public fun repay<C,P>(addr: address, share: u64,  _key: &OperatorKey): u64 acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
+        repay_internal<C, P>(addr, share)
     }
-    fun repay_internal<C,P>(addr: address, amount: u64): u64 acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
+    fun repay_internal<C,P>(addr: address, share: u64): u64 acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
         let repaid_amount;
         if (pool_type::is_type_asset<P>()) {
-            repaid_amount = update_on_repay<C,ShadowToAsset>(addr, amount);
+            repaid_amount = update_on_repay<C,ShadowToAsset>(addr, share);
         } else {
-            repaid_amount = update_on_repay<C,AssetToShadow>(addr, amount);
+            repaid_amount = update_on_repay<C,AssetToShadow>(addr, share);
         };
         repaid_amount
     }
