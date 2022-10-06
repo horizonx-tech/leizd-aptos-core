@@ -83,7 +83,7 @@ module leizd::account_position {
         });
         move_to(owner, GlobalPositionEventHandle<ShadowToAsset> {
             update_position_event: account::new_event_handle<UpdateUserPositionEvent>(owner),
-        });        
+        });
         OperatorKey {}
     }
 
@@ -1187,8 +1187,9 @@ module leizd::account_position {
 
     // for deposit
     #[test_only]
-    fun setup_for_test_to_initialize_coins(owner: &signer) {
+    fun setup(owner: &signer) {
         account::create_account_for_test(signer::address_of(owner));
+        initialize(owner);
         test_initializer::initialize(owner);
         asset_pool::initialize(owner);
         shadow_pool::initialize(owner);
@@ -1210,8 +1211,9 @@ module leizd::account_position {
         initialize_position_if_necessary(account);
     }
 
-    #[test(account=@0x111)]
-    public fun test_protect_coin_and_unprotect_coin(account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
+    #[test(owner=@leizd,account1account=@0x111)]
+    public fun test_protect_coin_and_unprotect_coin(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
+        setup(owner);
         let key = key<WETH>();
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -1227,7 +1229,7 @@ module leizd::account_position {
     }
     #[test(owner=@leizd,account=@0x111)]
     public entry fun test_deposit_weth(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
 
@@ -1239,7 +1241,7 @@ module leizd::account_position {
     }
     #[test(owner=@leizd,account1=@0x111,account2=@0x222)]
     public entry fun test_deposit_weth_by_two(owner: &signer, account1: &signer, account2: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         let account1_addr = signer::address_of(account1);
         let account2_addr = signer::address_of(account2);
         account::create_account_for_test(account1_addr);
@@ -1252,7 +1254,7 @@ module leizd::account_position {
     }
     #[test(owner=@leizd,account=@0x111)]
     public entry fun test_deposit_weth_for_only_collateral(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
 
@@ -1262,7 +1264,7 @@ module leizd::account_position {
     }
     #[test(owner=@leizd,account=@0x111)]
     public entry fun test_deposit_shadow(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
 
@@ -1272,7 +1274,7 @@ module leizd::account_position {
     }
     #[test(owner=@leizd,account=@0x111)]
     public entry fun test_deposit_shadow_for_only_collateral(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
 
@@ -1282,7 +1284,7 @@ module leizd::account_position {
     }
     #[test(owner=@leizd,account=@0x111)]
     public entry fun test_deposit_with_all_patterns(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
 
@@ -1301,7 +1303,7 @@ module leizd::account_position {
     #[test(owner=@leizd,account=@0x111)]
     #[expected_failure(abort_code = 65544)]
     fun test_deposit_asset_by_collateral_only_asset_after_depositing_normal(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
 
@@ -1311,7 +1313,7 @@ module leizd::account_position {
     #[test(owner=@leizd,account=@0x111)]
     #[expected_failure(abort_code = 65545)]
     fun test_deposit_asset_by_normal_after_depositing_collateral_only(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
 
@@ -1321,7 +1323,7 @@ module leizd::account_position {
     #[test(owner=@leizd,account=@0x111)]
     #[expected_failure(abort_code = 65544)]
     fun test_deposit_shadow_by_collateral_only_asset_after_depositing_normal(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
 
@@ -1331,7 +1333,7 @@ module leizd::account_position {
     #[test(owner=@leizd,account=@0x111)]
     #[expected_failure(abort_code = 65545)]
     fun test_deposit_shadow_by_normal_after_depositing_collateral_only(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
 
@@ -1342,7 +1344,7 @@ module leizd::account_position {
     // for withdraw
     #[test(owner=@leizd,account=@0x111)]
     public entry fun test_withdraw_weth(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -1355,7 +1357,7 @@ module leizd::account_position {
     }
     #[test(owner=@leizd,account=@0x111)]
     public entry fun test_withdraw_with_same_as_deposited_amount(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -1367,7 +1369,7 @@ module leizd::account_position {
     #[test(owner=@leizd,account=@0x111)]
     #[expected_failure(abort_code = 65541)]
     public entry fun test_withdraw_with_more_than_deposited_amount(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
 
@@ -1376,7 +1378,7 @@ module leizd::account_position {
     }
     #[test(owner=@leizd,account=@0x111)]
     public entry fun test_withdraw_for_only_collateral(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -1389,7 +1391,7 @@ module leizd::account_position {
     }
     #[test(owner=@leizd,account=@0x111)]
     public entry fun test_withdraw_shadow(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -1402,7 +1404,7 @@ module leizd::account_position {
     }
     #[test(owner=@leizd,account=@0x111)]
     public entry fun test_withdraw_shadow_for_only_collateral(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -1415,7 +1417,7 @@ module leizd::account_position {
     }
     #[test(owner=@leizd,account=@0x111)]
     public entry fun test_withdraw_all(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -1428,7 +1430,7 @@ module leizd::account_position {
     }
     #[test(owner=@leizd,account=@0x111)]
     public entry fun test_withdraw_with_all_patterns(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -1453,7 +1455,7 @@ module leizd::account_position {
     // for borrow
     #[test(owner=@leizd,account=@0x111)]
     public entry fun test_borrow_unsafe(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -1468,7 +1470,7 @@ module leizd::account_position {
     }
     #[test(owner=@leizd,account=@0x111)]
     public entry fun test_borrow_asset(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -1493,7 +1495,7 @@ module leizd::account_position {
     }
     #[test(owner=@leizd,account=@0x111)]
     public entry fun test_borrow_shadow(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -1519,7 +1521,7 @@ module leizd::account_position {
     #[test(owner=@leizd,account=@0x111)]
     #[expected_failure(abort_code = 196610)]
     public entry fun test_borrow_asset_when_over_borrowable(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -1535,7 +1537,7 @@ module leizd::account_position {
     #[test(owner=@leizd,account=@0x111)]
     #[expected_failure(abort_code = 196610)]
     public entry fun test_borrow_shadow_when_over_borrowable(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -1553,7 +1555,7 @@ module leizd::account_position {
     // borrow shadow with rebalance
     #[test(owner=@leizd,account1=@0x111)]
     public entry fun test_borrow_asset_with_rebalance__optimize_shadow(owner: &signer, account1: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         let account1_addr = signer::address_of(account1);
         account::create_account_for_test(account1_addr);
@@ -1571,7 +1573,7 @@ module leizd::account_position {
     }
     #[test(owner=@leizd,account1=@0x111)]
     public entry fun test_borrow_asset_with_rebalance__optimize_shadow2(owner: &signer, account1: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         let account1_addr = signer::address_of(account1);
         account::create_account_for_test(account1_addr);
@@ -1590,7 +1592,7 @@ module leizd::account_position {
     }
     #[test(owner=@leizd,account1=@0x111)]
     public entry fun test_borrow_asset_with_rebalance__optimize_shadow3(owner: &signer, account1: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         let account1_addr = signer::address_of(account1);
         account::create_account_for_test(account1_addr);
@@ -1613,7 +1615,7 @@ module leizd::account_position {
     }
     #[test(owner=@leizd,account1=@0x111)]
     public entry fun test_borrow_asset_with_rebalance__optimize_shadow4(owner: &signer, account1: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         let account1_addr = signer::address_of(account1);
         account::create_account_for_test(account1_addr);
@@ -1638,7 +1640,7 @@ module leizd::account_position {
 
     #[test(owner=@leizd,account1=@0x111)]
     public entry fun test_borrow_asset_with_rebalance__borrow_and_deposit(owner: &signer, account1: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         let account1_addr = signer::address_of(account1);
         account::create_account_for_test(account1_addr);
@@ -1653,7 +1655,7 @@ module leizd::account_position {
     }
     #[test(owner=@leizd,account1=@0x111)]
     public entry fun test_borrow_asset_with_rebalance__borrow_and_deposit2(owner: &signer, account1: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         let account1_addr = signer::address_of(account1);
         account::create_account_for_test(account1_addr);
@@ -1671,7 +1673,7 @@ module leizd::account_position {
     }
     #[test(owner=@leizd,account1=@0x111)]
     public entry fun test_borrow_asset_with_rebalance__borrow_and_deposit3(owner: &signer, account1: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         let account1_addr = signer::address_of(account1);
         account::create_account_for_test(account1_addr);
@@ -1705,7 +1707,7 @@ module leizd::account_position {
     }
     #[test(owner=@leizd,account1=@0x111)]
     public entry fun test_borrow_asset_with_rebalance__borrow_and_deposit4(owner: &signer, account1: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         let account1_addr = signer::address_of(account1);
         account::create_account_for_test(account1_addr);
@@ -1739,7 +1741,7 @@ module leizd::account_position {
     }
     #[test(owner=@leizd,account1=@0x111)]
     public entry fun test_borrow_asset_with_rebalance__borrow_and_deposit5(owner: &signer, account1: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         let account1_addr = signer::address_of(account1);
         account::create_account_for_test(account1_addr);
@@ -1776,7 +1778,7 @@ module leizd::account_position {
     // repay
     #[test(owner=@leizd,account=@0x111)]
     public entry fun test_repay(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -1792,7 +1794,7 @@ module leizd::account_position {
     }
     #[test(owner=@leizd,account=@0x111)]
     public entry fun test_repay_asset(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -1815,7 +1817,7 @@ module leizd::account_position {
     }
     #[test(owner=@leizd,account=@0x111)]
     public entry fun test_repay_asset_all(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -1838,7 +1840,7 @@ module leizd::account_position {
     }
     #[test(owner=@leizd,account=@0x111)]
     public entry fun test_repay_shadow(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -1862,7 +1864,7 @@ module leizd::account_position {
     #[test(owner=@leizd,account=@0x111)]
     #[expected_failure(abort_code = 196610)]
     public entry fun test_repay_asset_when_over_borrowed(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -1875,7 +1877,7 @@ module leizd::account_position {
     #[test(owner=@leizd,account=@0x111)]
     #[expected_failure(abort_code = 65542)]
     public entry fun test_repay_shadow_when_over_borrowed(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -1889,7 +1891,7 @@ module leizd::account_position {
     // repay with rebalance
     #[test(owner=@leizd,account=@0x111)]
     public entry fun test_repay_shadow_with_rebalance_evenly(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -1910,7 +1912,7 @@ module leizd::account_position {
     // repay with rebalance
     #[test(owner=@leizd,account=@0x111)]
     public entry fun test_repay_shadow_with_rebalance__left_unpaid(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -1935,7 +1937,7 @@ module leizd::account_position {
     }
     #[test(owner=@leizd,account=@0x111)]
     public entry fun test_repay_shadow_with_rebalance_all(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -1954,7 +1956,7 @@ module leizd::account_position {
     }
     #[test(owner=@leizd,account=@0x111)]
     public entry fun test_repay_shadow_with_rebalance_without_protected_coins(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -1980,7 +1982,7 @@ module leizd::account_position {
     // for liquidation
     #[test(owner=@leizd,account=@0x111)]
     public entry fun test_liquidate_asset(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -2003,7 +2005,7 @@ module leizd::account_position {
     }
     #[test(owner=@leizd,account=@0x111)]
     public entry fun test_liquidate_asset_conly(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -2026,7 +2028,7 @@ module leizd::account_position {
     }
     #[test(owner=@leizd,account=@0x111)]
     public entry fun test_liquidate_shadow(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -2049,7 +2051,7 @@ module leizd::account_position {
     }
     #[test(owner=@leizd,account=@0x111)]
     public entry fun test_liquidate_shadow_conly(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -2072,7 +2074,7 @@ module leizd::account_position {
     }
     #[test(owner=@leizd,account=@0x111)]
     public entry fun test_liquidate_two_shadow_position(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -2107,7 +2109,7 @@ module leizd::account_position {
     }
     #[test(owner=@leizd,account=@0x111)]
     public entry fun test_liquidate_asset_and_shadow(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -2143,7 +2145,7 @@ module leizd::account_position {
     }
     #[test(owner=@leizd,account=@0x111)]
     public entry fun test_liquidate_shadow_if_rebalance_should_be_done(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -2173,7 +2175,7 @@ module leizd::account_position {
     #[test(owner=@leizd,account=@0x111)]
     #[expected_failure(abort_code = 196610)]
     public entry fun test_liquidate_asset_if_safe(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -2184,7 +2186,7 @@ module leizd::account_position {
     #[test(owner=@leizd,account=@0x111)]
     #[expected_failure(abort_code = 196610)]
     public entry fun test_liquidate_shadow_if_safe(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -2198,7 +2200,7 @@ module leizd::account_position {
     ////// withdraw all -> re-deposit (borrowable / asset)
     #[test(owner=@leizd,account=@0x111)]
     public entry fun test_check_existence_of_position_when_withdraw_asset(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         let coin_key = key<WETH>();
         let account_addr = signer::address_of(account);
@@ -2224,7 +2226,7 @@ module leizd::account_position {
     ////// withdraw all -> re-deposit (collateral only / shadow)
     #[test(owner=@leizd,account=@0x111)]
     public entry fun test_check_existence_of_position_when_withdraw_shadow_collateral_only(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         let coin_key = key<UNI>();
         let account_addr = signer::address_of(account);
@@ -2250,7 +2252,7 @@ module leizd::account_position {
     ////// repay all -> re-deposit (borrowable / asset)
     #[test(owner=@leizd,account=@0x111)]
     public entry fun test_check_existence_of_position_when_repay_asset(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         let coin_key = key<UNI>();
         let account_addr = signer::address_of(account);
@@ -2280,7 +2282,7 @@ module leizd::account_position {
     ////// repay all -> re-deposit (collateral only / shadow)
     #[test(owner=@leizd,account=@0x111)]
     public entry fun test_check_existence_of_position_when_repay_shadow(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         let coin_key = key<WETH>();
         let account_addr = signer::address_of(account);
@@ -2310,7 +2312,7 @@ module leizd::account_position {
     //// multiple executions
     #[test(owner=@leizd,account=@0x111)]
     public entry fun test_deposit_and_withdraw_more_than_once_sequentially(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -2327,7 +2329,7 @@ module leizd::account_position {
     }
     #[test(owner=@leizd,account=@0x111)]
     public entry fun test_borrow_and_repay_more_than_once_sequentially(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -2347,7 +2349,7 @@ module leizd::account_position {
     // rebalance shadow
     #[test(owner=@leizd,account1=@0x111)]
     public entry fun test_rebalance_shadow(owner: &signer, account1: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         let account1_addr = signer::address_of(account1);
         account::create_account_for_test(account1_addr);
@@ -2377,7 +2379,7 @@ module leizd::account_position {
     }
     // #[test(owner=@leizd, account1=@0x111, account2=@0x222)]
     // public entry fun test_rebalance_shadow_with_patterns_collateral_only_or_borrowable(owner: &signer, account1: &signer, account2: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-    //     setup_for_test_to_initialize_coins(owner);
+    //     setup(owner);
     //     test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
 
     //     // collateral only & borrowable
@@ -2410,7 +2412,7 @@ module leizd::account_position {
     #[test(owner = @leizd, account = @0x111)]
     #[expected_failure(abort_code = 65546)]
     fun test_rebalance_shadow_with_no_need_to_rebalance(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
 
@@ -2421,7 +2423,7 @@ module leizd::account_position {
     #[test(owner = @leizd, account = @0x111)]
     #[expected_failure(abort_code = 65539)]
     fun test_rebalance_shadow_if_no_position_of_key1_coin(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
 
@@ -2431,7 +2433,7 @@ module leizd::account_position {
     #[test(owner = @leizd, account = @0x111)]
     #[expected_failure(abort_code = 65539)]
     fun test_rebalance_shadow_if_no_position_of_key2_coin(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
 
@@ -2441,7 +2443,7 @@ module leizd::account_position {
     #[test(owner = @leizd, account = @0x111)]
     #[expected_failure(abort_code = 65540)]
     fun test_rebalance_shadow_if_protect_key1_coin(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
 
@@ -2453,7 +2455,7 @@ module leizd::account_position {
     #[test(owner = @leizd, account = @0x111)]
     #[expected_failure(abort_code = 65540)]
     fun test_rebalance_shadow_if_protect_key2_coin(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
 
@@ -2464,7 +2466,7 @@ module leizd::account_position {
     }
     #[test(owner=@leizd,account1=@0x111)]
     public entry fun test_borrow_and_rebalance(owner: &signer, account1: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         let account1_addr = signer::address_of(account1);
         account::create_account_for_test(account1_addr);
@@ -2490,7 +2492,7 @@ module leizd::account_position {
     }
     #[test(owner=@leizd,account1=@0x111)]
     public entry fun test_borrow_and_rebalance_2(owner: &signer, account1: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         let account1_addr = signer::address_of(account1);
         account::create_account_for_test(account1_addr);
@@ -2512,7 +2514,7 @@ module leizd::account_position {
     #[test(owner = @leizd, account = @0x111)]
     #[expected_failure(abort_code = 65539)]
     fun test_borrow_and_rebalance_if_no_position_of_key1_coin(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
 
@@ -2523,7 +2525,7 @@ module leizd::account_position {
     #[test(owner = @leizd, account = @0x111)]
     #[expected_failure(abort_code = 65539)]
     fun test_borrow_and_rebalance_if_no_position_of_key2_coin(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
 
@@ -2534,7 +2536,7 @@ module leizd::account_position {
     #[test(owner = @leizd, account = @0x111)]
     #[expected_failure(abort_code = 65540)]
     fun test_borrow_and_rebalance_if_protect_key1_coin(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
 
@@ -2548,7 +2550,7 @@ module leizd::account_position {
     #[test(owner = @leizd, account = @0x111)]
     #[expected_failure(abort_code = 65540)]
     fun test_borrow_and_rebalance_if_protect_key2_coin(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
 
@@ -2563,7 +2565,7 @@ module leizd::account_position {
     ////// can_rebalance_shadow_between
     #[test(owner = @leizd, account = @0x111)]
     fun test_can_rebalance_shadow_between(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
 
@@ -2577,7 +2579,7 @@ module leizd::account_position {
     }
     #[test(owner = @leizd, account = @0x111)]
     fun test_can_rebalance_shadow_between_with_insufficient_extra(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
 
@@ -2591,7 +2593,7 @@ module leizd::account_position {
     }
     #[test(owner = @leizd, account = @0x111)]
     fun test_can_rebalance_shadow_between_with_no_extra(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
 
@@ -2605,7 +2607,7 @@ module leizd::account_position {
     }
     #[test(owner = @leizd, account = @0x111)]
     fun test_can_rebalance_shadow_between_with_no_insufficient(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup_for_test_to_initialize_coins(owner);
+        setup(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
 
