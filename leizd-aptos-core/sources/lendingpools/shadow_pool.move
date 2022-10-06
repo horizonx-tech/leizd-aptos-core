@@ -2815,12 +2815,12 @@ module leizd::shadow_pool {
 
         //// borrow
         borrow_for_internal(key<WETH>(), borrower1_addr, borrower1_addr, 75000);
-        assert!(borrowed_amount<WETH>() == 75375, 0);
+        assert!(borrowed_amount<WETH>() == 75375, 0); // +375: 0.5% entry fee
         assert!(borrowed_share<WETH>() == 75375, 0);
         assert!(treasury::balance<USDZ>() == 375, 0);
         assert!(total_borrowed_amount() == 75375, 0);
         borrow_for_internal(key<WETH>(), borrower1_addr, borrower2_addr, 25000);
-        assert!(borrowed_amount<WETH>() == 100500, 0);
+        assert!(borrowed_amount<WETH>() == 100500, 0); // +125: 0.5 entry fee
         assert!(borrowed_share<WETH>() == 100500, 0);
         assert!(treasury::balance<USDZ>() == 500, 0);
         assert!(total_borrowed_amount() == 100500, 0);
@@ -2833,8 +2833,8 @@ module leizd::shadow_pool {
         save_calculated_values_by_rcomp(
             key<WETH>(),
             borrow_global_mut<Storage>(owner_addr),
-            ((risk_factor::precision() / 1000 * 100) as u128), // 10% (dummy value)
-            risk_factor::precision() / 1000 * 200, // 20% (dummy value)
+            (interest_rate::precision() / 1000 * 100), // 10% (dummy value)
+            (risk_factor::precision() / 1000 * 200), // 20% (dummy value)
             borrow_global_mut<Pool>(owner_addr)
         );
         assert!(borrowed_amount<WETH>() == 100500 + 10050, 0);
