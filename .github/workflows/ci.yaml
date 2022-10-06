@@ -24,7 +24,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Compile
-        run: for pkg in `ls | grep leizd-aptos`; do aptos move compile --package-dir ${pkg} &; done
+        run: for pkg in `ls | grep leizd-aptos`; do aptos move compile --package-dir ${pkg}; done
 
       - name: Test
-        run: for pkg in `ls | grep leizd-aptos`; do aptos move test --package-dir ${pkg} &; done
+        run: for pkg in `ls | grep leizd-aptos`; do aptos move test --package-dir ${pkg}; done
