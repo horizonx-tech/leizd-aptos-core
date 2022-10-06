@@ -30,7 +30,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
 
     const PRECISION: u64 = 1000000000;
     const DEFAULT_PROTOCOL_FEE: u64 = 1000000000 * 10 / 1000; // 1%
-    const DEFAULT_SUPPORT_FEE: u64 = 1000000000 * 1 / 1000; // 0.1%
+    const DEFAULT_SUPPORT_FEE: u64 = 1000000000 * 100 / 1000; // 10%
 
     //// resources
     /// access control
@@ -1024,11 +1024,11 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
     fun test_calculate_support_fee(owner: &signer) acquires Balance, Config, CentralLiquidityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
 
-        assert!(calculate_support_fee(100000) == 100, 0);
-        assert!(calculate_support_fee(100001) == 101, 0);
-        assert!(calculate_support_fee(99999) == 100, 0);
-        assert!(calculate_support_fee(2000) == 2, 0);
-        assert!(calculate_support_fee(1990) == 2, 0);
+        assert!(calculate_support_fee(100000) == 10000, 0);
+        assert!(calculate_support_fee(100001) == 10001, 0);
+        assert!(calculate_support_fee(99999) == 10000, 0);
+        assert!(calculate_support_fee(2000) == 200, 0);
+        assert!(calculate_support_fee(1990) == 199, 0);
         assert!(calculate_support_fee(1) == 1, 0);
         assert!(calculate_support_fee(0) == 0, 0);
 
