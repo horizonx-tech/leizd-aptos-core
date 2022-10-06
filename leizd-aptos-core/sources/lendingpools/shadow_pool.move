@@ -1884,15 +1884,15 @@ module leizd::shadow_pool {
         let from_shadow = 5025;
         let from_central = 10050 - from_shadow;
         assert!(pool_value(owner_addr) == 0, 0);
-        assert!(central_liquidity_pool::borrowed(key<UNI>()) == (from_shadow + 26 as u128), 0); // from_shadow + fee calculated by from_shadow
+        assert!(central_liquidity_pool::borrowed(key<UNI>()) == (from_shadow as u128), 0); // from_shadow + fee calculated by from_shadow
         assert!(central_liquidity_pool::left() == (50000 - from_shadow as u128) , 0);
-        assert!(borrowed_amount<UNI>() == 5025 + from_shadow + from_central + 26, 0);
+        assert!(borrowed_amount<UNI>() == 5025 + from_shadow + from_central, 0);
         assert!(usdz::balance_of(borrower_addr) == 15000, 0);
         //// from only central_liquidity_pool
         borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 15000);
         assert!(pool_value(owner_addr) == 0, 0);
-        assert!(borrowed_amount<UNI>() == 15101 + ((15000 + 75) + 76), 0); // (borrowed + fee) + fee calculated by (borrowed + fee)
-        assert!(central_liquidity_pool::borrowed(key<UNI>()) == 5051 + ((15000 + 75) + 76), 0); // previous + this time
+        assert!(borrowed_amount<UNI>() == 15101 + ((15000 + 75) - 26), 0); // (borrowed + fee) + fee calculated by (borrowed + fee)
+        assert!(central_liquidity_pool::borrowed(key<UNI>()) == 5051 + ((15000 + 75) - 26), 0); // previous + this time
         assert!(central_liquidity_pool::left() == (50000 - 5025 - 15075 as u128), 0); // initial - previous - this time
         assert!(usdz::balance_of(borrower_addr) == 30000, 0);
     }
@@ -2008,7 +2008,7 @@ module leizd::shadow_pool {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         central_liquidity_pool::add_supported_pool<UNI>(owner);
-        central_liquidity_pool::update_config(owner, 0);
+        central_liquidity_pool::update_config(owner, 0, 0);
 
         let owner_addr = signer::address_of(owner);
         let depositor_addr = signer::address_of(depositor);
@@ -2025,30 +2025,30 @@ module leizd::shadow_pool {
         deposit_for_internal(key<UNI>(), depositor, depositor_addr, 1000, false);
         borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 3000);
         assert!(pool_value(owner_addr) == 0, 0);
-        assert!(borrowed_amount<UNI>() == (1000 + 5) + (2000 + 10 + 11), 0);
-        assert!(central_liquidity_pool::borrowed(key<UNI>()) == 5 + 2000 + 10 + 11, 0);
+        assert!(borrowed_amount<UNI>() == (1000 + 5) + (2000 + 10), 0);
+        assert!(central_liquidity_pool::borrowed(key<UNI>()) == 5 + 2000 + 10, 0);
         assert!(central_liquidity_pool::left() == 5000 - (5 + 2000 + 10), 0);
         assert!(usdz::balance_of(borrower_addr) == 3000, 0);
         //// from only central_liquidity_pool
         repay_internal(key<UNI>(), borrower, 1800);
         assert!(pool_value(owner_addr) == 0, 0);
-        assert!(borrowed_amount<UNI>() == ((1000 + 5) + (2000 + 10 + 11)) - 1800, 0);
-        assert!(central_liquidity_pool::borrowed(key<UNI>()) == (5 + 2000 + 10 + 11) - 1800, 0);
+        assert!(borrowed_amount<UNI>() == ((1000 + 5) + (2000 + 10)) - 1800, 0);
+        assert!(central_liquidity_pool::borrowed(key<UNI>()) == (5 + 2000 + 10) - 1800, 0);
         assert!(central_liquidity_pool::left() == 5000 - (5 + 2000 + 10) + 1800, 0); //TODO:
         assert!(usdz::balance_of(borrower_addr) == 1200, 0);
         //// from both
         repay_internal(key<UNI>(), borrower, 1000);
-        assert!(pool_value(owner_addr) == 1000 - 226, 0);
-        assert!(borrowed_amount<UNI>() == ((1000 + 5) + (2000 + 10 + 11)) - 1800 - 1000, 0);
+        assert!(pool_value(owner_addr) == 1000 - 215, 0);
+        assert!(borrowed_amount<UNI>() == ((1000 + 5) + (2000 + 10)) - 1800 - 1000, 0);
         assert!(central_liquidity_pool::borrowed(key<UNI>()) == 0, 0);
-        assert!(central_liquidity_pool::left() == 5000 + 11, 0);
+        assert!(central_liquidity_pool::left() == 5000, 0);
         assert!(usdz::balance_of(borrower_addr) == 200, 0);
         //// from only shadow_pool
         repay_internal(key<UNI>(), borrower, 200);
-        assert!(pool_value(owner_addr) == 1000 - 26, 0);
-        assert!(borrowed_amount<UNI>() == 5 + 10 + 11, 0);
+        assert!(pool_value(owner_addr) == 1000 - 26 + 11, 0);
+        assert!(borrowed_amount<UNI>() == 5 + 10, 0);
         assert!(central_liquidity_pool::borrowed(key<UNI>()) == 0, 0);
-        assert!(central_liquidity_pool::left() == 5000 + 11, 0);
+        assert!(central_liquidity_pool::left() == 5000, 0);
         assert!(usdz::balance_of(borrower_addr) == 0, 0);
     }
     // TODO: fail because of total_borrowed increased by interest_rate (as time passes)
@@ -2113,7 +2113,7 @@ module leizd::shadow_pool {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         central_liquidity_pool::add_supported_pool<UNI>(owner);
-        central_liquidity_pool::update_config(owner, 0);
+        central_liquidity_pool::update_config(owner, 0, 0);
 
         let depositor_addr = signer::address_of(depositor);
         let borrower_addr = signer::address_of(borrower);
@@ -2131,16 +2131,16 @@ module leizd::shadow_pool {
         central_liquidity_pool::deposit(depositor, 50000);
         //// 1st
         borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 5000);
-        usdz::mint_for_test(borrower_addr, 25 + 26); // fee in shadow + fee in central-liquidity-pool
-        repay_internal(key<UNI>(), borrower, 5000 + 25 + 26);
+        usdz::mint_for_test(borrower_addr, 25); // fee in shadow
+        repay_internal(key<UNI>(), borrower, 5000 + 25);
         assert!(central_liquidity_pool::borrowed(key<UNI>()) == 0, 0);
         //// 2nd
         borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 10000);
         borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 20000);
-        usdz::mint_for_test(borrower_addr, 100 + 101); // fee in shadow + fee in central-liquidity-pool for 20000
-        usdz::mint_for_test(borrower_addr, 50 + 51); // fee in shadow + fee in central-liquidity-pool for 10000
-        repay_internal(key<UNI>(), borrower, 20000 + 100 + 101);
-        repay_internal(key<UNI>(), borrower, 10000 + 50 + 51);
+        usdz::mint_for_test(borrower_addr, 100); // fee in shadow for 20000
+        usdz::mint_for_test(borrower_addr, 50); // fee in shadow for 10000
+        repay_internal(key<UNI>(), borrower, 20000 + 100);
+        repay_internal(key<UNI>(), borrower, 10000 + 50);
         assert!(central_liquidity_pool::borrowed(key<UNI>()) == 0, 0);
         //// 3rd
         borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 10);
@@ -2150,12 +2150,12 @@ module leizd::shadow_pool {
         borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 50);
         repay_internal(key<UNI>(), borrower, 40);
         repay_internal(key<UNI>(), borrower, 10);
-        usdz::mint_for_test(borrower_addr, 6);
-        repay_internal(key<UNI>(), borrower, 6);
+        usdz::mint_for_test(borrower_addr, 3);
+        repay_internal(key<UNI>(), borrower, 3);
         assert!(central_liquidity_pool::borrowed(key<UNI>()) == 0, 0);
         //// still open position
         borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 5000);
-        assert!(central_liquidity_pool::borrowed(key<UNI>()) == 5051, 0);
+        assert!(central_liquidity_pool::borrowed(key<UNI>()) == 5025, 0);
     }
     #[test(owner=@leizd,depositor=@0x111,borrower1=@0x222,borrower2=@0x333,aptos_framework=@aptos_framework)]
     public entry fun test_with_central_liquidity_pool_to_open_multi_position(owner: &signer, depositor: &signer, borrower1: &signer, borrower2: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
@@ -2163,7 +2163,7 @@ module leizd::shadow_pool {
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         central_liquidity_pool::add_supported_pool<UNI>(owner);
         central_liquidity_pool::add_supported_pool<WETH>(owner);
-        central_liquidity_pool::update_config(owner, 0);
+        central_liquidity_pool::update_config(owner, 0, 0);
 
         let depositor_addr = signer::address_of(depositor);
         let borrower1_addr = signer::address_of(borrower1);
@@ -2182,19 +2182,19 @@ module leizd::shadow_pool {
         //// borrow
         borrow_for_internal(key<WETH>(), borrower1_addr, borrower1_addr, 3000);
         assert!(central_liquidity_pool::left() == 10000 - (500 + 15), 0);
-        assert!(central_liquidity_pool::borrowed(key<WETH>()) == (500 + 15) + 3, 0);
+        assert!(central_liquidity_pool::borrowed(key<WETH>()) == (500 + 15), 0);
         assert!(central_liquidity_pool::borrowed(key<UNI>()) == 0, 0);
         borrow_for_internal(key<WETH>(), borrower2_addr, borrower2_addr, 2000);
         assert!(central_liquidity_pool::left() == 10000 - (500 + 15) - (2000 + 10), 0);
-        assert!(central_liquidity_pool::borrowed(key<WETH>()) == (500 + 15) + 3 + (2000 + 10) + 11, 0);
+        assert!(central_liquidity_pool::borrowed(key<WETH>()) == (500 + 15) + (2000 + 10), 0);
         assert!(central_liquidity_pool::borrowed(key<UNI>()) == 0, 0);
         borrow_for_internal(key<UNI>(), borrower2_addr, borrower2_addr, 4000);
         assert!(central_liquidity_pool::left() == 10000 - (500 + 15) - (2000 + 10) - (4000 + 20), 0);
-        assert!(central_liquidity_pool::borrowed(key<WETH>()) == (500 + 15) + 3 + (2000 + 10) + 11, 0);
-        assert!(central_liquidity_pool::borrowed(key<UNI>()) == (4000 + 20) + 21, 0);
+        assert!(central_liquidity_pool::borrowed(key<WETH>()) == (500 + 15) + (2000 + 10), 0);
+        assert!(central_liquidity_pool::borrowed(key<UNI>()) == (4000 + 20), 0);
         //// repay
-        repay_internal(key<UNI>(), depositor, 4041);
-        assert!(central_liquidity_pool::borrowed(key<WETH>()) == (500 + 15) + 3 + (2000 + 10) + 11, 0);
+        repay_internal(key<UNI>(), depositor, 4020);
+        assert!(central_liquidity_pool::borrowed(key<WETH>()) == (500 + 15) + (2000 + 10), 0);
         assert!(central_liquidity_pool::borrowed(key<UNI>()) == 0, 0);
         repay_internal(key<WETH>(), depositor, 2539);
         assert!(central_liquidity_pool::borrowed(key<WETH>()) == 0, 0);
