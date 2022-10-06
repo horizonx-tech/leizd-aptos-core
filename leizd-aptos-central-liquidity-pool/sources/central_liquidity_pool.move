@@ -12,11 +12,13 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
     use leizd_aptos_common::coin_key::{key};
     use leizd_aptos_trove::usdz::{USDZ};
     use leizd_aptos_central_liquidity_pool::stb_usdz;
+    use leizd_aptos_treasury::treasury;
     use leizd_aptos_lib::math128;
     use leizd_aptos_lib::constant;
 
     //// error_code
     const EALREADY_INITIALIZED: u64 = 1;
+    const EINVALID_PROTOCOL_FEE: u64 = 2;
     const EINVALID_AMOUNT: u64 = 3;
     const EEXCEED_REMAINING_AMOUNT: u64 = 4;
     const EEXCEED_DEPOSITED_AMOUNT: u64 = 5;
@@ -27,6 +29,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
     const EINVALID_SUPPORT_FEE: u64 = 10;
 
     const PRECISION: u64 = 1000000000;
+    const DEFAULT_PROTOCOL_FEE: u64 = 1000000000 * 10 / 1000; // 1%
     const DEFAULT_SUPPORT_FEE: u64 = 1000000000 * 1 / 1000; // 0.1%
 
     //// resources
@@ -40,6 +43,8 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         total_borrowed: u128,
         total_uncollected_fee: u128,
         supported_pools: vector<String>, // e.g. 0x1::module_name::WBTC
+        protocol_fees: u64,
+        harvested_protocol_fees: u64,
     }
 
     struct Balance has key {
@@ -48,6 +53,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
     }
 
     struct Config has key {
+        protocol_fee: u64, // usage fee
         support_fee: u64, // base fee obtained from supported pools
     }
 
@@ -80,6 +86,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
     }
     struct UpdateConfigEvent has store, drop {
         caller: address,
+        protocol_fee: u64,
         support_fee: u64,
     }
     struct CentralLiquidityPoolEventHandle has key, store {
@@ -105,12 +112,15 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
             total_borrowed: 0,
             total_uncollected_fee: 0,
             supported_pools: vector::empty<String>(),
+            protocol_fees: 0,
+            harvested_protocol_fees: 0
         });
         move_to(owner, Balance {
             borrowed: simple_map::create<String,u128>(),
             uncollected_support_fee: simple_map::create<String,u128>(),
         });
         move_to(owner, Config {
+            protocol_fee: DEFAULT_PROTOCOL_FEE,
             support_fee: DEFAULT_SUPPORT_FEE
         });
         move_to(owner, CentralLiquidityPoolEventHandle {
@@ -124,6 +134,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
             &mut borrow_global_mut<CentralLiquidityPoolEventHandle>(owner_address).update_config_event,
             UpdateConfigEvent {
                 caller: owner_address,
+                protocol_fee: DEFAULT_PROTOCOL_FEE,
                 support_fee: DEFAULT_SUPPORT_FEE
             }
         );
@@ -154,19 +165,22 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         AssetManagerKey {}
     }
 
-    public entry fun update_config(owner: &signer, new_support_fee: u64) acquires Config, CentralLiquidityPoolEventHandle {
+    public entry fun update_config(owner: &signer, new_protocol_fee: u64, new_support_fee: u64) acquires Config, CentralLiquidityPoolEventHandle {
+        assert!(new_protocol_fee < PRECISION, error::invalid_argument(EINVALID_PROTOCOL_FEE));
         assert!(new_support_fee < PRECISION, error::invalid_argument(EINVALID_SUPPORT_FEE));
         let owner_address = signer::address_of(owner);
         permission::assert_owner(owner_address);
 
         let config = borrow_global_mut<Config>(owner_address);
-        if (config.support_fee == new_support_fee) return;
+        if (config.protocol_fee == new_protocol_fee && config.support_fee == new_support_fee) return;
+        config.protocol_fee = new_protocol_fee;
         config.support_fee = new_support_fee;
 
         event::emit_event<UpdateConfigEvent>(
             &mut borrow_global_mut<CentralLiquidityPoolEventHandle>(owner_address).update_config_event,
             UpdateConfigEvent {
                 caller: owner_address,
+                protocol_fee: new_protocol_fee,
                 support_fee: new_support_fee,
             }
         );
@@ -307,6 +321,12 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         );
         (borrowed, total_borrowed)
     }
+    public fun protocol_fee(): u64 acquires Config {
+        borrow_global<Config>(permission::owner_address()).protocol_fee
+    }
+    public fun calculate_protocol_fee(value: u128): u128 acquires Config {
+        calculate_fee_with_round_up(value, (protocol_fee() as u128))
+    }
     public fun support_fee(): u64 acquires Config {
         borrow_global<Config>(permission::owner_address()).support_fee
     }
@@ -356,19 +376,21 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         );
     }
 
-    public fun accrue_interest(key: String, interest: u128, _key: &OperatorKey) acquires Balance, CentralLiquidityPool {
+    public fun accrue_interest(key: String, interest: u128, _key: &OperatorKey) acquires Balance, CentralLiquidityPool, Config {
         accrue_interest_internal(key, interest)
     }
-
-    fun accrue_interest_internal(key: String, interest: u128) acquires Balance, CentralLiquidityPool {
+    fun accrue_interest_internal(key: String, interest: u128) acquires Balance, CentralLiquidityPool, Config {
         let owner_address = permission::owner_address();
         let balance_ref = borrow_global_mut<Balance>(owner_address);
         let pool_ref = borrow_global_mut<CentralLiquidityPool>(owner_address);
+        let protocol_fee = calculate_protocol_fee(interest);
+        let depositors_share = interest - protocol_fee;
 
         let borrowed = simple_map::borrow_mut<String,u128>(&mut balance_ref.borrowed, &key);
         *borrowed = *borrowed + interest;
         pool_ref.total_borrowed = pool_ref.total_borrowed + interest;
-        pool_ref.total_deposited = pool_ref.total_deposited + interest;
+        pool_ref.total_deposited = pool_ref.total_deposited + depositors_share;
+        pool_ref.protocol_fees = pool_ref.protocol_fees + (protocol_fee as u64);
     }
 
     public fun collect_support_fee(
@@ -390,6 +412,21 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         pool_ref.total_uncollected_fee = pool_ref.total_uncollected_fee + new_uncollected_fee;
         pool_ref.total_deposited = pool_ref.total_deposited + (coin::value<USDZ>(&coin) as u128);
         coin::merge<USDZ>(&mut pool_ref.left, coin);
+    }
+
+    public fun harvest_protocol_fees<C>() acquires CentralLiquidityPool {
+        let pool_ref = borrow_global_mut<CentralLiquidityPool>(permission::owner_address());
+        let harvested_fee = (pool_ref.protocol_fees - pool_ref.harvested_protocol_fees as u128);
+        if(harvested_fee == 0){
+            return
+        };
+        let liquidity = (coin::value<USDZ>(&pool_ref.left) as u128);
+        if(harvested_fee > liquidity){
+            harvested_fee = liquidity;
+        };
+        pool_ref.harvested_protocol_fees = pool_ref.harvested_protocol_fees + (harvested_fee as u64);
+        let fee_extracted = coin::extract(&mut pool_ref.left, (harvested_fee as u64));
+        treasury::collect_fee<USDZ>(fee_extracted);
     }
 
     ////// View functions
