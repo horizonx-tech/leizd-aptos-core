@@ -150,11 +150,11 @@ module leizd_aptos_entry::money_market {
         let (account_position_key, asset_pool_key, shadow_pool_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
         let (deposits, withdraws, borrows, repays) = account_position::borrow_asset_with_rebalance<C>(borrower_addr, amount, account_position_key);
 
-        // deposit shadow
-        let i = vector::length<Rebalance>(&deposits);
+        // borrow shadow
+        let i = vector::length<Rebalance>(&borrows);
         while (i > 0) {
-            let rebalance = *vector::borrow<Rebalance>(&deposits, i-1);
-            shadow_pool::deposit_for_with(rebalance::key(rebalance), account, borrower_addr, rebalance::amount(rebalance), false, shadow_pool_key);
+            let rebalance = *vector::borrow<Rebalance>(&borrows, i-1);
+            shadow_pool::borrow_for_with(rebalance::key(rebalance), borrower_addr, borrower_addr, rebalance::amount(rebalance), shadow_pool_key);
             i = i - 1;
         };
 
@@ -166,19 +166,19 @@ module leizd_aptos_entry::money_market {
             i = i - 1;
         };
 
-        // borrow shadow
-        let i = vector::length<Rebalance>(&borrows);
-        while (i > 0) {
-            let rebalance = *vector::borrow<Rebalance>(&borrows, i-1);
-            shadow_pool::borrow_for_with(rebalance::key(rebalance), borrower_addr, borrower_addr, rebalance::amount(rebalance), shadow_pool_key);
-            i = i - 1;
-        };
-
         // repay shadow
         let i = vector::length<Rebalance>(&repays);
         while (i > 0) {
             let rebalance = *vector::borrow<Rebalance>(&repays, i-1);
             shadow_pool::repay_with(rebalance::key(rebalance), account, rebalance::amount(rebalance), shadow_pool_key);
+            i = i - 1;
+        };
+
+        // deposit shadow
+        let i = vector::length<Rebalance>(&deposits);
+        while (i > 0) {
+            let rebalance = *vector::borrow<Rebalance>(&deposits, i-1);
+            shadow_pool::deposit_for_with(rebalance::key(rebalance), account, borrower_addr, rebalance::amount(rebalance), false, shadow_pool_key);
             i = i - 1;
         };
 
@@ -951,5 +951,29 @@ module leizd_aptos_entry::money_market {
         assert!(coin::balance<USDC>(borrower_addr) == 0, 0);
         assert!(asset_pool::total_normal_deposited_amount<USDC>() == 500000000000, 0);
         assert!(account_position::deposited_asset_share<USDC>(borrower_addr) == 500000000000, 0);
+        assert!(account_position::borrowed_asset_share<USDT>(borrower_addr) == 100500000000, 0); // +0.5% entry fee
+    }
+    #[test(owner=@leizd_aptos_entry,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
+    fun test_scenario__borrow_asset_with_rebalance_with_larger_numbers(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
+        initialize_lending_pool_for_test(owner, aptos_framework);
+        setup_account_for_test(depositor);
+        setup_account_for_test(borrower);
+        let depositor_addr = signer::address_of(depositor);
+        let borrower_addr = signer::address_of(borrower);
+        usdz::mint_for_test(depositor_addr, 500000000000); // 500k USDZ TODO: decimal scale by oracle price
+        managed_coin::mint<USDC>(owner, borrower_addr, 500000000000); // 500k USDC
+        managed_coin::mint<USDT>(owner, depositor_addr, 500000000000); // 500k USDT
+
+        deposit<USDC, Shadow>(depositor, 300000000000, false);
+        deposit<USDT, Shadow>(depositor, 200000000000, false);
+        deposit<USDT, Asset>(depositor, 500000000000, false);
+
+        deposit<USDC, Asset>(borrower, 500000000000, false);
+        borrow_asset_with_rebalance<USDT>(borrower, 100000000000);
+
+        assert!(coin::balance<USDC>(borrower_addr) == 0, 0);
+        assert!(asset_pool::total_normal_deposited_amount<USDC>() == 500000000000, 0);
+        assert!(account_position::deposited_asset_share<USDC>(borrower_addr) == 500000000000, 0);
+        // TODO: amount -> share
     }
 }
