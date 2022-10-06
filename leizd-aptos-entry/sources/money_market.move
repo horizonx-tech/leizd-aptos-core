@@ -927,4 +927,29 @@ module leizd_aptos_entry::money_market {
         assert!(account_position::deposited_shadow_share<WETH>(account_addr) == 1000, 0);
         assert!(account_position::conly_deposited_shadow_share<WETH>(account_addr) == 0, 0);
     }
+
+    // scenario
+    #[test(owner=@leizd_aptos_entry,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
+    fun test_scenario__deposit_and_borrow_with_larger_numbers(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
+        initialize_lending_pool_for_test(owner, aptos_framework);
+        setup_account_for_test(depositor);
+        setup_account_for_test(borrower);
+        let depositor_addr = signer::address_of(depositor);
+        let borrower_addr = signer::address_of(borrower);
+        usdz::mint_for_test(depositor_addr, 500000000000); // 500k USDZ TODO: decimal scale by oracle price
+        managed_coin::mint<USDC>(owner, borrower_addr, 500000000000); // 500k USDC
+        managed_coin::mint<USDT>(owner, depositor_addr, 500000000000); // 500k USDT
+
+        deposit<USDC, Shadow>(depositor, 500000000000, false);
+        deposit<USDT, Asset>(depositor, 500000000000, false);
+
+        deposit<USDC, Asset>(borrower, 500000000000, false);
+        borrow<USDC, Shadow>(borrower, 300000000000);
+        deposit<USDT, Shadow>(borrower, 200000000000, false);
+        borrow<USDT, Asset>(borrower, 100000000000);
+
+        assert!(coin::balance<USDC>(borrower_addr) == 0, 0);
+        assert!(asset_pool::total_normal_deposited_amount<USDC>() == 500000000000, 0);
+        assert!(account_position::deposited_asset_share<USDC>(borrower_addr) == 500000000000, 0);
+    }
 }
