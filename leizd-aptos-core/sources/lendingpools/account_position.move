@@ -295,13 +295,13 @@ module leizd::account_position {
                     // withdraw
                     let opt_deposit = (borrowed * risk_factor::precision() / (risk_factor::precision() - opt_hf)) * risk_factor::precision() / risk_factor::lt_of_shadow();
                     let diff = deposited - opt_deposit;
-                    update_position_for_withdraw<ShadowToAsset>(key, addr, diff, false); // TODO: collateral_only
+                    update_position_for_withdraw<ShadowToAsset>(key, addr, diff, false); // TODO: collateral_only test
                     vector::push_back<Rebalance>(&mut result_amount_withdrawed, rebalance::create(key, diff));
                 } else if (opt_hf > hf) {
                     // deposit
                     let opt_deposit = (borrowed * risk_factor::precision() / (risk_factor::precision() - opt_hf)) * risk_factor::precision() / risk_factor::lt_of_shadow();
                     let diff = opt_deposit - deposited;
-                    update_position_for_deposit<ShadowToAsset>(key, addr, diff, false); // TODO: collateral_only
+                    update_position_for_deposit<ShadowToAsset>(key, addr, diff, false); // TODO: collateral_only test is_conly_shadow(key, addr)
                     vector::push_back<Rebalance>(&mut result_amount_deposited, rebalance::create(key, diff));
                 };
                 i = i -1;
@@ -317,11 +317,11 @@ module leizd::account_position {
         let protected_coins = position_ref.protected_coins;
         let result_amount_repaid = vector::empty<Rebalance>();
 
-        let (sum_capacity_shadow,sum_overdebt_shadow,sum_deposited,sum_borrowed) = sum_capacity_and_overdebt_shadow(&coins, &protected_coins, addr);
+        let (sum_capacity_shadow,sum_overdebt_shadow,keys,deposits,borrows) = sum_capacity_and_overdebt_shadow(&coins, &protected_coins, addr);
         if (sum_capacity_shadow >= sum_overdebt_shadow) {
             // reallocation
             let i = vector::length<String>(&coins);
-            let opt_hf = risk_factor::health_factor_of(key<WETH>(), sum_deposited, sum_borrowed); // TODO: 
+            let opt_hf = risk_factor::health_factor_weighted_average(keys, deposits, borrows); // TODO: 
             while (i > 0) {
                 let key = *vector::borrow<String>(&coins, i-1);
                 if (is_protected_internal(&protected_coins, key)) {
@@ -370,12 +370,13 @@ module leizd::account_position {
         (sum_extra_shadow, sum_insufficient_shadow, sum_deposited, sum_borrowed)
     }
 
-    fun sum_capacity_and_overdebt_shadow(coins: &vector<String>, protected_coins: &SimpleMap<String,bool>, addr: address): (u64,u64,u64,u64) acquires Position {
+    fun sum_capacity_and_overdebt_shadow(coins: &vector<String>, protected_coins: &SimpleMap<String,bool>, addr: address): (u64,u64,vector<String>,vector<u64>,vector<u64>) acquires Position {
         let i = vector::length<String>(coins);
         let sum_capacity_shadow = 0;
         let sum_overdebt_shadow = 0;
-        let sum_deposited = 0;
-        let sum_borrowed = 0;
+        let keys = vector::empty<String>();
+        let deposits = vector::empty<u64>();
+        let borrows = vector::empty<u64>();
         
         while (i > 0) {
             let key = vector::borrow<String>(coins, i-1);
@@ -383,12 +384,13 @@ module leizd::account_position {
                 let (capacity, overdebt, deposited, borrowed) = capacity_and_overdebt_shadow(*key, addr);
                 sum_capacity_shadow = sum_capacity_shadow + capacity;
                 sum_overdebt_shadow = sum_overdebt_shadow + overdebt;
-                sum_deposited = sum_deposited + deposited;
-                sum_borrowed = sum_borrowed + borrowed;
+                vector::push_back(&mut keys, *key);
+                vector::push_back(&mut deposits, deposited);
+                vector::push_back(&mut borrows, borrowed);
             };
             i = i - 1;
         };
-        (sum_capacity_shadow, sum_overdebt_shadow, sum_deposited, sum_borrowed)
+        (sum_capacity_shadow, sum_overdebt_shadow, keys, deposits, borrows)
     }
 
     /// @returns (result_amount_borrowed, result_amount_deposited)
@@ -400,7 +402,7 @@ module leizd::account_position {
         let result_amount_borrowed = vector::empty<Rebalance>();
         let result_amount_deposited = vector::empty<Rebalance>();
 
-        let (sum_capacity_shadow,_,_,_) = sum_capacity_and_overdebt_shadow(&coins, &protected_coins, addr);
+        let (sum_capacity_shadow,_,_,_,_) = sum_capacity_and_overdebt_shadow(&coins, &protected_coins, addr);
         if (required_shadow <= sum_capacity_shadow) {
             // borrow and deposit
             let i = vector::length<String>(&coins);

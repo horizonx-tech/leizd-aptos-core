@@ -2,6 +2,7 @@ module leizd_aptos_logic::risk_factor {
 
     use std::error;
     use std::signer;
+    use std::vector;
     use std::string::{Self,String};
     use aptos_std::event;
     use aptos_framework::account;
@@ -225,6 +226,34 @@ module leizd_aptos_logic::risk_factor {
             0
         } else {
             let u = (borrowed * precision() / (deposited * lt_of(key) / precision()));
+            if (precision() < u) {
+                0
+            } else {
+                precision() - u
+            }
+        }
+    }
+
+    public fun health_factor_weighted_average(keys: vector<String>, deposits: vector<u64>, borrows: vector<u64>): u64 acquires Config {
+        assert!(vector::length(&keys) == vector::length(&deposits), 0);
+        assert!(vector::length(&keys) == vector::length(&borrows), 0);
+
+        let borrowed_sum = 0;
+        let collateral_sum = 0;
+        let i = vector::length(&keys);
+        while (i > 0) {
+            let key = *vector::borrow(&keys, i-1);
+            let deposited = *vector::borrow(&deposits, i-1);
+            let borrowed = *vector::borrow(&borrows, i-1);
+            borrowed_sum = borrowed_sum + borrowed;
+            collateral_sum = collateral_sum + deposited * lt_of(key);
+            i = i - 1;
+        };
+
+        if (collateral_sum == 0) {
+            0
+        } else {
+            let u = borrowed_sum * precision() / (collateral_sum / precision());
             if (precision() < u) {
                 0
             } else {
