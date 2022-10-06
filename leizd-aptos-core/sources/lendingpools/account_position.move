@@ -1211,7 +1211,7 @@ module leizd::account_position {
         initialize_position_if_necessary(account);
     }
 
-    #[test(owner=@leizd,account1account=@0x111)]
+    #[test(owner=@leizd,account=@0x111)]
     public fun test_protect_coin_and_unprotect_coin(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
         setup(owner);
         let key = key<WETH>();
@@ -2628,8 +2628,9 @@ module leizd::account_position {
     }
 
     // switch collateral
-    #[test(account1=@0x111)]
-    public entry fun test_switch_collateral_with_asset(account1: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
+    #[test(owner = @leizd, account1 = @0x111)]
+    public entry fun test_switch_collateral_with_asset(owner: &signer, account1: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
+        setup(owner);
         let account1_addr = signer::address_of(account1);
         account::create_account_for_test(account1_addr);
         deposit_internal<WETH,Asset>(account1, account1_addr, 10000, false);
@@ -2647,8 +2648,9 @@ module leizd::account_position {
         assert!(deposited_asset_share<WETH>(account1_addr) == 40000, 0);
         assert!(conly_deposited_asset_share<WETH>(account1_addr) == 0, 0);
     }
-    #[test(account1=@0x111)]
-    public entry fun test_switch_collateral_with_shadow(account1: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
+    #[test(owner = @leizd, account1 = @0x111)]
+    public entry fun test_switch_collateral_with_shadow(owner: &signer, account1: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
+        setup(owner);
         let account1_addr = signer::address_of(account1);
         account::create_account_for_test(account1_addr);
         deposit_internal<WETH,Shadow>(account1, account1_addr, 10000, true);
