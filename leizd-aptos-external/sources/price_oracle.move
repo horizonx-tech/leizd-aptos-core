@@ -52,21 +52,21 @@ module leizd_aptos_external::price_oracle {
         });
     }
 
-    public entry fun add_oracle_without_fixed_price<C>(account: &signer) acquires Storage, OracleEventHandle {
-        add_oracle(account, key<C>(), OracleContainer {
+    public entry fun register_oracle_without_fixed_price<C>(account: &signer) acquires Storage, OracleEventHandle {
+        register_oracle_internal(account, key<C>(), OracleContainer {
             mode: INACTIVE,
             is_enabled_fixed_price: false,
             fixed_price: PriceDecimal { value: 0, dec: 0, neg: false }
         });
     }
-    public entry fun add_oracle_with_fixed_price<C>(account: &signer, value: u128, dec: u8, neg: bool) acquires Storage, OracleEventHandle {
-        add_oracle(account, key<C>(), OracleContainer {
+    public entry fun register_oracle_with_fixed_price<C>(account: &signer, value: u128, dec: u8, neg: bool) acquires Storage, OracleEventHandle {
+        register_oracle_internal(account, key<C>(), OracleContainer {
             mode: INACTIVE,
             is_enabled_fixed_price: true,
             fixed_price: PriceDecimal { value, dec, neg }
         });
     }
-    fun add_oracle(owner: &signer, key: String, oracle: OracleContainer) acquires Storage, OracleEventHandle {
+    fun register_oracle_internal(owner: &signer, key: String, oracle: OracleContainer) acquires Storage, OracleEventHandle {
         let owner_addr = signer::address_of(owner);
         permission::assert_owner(owner_addr);
         assert!(exists<Storage>(owner_addr), error::invalid_argument(ENOT_INITIALIZED));
@@ -177,10 +177,10 @@ module leizd_aptos_external::price_oracle {
         initialize(owner);
     }
     #[test(owner = @leizd_aptos_external)]
-    fun test_add_oracle_without_fixed_price(owner: &signer) acquires Storage, OracleEventHandle {
+    fun test_register_oracle_without_fixed_price(owner: &signer) acquires Storage, OracleEventHandle {
         account::create_account_for_test(signer::address_of(owner));
         initialize(owner);
-        add_oracle_without_fixed_price<WETH>(owner);
+        register_oracle_without_fixed_price<WETH>(owner);
         let oracle = simple_map::borrow(&borrow_global<Storage>(signer::address_of(owner)).oracles, &key<WETH>());
         assert!(oracle.mode == 0, 0);
         assert!(oracle.is_enabled_fixed_price == false, 0);
@@ -189,28 +189,28 @@ module leizd_aptos_external::price_oracle {
     }
     #[test(account = @0x1)]
     #[expected_failure(abort_code = 65537)]
-    fun test_add_oracle_without_fixed_price_with_not_owner(account: &signer) acquires Storage, OracleEventHandle {
-        add_oracle_without_fixed_price<WETH>(account);
+    fun test_register_oracle_without_fixed_price_with_not_owner(account: &signer) acquires Storage, OracleEventHandle {
+        register_oracle_without_fixed_price<WETH>(account);
     }
     #[test(owner = @leizd_aptos_external)]
     #[expected_failure(abort_code = 65537)]
-    fun test_add_oracle_without_fixed_price_before_initialize(owner: &signer) acquires Storage, OracleEventHandle {
-        add_oracle_without_fixed_price<WETH>(owner);
+    fun test_register_oracle_without_fixed_price_before_initialize(owner: &signer) acquires Storage, OracleEventHandle {
+        register_oracle_without_fixed_price<WETH>(owner);
     }
     #[test(owner = @leizd_aptos_external)]
     #[expected_failure(abort_code = 65540)]
-    fun test_add_oracle_without_fixed_price_twice(owner: &signer) acquires Storage, OracleEventHandle {
+    fun test_register_oracle_without_fixed_price_twice(owner: &signer) acquires Storage, OracleEventHandle {
         account::create_account_for_test(signer::address_of(owner));
         initialize(owner);
-        add_oracle_without_fixed_price<WETH>(owner);
-        add_oracle_without_fixed_price<WETH>(owner);
+        register_oracle_without_fixed_price<WETH>(owner);
+        register_oracle_without_fixed_price<WETH>(owner);
     }
     #[test(owner = @leizd_aptos_external)]
-    fun test_add_oracle_with_fixed_price(owner: &signer) acquires Storage, OracleEventHandle {
+    fun test_register_oracle_with_fixed_price(owner: &signer) acquires Storage, OracleEventHandle {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
         initialize(owner);
-        add_oracle_with_fixed_price<WETH>(owner, 100, 9, false);
+        register_oracle_with_fixed_price<WETH>(owner, 100, 9, false);
         let oracle = simple_map::borrow(&borrow_global<Storage>(owner_addr).oracles, &key<WETH>());
         assert!(oracle.mode == 0, 0);
         assert!(oracle.is_enabled_fixed_price == true, 0);
@@ -219,21 +219,21 @@ module leizd_aptos_external::price_oracle {
     }
     #[test(account = @0x1)]
     #[expected_failure(abort_code = 65537)]
-    fun test_add_oracle_with_fixed_price_with_not_owner(account: &signer) acquires Storage, OracleEventHandle {
-        add_oracle_with_fixed_price<WETH>(account, 100, 9, false);
+    fun test_register_oracle_with_fixed_price_with_not_owner(account: &signer) acquires Storage, OracleEventHandle {
+        register_oracle_with_fixed_price<WETH>(account, 100, 9, false);
     }
     #[test(owner = @leizd_aptos_external)]
     #[expected_failure(abort_code = 65537)]
-    fun test_add_oracle_with_fixed_price_before_initialize(owner: &signer) acquires Storage, OracleEventHandle {
-        add_oracle_with_fixed_price<WETH>(owner, 100, 9, false);
+    fun test_register_oracle_with_fixed_price_before_initialize(owner: &signer) acquires Storage, OracleEventHandle {
+        register_oracle_with_fixed_price<WETH>(owner, 100, 9, false);
     }
     #[test(owner = @leizd_aptos_external)]
     #[expected_failure(abort_code = 65540)]
-    fun test_add_oracle_with_fixed_price_twice(owner: &signer) acquires Storage, OracleEventHandle {
+    fun test_register_oracle_with_fixed_price_twice(owner: &signer) acquires Storage, OracleEventHandle {
         account::create_account_for_test(signer::address_of(owner));
         initialize(owner);
-        add_oracle_with_fixed_price<WETH>(owner, 100, 9, false);
-        add_oracle_with_fixed_price<WETH>(owner, 100, 9, false);
+        register_oracle_with_fixed_price<WETH>(owner, 100, 9, false);
+        register_oracle_with_fixed_price<WETH>(owner, 100, 9, false);
     }
 
     #[test(owner = @leizd_aptos_external)]
@@ -241,7 +241,7 @@ module leizd_aptos_external::price_oracle {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
         initialize(owner);
-        add_oracle_without_fixed_price<WETH>(owner);
+        register_oracle_without_fixed_price<WETH>(owner);
         assert!(event::counter<UpdateOracleEvent>(&borrow_global<OracleEventHandle>(owner_addr).update_oracle_event) == 1, 0);
         change_mode<WETH>(owner, 9);
 
@@ -271,7 +271,7 @@ module leizd_aptos_external::price_oracle {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
         initialize(owner);
-        add_oracle_without_fixed_price<WETH>(owner);
+        register_oracle_without_fixed_price<WETH>(owner);
         update_fixed_price<WETH>(owner, 1, 1, false);
 
         let oracle = simple_map::borrow(&borrow_global<Storage>(owner_addr).oracles, &key<WETH>());
@@ -299,7 +299,7 @@ module leizd_aptos_external::price_oracle {
     fun test_price_when_using_fixed_value(owner: &signer) acquires Storage, OracleEventHandle {
         account::create_account_for_test(signer::address_of(owner));
         initialize(owner);
-        add_oracle_with_fixed_price<WETH>(owner, 100, 9, false);
+        register_oracle_with_fixed_price<WETH>(owner, 100, 9, false);
         change_mode<WETH>(owner, fixed_price_mode());
         assert!(mode<WETH>() == FIXED_PRICE, 0);
 

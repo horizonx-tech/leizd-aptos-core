@@ -16,7 +16,7 @@ module leizd_aptos_external::integration {
     fun test_use_switchboard_from_price_oracle_mod(owner: &signer, weth_aggr: &signer) {
         account::create_account_for_test(signer::address_of(owner));
         initialize_all(owner);
-        price_oracle::add_oracle_without_fixed_price<WETH>(owner);
+        price_oracle::register_oracle_without_fixed_price<WETH>(owner);
         price_oracle::change_mode<WETH>(owner, 2);
         aggregator::new_test(weth_aggr, 12345, 0, false);
         switchboard_adaptor::add_aggregator<WETH>(owner, signer::address_of(weth_aggr));
