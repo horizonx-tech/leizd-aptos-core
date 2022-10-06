@@ -2,7 +2,8 @@ module leizd_aptos_logic::risk_factor {
 
     use std::error;
     use std::signer;
-    use std::string;
+    use std::vector;
+    use std::string::{Self,String};
     use aptos_std::event;
     use aptos_framework::account;
     use aptos_framework::table;
@@ -22,10 +23,10 @@ module leizd_aptos_logic::risk_factor {
     const DEFAULT_ENTRY_FEE: u64 = 1000000000 / 1000 * 5; // 0.5%
     const DEFAULT_SHARE_FEE: u64 = 1000000000 / 1000 * 5; // 0.5%
     const DEFAULT_LIQUIDATION_FEE: u64 = 1000000000 / 1000 * 5; // 0.5%
-    const DEFAULT_LTV: u64 = 1000000000 / 100 * 50; // 50%
-    const DEFAULT_THRESHOLD: u64 = 1000000000 / 100 * 70 ; // 70%
-    const SHADOW_LTV: u64 = 1000000000 / 100 * 100; // 100% // TODO: 90%
-    const SHADOW_LT: u64 = 1000000000 / 100 * 100; // 100% // TODO: 95%
+    const DEFAULT_LTV: u64 = 1000000000 / 100 * 70; // 70%
+    const DEFAULT_THRESHOLD: u64 = 1000000000 / 100 * 85 ; // 85%
+    const SHADOW_LTV: u64 = 1000000000 / 100 * 90; // 90%
+    const SHADOW_LT: u64 = 1000000000 / 100 * 95; // 95%
 
     //// resources
     /// access control
@@ -220,6 +221,47 @@ module leizd_aptos_logic::risk_factor {
         *table::borrow<string::String,u64>(&config.lt, key<USDZ>())
     }
 
+    public fun health_factor_of(key: String, deposited: u64, borrowed: u64): u64 acquires Config {
+        if (deposited == 0) {
+            0
+        } else {
+            let u = (borrowed * precision() / (deposited * lt_of(key) / precision()));
+            if (precision() < u) {
+                0
+            } else {
+                precision() - u
+            }
+        }
+    }
+
+    public fun health_factor_weighted_average(keys: vector<String>, deposits: vector<u64>, borrows: vector<u64>): u64 acquires Config {
+        assert!(vector::length(&keys) == vector::length(&deposits), 0);
+        assert!(vector::length(&keys) == vector::length(&borrows), 0);
+
+        let borrowed_sum = 0;
+        let collateral_sum = 0;
+        let i = vector::length(&keys);
+        while (i > 0) {
+            let key = *vector::borrow(&keys, i-1);
+            let deposited = *vector::borrow(&deposits, i-1);
+            let borrowed = *vector::borrow(&borrows, i-1);
+            borrowed_sum = borrowed_sum + borrowed;
+            collateral_sum = collateral_sum + deposited * lt_of(key);
+            i = i - 1;
+        };
+
+        if (collateral_sum == 0) {
+            0
+        } else {
+            let u = borrowed_sum * precision() / (collateral_sum / precision());
+            if (precision() < u) {
+                0
+            } else {
+                precision() - u
+            }
+        }
+    }
+
     // about fee
     public fun entry_fee(): u64 acquires ProtocolFees {
         borrow_global<ProtocolFees>(permission::owner_address()).entry_fee
@@ -411,8 +453,11 @@ module leizd_aptos_logic::risk_factor {
         account::create_account_for_test(owner_addr);
         initialize(owner);
         initialize_for_asset_internal<TestAsset>(owner);
-
         let name = key<TestAsset>();
+        assert!(ltv<TestAsset>() == PRECISION / 100 * 70, 0);
+        assert!(lt<TestAsset>() == PRECISION / 100 * 85, 0);
+        assert!(lt_of(name) == PRECISION / 100 * 85, 0);
+
         update_config<TestAsset>(owner, PRECISION / 100 * 70, PRECISION / 100 * 90);
         let config = borrow_global<Config>(permission::owner_address());
         let new_ltv = table::borrow<string::String,u64>(&config.ltv, name);
