@@ -1628,7 +1628,6 @@ module leizd::account_position {
         assert!(borrowed_asset_share<UNI>(account1_addr) == 10000, 0);
     }
 
-    // use std::debug;
     #[test(owner=@leizd,account1=@0x111)]
     public entry fun test_borrow_asset_with_rebalance__borrow_and_deposit(owner: &signer, account1: &signer) acquires Position, AccountPositionEventHandle {
         setup_for_test_to_initialize_coins(owner);
@@ -1696,6 +1695,75 @@ module leizd::account_position {
         assert!(deposited_asset_share<UNI>(account1_addr) == 0, 0);
         assert!(borrowed_shadow_share<UNI>(account1_addr) == 0, 0);
     }
+    #[test(owner=@leizd,account1=@0x111)]
+    public entry fun test_borrow_asset_with_rebalance__borrow_and_deposit4(owner: &signer, account1: &signer) acquires Position, AccountPositionEventHandle {
+        setup_for_test_to_initialize_coins(owner);
+        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+        let account1_addr = signer::address_of(account1);
+        account::create_account_for_test(account1_addr);
+
+        deposit_internal<WETH,Asset>(account1, account1_addr, 100000, false);
+        deposit_internal<USDC,Asset>(account1, account1_addr, 50000, false);
+        deposit_internal<USDT,Shadow>(account1, account1_addr, 50000, false);
+        borrow_internal<WETH,Shadow>(account1, account1_addr, 50000);
+        borrow_unsafe_for_test<USDT,Asset>(account1_addr, 47500);
+
+        borrow_asset_with_rebalance_internal<UNI>(account1_addr, 10000);
+        assert!(deposited_asset_share<WETH>(account1_addr) == 100000, 0);
+        assert!(borrowed_shadow_share<WETH>(account1_addr) == 40740, 0); // TODO: 40741?
+        assert!(deposited_shadow_share<WETH>(account1_addr) == 0, 0);
+        assert!(borrowed_asset_share<WETH>(account1_addr) == 0, 0);
+
+        assert!(deposited_asset_share<USDC>(account1_addr) == 50000, 0);
+        assert!(borrowed_shadow_share<USDC>(account1_addr) == 20370, 0);
+        assert!(deposited_shadow_share<USDC>(account1_addr) == 0, 0);
+        assert!(borrowed_asset_share<USDC>(account1_addr) == 0, 0);
+
+        assert!(deposited_shadow_share<USDT>(account1_addr) == 50000, 0);
+        assert!(borrowed_asset_share<USDT>(account1_addr) == 47500, 0);
+        assert!(deposited_asset_share<USDT>(account1_addr) == 0, 0);
+        assert!(borrowed_shadow_share<USDT>(account1_addr) == 0, 0);
+
+        assert!(deposited_shadow_share<UNI>(account1_addr) == 11111, 0);
+        assert!(borrowed_asset_share<UNI>(account1_addr) == 10000, 0);
+        assert!(deposited_asset_share<UNI>(account1_addr) == 0, 0);
+        assert!(borrowed_shadow_share<UNI>(account1_addr) == 0, 0);
+    }
+    #[test(owner=@leizd,account1=@0x111)]
+    public entry fun test_borrow_asset_with_rebalance__borrow_and_deposit5(owner: &signer, account1: &signer) acquires Position, AccountPositionEventHandle {
+        setup_for_test_to_initialize_coins(owner);
+        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+        let account1_addr = signer::address_of(account1);
+        account::create_account_for_test(account1_addr);
+
+        deposit_internal<WETH,Asset>(account1, account1_addr, 100000, false);
+        deposit_internal<USDC,Asset>(account1, account1_addr, 50000, false);
+        deposit_internal<USDT,Shadow>(account1, account1_addr, 50000, false);
+        borrow_internal<WETH,Shadow>(account1, account1_addr, 50000);
+        borrow_internal<USDT,Asset>(account1, account1_addr, 40000);
+
+        borrow_asset_with_rebalance_internal<UNI>(account1_addr, 10000);
+        assert!(deposited_asset_share<WETH>(account1_addr) == 100000, 0);
+        assert!(borrowed_shadow_share<WETH>(account1_addr) == 40740, 0); // TODO: 40741?
+        assert!(deposited_shadow_share<WETH>(account1_addr) == 0, 0);
+        assert!(borrowed_asset_share<WETH>(account1_addr) == 0, 0);
+
+        assert!(deposited_asset_share<USDC>(account1_addr) == 50000, 0);
+        assert!(borrowed_shadow_share<USDC>(account1_addr) == 20370, 0);
+        assert!(deposited_shadow_share<USDC>(account1_addr) == 0, 0);
+        assert!(borrowed_asset_share<USDC>(account1_addr) == 0, 0);
+        
+        assert!(deposited_shadow_share<USDT>(account1_addr) == 48888, 0); // TODO: 48889?
+        assert!(borrowed_asset_share<USDT>(account1_addr) == 40000, 0);
+        assert!(deposited_asset_share<USDT>(account1_addr) == 0, 0);
+        assert!(borrowed_shadow_share<USDT>(account1_addr) == 0, 0);
+
+        assert!(deposited_shadow_share<UNI>(account1_addr) == 12222, 0);
+        assert!(borrowed_asset_share<UNI>(account1_addr) == 10000, 0);
+        assert!(deposited_asset_share<UNI>(account1_addr) == 0, 0);
+        assert!(borrowed_shadow_share<UNI>(account1_addr) == 0, 0);
+    }
+    // use std::debug;
 
         // update_on_borrow<UNI,ShadowToAsset>(account1_addr, 10000);
         // assert!(!is_safe<UNI,ShadowToAsset>(account1_addr), 0);
