@@ -483,7 +483,6 @@ module leizd::shadow_pool {
         accrue_interest(key, storage_ref, pool_ref);
 
         let entry_fee = risk_factor::calculate_entry_fee(amount);
-        let total_fee = entry_fee;
         let amount_with_entry_fee = amount + entry_fee;
         let total_liquidity = total_liquidity_internal(pool_ref, storage_ref);
 
@@ -504,16 +503,12 @@ module leizd::shadow_pool {
                 let for_entry_fee = coin::extract(&mut extracted, entry_fee);
                 coin::deposit<USDZ>(receiver_addr, extracted); // to receiver
                 treasury::collect_fee<USDZ>(for_entry_fee); // to treasury (collected fee)
-
-                total_fee = total_fee + central_liquidity_pool::calculate_entry_fee(borrowing_value_from_central);
             } else {
                 // when no liquidity in pool, borrow all from central-liquidity-pool
                 let borrowed_from_central = borrow_from_central_liquidity_pool(key, receiver_addr, amount_with_entry_fee);
                 let for_entry_fee = coin::extract(&mut borrowed_from_central, entry_fee);
                 coin::deposit<USDZ>(receiver_addr, borrowed_from_central); // to receiver
                 treasury::collect_fee<USDZ>(for_entry_fee); // to treasury (collected fee)
-
-                total_fee = total_fee + central_liquidity_pool::calculate_entry_fee(amount_with_entry_fee);
             }
         } else {
             // not use central-liquidity-pool
@@ -523,7 +518,7 @@ module leizd::shadow_pool {
         };
 
         // update borrowed stats
-        let amount_with_total_fee_u128 = ((amount + total_fee) as u128);
+        let amount_with_total_fee_u128 = (amount_with_entry_fee as u128);
         storage_ref.total_borrowed_amount = storage_ref.total_borrowed_amount + amount_with_total_fee_u128;
         let asset_storage_ref = simple_map::borrow_mut<String, AssetStorage>(&mut storage_ref.asset_storages, &key);
         let user_share_u128 = math128::to_share(amount_with_total_fee_u128, asset_storage_ref.borrowed_amount, asset_storage_ref.borrowed_share);
@@ -754,9 +749,19 @@ module leizd::shadow_pool {
     ) acquires Keys {
         let asset_storage_ref = simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key);
         let accrued_interest = (asset_storage_ref.borrowed_amount as u128) * rcomp / interest_rate::precision();
+        let total_accrued_interest = accrued_interest;
+
+        if (central_liquidity_pool::borrowed(key) > 0) {
+            let accrued_interest_by_central = total_accrued_interest * central_liquidity_pool::borrowed(key) / asset_storage_ref.borrowed_amount;
+            accrued_interest - accrued_interest_by_central;
+            if (accrued_interest_by_central > 0) {
+                let key_for_central = &borrow_global<Keys>(permission::owner_address()).central_liquidity_pool;
+                central_liquidity_pool::accrue_interest(key, accrued_interest_by_central, key_for_central);
+            };
+        };
+
         let protocol_share = accrued_interest * (share_fee as u128) / (risk_factor::precision() as u128);
         let new_protocol_fees = storage_ref.protocol_fees + (protocol_share as u64);
-
         let depositors_share = accrued_interest - protocol_share;
 
         // send support fee when the pool is supported
@@ -783,8 +788,8 @@ module leizd::shadow_pool {
             central_liquidity_pool::collect_support_fee(key, fee_extracted, uncollected_support_fee, key_for_central);
         };
 
-        asset_storage_ref.borrowed_amount = asset_storage_ref.borrowed_amount + accrued_interest;
-        storage_ref.total_borrowed_amount = storage_ref.total_borrowed_amount + accrued_interest;
+        asset_storage_ref.borrowed_amount = asset_storage_ref.borrowed_amount + total_accrued_interest;
+        storage_ref.total_borrowed_amount = storage_ref.total_borrowed_amount + total_accrued_interest;
         asset_storage_ref.normal_deposited_amount = asset_storage_ref.normal_deposited_amount + depositors_share;
         storage_ref.total_normal_deposited_amount = storage_ref.total_normal_deposited_amount + depositors_share;
         storage_ref.protocol_fees = new_protocol_fees;
@@ -2003,7 +2008,7 @@ module leizd::shadow_pool {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         central_liquidity_pool::add_supported_pool<UNI>(owner);
-        central_liquidity_pool::update_config(owner, central_liquidity_pool::entry_fee(), 0);
+        central_liquidity_pool::update_config(owner, 0);
 
         let owner_addr = signer::address_of(owner);
         let depositor_addr = signer::address_of(depositor);
@@ -2108,7 +2113,7 @@ module leizd::shadow_pool {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         central_liquidity_pool::add_supported_pool<UNI>(owner);
-        central_liquidity_pool::update_config(owner, central_liquidity_pool::entry_fee(), 0);
+        central_liquidity_pool::update_config(owner, 0);
 
         let depositor_addr = signer::address_of(depositor);
         let borrower_addr = signer::address_of(borrower);
@@ -2120,7 +2125,6 @@ module leizd::shadow_pool {
 
         // check prerequisite
         assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
-        assert!(central_liquidity_pool::entry_fee() == central_liquidity_pool::default_entry_fee(), 0);
 
         // execute
         //// prepares
@@ -2130,7 +2134,6 @@ module leizd::shadow_pool {
         usdz::mint_for_test(borrower_addr, 25 + 26); // fee in shadow + fee in central-liquidity-pool
         repay_internal(key<UNI>(), borrower, 5000 + 25 + 26);
         assert!(central_liquidity_pool::borrowed(key<UNI>()) == 0, 0);
-        assert!(central_liquidity_pool::uncollected_entry_fee<UNI>() == 0, 0);
         //// 2nd
         borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 10000);
         borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 20000);
@@ -2160,7 +2163,7 @@ module leizd::shadow_pool {
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         central_liquidity_pool::add_supported_pool<UNI>(owner);
         central_liquidity_pool::add_supported_pool<WETH>(owner);
-        central_liquidity_pool::update_config(owner, central_liquidity_pool::entry_fee(), 0);
+        central_liquidity_pool::update_config(owner, 0);
 
         let depositor_addr = signer::address_of(depositor);
         let borrower1_addr = signer::address_of(borrower1);
