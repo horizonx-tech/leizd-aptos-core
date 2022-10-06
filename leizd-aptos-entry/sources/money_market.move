@@ -692,7 +692,7 @@ module leizd_aptos_entry::money_market {
         assert!(account_position::deposited_shadow_share<WETH>(account_addr) == 100, 0);
         assert!(account_position::deposited_shadow_share<UNI>(account_addr) == 100, 0);
 
-        risk_factor::update_config<USDZ>(owner, 1000000000 / 100 * 80, 1000000000 / 100 * 80); // 80%
+        risk_factor::update_config<USDZ>(owner, risk_factor::precision() / 100 * 80, risk_factor::precision() / 100 * 80); // 80%
 
         rebalance_shadow<WETH, UNI>(account_addr);
         assert!(shadow_pool::normal_deposited_amount<WETH>() < 100, 0);
@@ -736,7 +736,7 @@ module leizd_aptos_entry::money_market {
         assert!(account_position::deposited_shadow_share<UNI>(account_addr) == 100, 0);
         assert!(account_position::borrowed_shadow_share<WETH>(account_addr) == 0, 0);
 
-        risk_factor::update_config<USDZ>(owner, 1000000000 / 100 * 80, 1000000000 / 100 * 80); // 80%
+        risk_factor::update_config<USDZ>(owner, risk_factor::precision() / 100 * 80, risk_factor::precision() / 100 * 80); // 80%
 
         borrow_and_rebalance<WETH, UNI>(account_addr);
         assert!(asset_pool::total_normal_deposited_amount<WETH>() == 100, 0);
@@ -775,7 +775,7 @@ module leizd_aptos_entry::money_market {
         assert!(coin::balance<WETH>(liquidator_addr) == 0, 0);
         assert!(treasury::balance<WETH>() == 0, 0);
 
-        risk_factor::update_config<WETH>(owner, 1000000000 / 100 * 10, 1000000000 / 100 * 10); // 10%
+        risk_factor::update_config<WETH>(owner, risk_factor::precision() / 100 * 10, risk_factor::precision() / 100 * 10); // 10%
 
         usdz::mint_for_test(liquidator_addr, 1005);
         liquidate<WETH, Asset>(liquidator, borrower_addr);
@@ -810,7 +810,7 @@ module leizd_aptos_entry::money_market {
         deposit<WETH, Asset>(borrower, 2000, false);
         borrow<WETH, Shadow>(borrower, 1000);
 
-        risk_factor::update_config<WETH>(owner, 1000000000 / 100 * 10, 1000000000 / 100 * 10); // 10%
+        risk_factor::update_config<WETH>(owner, risk_factor::precision() / 100 * 10, risk_factor::precision() / 100 * 10); // 10%
 
         usdz::mint_for_test(liquidator_addr, 1004);
         liquidate<WETH, Asset>(liquidator, borrower_addr);
@@ -844,7 +844,7 @@ module leizd_aptos_entry::money_market {
         assert!(coin::balance<USDZ>(liquidator_addr) == 0, 0);
         assert!(treasury::balance<USDZ>() == 0, 0);
 
-        risk_factor::update_config<USDZ>(owner, 1000000000 / 100 * 10, 1000000000 / 100 * 10); // 10%
+        risk_factor::update_config<USDZ>(owner, risk_factor::precision() / 100 * 10, risk_factor::precision() / 100 * 10); // 10%
 
         managed_coin::mint<WETH>(owner, liquidator_addr, 1005);
         liquidate<WETH, Shadow>(liquidator, borrower_addr);
@@ -878,7 +878,7 @@ module leizd_aptos_entry::money_market {
         deposit<WETH, Shadow>(borrower, 2000, false);
         borrow<WETH, Asset>(borrower, 1000);
 
-        risk_factor::update_config<USDZ>(owner, 1000000000 / 100 * 10, 1000000000 / 100 * 10); // 10%
+        risk_factor::update_config<USDZ>(owner, risk_factor::precision() / 100 * 10, risk_factor::precision() / 100 * 10); // 10%
 
         managed_coin::mint<WETH>(owner, liquidator_addr, 1004);
         liquidate<WETH, Shadow>(liquidator, borrower_addr);
