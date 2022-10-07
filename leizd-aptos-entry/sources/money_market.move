@@ -225,21 +225,6 @@ module leizd_aptos_entry::money_market {
         unpaid;
     }
 
-    /// Rebalance shadow coin from C1 Pool to C2 Pool.
-    /// The amount is automatically calculated to be the insufficient value.
-    public entry fun rebalance_shadow<C1,C2>(addr: address) acquires LendingPoolModKeys {
-        let (account_position_key, _, shadow_pool_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
-        let (amount, is_collateral_only_C1, is_collateral_only_C2) = account_position::rebalance_shadow<C1,C2>(addr, account_position_key);
-        shadow_pool::rebalance_shadow<C1,C2>(amount, is_collateral_only_C1, is_collateral_only_C2, shadow_pool_key);
-    }
-
-    /// Borrow shadow and rebalance it to the unhealthy pool.
-    public entry fun borrow_and_rebalance<C1,C2>(addr: address) acquires LendingPoolModKeys {
-        let (account_position_key, _, shadow_pool_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
-        let amount = account_position::borrow_and_rebalance<C1,C2>(addr, false, account_position_key);
-        shadow_pool::borrow_and_rebalance<C1,C2>(amount, false, shadow_pool_key);
-    }
-
     /// Control available coin to rebalance
     public entry fun enable_to_rebalance<C>(account: &signer) {
         account_position::enable_to_rebalance<C>(account);
@@ -671,83 +656,6 @@ module leizd_aptos_entry::money_market {
         assert!(account_position::is_protected<WETH>(account_addr), 0);
         enable_to_rebalance<WETH>(account);
         assert!(!account_position::is_protected<WETH>(account_addr), 0);
-    }
-    #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
-    fun test_rebalance_shadow(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
-        initialize_lending_pool_for_test(owner, aptos_framework);
-        setup_liquidity_provider_for_test(owner, lp);
-        setup_account_for_test(account);
-        let account_addr = signer::address_of(account);
-        usdz::mint_for_test(account_addr, 200);
-
-        // prerequisite
-        deposit<UNI, Asset>(lp, 200, false);
-        //// check risk_factor
-        assert!(risk_factor::lt_of_shadow() == risk_factor::default_lt_of_shadow(), 0);
-        assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
-
-        // execute
-        deposit<WETH, Shadow>(account, 100, false);
-        deposit<UNI, Shadow>(account, 100, false);
-        borrow<UNI, Asset>(account, 88);
-        assert!(shadow_pool::normal_deposited_amount<WETH>() == 100, 0);
-        assert!(shadow_pool::normal_deposited_amount<UNI>() == 100, 0);
-        assert!(account_position::deposited_shadow_share<WETH>(account_addr) == 100, 0);
-        assert!(account_position::deposited_shadow_share<UNI>(account_addr) == 100, 0);
-
-        risk_factor::update_config<USDZ>(owner, risk_factor::precision() / 100 * 80, risk_factor::precision() / 100 * 80); // 80%
-
-        rebalance_shadow<WETH, UNI>(account_addr);
-        assert!(shadow_pool::normal_deposited_amount<WETH>() < 100, 0);
-        assert!(shadow_pool::normal_deposited_amount<UNI>() > 100, 0);
-        assert!(account_position::deposited_shadow_share<WETH>(account_addr) < 100, 0);
-        assert!(account_position::deposited_shadow_share<UNI>(account_addr) > 100, 0);
-    }
-    #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
-    fun test_borrow_and_rebalance(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
-        initialize_lending_pool_for_test(owner, aptos_framework);
-        setup_liquidity_provider_for_test(owner, lp);
-        setup_account_for_test(account);
-        let account_addr = signer::address_of(account);
-        managed_coin::mint<WETH>(owner, account_addr, 100);
-        usdz::mint_for_test(account_addr, 101);
-
-        // prerequisite
-        deposit<UNI, Asset>(lp, 200, false);
-        deposit<WETH, Shadow>(lp, 200, false);
-        //// temp: for adding key to Storage
-        deposit<WETH, Asset>(lp, 3, false);
-        borrow<WETH, Shadow>(lp, 1);
-        repay<WETH, Shadow>(lp, 2);
-        withdraw<WETH, Asset>(lp, 3);
-        let lp_addr = signer::address_of(lp);
-        assert!(asset_pool::total_normal_deposited_amount<WETH>() == 0, 0);
-        assert!(shadow_pool::borrowed_amount<WETH>() == 0, 0);
-        assert!(account_position::borrowed_shadow_share<WETH>(lp_addr) == 0, 0);
-        //// check risk_factor
-        assert!(risk_factor::lt_of_shadow() == risk_factor::default_lt_of_shadow(), 0);
-        assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
-
-        // execute
-        deposit<WETH, Asset>(account, 100, false);
-        deposit<UNI, Shadow>(account, 100, false);
-        borrow<UNI, Asset>(account, 88);
-        assert!(asset_pool::total_normal_deposited_amount<WETH>() == 100, 0);
-        assert!(shadow_pool::normal_deposited_amount<UNI>() == 100, 0);
-        assert!(shadow_pool::borrowed_amount<WETH>() == 0, 0);
-        assert!(account_position::deposited_asset_share<WETH>(account_addr) == 100, 0);
-        assert!(account_position::deposited_shadow_share<UNI>(account_addr) == 100, 0);
-        assert!(account_position::borrowed_shadow_share<WETH>(account_addr) == 0, 0);
-
-        risk_factor::update_config<USDZ>(owner, risk_factor::precision() / 100 * 80, risk_factor::precision() / 100 * 80); // 80%
-
-        borrow_and_rebalance<WETH, UNI>(account_addr);
-        assert!(asset_pool::total_normal_deposited_amount<WETH>() == 100, 0);
-        assert!(shadow_pool::normal_deposited_amount<UNI>() > 100, 0);
-        assert!(shadow_pool::borrowed_amount<WETH>() > 1, 0);
-        assert!(account_position::deposited_asset_share<WETH>(account_addr) == 100, 0);
-        assert!(account_position::deposited_shadow_share<UNI>(account_addr) > 100, 0);
-        assert!(account_position::borrowed_shadow_share<WETH>(account_addr) > 0, 0);
     }
     #[test(owner=@leizd_aptos_entry,lp=@0x111,borrower=@0x222,liquidator=@0x333,target=@0x444,aptos_framework=@aptos_framework)]
     fun test_liquidate_asset(owner: &signer, lp: &signer, borrower: &signer, liquidator: &signer, target: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {

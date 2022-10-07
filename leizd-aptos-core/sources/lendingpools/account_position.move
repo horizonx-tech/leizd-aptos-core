@@ -3,10 +3,8 @@ module leizd::account_position {
     use std::error;
     use std::signer;
     use std::vector;
-    use std::option::{Self,Option};
     use std::string::{String};
     use aptos_std::event;
-    use aptos_std::comparator;
     use aptos_std::simple_map::{Self,SimpleMap};
     use aptos_framework::account;
     use leizd_aptos_logic::rebalance::{Self,Rebalance};
@@ -548,6 +546,7 @@ module leizd::account_position {
     }
 
     fun liquidate_internal<C,P>(target_addr: address): (u64,u64,bool) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
+        // TODO: rebalance between pools
         if (pool_type::is_type_asset<P>()) {
             assert!(!is_safe<C,AssetToShadow>(target_addr), error::invalid_state(ENO_SAFE_POSITION));
 
@@ -566,12 +565,12 @@ module leizd::account_position {
             assert!(!is_safe<C,ShadowToAsset>(target_addr), error::invalid_state(ENO_SAFE_POSITION));
             
             // rebalance shadow if possible
-            let from_key = key_rebalanced_from<C>(target_addr);
-            if (option::is_some(&from_key)) {
-                // rebalance
-                rebalance_shadow_internal(target_addr, *option::borrow<String>(&from_key), key<C>());
-                return (0, 0, false)
-            };
+            // let from_key = key_rebalanced_from<C>(target_addr);
+            // if (option::is_some(&from_key)) {
+            //     // rebalance
+            //     rebalance_shadow_internal(target_addr, *option::borrow<String>(&from_key), key<C>());
+            //     return (0, 0, false)
+            // };
 
             let normal_deposited = deposited_shadow_share<C>(target_addr);
             let conly_deposited = conly_deposited_shadow_share<C>(target_addr);
@@ -585,43 +584,6 @@ module leizd::account_position {
             assert!(is_zero_position<C,ShadowToAsset>(target_addr), error::invalid_state(EPOSITION_EXISTED));
             (deposited, borrowed, is_collateral_only)
         }
-    }
-
-    ////////////////////////////////////////////////////
-    /// Rebalance Between Two Positions
-    ////////////////////////////////////////////////////
-    public fun rebalance_shadow<C1,C2>(addr: address, _key: &OperatorKey): (u64,bool,bool) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        let key1 = key<C1>();
-        let key2 = key<C2>();
-        rebalance_shadow_internal(addr, key1, key2)
-    }
-
-    fun rebalance_shadow_internal(addr: address, key1: String, key2: String): (u64,bool,bool) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        let is_collateral_only_C1 = conly_deposited_shadow_share_with(key1, addr) > 0;
-        let is_collateral_only_C2 = conly_deposited_shadow_share_with(key2, addr) > 0;
-        
-        let position_ref = borrow_global<Position<ShadowToAsset>>(addr);
-        assert!(vector::contains<String>(&position_ref.coins, &key1), error::invalid_argument(ENOT_EXISTED));
-        assert!(vector::contains<String>(&position_ref.coins, &key2), error::invalid_argument(ENOT_EXISTED));
-        assert!(!is_protected_internal(&position_ref.protected_coins, key1), error::invalid_argument(EALREADY_PROTECTED));
-        assert!(!is_protected_internal(&position_ref.protected_coins, key2), error::invalid_argument(EALREADY_PROTECTED));
-
-        let (can_rebalance,_,insufficient) = can_rebalance_shadow_between(addr, key1, key2);
-
-        assert!(can_rebalance, error::invalid_argument(ECANNOT_REBALANCE));
-        update_position_for_withdraw<ShadowToAsset>(key1, addr, insufficient, is_collateral_only_C1);
-        update_position_for_deposit<ShadowToAsset>(key2, addr, insufficient, is_collateral_only_C2);
-
-        (insufficient, is_collateral_only_C1, is_collateral_only_C2)
-    }
-
-    fun is_the_same(key1: String, key2: String): bool {
-        comparator::is_equal(
-            &comparator::compare<String>(
-                &key1,
-                &key2,
-            )
-        )
     }
 
     fun extra_and_insufficient_shadow(key: String, addr: address): (u64,u64,u64,u64) acquires Position {
@@ -652,110 +614,6 @@ module leizd::account_position {
             capacity = capacity + (borrowable - borrowed);
         };
         (capacity, overdebt, deposited, borrowed)
-    }
-
-    fun can_rebalance_shadow_between(addr: address, key1: String, key2: String): (bool,u64,u64) acquires Position {
-        // TODO
-        if (is_the_same(key1, key2)) {
-            return (false, 0, 0)
-        };
-
-        // extra in key1
-        let (extra,_,_,_) = extra_and_insufficient_shadow(key1, addr);
-        if (extra == 0) return (false, 0, 0);
-
-        // insufficient in key2
-        let borrowed = borrowed_volume<ShadowToAsset>(addr, key2);
-        let deposited = deposited_volume<ShadowToAsset>(addr, key2);
-        let required_deposit = borrowed * risk_factor::precision() / risk_factor::lt_of_shadow();
-        if (required_deposit < deposited) return (false, 0, 0);
-        let insufficient = required_deposit - deposited;
-
-        (extra >= insufficient, extra, insufficient)
-    }
-
-    fun key_rebalanced_from<C>(addr: address): Option<String> acquires Position {
-        let key_insufficient = key<C>();
-        let position_ref = borrow_global<Position<ShadowToAsset>>(addr);
-        let coins = position_ref.coins;
-
-        let i = vector::length<String>(&coins);
-        while (i > 0) {
-            let key_coin = vector::borrow<String>(&coins, i-1);
-            let (can_rebalance,_,_) = can_rebalance_shadow_between(addr, *key_coin, key_insufficient);
-            if (can_rebalance) {
-                return option::some(*key_coin)
-            };
-            i = i - 1;
-        };
-        option::none()
-    }
-
-    // Rebalance after borrowing additional shadow
-
-    public fun borrow_and_rebalance<C1,C2>(addr: address, is_collateral_only: bool, _key: &OperatorKey): u64 acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        let key1 = key<C1>();
-        let key2 = key<C2>();
-        borrow_and_rebalance_internal(addr, key1, key2, is_collateral_only)
-    }
-
-    fun key_rebalanced_with_borrow_from<C>(addr: address): Option<String> acquires Position {
-        let key_insufficient = key<C>();
-        let position_ref = borrow_global<Position<AssetToShadow>>(addr);
-        let coins = position_ref.coins;
-
-        let i = vector::length<String>(&coins);
-        while (i > 0) {
-            let key_coin = vector::borrow<String>(&coins, i-1);
-            let (can_rebalance,_,_) = can_borrow_and_rebalance(addr, *key_coin, key_insufficient);
-            if (can_rebalance) {
-                return option::some(*key_coin)
-            };
-            i = i - 1;
-        };
-        option::none()
-    }
-
-    fun borrowable_shadow(key: String, addr: address): u64 acquires Position {
-        let borrowed = borrowed_volume<AssetToShadow>(addr, key);
-        let deposited = deposited_volume<AssetToShadow>(addr, key);
-        let borrowable = deposited * risk_factor::ltv_of(key) / risk_factor::precision();
-        if (borrowable < borrowed) return 0;
-        borrowable - borrowed
-    }
-
-    fun can_borrow_and_rebalance(addr: address, key1: String, key2: String):(bool,u64,u64) acquires Position {
-        if (is_the_same(key1, key2)) {
-            return (false, 0, 0)
-        };
-
-        // extra in key1
-        let extra_borrow = borrowable_shadow(key1, addr);
-        if (extra_borrow == 0) return (false, 0, 0);
-
-        // insufficient in key2
-        let borrowed = borrowed_volume<ShadowToAsset>(addr, key2);
-        let deposited = deposited_volume<ShadowToAsset>(addr, key2);
-        let required_deposit = borrowed * risk_factor::precision() / risk_factor::lt_of_shadow();
-        let insufficient = required_deposit - deposited;
-
-        (extra_borrow >= insufficient, extra_borrow, insufficient)
-    }
-
-    fun borrow_and_rebalance_internal(addr: address, key1:String, key2: String, is_collateral_only: bool): u64 acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        let pos_ref_asset_to_shadow = borrow_global<Position<AssetToShadow>>(addr);
-        let pos_ref_shadow_to_asset = borrow_global<Position<ShadowToAsset>>(addr);
-        assert!(vector::contains<String>(&pos_ref_asset_to_shadow.coins, &key1), error::invalid_argument(ENOT_EXISTED));
-        assert!(vector::contains<String>(&pos_ref_shadow_to_asset.coins, &key2), error::invalid_argument(ENOT_EXISTED));
-        assert!(!is_protected_internal(&pos_ref_shadow_to_asset.protected_coins, key1), error::invalid_argument(EALREADY_PROTECTED)); // NOTE: use only Position<ShadowToAsset> to check protected coin
-        assert!(!is_protected_internal(&pos_ref_shadow_to_asset.protected_coins, key2), error::invalid_argument(EALREADY_PROTECTED)); // NOTE: use only Position<ShadowToAsset> to check protected coin
-
-        let (is_possible, _, insufficient) = can_borrow_and_rebalance(addr, key1, key2);
-        assert!(is_possible, error::invalid_argument(ECANNOT_REBALANCE));
-        update_position_for_borrow<AssetToShadow>(key1, addr, insufficient);
-        update_position_for_deposit<ShadowToAsset>(key2, addr, insufficient, is_collateral_only);
-
-        insufficient
     }
 
     ////////////////////////////////////////////////////
@@ -2143,35 +2001,36 @@ module leizd::account_position {
         assert!(event::counter<UpdatePositionEvent>(&borrow_global<AccountPositionEventHandle<AssetToShadow>>(account_addr).update_position_event) == 4, 0);
         assert!(event::counter<UpdatePositionEvent>(&borrow_global<AccountPositionEventHandle<ShadowToAsset>>(account_addr).update_position_event) == 4, 0);
     }
-    #[test(owner=@leizd,account=@0x111)]
-    public entry fun test_liquidate_shadow_if_rebalance_should_be_done(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup(owner);
-        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
-        let account_addr = signer::address_of(account);
-        account::create_account_for_test(account_addr);
+    // #[test(owner=@leizd,account=@0x111)]
+    // public entry fun test_liquidate_shadow_if_rebalance_should_be_done(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
+    //     // TODO: logic
 
-        deposit_internal<WETH,Shadow>(account, account_addr, 100, false);
-        borrow_unsafe_for_test<WETH,Asset>(account_addr, 190);
-        deposit_internal<UNI,Shadow>(account, account_addr, 100, false);
-        assert!(deposited_shadow_share<WETH>(account_addr) == 100, 0);
-        assert!(deposited_shadow_share<UNI>(account_addr) == 100, 0);
-        assert!(conly_deposited_shadow_share<WETH>(account_addr) == 0, 0);
-        assert!(conly_deposited_shadow_share<UNI>(account_addr) == 0, 0);
-        assert!(borrowed_asset_share<WETH>(account_addr) == 190, 0);
-        assert!(borrowed_asset_share<UNI>(account_addr) == 0, 0);
+    //     setup(owner);
+    //     test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+    //     let account_addr = signer::address_of(account);
+    //     account::create_account_for_test(account_addr);
 
-        let (deposited, borrowed, is_collateral_only) = liquidate_internal<WETH,Shadow>(account_addr);
-        assert!(deposited == 0, 0);
-        assert!(borrowed == 0, 0);
-        assert!(!is_collateral_only, 0);
-        assert!(deposited_shadow_share<WETH>(account_addr) == 200, 0);
-        // TODO: logic
-        // assert!(deposited_shadow_share<UNI>(account_addr) == 10, 0);
-        // assert!(conly_deposited_shadow_share<WETH>(account_addr) == 0, 0);
-        // assert!(conly_deposited_shadow_share<UNI>(account_addr) == 0, 0);
-        // assert!(borrowed_asset_share<WETH>(account_addr) == 190, 0);
-        // assert!(borrowed_asset_share<UNI>(account_addr) == 0, 0);
-    }
+    //     deposit_internal<WETH,Shadow>(account, account_addr, 100, false);
+    //     borrow_unsafe_for_test<WETH,Asset>(account_addr, 190);
+    //     deposit_internal<UNI,Shadow>(account, account_addr, 100, false);
+    //     assert!(deposited_shadow_share<WETH>(account_addr) == 100, 0);
+    //     assert!(deposited_shadow_share<UNI>(account_addr) == 100, 0);
+    //     assert!(conly_deposited_shadow_share<WETH>(account_addr) == 0, 0);
+    //     assert!(conly_deposited_shadow_share<UNI>(account_addr) == 0, 0);
+    //     assert!(borrowed_asset_share<WETH>(account_addr) == 190, 0);
+    //     assert!(borrowed_asset_share<UNI>(account_addr) == 0, 0);
+
+    //     let (deposited, borrowed, is_collateral_only) = liquidate_internal<WETH,Shadow>(account_addr);
+    //     assert!(deposited == 0, 0);
+    //     assert!(borrowed == 0, 0);
+    //     assert!(!is_collateral_only, 0);
+    //     assert!(deposited_shadow_share<WETH>(account_addr) == 200, 0);
+    //     // assert!(deposited_shadow_share<UNI>(account_addr) == 10, 0);
+    //     // assert!(conly_deposited_shadow_share<WETH>(account_addr) == 0, 0);
+    //     // assert!(conly_deposited_shadow_share<UNI>(account_addr) == 0, 0);
+    //     // assert!(borrowed_asset_share<WETH>(account_addr) == 190, 0);
+    //     // assert!(borrowed_asset_share<UNI>(account_addr) == 0, 0);
+    // }
     #[test(owner=@leizd,account=@0x111)]
     #[expected_failure(abort_code = 196610)]
     public entry fun test_liquidate_asset_if_safe(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
@@ -2344,294 +2203,6 @@ module leizd::account_position {
         repay_internal<WETH,Asset>(account_addr, 4000);
 
         assert!(event::counter<UpdatePositionEvent>(&borrow_global<AccountPositionEventHandle<ShadowToAsset>>(account_addr).update_position_event) == 7, 0);
-    }
-
-    // rebalance shadow
-    #[test(owner=@leizd,account1=@0x111)]
-    public entry fun test_rebalance_shadow(owner: &signer, account1: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup(owner);
-        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
-        let account1_addr = signer::address_of(account1);
-        account::create_account_for_test(account1_addr);
-
-        deposit_internal<WETH,Shadow>(account1, account1_addr, 100000, false);
-        borrow_internal<WETH,Asset>(account1, account1_addr, 50000);
-        deposit_internal<UNI,Shadow>(account1, account1_addr, 100000, false);
-        borrow_internal<UNI,Asset>(account1, account1_addr, 90000);
-        borrow_unsafe_for_test<UNI,Asset>(account1_addr, 20000);
-        assert!(deposited_shadow_share<WETH>(account1_addr) == 100000, 0);
-        assert!(deposited_shadow_share<UNI>(account1_addr) == 100000, 0);
-        assert!(borrowed_asset_share<WETH>(account1_addr) == 50000, 0);
-        assert!(borrowed_asset_share<UNI>(account1_addr) == 110000, 0);
-        assert!(event::counter<UpdatePositionEvent>(&borrow_global<AccountPositionEventHandle<ShadowToAsset>>(account1_addr).update_position_event) == 5, 0);
-
-        // execute rebalance
-        let (insufficient, is_collateral_only_C1, is_collateral_only_C2) = rebalance_shadow_internal(account1_addr, key<WETH>(), key<UNI>());
-        assert!(insufficient == 15789, 0);
-        assert!(is_collateral_only_C1 == false, 0);
-        assert!(is_collateral_only_C2 == false, 0);
-        assert!(deposited_shadow_share<WETH>(account1_addr) == 84211, 0);
-        assert!(deposited_shadow_share<UNI>(account1_addr) == 115789, 0);
-        assert!(event::counter<UpdatePositionEvent>(&borrow_global<AccountPositionEventHandle<ShadowToAsset>>(account1_addr).update_position_event) == 7, 0);
-
-        // not execute rebalance
-        rebalance_shadow_internal(account1_addr, key<WETH>(), key<UNI>()); // TODO: check - should be revert (?) when not necessary to rebalance
-    }
-    // #[test(owner=@leizd, account1=@0x111, account2=@0x222)]
-    // public entry fun test_rebalance_shadow_with_patterns_collateral_only_or_borrowable(owner: &signer, account1: &signer, account2: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-    //     setup(owner);
-    //     test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
-
-    //     // collateral only & borrowable
-    //     let account1_addr = signer::address_of(account1);
-    //     account::create_account_for_test(account1_addr);
-    //     deposit_internal<WETH, Shadow>(account1, account1_addr, 1000, true);
-    //     deposit_internal<UNI, Shadow>(account1, account1_addr, 1200, false);
-    //     borrow_unsafe_for_test<UNI, Asset>(account1_addr, 1200);
-    //     let (insufficient, is_collateral_only_C1, is_collateral_only_C2) = rebalance_shadow_internal(account1_addr, key<WETH>(), key<UNI>());
-    //     assert!(insufficient == 263, 0);
-    //     assert!(is_collateral_only_C1, 0);
-    //     assert!(!is_collateral_only_C2, 0);
-    //     assert!(conly_deposited_shadow_share<WETH>(account1_addr) == 737, 0);
-    //     assert!(deposited_shadow_share<UNI>(account1_addr) == 1263, 0);
-
-    //     // borrowable & borrowable
-    //     let account2_addr = signer::address_of(account2);
-    //     account::create_account_for_test(account2_addr);
-    //     deposit_internal<WETH, Shadow>(account2, account2_addr, 2000, false);
-    //     borrow_internal<WETH, Asset>(account2, account2_addr, 1800);
-    //     deposit_internal<UNI, Shadow>(account2, account2_addr, 1000, false);
-    //     borrow_unsafe_for_test<UNI, Asset>(account2_addr, 1200);
-    //     let (insufficient, is_collateral_only_C1, is_collateral_only_C2) = rebalance_shadow_internal(account2_addr, key<WETH>(), key<UNI>());
-    //     assert!(insufficient == 200, 0);
-    //     assert!(!is_collateral_only_C1, 0);
-    //     assert!(!is_collateral_only_C2, 0);
-    //     assert!(deposited_shadow_share<WETH>(account2_addr) == 1800, 0);
-    //     assert!(deposited_shadow_share<UNI>(account2_addr) == 1200, 0);
-    // }
-    #[test(owner = @leizd, account = @0x111)]
-    #[expected_failure(abort_code = 65546)]
-    fun test_rebalance_shadow_with_no_need_to_rebalance(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup(owner);
-        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
-        let account_addr = signer::address_of(account);
-        account::create_account_for_test(account_addr);
-
-        deposit_internal<WETH, Shadow>(account, account_addr, 1, false);
-        deposit_internal<UNI, Shadow>(account, account_addr, 1, false);
-        rebalance_shadow_internal(account_addr, key<WETH>(), key<UNI>());
-    }
-    #[test(owner = @leizd, account = @0x111)]
-    #[expected_failure(abort_code = 65539)]
-    fun test_rebalance_shadow_if_no_position_of_key1_coin(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup(owner);
-        let account_addr = signer::address_of(account);
-        account::create_account_for_test(account_addr);
-
-        deposit_internal<UNI,Shadow>(account, account_addr, 100, false);
-        rebalance_shadow_internal(account_addr, key<WETH>(), key<UNI>());
-    }
-    #[test(owner = @leizd, account = @0x111)]
-    #[expected_failure(abort_code = 65539)]
-    fun test_rebalance_shadow_if_no_position_of_key2_coin(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup(owner);
-        let account_addr = signer::address_of(account);
-        account::create_account_for_test(account_addr);
-
-        deposit_internal<WETH,Shadow>(account, account_addr, 100, false);
-        rebalance_shadow_internal(account_addr, key<WETH>(), key<UNI>());
-    }
-    #[test(owner = @leizd, account = @0x111)]
-    #[expected_failure(abort_code = 65540)]
-    fun test_rebalance_shadow_if_protect_key1_coin(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup(owner);
-        let account_addr = signer::address_of(account);
-        account::create_account_for_test(account_addr);
-
-        deposit_internal<WETH,Shadow>(account, account_addr, 100, false);
-        deposit_internal<UNI,Shadow>(account, account_addr, 100, false);
-        unable_to_rebalance_internal<WETH>(account);
-        rebalance_shadow_internal(account_addr, key<WETH>(), key<UNI>());
-    }
-    #[test(owner = @leizd, account = @0x111)]
-    #[expected_failure(abort_code = 65540)]
-    fun test_rebalance_shadow_if_protect_key2_coin(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup(owner);
-        let account_addr = signer::address_of(account);
-        account::create_account_for_test(account_addr);
-
-        deposit_internal<WETH,Shadow>(account, account_addr, 100, false);
-        deposit_internal<UNI,Shadow>(account, account_addr, 100, false);
-        unable_to_rebalance_internal<UNI>(account);
-        rebalance_shadow_internal(account_addr, key<WETH>(), key<UNI>());
-    }
-    #[test(owner=@leizd,account1=@0x111)]
-    public entry fun test_borrow_and_rebalance(owner: &signer, account1: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup(owner);
-        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
-        let account1_addr = signer::address_of(account1);
-        account::create_account_for_test(account1_addr);
-
-        deposit_internal<WETH,Asset>(account1, account1_addr, 100000, false);
-        borrow_internal<WETH,Shadow>(account1, account1_addr, 30000); //  LTV:30% - MAX:50%
-        deposit_internal<UNI,Shadow>(account1, account1_addr, 100000, false);
-        borrow_internal<UNI,Asset>(account1, account1_addr, 90000); // LTV:90% - MAX:90%
-        borrow_unsafe_for_test<UNI,Asset>(account1_addr, 20000);
-        // TODO: fix logic
-        // assert!(deposited_asset_share<WETH>(account1_addr) == 100000, 0);
-        // assert!(borrowed_shadow_share<WETH>(account1_addr) == 30000, 0);
-        // assert!(deposited_shadow_share<UNI>(account1_addr) == 100000, 0);
-        // assert!(borrowed_asset_share<UNI>(account1_addr) == 110000, 0);
-
-        // borrow_and_rebalance_internal(account1_addr, key<WETH>(), key<UNI>(), false);
-        // assert!(deposited_asset_share<WETH>(account1_addr) == 100000, 0);
-        // assert!(borrowed_shadow_share<WETH>(account1_addr) == 40000, 0);
-        // assert!(deposited_shadow_share<UNI>(account1_addr) == 110000, 0);
-
-        // assert!(event::counter<UpdatePositionEvent>(&borrow_global<AccountPositionEventHandle<AssetToShadow>>(account1_addr).update_position_event) == 3, 0);
-        // assert!(event::counter<UpdatePositionEvent>(&borrow_global<AccountPositionEventHandle<ShadowToAsset>>(account1_addr).update_position_event) == 4, 0);
-    }
-    #[test(owner=@leizd,account1=@0x111)]
-    public entry fun test_borrow_and_rebalance_2(owner: &signer, account1: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup(owner);
-        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
-        let account1_addr = signer::address_of(account1);
-        account::create_account_for_test(account1_addr);
-
-        deposit_internal<WETH,Asset>(account1, account1_addr, 10000, false);
-        deposit_internal<UNI,Shadow>(account1, account1_addr, 10000, false);
-        borrow_unsafe_for_test<UNI,Asset>(account1_addr, 15000);
-        assert!(deposited_asset_share<WETH>(account1_addr) == 10000, 0);
-        assert!(borrowed_shadow_share<WETH>(account1_addr) == 0, 0);
-        assert!(deposited_shadow_share<UNI>(account1_addr) == 10000, 0);
-        assert!(borrowed_asset_share<UNI>(account1_addr) == 15000, 0);
-
-        borrow_and_rebalance_internal(account1_addr, key<WETH>(), key<UNI>(), false);
-        assert!(deposited_asset_share<WETH>(account1_addr) == 10000, 0);
-        assert!(borrowed_shadow_share<WETH>(account1_addr) == 5789, 0);
-        assert!(deposited_shadow_share<UNI>(account1_addr) == 15789, 0);
-        assert!(borrowed_asset_share<UNI>(account1_addr) == 15000, 0);
-    }
-    #[test(owner = @leizd, account = @0x111)]
-    #[expected_failure(abort_code = 65539)]
-    fun test_borrow_and_rebalance_if_no_position_of_key1_coin(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup(owner);
-        let account_addr = signer::address_of(account);
-        account::create_account_for_test(account_addr);
-
-        deposit_internal<WETH,Asset>(account, account_addr, 2000, false);
-        borrow_internal<WETH,Shadow>(account, account_addr, 1000);
-        borrow_and_rebalance_internal(account_addr, key<WETH>(), key<UNI>(), false);
-    }
-    #[test(owner = @leizd, account = @0x111)]
-    #[expected_failure(abort_code = 65539)]
-    fun test_borrow_and_rebalance_if_no_position_of_key2_coin(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup(owner);
-        let account_addr = signer::address_of(account);
-        account::create_account_for_test(account_addr);
-
-        deposit_internal<UNI,Shadow>(account, account_addr, 1000, false);
-        borrow_unsafe_for_test<UNI,Asset>(account_addr, 1500);
-        borrow_and_rebalance_internal(account_addr, key<WETH>(), key<UNI>(), false);
-    }
-    #[test(owner = @leizd, account = @0x111)]
-    #[expected_failure(abort_code = 65540)]
-    fun test_borrow_and_rebalance_if_protect_key1_coin(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup(owner);
-        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
-        let account_addr = signer::address_of(account);
-        account::create_account_for_test(account_addr);
-
-        deposit_internal<WETH,Asset>(account, account_addr, 2000, false);
-        borrow_internal<WETH,Shadow>(account, account_addr, 1000);
-        deposit_internal<UNI,Shadow>(account, account_addr, 1000, false);
-        borrow_unsafe_for_test<UNI,Asset>(account_addr, 1500);
-        unable_to_rebalance_internal<WETH>(account);
-        borrow_and_rebalance_internal(account_addr, key<WETH>(), key<UNI>(), false);
-    }
-    #[test(owner = @leizd, account = @0x111)]
-    #[expected_failure(abort_code = 65540)]
-    fun test_borrow_and_rebalance_if_protect_key2_coin(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup(owner);
-        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
-        let account_addr = signer::address_of(account);
-        account::create_account_for_test(account_addr);
-
-        deposit_internal<WETH,Asset>(account, account_addr, 2000, false);
-        borrow_internal<WETH,Shadow>(account, account_addr, 1000);
-        deposit_internal<UNI,Shadow>(account, account_addr, 1000, false);
-        borrow_unsafe_for_test<UNI,Asset>(account_addr, 1500);
-        unable_to_rebalance_internal<UNI>(account);
-        borrow_and_rebalance_internal(account_addr, key<WETH>(), key<UNI>(), false);
-    }
-    //// utils for rebalance
-    ////// can_rebalance_shadow_between
-    #[test(owner = @leizd, account = @0x111)]
-    fun test_can_rebalance_shadow_between(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup(owner);
-        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
-        let account_addr = signer::address_of(account);
-        account::create_account_for_test(account_addr);
-
-        deposit_internal<WETH, Shadow>(account, account_addr, 1000, false);
-        deposit_internal<UNI, Shadow>(account, account_addr, 1000, false);
-        borrow_unsafe_for_test<UNI, Asset>(account_addr, 1200);
-        let (can_rebalance, extra, insufficient) = can_rebalance_shadow_between(account_addr, key<WETH>(), key<UNI>());
-        assert!(can_rebalance, 0);
-        assert!(extra == 1000, 0);
-        assert!(insufficient == 263, 0);
-    }
-    #[test(owner = @leizd, account = @0x111)]
-    fun test_can_rebalance_shadow_between_with_insufficient_extra(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup(owner);
-        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
-        let account_addr = signer::address_of(account);
-        account::create_account_for_test(account_addr);
-
-        deposit_internal<WETH, Shadow>(account, account_addr, 1000, false);
-        deposit_internal<UNI, Shadow>(account, account_addr, 1000, false);
-        borrow_unsafe_for_test<UNI, Asset>(account_addr, 2500);
-        let (can_rebalance, extra, insufficient) = can_rebalance_shadow_between(account_addr, key<WETH>(), key<UNI>());
-        assert!(!can_rebalance, 0);
-        assert!(extra == 1000, 0);
-        assert!(insufficient == 1631, 0);
-    }
-    #[test(owner = @leizd, account = @0x111)]
-    fun test_can_rebalance_shadow_between_with_no_extra(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup(owner);
-        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
-        let account_addr = signer::address_of(account);
-        account::create_account_for_test(account_addr);
-
-        deposit_internal<WETH, Shadow>(account, account_addr, 1000, false);
-        borrow_unsafe_for_test<WETH, Asset>(account_addr, 1001);
-        deposit_internal<UNI, Shadow>(account, account_addr, 1, false);
-        let (can_rebalance, extra, insufficient) = can_rebalance_shadow_between(account_addr, key<WETH>(), key<UNI>());
-        assert!(!can_rebalance, 0);
-        assert!(extra == 0, 0);
-        assert!(insufficient == 0, 0);
-    }
-    #[test(owner = @leizd, account = @0x111)]
-    fun test_can_rebalance_shadow_between_with_no_insufficient(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup(owner);
-        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
-        let account_addr = signer::address_of(account);
-        account::create_account_for_test(account_addr);
-
-        deposit_internal<WETH, Shadow>(account, account_addr, 1000, false);
-        deposit_internal<UNI, Shadow>(account, account_addr, 1, false);
-        let (can_rebalance, extra, insufficient) = can_rebalance_shadow_between(account_addr, key<WETH>(), key<UNI>());
-        assert!(!can_rebalance, 0);
-        assert!(extra == 0, 0);
-        assert!(insufficient == 0, 0);
-    }
-    #[test(account = @0x111)]
-    fun test_can_rebalance_shadow_between_with_same_coins(account: &signer) acquires Position {
-        let key = key<WETH>();
-        let (can_rebalance, extra, insufficient) = can_rebalance_shadow_between(signer::address_of(account), key, key);
-        assert!(!can_rebalance, 0);
-        assert!(extra == 0, 0);
-        assert!(insufficient == 0, 0);
     }
 
     // switch collateral
