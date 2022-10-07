@@ -32,6 +32,9 @@ module leizd::interest_rate {
     /// 2^98 < log2(2^128/10^9)
     const ASSET_DATA_OVERFLOW_LIMIT: u128 = 316912650057057350374175801344;
 
+    /// When both `U256` equal.
+    const EQUAL: u8 = 0;
+
     /// When `a` is less than `b` in i128.
     const LESS_THAN: u8 = 1;
 
@@ -193,28 +196,31 @@ module leizd::interest_rate {
         last_updated: u64,
         now: u64
     ): u128 acquires ConfigKey {
+        let (rcomp,ri,tcrit,_) = calc_compound_interest_rate(key, total_deposits, total_borrows, last_updated, now);
         let owner_address = permission::owner_address();
-        let config_ref = simple_map::borrow_mut<String,Config>(&mut borrow_global_mut<ConfigKey>(owner_address).config, &key);
-        let (rcomp,_,_,_,_) = calc_compound_interest_rate(config_ref, total_deposits, total_borrows, last_updated, now);
+        let cref = simple_map::borrow_mut<String,Config>(&mut borrow_global_mut<ConfigKey>(owner_address).config, &key);
+        cref.ri = ri;
+        cref.tcrit = tcrit;
         rcomp
     }
 
     public fun calc_compound_interest_rate(
-        cref: &Config,
+        key: String,
         total_deposits: u128,
         total_borrows: u128,
         last_updated: u64,
         now: u64
-    ): (u128, u128, bool, u128, bool) {
+    ): (u128, u128, u128, bool) acquires ConfigKey {
         assert!(last_updated <= now, error::invalid_argument(EINVALID_TIMESTAMP));
+        let owner_address = permission::owner_address();
+        let cref = simple_map::borrow<String,Config>(&borrow_global_mut<ConfigKey>(owner_address).config, &key);
 
         let ri_u128 = cref.ri;
         let tcrit = cref.tcrit;
-        let time = ((now - last_updated) as u128);
+        let time = (((now - last_updated) / 1000000 ) as u128);
         let u = math128::utilization(PRECISION, total_deposits, total_borrows);
-
         let slopei = calc_slope_i(cref.ki, u, cref.uopt);
-        
+
         let rp = calc_rp(u, cref.ucrit, cref.ulow, cref.kcrit, cref.klow, tcrit);
         let slope = calc_slope(slopei, u, cref.ucrit, cref.kcrit, cref.beta);
         tcrit = calc_tcrit(tcrit, u, cref.ucrit, cref.beta, time);
@@ -224,7 +230,7 @@ module leizd::interest_rate {
         let r0 = i128::add(&ri, &rp);
         let r1 = calc_r1(r0, slope, time);
         let x = calc_x(r0, r1, rlin, slope, time);
-   
+        
         ri = if (i128::compare(&i128::add(&ri, &i128::mul(&slopei, &i128::from(time))), &rlin) == GREATER_THAN) {
             i128::add(&ri, &i128::mul(&slopei, &i128::from(time)))
         } else {
@@ -238,7 +244,7 @@ module leizd::interest_rate {
             tcrit = 0;
         };
 
-        (rcomp, i128::as_u128(&ri), !i128::is_neg(&ri), tcrit, overflow)
+        (rcomp, i128::as_u128(&ri), tcrit, overflow)
     }
 
     fun calc_r1(r0: i128::I128, slope: i128::I128, time: u128): i128::I128 {
@@ -255,7 +261,7 @@ module leizd::interest_rate {
     fun calc_rp(u: u128, ucrit: u128, ulow: u128, kcrit: u128, klow: u128, tcrit: u128): i128::I128 {
         if (u > ucrit) {
             // _l.rp = _c.kcrit * (_DP + Tcrit) / _DP * (_l.u - _c.ucrit) / _DP;
-            i128::from(kcrit * (PRECISION + tcrit) / PRECISION * (u - ucrit) / PRECISION)
+            i128::from(kcrit * (PRECISION + tcrit) / PRECISION * (u - ucrit) / PRECISION / PRECISION)
         } else {
             // _l.rp = _min(0, _c.klow * (_l.u - _c.ulow) / _DP);
             if (u >= ulow) i128::zero() 
@@ -267,7 +273,7 @@ module leizd::interest_rate {
                         &i128::from(ulow)
                     )
                 ),
-                &i128::from(PRECISION)
+                &i128::from(PRECISION*PRECISION)
             )
         }
     }
@@ -291,7 +297,7 @@ module leizd::interest_rate {
                                 &i128::from(kcrit), 
                                 &i128::from(beta)
                             ),
-                            &i128::from(PRECISION)
+                            &i128::from(PRECISION*PRECISION)
                         ),
                         &i128::sub(
                             &i128::from(u),
@@ -320,64 +326,86 @@ module leizd::interest_rate {
     }
 
     fun calc_x(r0: i128::I128, r1: i128::I128, rlin: i128::I128, slope: i128::I128, time: u128): (i128::I128) {
-        if (i128::compare(&r0, &rlin) == GREATER_THAN && i128::compare(&r1, &rlin) == GREATER_THAN) {
+
+        // r0 >= rlin
+        let r0_gte_rlin = i128::compare(&r0, &rlin) == GREATER_THAN || i128::compare(&r0, &rlin) == EQUAL;
+        // r1 >= rlin
+        let r1_gte_rlin = i128::compare(&r1, &rlin) == GREATER_THAN || i128::compare(&r1, &rlin) == EQUAL;
+
+        if (r0_gte_rlin && r1_gte_rlin) {
+            i128::div(
+                &i128::div(
+                    &i128::mul(
+                        &i128::add(
+                            &r0,
+                            &r1
+                        ),
+                        &i128::from(time)
+                    ),
+                    &i128::from(2)
+                ),
+                &i128::from(PRECISION)
+            )
+            
+        } else if (i128::compare(&r0, &rlin) == LESS_THAN && i128::compare(&r1, &rlin) == LESS_THAN) {
             i128::div(
                 &i128::mul(
-                    &i128::add(
-                        &r0,
-                        &r1
-                    ),
+                    &rlin,
                     &i128::from(time)
                 ),
-                &i128::from(2)
+                &i128::from(PRECISION)
             )
-        } else if (i128::compare(&r0, &rlin) == LESS_THAN && i128::compare(&r1, &rlin) == LESS_THAN) {
-            i128::mul(&rlin, &i128::from(time))
-        } else if (i128::compare(&r0, &rlin) == GREATER_THAN && i128::compare(&r1, &rlin) == LESS_THAN) {
-            i128::sub(
-                &i128::mul(
-                    &rlin, 
-                    &i128::from(time)
-                ),
-                &i128::div(
-                    &i128::div(
-                        &i128::mul(
-                            &i128::sub(
-                                &r0,
-                                &rlin
-                            ),
-                            &i128::sub(
-                                &r0,
-                                &rlin
-                            )
-                        ),
-                        &slope
+        } else if (r0_gte_rlin && i128::compare(&r1, &rlin) == LESS_THAN) {
+            i128::div(
+                &i128::sub(
+                    &i128::mul(
+                        &rlin, 
+                        &i128::from(time)
                     ),
-                    &i128::from(2)
-                )
+                    &i128::div(
+                        &i128::div(
+                            &i128::mul(
+                                &i128::sub(
+                                    &r0,
+                                    &rlin
+                                ),
+                                &i128::sub(
+                                    &r0,
+                                    &rlin
+                                )
+                            ),
+                            &slope
+                        ),
+                        &i128::from(2)
+                    )
+                ),
+                &i128::from(PRECISION)
             )
         } else {
-            i128::add(
-                &i128::mul(
-                    &rlin, 
-                    &i128::from(time)
-                ),
-                &i128::div(
-                    &i128::div(
-                        &i128::mul(
-                            &i128::sub(
-                                &r0,
-                                &rlin
-                            ),
-                            &i128::sub(
-                                &r0,
-                                &rlin
-                            )
-                        ),
-                        &slope
+            i128::div(
+                &i128::add(
+                    &i128::mul(
+                        &rlin, 
+                        &i128::from(time)
                     ),
-                    &i128::from(2)
-                )
+                    &i128::div(
+                        &i128::div(
+                            &i128::mul(
+                                &i128::sub(
+                                    &r0,
+                                    &rlin
+                                ),
+                                &i128::sub(
+                                    &r0,
+                                    &rlin
+                                )
+                            ),
+                            &slope
+                        ),
+                        &i128::from(2)
+                    )
+                ),
+                &i128::from(PRECISION)
             )
         }
     }
@@ -428,6 +456,41 @@ module leizd::interest_rate {
     // #[test_only]
     // use std::debug;
 
+    #[test_only]
+    use leizd_aptos_common::test_coin::{USDC};
+
+
+    #[test(owner = @leizd_aptos_logic)]
+    public entry fun test_calc_compound_interest_rate(owner: &signer) acquires ConfigKey, InterestRateEventHandle {
+        let owner_addr = signer::address_of(owner);
+        account::create_account_for_test(owner_addr);
+        initialize_internal(owner);
+        initialize_for_asset_internal<USDC>(owner);
+
+        let key = key<USDC>();
+        let total_deposits = 50000000000;
+        let total_borrows = 30000000000;
+        let last_updated = 1648738800 * 1000000;
+        let now = (1648738800 + 31556926) * 1000000; // about 1 year later
+
+        // u: 600000000
+        // uopt: 700000000
+        // slopei: -36701
+        // rp: 0
+        // slope: -36701
+        // rlin: 951293759
+        // ri: 951293759
+        // r0: 951293759
+        // r1: 5716213612 (time:181671)
+        // x: 605646
+        let (rcomp,_,_,_) = calc_compound_interest_rate(key, total_deposits, total_borrows, last_updated, now);
+        assert!(rcomp == 30475046, 0);
+
+        let now = (1648738800 + 2629743) * 1000000; // about 1 month later
+        let (rcomp,_,_,_) = calc_compound_interest_rate(key, total_deposits, total_borrows, last_updated, now);
+        assert!(rcomp == 2504790, 0);
+    }
+
     #[test]
     public entry fun test_calc__rcomp() {
         let (rcomp, overflow) = calc__rcomp(i128::from(X_MAX+1));
@@ -459,8 +522,12 @@ module leizd::interest_rate {
 
     #[test]
     public entry fun test_calc_rcomp() {
-       let (rcomp, overflow) = calc_rcomp(10000000, 5000000, i128::from(1000000000));
+        let (rcomp, overflow) = calc_rcomp(10000000, 5000000, i128::from(1000000000)); // x=1.0
         assert!(rcomp == 1718281826, 0); // e = 2.718281826
+        assert!(!overflow, 0);
+
+        let (rcomp, overflow) = calc_rcomp(10000000, 5000000, i128::from(500000000)); // x=0.5
+        assert!(rcomp == 648721270, 0); // e^(1/2) = 1.648721270
         assert!(!overflow, 0);
 
         // TODO: add cases
@@ -468,7 +535,19 @@ module leizd::interest_rate {
 
     #[test]
     public entry fun test_calc_x() {
-        // TODO
+        // slope: -36701
+        // rlin: 951293759
+        // ri: 951293759
+        // r0: 951293759
+        // r1: 5716213612 (time:181671)
+        // x: 605646
+        let r0 = i128::from(951293759);
+        let r1 = i128::from(5716213612);
+        let rlin = i128::from(951293759);
+        let slope = i128::neg_from(36701);
+        let time = 605646;
+        let x = calc_x(r0, r1, rlin, slope, time);
+        assert!(i128::as_u128(&i128::abs(&x)) == 2019074, 0);
     }
 
     #[test]
@@ -514,7 +593,7 @@ module leizd::interest_rate {
         let kcrit = 951293759513;
         let beta = 277778;
         let slope = calc_slope(slopei, u, ucrit, kcrit, beta);
-        assert!(i128::as_u128(&i128::abs(&slope)) == 39747374, 0);
+        assert!(i128::as_u128(&i128::abs(&slope)) == 110103, 0);
     }
 
     // #[test]
@@ -541,7 +620,7 @@ module leizd::interest_rate {
         let klow = 95129375951;   // 3%
         let tcrit = 0;
         let rp = calc_rp(u, ucrit, ulow, kcrit, klow, tcrit);
-        let expected = kcrit * (PRECISION + tcrit) / PRECISION * (u - ucrit) / PRECISION;
+        let expected = kcrit * (PRECISION + tcrit) / PRECISION * (u - ucrit) / PRECISION / PRECISION;
         assert!(i128::as_u128(&i128::abs(&rp)) == expected, 0);
 
         // ulow <= u < ucrit
@@ -562,18 +641,17 @@ module leizd::interest_rate {
         let klow = 95129375951;   // 3%
         let tcrit = 0;
         let rp = calc_rp(u, ucrit, ulow, kcrit, klow, tcrit);
-        let expected = klow * (ulow - u) / PRECISION;
-        // debug::print(&expected);
+        let expected = klow * (ulow - u) / PRECISION / PRECISION;
         assert!(i128::as_u128(&i128::abs(&rp)) == expected, 0);
     }
 
     #[test]
     public entry fun test_calc_r1() {
         let r0 = i128::from(20);
-        let slope = i128::from(30);
+        let slope = i128::from(73402);
         let time = 10;
         let r1 = calc_r1(r0, slope, time);
-        let expected = 20 + 30 * 10;
+        let expected = 20 + 73402 * 10;
         assert!(i128::as_u128(&i128::abs(&r1)) == expected, 0);
     }
 }
