@@ -217,7 +217,7 @@ module leizd::interest_rate {
 
         let ri_u128 = cref.ri;
         let tcrit = cref.tcrit;
-        let time = ((now - last_updated) as u128);
+        let time = (((now - last_updated) / 1000000 ) as u128);
         let u = math128::utilization(PRECISION, total_deposits, total_borrows);
         let slopei = calc_slope_i(cref.ki, u, cref.uopt);
 
@@ -333,7 +333,6 @@ module leizd::interest_rate {
         let r1_gte_rlin = i128::compare(&r1, &rlin) == GREATER_THAN || i128::compare(&r1, &rlin) == EQUAL;
 
         if (r0_gte_rlin && r1_gte_rlin) {
-            debug::print(&1111111111);
             i128::div(
                 &i128::div(
                     &i128::mul(
@@ -349,7 +348,6 @@ module leizd::interest_rate {
             )
             
         } else if (i128::compare(&r0, &rlin) == LESS_THAN && i128::compare(&r1, &rlin) == LESS_THAN) {
-            debug::print(&2222222222);
             i128::div(
                 &i128::mul(
                     &rlin,
@@ -358,7 +356,6 @@ module leizd::interest_rate {
                 &i128::from(PRECISION)
             )
         } else if (r0_gte_rlin && i128::compare(&r1, &rlin) == LESS_THAN) {
-            debug::print(&3333333333);
             i128::div(
                 &i128::sub(
                     &i128::mul(
@@ -385,7 +382,6 @@ module leizd::interest_rate {
                 &i128::from(PRECISION)
             )
         } else {
-            debug::print(&4444444444);
             i128::div(
                 &i128::add(
                     &i128::mul(
@@ -457,8 +453,8 @@ module leizd::interest_rate {
         PRECISION
     }
 
-    #[test_only]
-    use std::debug;
+    // #[test_only]
+    // use std::debug;
 
     #[test_only]
     use leizd_aptos_common::test_coin::{USDC};
@@ -474,8 +470,8 @@ module leizd::interest_rate {
         let key = key<USDC>();
         let total_deposits = 50000000000;
         let total_borrows = 30000000000;
-        let last_updated = 1664850111;
-        let now = 1665031782; // about two days later
+        let last_updated = 1648738800 * 1000000;
+        let now = (1648738800 + 31556926) * 1000000; // about 1 year later
 
         // u: 600000000
         // uopt: 700000000
@@ -488,12 +484,11 @@ module leizd::interest_rate {
         // r1: 5716213612 (time:181671)
         // x: 605646
         let (rcomp,_,_,_) = calc_compound_interest_rate(key, total_deposits, total_borrows, last_updated, now);
-        assert!(rcomp == 172836, 0);
-
-        let now = 1696407037; // about a year later
-        let (rcomp,_,_,_) = calc_compound_interest_rate(key, total_deposits, total_borrows, last_updated, now);
-        debug::print(&rcomp);
         assert!(rcomp == 30475046, 0);
+
+        let now = (1648738800 + 2629743) * 1000000; // about 1 month later
+        let (rcomp,_,_,_) = calc_compound_interest_rate(key, total_deposits, total_borrows, last_updated, now);
+        assert!(rcomp == 2504790, 0);
     }
 
     #[test]
@@ -535,8 +530,6 @@ module leizd::interest_rate {
         assert!(rcomp == 648721270, 0); // e^(1/2) = 1.648721270
         assert!(!overflow, 0);
 
-        // let (rcomp, _) = calc_rcomp(10000000, 5000000, i128::from(172822577850116957906));
-        // debug::print(&rcomp);
         // TODO: add cases
     }
 
