@@ -225,6 +225,15 @@ module leizd_aptos_entry::money_market {
         };
     }
 
+    // public entry fun repay_asset_with_rebalance<C>(account: &signer, amount: u64) acquires LendingPoolModKeys {
+    //     let (account_position_key, asset_pool_key, shadow_pool_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
+    //     let repayer_addr = signer::address_of(account);
+    //     let (_, repaid_user_share) = asset_pool::repay<C>(account, amount, asset_pool_key);
+
+    //     let (withdraws, repays) = account_position::repay_asset_with_rebalance<C>(repayer_addr, repaid_user_share, account_position_key);
+    //     // TODO: update shadow pool
+    // }
+
     /// repay_shadow_with_rebalance
     public entry fun repay_shadow_with_rebalance(account: &signer, amount: u64) acquires LendingPoolModKeys {
         let account_addr = signer::address_of(account);

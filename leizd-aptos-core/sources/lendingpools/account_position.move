@@ -487,6 +487,23 @@ module leizd::account_position {
     public fun repay_all<C,P>(addr: address, _key: &OperatorKey): u64 acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
         repay_all_internal<C,P>(addr)
     }
+
+    public fun repay_asset_with_rebalance<C>(addr: address, amount: u64, _key: &OperatorKey): (vector<Rebalance>, vector<Rebalance>) acquires Position {
+        repay_asset_with_rebalance_internal<C>(addr, amount, _key)
+    }
+
+    fun repay_asset_with_rebalance_internal<C>(addr: address, amount: u64, _key: &OperatorKey): (vector<Rebalance>, vector<Rebalance>) acquires Position { 
+        let result_withdrawed = vector::empty<Rebalance>();
+        let result_repaid = vector::empty<Rebalance>();
+
+        let position_ref = borrow_global<Position<AssetToShadow>>(addr);
+        let coins = position_ref.coins;
+        amount;
+        coins;
+        // TODO
+        (result_withdrawed, result_repaid)
+    }
+
     fun repay_all_internal<C,P>(addr: address): u64 acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
         let repaid_share;
         if (pool_type::is_type_asset<P>()) {
