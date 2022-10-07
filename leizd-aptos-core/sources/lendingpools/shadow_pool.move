@@ -684,6 +684,42 @@ module leizd::shadow_pool {
         );
     }
 
+    ////////////////////////////////////////////////////
+    /// Update status
+    ////////////////////////////////////////////////////
+    public fun exec_accrue_interest(
+        key: String,
+        _key: &OperatorKey
+    ) acquires Pool, Storage, Keys {
+        exec_accrue_interest_internal(key, storage_ref, pool_ref);
+    }
+    fun exec_accrue_interest_internal(
+        key: String,
+    ) acquires Pool, Storage, Keys {
+        let owner_address = permission::owner_address();
+        let storage_ref = borrow_global_mut<Storage>(owner_address);
+        let pool_ref = borrow_global_mut<Pool>(owner_address);
+        accrue_interest(key, storage_ref, pool_ref);
+    }
+    public fun exec_accrue_interest_for_selected(
+        keys: vector<String>,
+        _key: &OperatorKey
+    ) acquires Pool, Storage, Keys {
+        exec_accrue_interest_for_selected_internal(keys, storage_ref, pool_ref);
+    }
+    fun exec_accrue_interest_for_selected_internal(keys: vector<String>) acquires Pool, Storage, Keys {
+        let owner_address = permission::owner_address();
+        let storage_ref = borrow_global_mut<Storage>(owner_address);
+        let pool_ref = borrow_global_mut<Pool>(owner_address);
+
+        let i = vector::length<String>(&keys);
+        while (i > 0) {
+            let key = *vector::borrow<String>(&keys, i - 1);
+            accrue_interest(key, storage_ref, pool_ref);
+            i = i - 1;
+        };
+    }
+
     ////// Internal Logics
     /// Borrow the shadow from the central-liquidity-pool
     /// use when shadow in this pool become insufficient.
