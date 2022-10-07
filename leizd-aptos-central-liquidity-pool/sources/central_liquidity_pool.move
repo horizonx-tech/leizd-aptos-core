@@ -414,7 +414,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         coin::merge<USDZ>(&mut pool_ref.left, coin);
     }
 
-    public fun harvest_protocol_fees<C>() acquires CentralLiquidityPool {
+    public entry fun harvest_protocol_fees() acquires CentralLiquidityPool {
         let pool_ref = borrow_global_mut<CentralLiquidityPool>(permission::owner_address());
         let harvested_fee = (pool_ref.protocol_fees - pool_ref.harvested_protocol_fees as u128);
         if(harvested_fee == 0){
@@ -444,6 +444,13 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
 
     public fun total_uncollected_fee(): u128 acquires CentralLiquidityPool {
         borrow_global<CentralLiquidityPool>(permission::owner_address()).total_uncollected_fee
+    }
+    public fun protocol_fees(): u64 acquires CentralLiquidityPool {
+        borrow_global<CentralLiquidityPool>(permission::owner_address()).protocol_fees
+    }
+
+    public fun harvested_protocol_fees<C>(): u64 acquires CentralLiquidityPool {
+        borrow_global<CentralLiquidityPool>(permission::owner_address()).harvested_protocol_fees
     }
 
     public fun borrowed(key: String): u128 acquires Balance {
