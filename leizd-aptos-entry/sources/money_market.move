@@ -211,19 +211,84 @@ module leizd_aptos_entry::money_market {
     }
 
     public entry fun repay_shadow_with_rebalance(account: &signer, amount: u64) acquires LendingPoolModKeys {
-        let repayer_addr = signer::address_of(account);
-        let (account_position_key, _, shadow_pool_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
-        let (keys, amounts, unpaid) = account_position::repay_shadow_with_rebalance(repayer_addr, amount, account_position_key);
-        let i = vector::length<String>(&keys);
+        let account_addr = signer::address_of(account);
+        let (_, _, shadow_pool_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
+
+        let (target_keys, target_borrowed_shares) = account_position::borrowed_shadow_share_all(account_addr); // get all shadow borrowed_share
+        let length = vector::length(&target_keys);
+        if (length == 0) return;
+        shadow_pool::exec_accrue_interest_for_selected(target_keys, shadow_pool_key); // update shadow pool status
+        let (borrowed_amounts, borrowed_total_amount) = borrowed_shares_to_amounts_for_shadow(target_keys, target_borrowed_shares); // convert `share` to `amount`
+
+        let i = copy length;
+        let repaid_shares = vector::empty<u64>();
+        if (amount >= borrowed_total_amount) {
+            while (i > 0) {
+                let _key = vector::borrow<String>(&target_keys, i-1);
+                let _share = vector::borrow<u64>(&target_borrowed_shares, i-1);
+                // let (_, repaid_share) = shadow_pool::repay_by_share_with(key, account, share, shadow_pool_key); // TODO: implemented
+                // vector::push_back(&mut repaid_shares, repaid_share);
+                i = i - 1;
+            };
+        } else {
+            let amount_per_pool = amount / length;
+            while (i > 0) {
+                let repaid_share: u64;
+                let key = vector::borrow<String>(&target_keys, i-1);
+                let borrowed_amount = vector::borrow<u64>(&borrowed_amounts, i-1);
+                if (amount_per_pool < *borrowed_amount) {
+                    (_, repaid_share) = shadow_pool::repay_with(*key, account, amount_per_pool, shadow_pool_key);
+                } else {
+                    let _share = vector::borrow<u64>(&target_borrowed_shares, i-1);
+                    // (_, repaid_share) = shadow_pool::repay_by_share_with(key, account, share, shadow_pool_key); // TODO: implemented
+                    repaid_share = 0 // temp
+                };
+                vector::push_back(&mut repaid_shares, repaid_share);
+                i = i - 1;
+            };
+        };
+
+        let j = copy length;
+        while (j > 0) {
+            let _key = vector::borrow<String>(&target_keys, j-1);
+            let _repaid_share = vector::borrow<u64>(&repaid_shares, j-1);
+            // account_position::repay_with(account, key, repaid_share) // NOTE: like account_position::update_position_for_repay
+            j = j - 1;
+        };
+    }
+    fun borrowed_shares_to_amounts_for_shadow(keys: vector<String>, shares: vector<u64>): (
+        vector<u64>, // amounts
+        u64 // total amount // TODO: u128?
+    ) {
+        let i = vector::length(&keys);
+        let amounts = vector::empty<u64>();
+        let total_amount = 0;
         while (i > 0) {
-            let key = vector::borrow<String>(&keys, i-1);
-            let repay_amount = vector::borrow<u64>(&amounts, i-1);
-            shadow_pool::repay_with(*key, account, *repay_amount, shadow_pool_key);
+            let amount = shadow_pool::borrowed_share_to_amount(
+                *vector::borrow<String>(&keys, i-1),
+                *vector::borrow<u64>(&shares, i-1),
+            );
+            total_amount = total_amount + (amount as u64); // TODO: check type (u64?u128)
+            vector::push_back(&mut amounts, (amount as u64)); // TODO: check type (u64?u128)
             i = i - 1;
         };
-        // TODO: Event
-        unpaid;
+        (amounts, total_amount)
     }
+
+    // public entry fun repay_shadow_with_rebalance(account: &signer, amount: u64) acquires LendingPoolModKeys {
+    //     let repayer_addr = signer::address_of(account);
+    //     let (account_position_key, _, shadow_pool_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
+    //     let (keys, amounts, unpaid) = account_position::repay_shadow_with_rebalance(repayer_addr, amount, account_position_key);
+    //     let i = vector::length<String>(&keys);
+    //     while (i > 0) {
+    //         let key = vector::borrow<String>(&keys, i-1);
+    //         let repay_amount = vector::borrow<u64>(&amounts, i-1);
+    //         shadow_pool::repay_with(*key, account, *repay_amount, shadow_pool_key);
+    //         i = i - 1;
+    //     };
+    //     // TODO: Event
+    //     unpaid;
+    // }
 
     /// Control available coin to rebalance
     public entry fun enable_to_rebalance<C>(account: &signer) {

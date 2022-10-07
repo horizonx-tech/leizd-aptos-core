@@ -847,6 +847,17 @@ module leizd::shadow_pool {
         collect_shadow_fee(pool_ref, (harvested_fee as u64));
     }
 
+    ////// Convert
+    public fun borrowed_share_to_amount(key: String, share: u64): u128 acquires Storage {
+        let total_amount = borrowed_amount_with(key);
+        let total_share = borrowed_share_with(key);
+        if (total_amount > 0 || total_share > 0) {
+            math128::to_amount((share as u128), total_amount, total_share)
+        } else {
+            0
+        }
+    }
+
     ////// View functions
     public fun total_normal_deposited_amount(): u128 acquires Storage {
         borrow_global<Storage>(permission::owner_address()).total_normal_deposited_amount
