@@ -220,9 +220,11 @@ module leizd_aptos_entry::money_market {
         shadow_pool::exec_accrue_interest_for_selected(target_keys, shadow_pool_key); // update shadow pool status
         let (borrowed_amounts, borrowed_total_amount) = borrowed_shares_to_amounts_for_shadow(target_keys, target_borrowed_shares); // convert `share` to `amount`
 
+        // repay to shadow_pools
         let i = copy length;
         let repaid_shares = vector::empty<u64>();
         if (amount >= borrowed_total_amount) {
+            // repay in full, if input is greater than or equal to total borrowed amount
             while (i > 0) {
                 let _key = vector::borrow<String>(&target_keys, i-1);
                 let _share = vector::borrow<u64>(&target_borrowed_shares, i-1);
@@ -231,6 +233,7 @@ module leizd_aptos_entry::money_market {
                 i = i - 1;
             };
         } else {
+            // repay the same amount, if input is less than total borrowed amount
             let amount_per_pool = amount / length;
             while (i > 0) {
                 let repaid_share: u64;
@@ -248,6 +251,7 @@ module leizd_aptos_entry::money_market {
             };
         };
 
+        // update account_position
         let j = copy length;
         while (j > 0) {
             let _key = vector::borrow<String>(&target_keys, j-1);
