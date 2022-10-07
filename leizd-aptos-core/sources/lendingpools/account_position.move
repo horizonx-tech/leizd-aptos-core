@@ -1028,6 +1028,30 @@ module leizd::account_position {
         }
     }
 
+    public fun borrowed_shadow_share_all(addr: address): (
+        vector<String>, // keys
+        vector<u64> // shares
+    ) acquires Position {
+        if (!exists<Position<AssetToShadow>>(addr)) return (vector::empty<String>(), vector::empty<u64>());
+        let position_ref = borrow_global<Position<AssetToShadow>>(addr);
+
+        let i = vector::length<String>(&position_ref.coins);
+        if (i == 0) return (vector::empty<String>(), vector::empty<u64>());
+
+        let keys = vector::empty<String>();
+        let borrowed_shares = vector::empty<u64>();
+        while (i > 0) {
+            let key = vector::borrow<String>(&position_ref.coins, i-1);
+            let borrowed_share = simple_map::borrow<String,Balance>(&position_ref.balance, key).borrowed_share;
+            if (borrowed_share > 0) {
+                vector::push_back<String>(&mut keys, *key);
+                vector::push_back<u64>(&mut borrowed_shares, borrowed_share);
+            };
+            i = i - 1;
+        };
+        (keys, borrowed_shares)
+    }
+
     //// get total from pools
     fun total_normal_deposited<P>(key: String): (u128, u128) {
         if (position_type::is_asset_to_shadow<P>()) {
