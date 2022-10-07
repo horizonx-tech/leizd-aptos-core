@@ -702,7 +702,7 @@ module leizd::shadow_pool {
             return amount
         } else if (borrowed > 0) {
             central_liquidity_pool::repay(key, account, (borrowed as u64), key_for_central);
-            remaining_amount = amount - (borrowed as u64);
+            remaining_amount = remaining_amount - (borrowed as u64);
         };
 
         // pay support fee
@@ -711,7 +711,7 @@ module leizd::shadow_pool {
             return amount
         } else if (uncollected_support_fee > 0) {
             central_liquidity_pool::collect_support_fee(key, account, (uncollected_support_fee as u64), key_for_central);
-            remaining_amount = amount - (uncollected_support_fee as u64);
+            remaining_amount = remaining_amount - (uncollected_support_fee as u64);
         };
 
         return amount - remaining_amount
