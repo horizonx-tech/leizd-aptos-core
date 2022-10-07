@@ -690,38 +690,6 @@ module leizd::account_position {
         deposited
     }
 
-    public fun deposited_volume<P>(addr: address, key: String): u64 acquires Position {
-        let position_ref = borrow_global_mut<Position<P>>(addr);
-        deposited_volume_internal<P>(position_ref, key)
-    }
-    fun deposited_volume_internal<P>(position_ref: &Position<P>, key: String): u64 {
-        if (vector::contains<String>(&position_ref.coins, &key)) {
-            let balance = simple_map::borrow<String,Balance>(&position_ref.balance, &key);
-            let (total_amount, total_share) = total_normal_deposited<P>(key);
-            let normal_deposited = if (total_amount == 0 && total_share == 0) (balance.normal_deposited_share as u128) else math128::to_amount((balance.normal_deposited_share as u128), total_amount, total_share);
-            let (total_amount, total_share) = total_conly_deposited<P>(key);
-            let conly_deposited = if (total_amount == 0 && total_share == 0) (balance.conly_deposited_share as u128) else math128::to_amount((balance.conly_deposited_share as u128), total_amount, total_share);
-            price_oracle::volume(&key, ((normal_deposited + conly_deposited) as u64)) // TODO: consider cast
-        } else {
-            0
-        }
-    }
-
-    public fun borrowed_volume<P>(addr: address, key: String): u64 acquires Position {
-        let position_ref = borrow_global_mut<Position<P>>(addr);
-        borrowed_volume_internal<P>(position_ref, key)
-    }
-    fun borrowed_volume_internal<P>(position_ref: &Position<P>, key: String): u64 {
-        if (vector::contains<String>(&position_ref.coins, &key)) {
-            let (total_amount, total_share) = total_borrowed<P>(key);
-            let borrowed_share = simple_map::borrow<String,Balance>(&position_ref.balance, &key).borrowed_share;
-            let borrowed = if (total_amount == 0 && total_share == 0) (borrowed_share as u128) else math128::to_amount((borrowed_share as u128), total_amount, total_share);
-            price_oracle::volume(&key, (borrowed as u64)) // TODO: consider cast
-        } else {
-            0
-        }
-    }
-
     //// internal functions to update position
     fun update_on_deposit<C,P>(
         depositor_addr: address,
@@ -869,6 +837,9 @@ module leizd::account_position {
         }
     }
 
+    ////////////////////////////////////////////////////
+    /// View Functions
+    ////////////////////////////////////////////////////
     fun is_safe<C,P>(addr: address): bool acquires Position {
         let key = key<C>();
         let position_ref = borrow_global<Position<P>>(addr);
@@ -900,10 +871,89 @@ module leizd::account_position {
         }
     }
 
+    //// get volume, amount from share
+    public fun deposited_volume<P>(addr: address, key: String): u64 acquires Position {
+        let position_ref = borrow_global_mut<Position<P>>(addr);
+        deposited_volume_internal<P>(position_ref, key)
+    }
+    fun deposited_volume_internal<P>(position_ref: &Position<P>, key: String): u64 {
+        let normal_deposited = normal_deposited_amount_internal(position_ref, key);
+        let conly_deposited = conly_deposited_amount_internal(position_ref, key);
+        if (normal_deposited > 0 || conly_deposited > 0) {
+            price_oracle::volume(&key, ((normal_deposited + conly_deposited) as u64)) // TODO: consider cast
+        } else {
+            0
+        }
+    }
+    fun normal_deposited_amount<P>(addr: address, key: String): u128 acquires Position {
+        let position_ref = borrow_global_mut<Position<P>>(addr);
+        normal_deposited_amount_internal<P>(position_ref, key)
+    }
+    fun normal_deposited_amount_internal<P>(position_ref: &Position<P>, key: String): u128 {
+        if (vector::contains<String>(&position_ref.coins, &key)) {
+            let normal_deposited_share = simple_map::borrow<String,Balance>(&position_ref.balance, &key).normal_deposited_share;
+            let (total_amount, total_share) = total_normal_deposited<P>(key);
+            if (total_amount == 0 && total_share == 0) {
+                (normal_deposited_share as u128)
+            } else {
+                math128::to_amount((normal_deposited_share as u128), total_amount, total_share)
+            }
+        } else {
+            0
+        }
+    }
+    fun conly_deposited_amount<P>(addr: address, key: String): u128 acquires Position {
+        let position_ref = borrow_global_mut<Position<P>>(addr);
+        conly_deposited_amount_internal<P>(position_ref, key)
+    }
+    fun conly_deposited_amount_internal<P>(position_ref: &Position<P>, key: String): u128 {
+        if (vector::contains<String>(&position_ref.coins, &key)) {
+            let conly_deposited_share = simple_map::borrow<String,Balance>(&position_ref.balance, &key).conly_deposited_share;
+            let (total_amount, total_share) = total_conly_deposited<P>(key);
+            if (total_amount == 0 && total_share == 0) {
+                (conly_deposited_share as u128)
+            } else {
+                math128::to_amount((conly_deposited_share as u128), total_amount, total_share)
+            }
+        } else {
+            0
+        }
+    }
+
+    public fun borrowed_volume<P>(addr: address, key: String): u64 acquires Position {
+        let position_ref = borrow_global_mut<Position<P>>(addr);
+        borrowed_volume_internal<P>(position_ref, key)
+    }
+    fun borrowed_volume_internal<P>(position_ref: &Position<P>, key: String): u64 {
+        let borrowed = borrowed_amount_internal(position_ref, key);
+        if (borrowed > 0) {
+            price_oracle::volume(&key, (borrowed as u64)) // TODO: consider cast
+        } else {
+            0
+        }
+    }
+    fun borrowed_amount<P>(addr: address, key: String): u128 acquires Position {
+        let position_ref = borrow_global_mut<Position<P>>(addr);
+        borrowed_amount_internal<P>(position_ref, key)
+    }
+    fun borrowed_amount_internal<P>(position_ref: &Position<P>, key: String): u128 {
+        if (vector::contains<String>(&position_ref.coins, &key)) {
+            let (total_amount, total_share) = total_borrowed<P>(key);
+            let borrowed_share = simple_map::borrow<String,Balance>(&position_ref.balance, &key).borrowed_share;
+            if (total_amount == 0 && total_share == 0) {
+                (borrowed_share as u128)
+            } else {
+                math128::to_amount((borrowed_share as u128), total_amount, total_share)
+            }
+        } else {
+            0
+        }
+    }
+
+    //// getter about Resources in this module
     public fun deposited_asset_share<C>(addr: address): u64 acquires Position {
         deposited_asset_share_with(key<C>(), addr)
     }
-
     public fun deposited_asset_share_with(key: String, addr: address): u64 acquires Position {
         if (!exists<Position<AssetToShadow>>(addr)) return 0;
         let position_ref = borrow_global<Position<AssetToShadow>>(addr);
@@ -917,7 +967,6 @@ module leizd::account_position {
     public fun conly_deposited_asset_share<C>(addr: address): u64 acquires Position {
         conly_deposited_asset_share_with(key<C>(), addr)
     }
-
     public fun conly_deposited_asset_share_with(key: String, addr: address): u64 acquires Position {
         if (!exists<Position<AssetToShadow>>(addr)) return 0;
         let position_ref = borrow_global<Position<AssetToShadow>>(addr);
@@ -942,7 +991,6 @@ module leizd::account_position {
     public fun deposited_shadow_share<C>(addr: address): u64 acquires Position {
         deposited_shadow_share_with(key<C>(), addr)
     }
-
     public fun deposited_shadow_share_with(key: String, addr: address): u64 acquires Position {
         if (!exists<Position<ShadowToAsset>>(addr)) return 0;
         let position_ref = borrow_global<Position<ShadowToAsset>>(addr);
@@ -956,7 +1004,6 @@ module leizd::account_position {
     public fun conly_deposited_shadow_share<C>(addr: address): u64 acquires Position {
         conly_deposited_shadow_share_with(key<C>(), addr)
     }
-
     public fun conly_deposited_shadow_share_with(key: String, addr: address): u64 acquires Position {
         if (!exists<Position<ShadowToAsset>>(addr)) return 0;
         let position_ref = borrow_global<Position<ShadowToAsset>>(addr);
@@ -971,7 +1018,6 @@ module leizd::account_position {
         let key = key<C>();
         borrowed_shadow_share_with(key, addr)
     }
-
     public fun borrowed_shadow_share_with(key: String, addr: address): u64 acquires Position {
         if (!exists<Position<AssetToShadow>>(addr)) return 0;
         let position_ref = borrow_global<Position<AssetToShadow>>(addr);
