@@ -3,6 +3,7 @@ module leizd::shadow_pool {
     use std::error;
     use std::signer;
     use std::string::{String};
+    use std::vector;
     use aptos_std::event;
     use aptos_std::simple_map;
     use aptos_framework::account;
@@ -691,7 +692,7 @@ module leizd::shadow_pool {
         key: String,
         _key: &OperatorKey
     ) acquires Pool, Storage, Keys {
-        exec_accrue_interest_internal(key, storage_ref, pool_ref);
+        exec_accrue_interest_internal(key);
     }
     fun exec_accrue_interest_internal(
         key: String,
@@ -705,7 +706,7 @@ module leizd::shadow_pool {
         keys: vector<String>,
         _key: &OperatorKey
     ) acquires Pool, Storage, Keys {
-        exec_accrue_interest_for_selected_internal(keys, storage_ref, pool_ref);
+        exec_accrue_interest_for_selected_internal(keys);
     }
     fun exec_accrue_interest_for_selected_internal(keys: vector<String>) acquires Pool, Storage, Keys {
         let owner_address = permission::owner_address();
