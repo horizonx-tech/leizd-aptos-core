@@ -572,10 +572,9 @@ module leizd::shadow_pool {
 
         accrue_interest(key, storage_ref);
 
-        // at first, repay to central_liquidity_pool
+        // at first, repay to central_liquidity_pool and pay support fees
         let repaid_to_central_liquidity_pool = repay_to_central_liquidity_pool(key, account, amount);
-        let paid_support_fees = collect_support_fees(key, account, amount - repaid_to_central_liquidity_pool);
-        let to_shadow_pool = amount - repaid_to_central_liquidity_pool - paid_support_fees;
+        let to_shadow_pool = amount - repaid_to_central_liquidity_pool;
         if (to_shadow_pool > 0) {
             let withdrawn = coin::withdraw<USDZ>(account, to_shadow_pool);
             coin::merge(&mut pool_ref.shadow, withdrawn);
@@ -689,34 +688,33 @@ module leizd::shadow_pool {
     }
 
     /// Repays the shadow to the central-liquidity-pool
-    /// use when shadow has already borrowed from this pool.
-    /// @return repaid amount
+    /// use when shadow has already borrowed from this pool or support fees are charged.
+    /// @return repaid(incl. support fees) amount
     fun repay_to_central_liquidity_pool(key: String, account: &signer, amount: u64): u64 acquires Keys {
         let key_for_central = &borrow_global<Keys>(permission::owner_address()).central_liquidity_pool;
         let borrowed = central_liquidity_pool::borrowed(key);
-        if (borrowed == 0) {
-            return 0
-        } else if (borrowed >= (amount as u128)) {
+        let uncollected_support_fee = central_liquidity_pool::uncollected_support_fee(key);
+        let remaining_amount = amount;
+
+        // reapy
+        if (borrowed >= (amount as u128)) {
             central_liquidity_pool::repay(key, account, amount, key_for_central);
             return amount
-        } else {
+        } else if (borrowed > 0) {
             central_liquidity_pool::repay(key, account, (borrowed as u64), key_for_central);
-            return (borrowed as u64)
-        }
-    }
+            remaining_amount = amount - (borrowed as u64);
+        };
 
-    fun collect_support_fees(key: String, account: &signer, amount: u64): u64 acquires Keys {
-        let key_for_central = &borrow_global<Keys>(permission::owner_address()).central_liquidity_pool;
-        let uncollected_support_fee = central_liquidity_pool::uncollected_support_fee(key);
-        if (uncollected_support_fee == 0) {
-            return 0
-        } else if (uncollected_support_fee >= (amount as u128)) {
-            central_liquidity_pool::collect_support_fee(key, account, amount, key_for_central);
+        // pay support fee
+        if (uncollected_support_fee >= (remaining_amount as u128)){
+            central_liquidity_pool::collect_support_fee(key, account, (remaining_amount as u64), key_for_central);
             return amount
-        } else {
+        } else if (uncollected_support_fee > 0) {
             central_liquidity_pool::collect_support_fee(key, account, (uncollected_support_fee as u64), key_for_central);
-            return (uncollected_support_fee as u64)
-        }
+            remaining_amount = amount - (uncollected_support_fee as u64);
+        };
+
+        return amount - remaining_amount
     }
 
     /// This function is called on every user action.
