@@ -393,25 +393,36 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         pool_ref.protocol_fees = pool_ref.protocol_fees + (protocol_fee as u64);
     }
 
+    public fun top_up_support_fees(key: String, amount: u128, _key: &OperatorKey) acquires Balance, CentralLiquidityPool {
+        top_up_support_fees_internal(key, amount)
+    }
+    fun top_up_support_fees_internal(key: String, amount: u128) acquires Balance, CentralLiquidityPool {
+        let owner_address = permission::owner_address();
+        let balance_ref = borrow_global_mut<Balance>(owner_address);
+        let pool_ref = borrow_global_mut<CentralLiquidityPool>(owner_address);
+        let uncollected_support_fee = simple_map::borrow_mut<String,u128>(&mut balance_ref.uncollected_support_fee, &key);
+        *uncollected_support_fee = *uncollected_support_fee + amount;
+        pool_ref.total_uncollected_fee = pool_ref.total_uncollected_fee - amount;
+        pool_ref.total_deposited = pool_ref.total_deposited + amount;
+    }
+
     public fun collect_support_fee(
         key: String,
-        coin: coin::Coin<USDZ>,
-        new_uncollected_fee: u128,
+        account: &signer,
+        amount: u64,
         _key: &OperatorKey
     ) acquires CentralLiquidityPool, Balance {
-        collect_support_fee_internal(key, coin, new_uncollected_fee)
+        collect_support_fee_internal(key, account, amount)
     }
-    fun collect_support_fee_internal(key: String, coin: coin::Coin<USDZ>, new_uncollected_fee: u128) acquires CentralLiquidityPool, Balance {
+    fun collect_support_fee_internal(key: String, account: &signer, amount: u64,) acquires CentralLiquidityPool, Balance {
         let owner_address = permission::owner_address();
         let balance_ref = borrow_global_mut<Balance>(owner_address);
         let pool_ref = borrow_global_mut<CentralLiquidityPool>(owner_address);
 
         let uncollected_support_fee = simple_map::borrow_mut<String,u128>(&mut balance_ref.uncollected_support_fee, &key);
-        pool_ref.total_uncollected_fee = pool_ref.total_uncollected_fee - *uncollected_support_fee;
-        *uncollected_support_fee = new_uncollected_fee;
-        pool_ref.total_uncollected_fee = pool_ref.total_uncollected_fee + new_uncollected_fee;
-        pool_ref.total_deposited = pool_ref.total_deposited + (coin::value<USDZ>(&coin) as u128);
-        coin::merge<USDZ>(&mut pool_ref.left, coin);
+        *uncollected_support_fee = *uncollected_support_fee - (amount as u128);
+        pool_ref.total_uncollected_fee = pool_ref.total_uncollected_fee - (amount as u128);
+        coin::merge<USDZ>(&mut pool_ref.left, coin::withdraw<USDZ>(account, amount));
     }
 
     public entry fun harvest_protocol_fees() acquires CentralLiquidityPool {

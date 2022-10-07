@@ -231,7 +231,7 @@ module leizd::shadow_pool {
         let pool_ref = borrow_global_mut<Pool>(owner_address);
 
         init_pool_if_necessary(key, storage_ref);
-        accrue_interest(key, storage_ref, pool_ref);
+        accrue_interest(key, storage_ref);
 
         coin::merge(&mut pool_ref.shadow, coin::withdraw<USDZ>(account, amount));
 
@@ -407,7 +407,7 @@ module leizd::shadow_pool {
         let pool_ref = borrow_global_mut<Pool>(owner_address);
         let storage_ref = borrow_global_mut<Storage>(owner_address);
 
-        accrue_interest(key, storage_ref, pool_ref);
+        accrue_interest(key, storage_ref);
         collect_shadow_fee(pool_ref, liquidation_fee);
 
         let amount_to_transfer = amount - liquidation_fee;
@@ -480,7 +480,7 @@ module leizd::shadow_pool {
         let storage_ref = borrow_global_mut<Storage>(owner_address);
 
         init_pool_if_necessary(key, storage_ref); // NOTE: because enable to borrow from central_liquidity_pool if no deposited
-        accrue_interest(key, storage_ref, pool_ref);
+        accrue_interest(key, storage_ref);
 
         let entry_fee = risk_factor::calculate_entry_fee(amount);
         let amount_with_entry_fee = amount + entry_fee;
@@ -570,11 +570,12 @@ module leizd::shadow_pool {
         let storage_ref = borrow_global_mut<Storage>(owner_address);
         let pool_ref = borrow_global_mut<Pool>(owner_address);
 
-        accrue_interest(key, storage_ref, pool_ref);
+        accrue_interest(key, storage_ref);
 
         // at first, repay to central_liquidity_pool
         let repaid_to_central_liquidity_pool = repay_to_central_liquidity_pool(key, account, amount);
-        let to_shadow_pool = amount - repaid_to_central_liquidity_pool;
+        let paid_support_fees = collect_support_fees(key, account, amount - repaid_to_central_liquidity_pool);
+        let to_shadow_pool = amount - repaid_to_central_liquidity_pool - paid_support_fees;
         if (to_shadow_pool > 0) {
             let withdrawn = coin::withdraw<USDZ>(account, to_shadow_pool);
             coin::merge(&mut pool_ref.shadow, withdrawn);
@@ -623,8 +624,7 @@ module leizd::shadow_pool {
     ): (u64, u64) acquires Pool, Storage, PoolEventHandle, Keys {
         let owner_address = permission::owner_address();
         let storage_ref = borrow_global_mut<Storage>(owner_address);
-        let pool_ref = borrow_global_mut<Pool>(owner_address);
-        accrue_interest(key, storage_ref, pool_ref);
+        accrue_interest(key, storage_ref);
         let liquidation_fee = risk_factor::calculate_liquidation_fee(withdrawing);
         let (amount, share) = withdraw_for_internal(key, liquidator_addr, target_addr, withdrawing, is_collateral_only, liquidation_fee);
 
@@ -705,8 +705,22 @@ module leizd::shadow_pool {
         }
     }
 
+    fun collect_support_fees(key: String, account: &signer, amount: u64): u64 acquires Keys {
+        let key_for_central = &borrow_global<Keys>(permission::owner_address()).central_liquidity_pool;
+        let uncollected_support_fee = central_liquidity_pool::uncollected_support_fee(key);
+        if (uncollected_support_fee == 0) {
+            return 0
+        } else if (uncollected_support_fee >= (amount as u128)) {
+            central_liquidity_pool::collect_support_fee(key, account, amount, key_for_central);
+            return amount
+        } else {
+            central_liquidity_pool::collect_support_fee(key, account, (uncollected_support_fee as u64), key_for_central);
+            return (uncollected_support_fee as u64)
+        }
+    }
+
     /// This function is called on every user action.
-    fun accrue_interest(key: String, storage_ref: &mut Storage, pool_ref: &mut Pool) acquires Keys {
+    fun accrue_interest(key: String, storage_ref: &mut Storage) acquires Keys {
         let now = timestamp::now_microseconds();
         let asset_storage_ref = simple_map::borrow<String,AssetStorage>(&mut storage_ref.asset_storages, &key);
 
@@ -733,8 +747,7 @@ module leizd::shadow_pool {
             key,
             storage_ref,
             rcomp,
-            protocol_share_fee,
-            pool_ref
+            protocol_share_fee
         );
         let last_updated = &mut simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key).last_updated;
         *last_updated = now;
@@ -745,7 +758,6 @@ module leizd::shadow_pool {
         rcomp: u128,
         share_fee: u64,
         // for support fee from central-liqudity-pool
-        pool_ref: &mut Pool
     ) acquires Keys {
         let asset_storage_ref = simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key);
         let accrued_interest = (asset_storage_ref.borrowed_amount as u128) * rcomp / interest_rate::precision();
@@ -764,28 +776,12 @@ module leizd::shadow_pool {
         let new_protocol_fees = storage_ref.protocol_fees + (protocol_share as u64);
         let depositors_share = accrued_interest - protocol_share;
 
-        // send support fee when the pool is supported
+        // top up support fees when the pool is supported
         if (central_liquidity_pool::is_supported(key) && accrued_interest > 0) {
             let generated_support_fee = central_liquidity_pool::calculate_support_fee(accrued_interest);
             depositors_share = depositors_share - generated_support_fee;
-
-            let uncollected_support_fee = central_liquidity_pool::uncollected_support_fee(key) + generated_support_fee;
-            let collected_support_fee: u128;
-            // TODO: check - can use total liquidity? (not for a asset?)
-            // HACK: duplicated to total_liquidity_internal
-            let liquidity = (coin::value(&pool_ref.shadow) as u128) - storage_ref.total_conly_deposited_amount;
-            // let liquidity = total_liquidity_internal(pool_ref, storage_ref);
-            if (uncollected_support_fee > liquidity) {
-                collected_support_fee = liquidity;
-                uncollected_support_fee = uncollected_support_fee - liquidity;
-            } else {
-                collected_support_fee = uncollected_support_fee;
-                uncollected_support_fee = 0;
-            };
-            let fee_extracted = coin::extract(&mut pool_ref.shadow, (collected_support_fee as u64));
-
             let key_for_central = &borrow_global<Keys>(permission::owner_address()).central_liquidity_pool;
-            central_liquidity_pool::collect_support_fee(key, fee_extracted, uncollected_support_fee, key_for_central);
+            central_liquidity_pool::top_up_support_fees(key, generated_support_fee, key_for_central);
         };
 
         asset_storage_ref.borrowed_amount = asset_storage_ref.borrowed_amount + total_accrued_interest;
@@ -2776,14 +2772,13 @@ module leizd::shadow_pool {
     #[test_only]
     public fun earn_interest_without_using_interest_rate_module_for_test<C>(
         rcomp: u128,
-    ) acquires Pool, Storage, Keys {
+    ) acquires Storage, Keys {
         let owner_addr = permission::owner_address();
         save_calculated_values_by_rcomp(
             key<C>(),
             borrow_global_mut<Storage>(owner_addr),
             rcomp,
-            risk_factor::share_fee(),
-            borrow_global_mut<Pool>(owner_addr)
+            risk_factor::share_fee()
         );
     }
     #[test(owner=@leizd,depositor1=@0x111,depositor2=@0x222,borrower1=@0x333,borrower2=@0x444,aptos_framework=@aptos_framework)]
@@ -2838,7 +2833,6 @@ module leizd::shadow_pool {
             borrow_global_mut<Storage>(owner_addr),
             (interest_rate::precision() / 1000 * 100), // 10% (dummy value)
             (risk_factor::precision() / 1000 * 200), // 20% (dummy value)
-            borrow_global_mut<Pool>(owner_addr)
         );
         assert!(borrowed_amount<WETH>() == 100500 + 10050, 0);
         assert!(normal_deposited_amount<WETH>() == 500000 + 8040, 0);
