@@ -11,7 +11,7 @@ subdir = 'aptos-move/framework/aptos-framework'
 [dependencies.Switchboard]
 git = 'https://github.com/switchboard-xyz/sbv2-aptos.git'
 rev = 'main'
-subdir = 'switchboard-move/switchboard/'
+subdir = 'move/switchboard/'
 
 [dependencies.LeizdAptosLib]
 local = "../leizd-aptos-lib"
