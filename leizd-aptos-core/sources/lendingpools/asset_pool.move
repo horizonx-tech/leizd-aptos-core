@@ -2028,13 +2028,15 @@ module leizd::asset_pool {
         assert!(treasury::balance<WETH>() == 500 + 2010, 0);
 
         //// withdraw
-        let (_, share) = withdraw_for_internal<WETH>(depositor1_addr, depositor1_addr, 304824, false, false, 0); // 300000 + (8040 * 60%)
+        let (amount, share) = withdraw_for_internal<WETH>(depositor1_addr, depositor1_addr, 304824, false, false, 0); // 300000 + (8040 * 60%)
+        assert!(amount == 304824, 0);
         assert!(share == 300000, 0);
         assert!(total_normal_deposited_amount<WETH>() == 203216, 0); // 200000 + (8040 * 40%)
         assert!(total_normal_deposited_share<WETH>() == 200000, 0);
         assert!(pool_value<WETH>(owner_addr) == 508040 - 304824, 0);
         ////// remains
-        let (_, share) = withdraw_for_internal<WETH>(depositor1_addr, depositor2_addr, 203216, false, false, 0); // 200000 + (8040 * 40%)
+        let (amount, share) = withdraw_for_internal<WETH>(depositor1_addr, depositor2_addr, 200000, false, true, 0);
+        assert!(amount == 203216, 0); // 200000 + (8040 * 40%)
         assert!(share == 200000, 0);
         assert!(total_normal_deposited_amount<WETH>() == 0, 0);
         assert!(total_normal_deposited_share<WETH>() == 0, 0);
