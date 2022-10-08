@@ -198,6 +198,27 @@ module leizd::account_position {
         withdrawn_amount
     }
 
+    public fun withdraw_all<C,P>(
+        depositor_addr: address,
+        is_collateral_only: bool,
+        _key: &OperatorKey
+    ): u64 acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
+        withdraw_all_internal<C,P>(depositor_addr, is_collateral_only)
+    }
+
+    fun withdraw_all_internal<C,P>(depositor_addr: address, is_collateral_only: bool): u64 acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
+        let withdrawn_share;
+        if (pool_type::is_type_asset<P>()) {
+            let share = if (is_collateral_only) conly_deposited_asset_share<C>(depositor_addr) else deposited_asset_share<C>(depositor_addr);
+            withdrawn_share = update_on_withdraw<C,AssetToShadow>(depositor_addr, share, is_collateral_only);
+            assert!(is_safe<C,AssetToShadow>(depositor_addr), error::invalid_state(ENO_SAFE_POSITION));
+        } else {
+            let share = if (is_collateral_only) conly_deposited_shadow_share<C>(depositor_addr) else deposited_shadow_share<C>(depositor_addr);
+            withdrawn_share = update_on_withdraw<C,ShadowToAsset>(depositor_addr, share, is_collateral_only);
+            assert!(is_safe<C,ShadowToAsset>(depositor_addr), error::invalid_state(ENO_SAFE_POSITION));
+        };
+        withdrawn_share
+    }
 
     ////////////////////////////////////////////////////
     /// Borrow
