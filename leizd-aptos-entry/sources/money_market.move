@@ -449,7 +449,7 @@ module leizd_aptos_entry::money_market {
         setup_account_for_test(account);
 
         let account_addr = signer::address_of(account);
-        managed_coin::mint<WETH>(owner, account_addr, 999999);
+        managed_coin::mint<USDC>(owner, account_addr, 999999);
         managed_coin::mint<USDT>(owner, account_addr, 999999);
         managed_coin::mint<WETH>(owner, account_addr, 999999);
         managed_coin::mint<UNI>(owner, account_addr, 999999);
