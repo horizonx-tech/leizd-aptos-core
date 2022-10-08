@@ -381,11 +381,11 @@ module leizd_aptos_entry::money_market {
         setup_account_for_test(account);
 
         let account_addr = signer::address_of(account);
-        managed_coin::mint<WETH>(owner, account_addr, 10000);
-        managed_coin::mint<USDT>(owner, account_addr, 10000);
-        managed_coin::mint<WETH>(owner, account_addr, 10000);
-        managed_coin::mint<UNI>(owner, account_addr, 10000);
-        usdz::mint_for_test(account_addr, 10000);
+        managed_coin::mint<WETH>(owner, account_addr, 999999);
+        managed_coin::mint<USDT>(owner, account_addr, 999999);
+        managed_coin::mint<WETH>(owner, account_addr, 999999);
+        managed_coin::mint<UNI>(owner, account_addr, 999999);
+        usdz::mint_for_test(account_addr, 999999);
     }
     #[test(owner=@leizd_aptos_entry,account=@0x111,aptos_framework=@aptos_framework)]
     fun test_deposit_with_asset(owner: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
@@ -511,11 +511,40 @@ module leizd_aptos_entry::money_market {
         assert!(shadow_pool::normal_deposited_amount<WETH>() == 25, 0);
         assert!(account_position::deposited_shadow_share<WETH>(account_addr) == 25, 0);
     }
-    // TODO: check withdraw_all
-    #[test(_owner=@leizd_aptos_entry)]
-    fun test_withdraw_all_asset(_owner: &signer) {}
-    #[test(_owner=@leizd_aptos_entry)]
-    fun test_withdraw_all_shadow(_owner: &signer) {}
+    #[test(owner=@leizd_aptos_entry,account=@0x111,aptos_framework=@aptos_framework)]
+    fun test_withdraw_all_with_asset(owner: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
+        initialize_lending_pool_for_test(owner, aptos_framework);
+        setup_account_for_test(account);
+        let account_addr = signer::address_of(account);
+        managed_coin::mint<WETH>(owner, account_addr, 10000);
+
+        deposit<WETH, Asset>(account, 1000, false);
+        deposit<WETH, Asset>(account, 200, false);
+        deposit<WETH, Asset>(account, 30, false);
+        assert!(coin::balance<WETH>(account_addr) == 10000 - 1230, 0);
+
+        withdraw_all<WETH, Asset>(account);
+        assert!(coin::balance<WETH>(account_addr) == 10000, 0);
+        assert!(asset_pool::total_normal_deposited_amount<WETH>() == 0, 0);
+        assert!(account_position::deposited_asset_share<WETH>(account_addr) == 0, 0);
+    }
+    #[test(owner=@leizd_aptos_entry,account=@0x111,aptos_framework=@aptos_framework)]
+    fun test_withdraw_all_with_shadow(owner: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
+        initialize_lending_pool_for_test(owner, aptos_framework);
+        setup_account_for_test(account);
+        let account_addr = signer::address_of(account);
+        usdz::mint_for_test(account_addr, 100000);
+
+        deposit<WETH, Shadow>(account, 50000, false);
+        deposit<WETH, Shadow>(account, 4000, false);
+        deposit<WETH, Shadow>(account, 300, false);
+        assert!(coin::balance<USDZ>(account_addr) == 100000 - 54300, 0);
+
+        withdraw_all<WETH, Shadow>(account);
+        assert!(coin::balance<USDZ>(account_addr) == 100000, 0);
+        assert!(shadow_pool::normal_deposited_amount<WETH>() == 0, 0);
+        assert!(account_position::deposited_shadow_share<WETH>(account_addr) == 0, 0);
+    }
 
     #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
     fun test_borrow_with_shadow_from_asset(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
@@ -661,11 +690,54 @@ module leizd_aptos_entry::money_market {
         assert!(asset_pool::total_borrowed_amount<WETH>() == 40, 0);
         assert!(account_position::borrowed_asset_share<WETH>(account_addr) == 40, 0);
     }
-    // TODO: check repay_all
-    #[test(_owner=@leizd_aptos_entry)]
-    fun test_repay_all_shadow(_owner: &signer) {}
-    #[test(_owner=@leizd_aptos_entry)]
-    fun test_repay_all_asset(_owner: &signer) {}
+    #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
+    fun test_repay_all_with_shadow(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
+        initialize_lending_pool_for_test(owner, aptos_framework);
+        setup_liquidity_provider_for_test(owner, lp);
+        setup_account_for_test(account);
+        let account_addr = signer::address_of(account);
+        managed_coin::mint<WETH>(owner, account_addr, 200000);
+
+        // prerequisite
+        deposit<WETH, Shadow>(lp, 100500, false);
+        //// check risk_factor
+        assert!(risk_factor::lt<WETH>() == risk_factor::default_lt(), 0);
+        assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
+
+        // execute
+        deposit<WETH, Asset>(account, 200000, false);
+        borrow<WETH, Shadow>(account, 100000);
+        usdz::mint_for_test(account_addr, 500);
+        repay_all<WETH, Shadow>(account);
+
+        assert!(coin::balance<USDZ>(account_addr) == 0, 0);
+        assert!(shadow_pool::borrowed_amount<WETH>() == 0, 0);
+        assert!(account_position::borrowed_shadow_share<WETH>(account_addr) == 0, 0);
+    }
+    #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
+    fun test_repay_all_with_asset(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
+        initialize_lending_pool_for_test(owner, aptos_framework);
+        setup_liquidity_provider_for_test(owner, lp);
+        setup_account_for_test(account);
+        let account_addr = signer::address_of(account);
+        usdz::mint_for_test(account_addr, 200000);
+
+        // prerequisite
+        deposit<WETH, Asset>(lp, 100500, false);
+        //// check risk_factor
+        assert!(risk_factor::lt_of_shadow() == risk_factor::default_lt_of_shadow(), 0);
+        assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
+
+        // execute
+        deposit<WETH, Shadow>(account, 200000, false);
+        borrow<WETH, Asset>(account, 100000);
+        managed_coin::mint<WETH>(owner, account_addr, 500);
+        repay_all<WETH, Asset>(account);
+
+        assert!(coin::balance<WETH>(account_addr) == 0, 0);
+        assert!(asset_pool::total_borrowed_amount<WETH>() == 0, 0);
+        assert!(account_position::borrowed_asset_share<WETH>(account_addr) == 0, 0);
+    }
 
     #[test(owner=@leizd_aptos_entry,account=@0x111,aptos_framework=@aptos_framework)]
     fun test_enable_to_rebalance_and_unable_to_rebalance(owner: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
