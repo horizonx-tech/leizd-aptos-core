@@ -555,6 +555,35 @@ module leizd::asset_pool {
         collect_asset_fee<C>(pool_ref, (harvested_fee as u64));
     }
 
+    //// Convert
+    public fun normal_deposited_share_to_amount(key: String, share: u64): u128 acquires Storage {
+        let total_amount = total_normal_deposited_amount_with(key);
+        let total_share = total_normal_deposited_share_with(key);
+        if (total_amount > 0 || total_share > 0) {
+            math128::to_amount((share as u128), total_amount, total_share)
+        } else {
+            0
+        }
+    }
+    public fun conly_deposited_share_to_amount(key: String, share: u64): u128 acquires Storage {
+        let total_amount = total_conly_deposited_amount_with(key);
+        let total_share = total_conly_deposited_share_with(key);
+        if (total_amount > 0 || total_share > 0) {
+            math128::to_amount((share as u128), total_amount, total_share)
+        } else {
+            0
+        }
+    }
+    public fun borrowed_share_to_amount(key: String, share: u64): u128 acquires Storage {
+        let total_amount = total_borrowed_amount_with(key);
+        let total_share = total_borrowed_share_with(key);
+        if (total_amount > 0 || total_share > 0) {
+            math128::to_amount((share as u128), total_amount, total_share)
+        } else {
+            0
+        }
+    }
+
     ////// View functions
     fun borrow_mut_asset_storage<C>(storage_ref: &mut Storage): &mut AssetStorage {
         borrow_mut_asset_storage_with(storage_ref, key<C>())
@@ -1793,6 +1822,14 @@ module leizd::asset_pool {
         let event_handle = borrow_global<PoolEventHandle<UNI>>(signer::address_of(owner));
         assert!(event::counter<RepayEvent>(&event_handle.repay_event) == 1, 0);
     }
+
+    //// Convert // TODO
+    #[test(_owner=@leizd)]
+    fun test_normal_deposited_share_to_amount(_owner: &signer) {}
+    #[test(_owner=@leizd)]
+    fun test_conly_deposited_share_to_amount(_owner: &signer) {}
+    #[test(_owner=@leizd)]
+    fun test_borrowed_share_to_amount(_owner: &signer) {}
 
     // scenario
     #[test_only]
