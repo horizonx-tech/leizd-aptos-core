@@ -532,15 +532,17 @@ module leizd::shadow_pool {
 
         let entry_fee = risk_factor::calculate_entry_fee(amount);
         let amount_with_entry_fee = amount + entry_fee;
-        let total_liquidity = total_liquidity_internal(pool_ref, storage_ref);
+        let liquidity = normal_deposited_amount_internal(key, storage_ref)
+            + conly_deposited_amount_internal(key, storage_ref)
+            - borrowed_amount_internal(key, storage_ref);
 
         // check liquidity
-        let total_left = if (central_liquidity_pool::is_supported(key)) total_liquidity + central_liquidity_pool::left() else total_liquidity;
+        let total_left = if (central_liquidity_pool::is_supported(key)) liquidity + central_liquidity_pool::left() else liquidity;
         assert!((amount_with_entry_fee as u128) <= total_left, error::invalid_argument(EEXCEED_BORROWABLE_AMOUNT));
 
-        if ((amount_with_entry_fee as u128) > total_liquidity) {
+        if ((amount_with_entry_fee as u128) > liquidity) {
             // use central-liquidity-pool
-            if (total_liquidity > 0) {
+            if (liquidity > 0) {
                 // extract all from shadow_pool, supply the shortage to borrow from central-liquidity-pool
                 let extracted = coin::extract_all(&mut pool_ref.shadow);
                 let borrowing_value_from_central = amount_with_entry_fee - coin::value(&extracted);
