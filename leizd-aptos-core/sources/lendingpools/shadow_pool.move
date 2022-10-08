@@ -376,6 +376,7 @@ module leizd::shadow_pool {
             receiver_addr,
             amount,
             is_collateral_only,
+            false,
             liquidation_fee
         )
     }
@@ -389,19 +390,53 @@ module leizd::shadow_pool {
         liquidation_fee: u64,
         _key: &OperatorKey
     ): (u64, u64) acquires Pool, Storage, PoolEventHandle, Keys {
-        withdraw_for_internal(key, depositor_addr, receiver_addr, amount, is_collateral_only, liquidation_fee)
+        withdraw_for_internal(key, depositor_addr, receiver_addr, amount, is_collateral_only, false, liquidation_fee)
+    }
+
+    public fun withdraw_for_by_share<C>(
+        depositor_addr: address,
+        receiver_addr: address,
+        share: u64,
+        is_collateral_only: bool,
+        liquidation_fee: u64,
+        _key: &OperatorKey
+    ): (u64, u64) acquires Pool, Storage, PoolEventHandle, Keys {
+        let key = key<C>();
+        withdraw_for_internal(
+            key,
+            depositor_addr,
+            receiver_addr,
+            share,
+            is_collateral_only,
+            true,
+            liquidation_fee
+        )
+    }
+
+    public fun withdraw_for_with_by_share(
+        key: String,
+        depositor_addr: address,
+        receiver_addr: address,
+        share: u64,
+        is_collateral_only: bool,
+        liquidation_fee: u64,
+        _key: &OperatorKey
+    ): (u64, u64) acquires Pool, Storage, PoolEventHandle, Keys {
+        withdraw_for_internal(key, depositor_addr, receiver_addr, share, is_collateral_only, true, liquidation_fee)
     }
 
     fun withdraw_for_internal(
         key: String,
         depositor_addr: address,
         receiver_addr: address,
-        amount: u64,
+        value: u64,
         is_collateral_only: bool,
+        is_share: bool,
         liquidation_fee: u64
     ): (u64, u64) acquires Pool, Storage, PoolEventHandle, Keys {
         assert!(pool_status::can_withdraw_with(key), error::invalid_state(ENOT_AVAILABLE_STATUS));
-        assert!(amount > 0, error::invalid_argument(EAMOUNT_ARG_IS_ZERO));
+        assert!(value > 0, error::invalid_argument(EAMOUNT_ARG_IS_ZERO));
+        assert!(is_initialized_asset_with(&key), error::invalid_argument(ENOT_INITIALIZED_COIN));
 
         let owner_address = permission::owner_address();
         let pool_ref = borrow_global_mut<Pool>(owner_address);
@@ -410,23 +445,35 @@ module leizd::shadow_pool {
         accrue_interest(key, storage_ref);
         collect_shadow_fee(pool_ref, liquidation_fee);
 
-        let amount_to_transfer = amount - liquidation_fee;
-        coin::deposit<USDZ>(receiver_addr, coin::extract(&mut pool_ref.shadow, amount_to_transfer));
-
-        assert!(is_initialized_asset_with_internal(&key, storage_ref), error::invalid_argument(ENOT_INITIALIZED_COIN));
         let asset_storage = simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key);
-        let amount_u128: u128 = (amount as u128);
-        let withdrawn_user_share_u128: u128;
-        if (is_collateral_only) {
-            storage_ref.total_conly_deposited_amount = storage_ref.total_conly_deposited_amount - (amount as u128);
-            withdrawn_user_share_u128 = math128::to_share(amount_u128, asset_storage.conly_deposited_amount, asset_storage.conly_deposited_share);
-            asset_storage.conly_deposited_amount = asset_storage.conly_deposited_amount - amount_u128;
-            asset_storage.conly_deposited_share = asset_storage.conly_deposited_share - withdrawn_user_share_u128;
+        let amount_u128: u128;
+        let share_u128: u128;
+        if (is_share) {
+            share_u128 = (value as u128);
+            if (is_collateral_only) {
+                amount_u128 = math128::to_amount(share_u128, asset_storage.conly_deposited_amount, asset_storage.conly_deposited_share);
+            } else {
+                amount_u128 = math128::to_amount(share_u128, asset_storage.normal_deposited_amount, asset_storage.normal_deposited_share);
+            };
         } else {
-            storage_ref.total_normal_deposited_amount = storage_ref.total_normal_deposited_amount - (amount as u128);
-            withdrawn_user_share_u128 = math128::to_share(amount_u128, asset_storage.normal_deposited_amount, asset_storage.normal_deposited_share);
+            amount_u128 = (value as u128);
+            if (is_collateral_only) {
+                share_u128 = math128::to_share_roundup(amount_u128, asset_storage.conly_deposited_amount, asset_storage.conly_deposited_share);
+            } else {
+                share_u128 = math128::to_share_roundup(amount_u128, asset_storage.normal_deposited_amount, asset_storage.normal_deposited_share);
+            };
+        };
+
+        let amount_to_transfer = (amount_u128 as u64) - liquidation_fee;
+        coin::deposit<USDZ>(receiver_addr, coin::extract(&mut pool_ref.shadow, amount_to_transfer));
+        if (is_collateral_only) {
+            storage_ref.total_conly_deposited_amount = storage_ref.total_conly_deposited_amount - amount_u128;
+            asset_storage.conly_deposited_amount = asset_storage.conly_deposited_amount - amount_u128;
+            asset_storage.conly_deposited_share = asset_storage.conly_deposited_share - share_u128;
+        } else {
+            storage_ref.total_normal_deposited_amount = storage_ref.total_normal_deposited_amount - amount_u128;
             asset_storage.normal_deposited_amount = asset_storage.normal_deposited_amount - amount_u128;
-            asset_storage.normal_deposited_share = asset_storage.normal_deposited_share - withdrawn_user_share_u128;
+            asset_storage.normal_deposited_share = asset_storage.normal_deposited_share - share_u128;
         };
 
         event::emit_event<WithdrawEvent>(
@@ -435,12 +482,12 @@ module leizd::shadow_pool {
                 key,
                 caller: depositor_addr,
                 receiver: receiver_addr,
-                amount,
+                amount: (amount_u128 as u64),
                 is_collateral_only,
             },
         );
 
-        (amount, (withdrawn_user_share_u128 as u64))
+        ((amount_u128 as u64), (share_u128 as u64))
     }
 
     ////////////////////////////////////////////////////
@@ -625,7 +672,7 @@ module leizd::shadow_pool {
         let storage_ref = borrow_global_mut<Storage>(owner_address);
         accrue_interest(key, storage_ref);
         let liquidation_fee = risk_factor::calculate_liquidation_fee(withdrawing);
-        let (amount, share) = withdraw_for_internal(key, liquidator_addr, target_addr, withdrawing, is_collateral_only, liquidation_fee);
+        let (amount, share) = withdraw_for_internal(key, liquidator_addr, target_addr, withdrawing, is_collateral_only, false, liquidation_fee);
 
         event::emit_event<LiquidateEvent>(
             &mut borrow_global_mut<PoolEventHandle>(owner_address).liquidate_event,
@@ -864,6 +911,10 @@ module leizd::shadow_pool {
     fun is_initialized_asset<C>(): bool acquires Storage {
         let storage_ref = borrow_global<Storage>(permission::owner_address());
         is_initialized_asset_with_internal(&key<C>(), storage_ref)
+    }
+    fun is_initialized_asset_with(key: &String): bool acquires Storage {
+        let storage_ref = borrow_global<Storage>(permission::owner_address());
+        is_initialized_asset_with_internal(key, storage_ref)
     }
     fun is_initialized_asset_with_internal(key: &String, storage_ref: &Storage): bool {
         simple_map::contains_key<String, AssetStorage>(&storage_ref.asset_storages, key)
@@ -1217,7 +1268,7 @@ module leizd::shadow_pool {
         usdz::mint_for_test(account_addr, 1000000);
 
         deposit_for_internal(key<WETH>(), account, account_addr, 700000, false);
-        let (amount, _) = withdraw_for_internal(key<WETH>(), account_addr, account_addr, 600000, false, 0);
+        let (amount, _) = withdraw_for_internal(key<WETH>(), account_addr, account_addr, 600000, false, false, 0);
 
         assert!(amount == 600000, 0);
         assert!(coin::balance<USDZ>(account_addr) == 900000, 0);
@@ -1243,7 +1294,7 @@ module leizd::shadow_pool {
         usdz::mint_for_test(account_addr, 100);
 
         deposit_for_internal(key<WETH>(), account, account_addr, 100, false);
-        let (amount, _) = withdraw_for_internal(key<WETH>(), account_addr, account_addr, 100, false, 0);
+        let (amount, _) = withdraw_for_internal(key<WETH>(), account_addr, account_addr, 100, false, false, 0);
 
         assert!(amount == 100, 0);
         assert!(coin::balance<USDZ>(account_addr) == 100, 0);
@@ -1267,7 +1318,7 @@ module leizd::shadow_pool {
         usdz::mint_for_test(account_addr, 100);
 
         deposit_for_internal(key<WETH>(), account, account_addr, 100, false);
-        withdraw_for_internal(key<WETH>(), account_addr, account_addr, 101, false, 0);
+        withdraw_for_internal(key<WETH>(), account_addr, account_addr, 101, false, false, 0);
     }
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
     public entry fun test_withdraw_more_than_once_sequentially_over_time(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
@@ -1283,11 +1334,11 @@ module leizd::shadow_pool {
         timestamp::update_global_time_for_test(initial_sec * 1000 * 1000);
         deposit_for_internal(key<WETH>(), account, account_addr, 100, false);
         timestamp::update_global_time_for_test((initial_sec + 330) * 1000 * 1000); // + 5.5 min
-        withdraw_for_internal(key<WETH>(), account_addr, account_addr, 10, false, 0);
+        withdraw_for_internal(key<WETH>(), account_addr, account_addr, 10, false, false, 0);
         timestamp::update_global_time_for_test((initial_sec + 660) * 1000 * 1000); // + 5.5 min
-        withdraw_for_internal(key<WETH>(), account_addr, account_addr, 20, false, 0);
+        withdraw_for_internal(key<WETH>(), account_addr, account_addr, 20, false, false, 0);
         timestamp::update_global_time_for_test((initial_sec + 990) * 1000 * 1000); // + 5.5 min
-        withdraw_for_internal(key<WETH>(), account_addr, account_addr, 30, false, 0);
+        withdraw_for_internal(key<WETH>(), account_addr, account_addr, 30, false, false, 0);
 
         assert!(coin::balance<USDZ>(account_addr) == 60, 0);
         assert!(total_normal_deposited_amount() == 40, 0);
@@ -1309,7 +1360,7 @@ module leizd::shadow_pool {
         usdz::mint_for_test(account_addr, 1000000);
 
         deposit_for_internal(key<WETH>(), account, account_addr, 700000, true);
-        let (amount, _) = withdraw_for_internal(key<WETH>(), account_addr, account_addr, 600000, true, 0);
+        let (amount, _) = withdraw_for_internal(key<WETH>(), account_addr, account_addr, 600000, true, false, 0);
 
         assert!(amount == 600000, 0);
         assert!(coin::balance<USDZ>(account_addr) == 900000, 0);
@@ -1321,6 +1372,10 @@ module leizd::shadow_pool {
         assert!(conly_deposited_amount<WETH>() == 100000, 0);
         assert!(borrowed_amount<WETH>() == 0, 0);
     }
+    // TODO: add case to use `share` as input
+    #[test(_owner=@leizd)]
+    public entry fun test_withdraw_by_share(_owner: &signer) {}
+
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
     public entry fun test_withdraw_to_check_share(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, Keys, PoolEventHandle {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
@@ -1343,7 +1398,7 @@ module leizd::shadow_pool {
         assert!(normal_deposited_amount<WETH>() == 1000, 0);
         assert!(normal_deposited_share<WETH>() == 10000, 0);
 
-        let (amount, share) = withdraw_for_internal(key, account_addr, account_addr, 500, false, 0);
+        let (amount, share) = withdraw_for_internal(key, account_addr, account_addr, 500, false, false, 0);
         assert!(amount == 500, 0);
         assert!(share == 5000, 0);
         assert!(normal_deposited_amount<WETH>() == 500, 0);
@@ -1354,7 +1409,7 @@ module leizd::shadow_pool {
         assert!(normal_deposited_amount<WETH>() == 2000, 0);
         assert!(normal_deposited_share<WETH>() == 5000, 0);
 
-        let (amount, share) = withdraw_for_internal(key, account_addr, account_addr, 2000, false, 0);
+        let (amount, share) = withdraw_for_internal(key, account_addr, account_addr, 2000, false, false, 0);
         assert!(amount == 2000, 0);
         assert!(share == 5000, 0);
         assert!(normal_deposited_amount<WETH>() == 0, 0);
@@ -2577,7 +2632,7 @@ module leizd::shadow_pool {
     public entry fun test_cannot_withdraw_when_amount_is_zero(owner: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         let owner_address = signer::address_of(owner);
-        withdraw_for_internal(key<WETH>(), owner_address, owner_address, 0, false, 0);
+        withdraw_for_internal(key<WETH>(), owner_address, owner_address, 0, false, false, 0);
     }
     #[test(owner=@leizd, aptos_framework=@aptos_framework)]
     #[expected_failure(abort_code = 65547)]
@@ -2613,7 +2668,7 @@ module leizd::shadow_pool {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         system_administrator::deactivate_pool<WETH>(owner);
         let owner_address = signer::address_of(owner);
-        withdraw_for_internal(key<WETH>(), owner_address, owner_address, 0, false, 0);
+        withdraw_for_internal(key<WETH>(), owner_address, owner_address, 0, false, false, 0);
     }
     #[test(owner=@leizd, aptos_framework=@aptos_framework)]
     #[expected_failure(abort_code = 196612)]
@@ -2900,14 +2955,14 @@ module leizd::shadow_pool {
         assert!(treasury::balance<USDZ>() == 500 + 2010, 0);
 
         //// withdraw
-        let (_, share) = withdraw_for_internal(key<WETH>(), depositor1_addr, depositor1_addr, 304824, false, 0); // 300000 + (8040 * 60%)
+        let (_, share) = withdraw_for_internal(key<WETH>(), depositor1_addr, depositor1_addr, 304824, false, false, 0); // 300000 + (8040 * 60%)
         assert!(share == 300000, 0);
         assert!(normal_deposited_amount<WETH>() == 203216, 0); // 200000 + (8040 * 40%)
         assert!(normal_deposited_share<WETH>() == 200000, 0);
         assert!(total_normal_deposited_amount() == 203216, 0);
         assert!(pool_value(owner_addr) == 508040 - 304824, 0);
         ////// remains
-        let (_, share) = withdraw_for_internal(key<WETH>(), depositor1_addr, depositor2_addr, 203216, false, 0); // 200000 + (8040 * 40%)
+        let (_, share) = withdraw_for_internal(key<WETH>(), depositor1_addr, depositor2_addr, 203216, false, false, 0); // 200000 + (8040 * 40%)
         assert!(share == 200000, 0);
         assert!(normal_deposited_amount<WETH>() == 0, 0);
         assert!(normal_deposited_share<WETH>() == 0, 0);
