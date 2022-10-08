@@ -1397,10 +1397,6 @@ module leizd::shadow_pool {
         assert!(conly_deposited_amount<WETH>() == 100000, 0);
         assert!(borrowed_amount<WETH>() == 0, 0);
     }
-    // TODO: add case to use `share` as input
-    #[test(_owner=@leizd)]
-    public entry fun test_withdraw_by_share(_owner: &signer) {}
-
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
     public entry fun test_withdraw_to_check_share(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, Keys, PoolEventHandle {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
@@ -1439,6 +1435,61 @@ module leizd::shadow_pool {
         assert!(share == 5000, 0);
         assert!(normal_deposited_amount<WETH>() == 0, 0);
         assert!(normal_deposited_share<WETH>() == 0, 0);
+    }
+    #[test(owner=@leizd,depositor=@0x111,withdrawer=@0x222,aptos_framework=@aptos_framework)]
+    public entry fun test_withdraw_by_share(owner: &signer, depositor: &signer, withdrawer: &signer, aptos_framework: &signer) acquires Pool, Storage, Keys, PoolEventHandle {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+
+        let owner_addr = permission::owner_address();
+        let depositor_addr = signer::address_of(depositor);
+        account::create_account_for_test(depositor_addr);
+        managed_coin::register<USDZ>(depositor);
+        usdz::mint_for_test(depositor_addr, 50000);
+        let withdrawer_addr = signer::address_of(withdrawer);
+        account::create_account_for_test(withdrawer_addr);
+        managed_coin::register<USDZ>(withdrawer);
+        let key = key<WETH>();
+
+        deposit_for_internal(key, depositor, depositor_addr, 10000, false);
+        update_normal_deposited_amount_state(borrow_global_mut<Storage>(owner_addr), &key, 9000, true);
+        assert!(normal_deposited_amount<WETH>() == 1000, 0);
+        assert!(normal_deposited_share<WETH>() == 10000, 0);
+
+        // by share
+        let (amount, share) = withdraw_for_internal(key, withdrawer_addr, withdrawer_addr, 2000, false, true, 0);
+        assert!(amount == 200, 0);
+        assert!(share == 2000, 0);
+        assert!(normal_deposited_amount<WETH>() == 800, 0);
+        assert!(normal_deposited_share<WETH>() == 8000, 0);
+        // by amount
+        let (amount, share) = withdraw_for_internal(key, withdrawer_addr, withdrawer_addr, 500, false, false, 0);
+        assert!(amount == 500, 0);
+        assert!(share == 5000, 0);
+        assert!(normal_deposited_amount<WETH>() == 300, 0);
+        assert!(normal_deposited_share<WETH>() == 3000, 0);
+    }
+    #[test(owner=@leizd,depositor=@0x111,withdrawer=@0x222,aptos_framework=@aptos_framework)]
+    #[expected_failure] // TODO: add validation & use error code (when amount calculated by share is more than deposited)
+    public entry fun test_withdraw_by_share_with_more_than_deposited(owner: &signer, depositor: &signer, withdrawer: &signer, aptos_framework: &signer) acquires Pool, Storage, Keys, PoolEventHandle {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+
+        let owner_addr = permission::owner_address();
+        let depositor_addr = signer::address_of(depositor);
+        account::create_account_for_test(depositor_addr);
+        managed_coin::register<USDZ>(depositor);
+        usdz::mint_for_test(depositor_addr, 50000);
+        let withdrawer_addr = signer::address_of(withdrawer);
+        account::create_account_for_test(withdrawer_addr);
+        managed_coin::register<USDZ>(withdrawer);
+        let key = key<WETH>();
+
+        deposit_for_internal(key, depositor, depositor_addr, 10000, false);
+        update_normal_deposited_amount_state(borrow_global_mut<Storage>(owner_addr), &key, 9000, true);
+        assert!(normal_deposited_amount<WETH>() == 1000, 0);
+        assert!(normal_deposited_share<WETH>() == 10000, 0);
+
+        // by share
+        withdraw_for_internal(key, withdrawer_addr, withdrawer_addr, 10001, false, true, 0);
     }
 
     // for borrow
@@ -2983,15 +3034,17 @@ module leizd::shadow_pool {
         assert!(pool_value(owner_addr) == 510050 - 2010, 0);
         assert!(treasury::balance<USDZ>() == 500 + 2010, 0);
 
-        //// withdraw
-        let (_, share) = withdraw_for_internal(key<WETH>(), depositor1_addr, depositor1_addr, 304824, false, false, 0); // 300000 + (8040 * 60%)
+        //// withdraw (to use `amount` as input)
+        let (amount, share) = withdraw_for_internal(key<WETH>(), depositor1_addr, depositor1_addr, 304824, false, false, 0); // 300000 + (8040 * 60%)
+        assert!(amount == 304824, 0);
         assert!(share == 300000, 0);
         assert!(normal_deposited_amount<WETH>() == 203216, 0); // 200000 + (8040 * 40%)
         assert!(normal_deposited_share<WETH>() == 200000, 0);
         assert!(total_normal_deposited_amount() == 203216, 0);
         assert!(pool_value(owner_addr) == 508040 - 304824, 0);
-        ////// remains
-        let (_, share) = withdraw_for_internal(key<WETH>(), depositor1_addr, depositor2_addr, 203216, false, false, 0); // 200000 + (8040 * 40%)
+        ////// remains (to use `share` as input)
+        let (amount, share) = withdraw_for_internal(key<WETH>(), depositor1_addr, depositor2_addr, 200000, false, true, 0);
+        assert!(amount == 203216, 0); // 200000 + (8040 * 40%)
         assert!(share == 200000, 0);
         assert!(normal_deposited_amount<WETH>() == 0, 0);
         assert!(normal_deposited_share<WETH>() == 0, 0);
