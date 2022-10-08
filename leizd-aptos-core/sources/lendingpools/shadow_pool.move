@@ -3,6 +3,7 @@ module leizd::shadow_pool {
     use std::error;
     use std::signer;
     use std::string::{String};
+    use std::vector;
     use aptos_std::event;
     use aptos_std::simple_map;
     use aptos_framework::account;
@@ -413,7 +414,7 @@ module leizd::shadow_pool {
         )
     }
 
-    public fun withdraw_for_with_by_share(
+    public fun withdraw_for_by_share_with(
         key: String,
         depositor_addr: address,
         receiver_addr: address,
@@ -617,7 +618,7 @@ module leizd::shadow_pool {
         repay_internal(key<C>(), account, share, true)
     }
 
-    public fun repay_with_by_share(
+    public fun repay_by_share_with(
         key: String,
         account: &signer,
         share: u64,
@@ -748,6 +749,40 @@ module leizd::shadow_pool {
                 to_collateral_only,
             },
         );
+    }
+
+    ////////////////////////////////////////////////////
+    /// Update status
+    ////////////////////////////////////////////////////
+    public fun exec_accrue_interest(
+        key: String,
+        _key: &OperatorKey
+    ) acquires Storage, Keys {
+        exec_accrue_interest_internal(key);
+    }
+    fun exec_accrue_interest_internal(
+        key: String,
+    ) acquires Storage, Keys {
+        let owner_address = permission::owner_address();
+        let storage_ref = borrow_global_mut<Storage>(owner_address);
+        accrue_interest(key, storage_ref);
+    }
+    public fun exec_accrue_interest_for_selected(
+        keys: vector<String>,
+        _key: &OperatorKey
+    ) acquires Storage, Keys {
+        exec_accrue_interest_for_selected_internal(keys);
+    }
+    fun exec_accrue_interest_for_selected_internal(keys: vector<String>) acquires Storage, Keys {
+        let owner_address = permission::owner_address();
+        let storage_ref = borrow_global_mut<Storage>(owner_address);
+
+        let i = vector::length<String>(&keys);
+        while (i > 0) {
+            let key = *vector::borrow<String>(&keys, i - 1);
+            accrue_interest(key, storage_ref);
+            i = i - 1;
+        };
     }
 
     ////// Internal Logics
@@ -881,7 +916,7 @@ module leizd::shadow_pool {
         collect_shadow_fee(pool_ref, (harvested_fee as u64));
     }
 
-    //// Convert
+    ////// Convert
     public fun normal_deposited_share_to_amount(key: String, share: u64): u128 acquires Storage {
         let total_amount = normal_deposited_amount_with(key);
         let total_share = normal_deposited_share_with(key);

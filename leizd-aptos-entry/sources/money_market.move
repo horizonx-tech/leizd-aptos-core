@@ -225,19 +225,83 @@ module leizd_aptos_entry::money_market {
         };
     }
 
+    /// repay_shadow_with_rebalance
     public entry fun repay_shadow_with_rebalance(account: &signer, amount: u64) acquires LendingPoolModKeys {
-        let repayer_addr = signer::address_of(account);
+        let account_addr = signer::address_of(account);
         let (account_position_key, _, shadow_pool_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
-        let (keys, amounts, unpaid) = account_position::repay_shadow_with_rebalance(repayer_addr, amount, account_position_key);
-        let i = vector::length<String>(&keys);
-        while (i > 0) {
-            let key = vector::borrow<String>(&keys, i-1);
-            let repay_amount = vector::borrow<u64>(&amounts, i-1);
-            shadow_pool::repay_with(*key, account, *repay_amount, shadow_pool_key);
-            i = i - 1;
+
+        let (target_keys, target_borrowed_shares) = account_position::borrowed_shadow_share_all(account_addr); // get all shadow borrowed_share
+        let length = vector::length(&target_keys);
+        if (length == 0) return;
+        shadow_pool::exec_accrue_interest_for_selected(target_keys, shadow_pool_key); // update shadow pool status
+        let (borrowed_amounts, borrowed_total_amount) = borrowed_shares_to_amounts_for_shadow(target_keys, target_borrowed_shares); // convert `share` to `amount`
+
+        // repay to shadow_pools
+        let i = 0;
+        let repaid_shares = vector::empty<u64>();
+        if (amount >= borrowed_total_amount) {
+            // repay in full, if input is greater than or equal to total borrowed amount
+            while (i < length) {
+                let (_, repaid_share) = shadow_pool::repay_by_share_with(
+                    *vector::borrow<String>(&target_keys, i),
+                    account,
+                    *vector::borrow<u64>(&target_borrowed_shares, i),
+                    shadow_pool_key
+                );
+                vector::push_back(&mut repaid_shares, repaid_share);
+                i = i + 1;
+            };
+        } else {
+            // repay the same amount, if input is less than total borrowed amount
+            let amount_per_pool = amount / length;
+            while (i < length) {
+                let repaid_share: u64;
+                let key = vector::borrow<String>(&target_keys, i);
+                let borrowed_amount = vector::borrow<u64>(&borrowed_amounts, i);
+                if (amount_per_pool < *borrowed_amount) {
+                    (_, repaid_share) = shadow_pool::repay_with(*key, account, amount_per_pool, shadow_pool_key);
+                } else {
+                    (_, repaid_share) = shadow_pool::repay_by_share_with(
+                        *key,
+                        account,
+                        *vector::borrow<u64>(&target_borrowed_shares, i),
+                        shadow_pool_key
+                    );
+                };
+                vector::push_back(&mut repaid_shares, repaid_share);
+                i = i + 1;
+            };
         };
-        // TODO: Event
-        unpaid;
+
+        // update account_position
+        let j = 0;
+        while (j < length) {
+            account_position::repay_shadow_with(
+                *vector::borrow<String>(&target_keys, j),
+                account_addr,
+                *vector::borrow<u64>(&repaid_shares, j),
+                account_position_key
+            );
+            j = j + 1;
+        };
+    }
+    fun borrowed_shares_to_amounts_for_shadow(keys: vector<String>, shares: vector<u64>): (
+        vector<u64>, // amounts
+        u64 // total amount // TODO: u128?
+    ) {
+        let i = 0;
+        let amounts = vector::empty<u64>();
+        let total_amount = 0;
+        while (i < vector::length(&keys)) {
+            let amount = shadow_pool::borrowed_share_to_amount(
+                *vector::borrow<String>(&keys, i),
+                *vector::borrow<u64>(&shares, i),
+            );
+            total_amount = total_amount + (amount as u64); // TODO: check type (u64?u128)
+            vector::push_back(&mut amounts, (amount as u64)); // TODO: check type (u64?u128)
+            i = i + 1;
+        };
+        (amounts, total_amount)
     }
 
     /// Control available coin to rebalance
@@ -381,7 +445,7 @@ module leizd_aptos_entry::money_market {
         setup_account_for_test(account);
 
         let account_addr = signer::address_of(account);
-        managed_coin::mint<WETH>(owner, account_addr, 999999);
+        managed_coin::mint<USDC>(owner, account_addr, 999999);
         managed_coin::mint<USDT>(owner, account_addr, 999999);
         managed_coin::mint<WETH>(owner, account_addr, 999999);
         managed_coin::mint<UNI>(owner, account_addr, 999999);
@@ -737,6 +801,91 @@ module leizd_aptos_entry::money_market {
         assert!(coin::balance<WETH>(account_addr) == 0, 0);
         assert!(asset_pool::total_borrowed_amount<WETH>() == 0, 0);
         assert!(account_position::borrowed_asset_share<WETH>(account_addr) == 0, 0);
+    }
+    #[test_only]
+    fun prepare_to_exec_repay_shadow_with_rebalance(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
+        initialize_lending_pool_for_test(owner, aptos_framework);
+        setup_liquidity_provider_for_test(owner, lp);
+        setup_account_for_test(account);
+        let account_addr = signer::address_of(account);
+        managed_coin::mint<USDC>(owner, account_addr, 200000);
+        managed_coin::mint<USDT>(owner, account_addr, 200000);
+        managed_coin::mint<WETH>(owner, account_addr, 200000);
+        managed_coin::mint<UNI>(owner, account_addr, 200000);
+
+        // prerequisite
+        deposit<USDC, Shadow>(lp, 200000, false);
+        deposit<USDT, Shadow>(lp, 200000, false);
+        deposit<WETH, Shadow>(lp, 200000, false);
+        deposit<UNI, Shadow>(lp, 200000, false);
+
+        // execute
+        deposit<USDC, Asset>(account, 200000, false);
+        deposit<USDT, Asset>(account, 200000, false);
+        deposit<WETH, Asset>(account, 200000, false);
+        deposit<UNI, Asset>(account, 200000, false);
+        borrow<USDC, Shadow>(account, 20000);
+        borrow<USDT, Shadow>(account, 40000);
+        borrow<WETH, Shadow>(account, 60000);
+        borrow<UNI, Shadow>(account, 80000);
+        assert!(shadow_pool::borrowed_amount<USDC>() == 20100, 0);
+        assert!(account_position::borrowed_shadow_share<USDC>(account_addr) == 20100, 0);
+        assert!(shadow_pool::borrowed_amount<USDT>() == 40200, 0);
+        assert!(account_position::borrowed_shadow_share<USDT>(account_addr) == 40200, 0);
+        assert!(shadow_pool::borrowed_amount<WETH>() == 60300, 0);
+        assert!(account_position::borrowed_shadow_share<WETH>(account_addr) == 60300, 0);
+        assert!(shadow_pool::borrowed_amount<UNI>() == 80400, 0);
+        assert!(account_position::borrowed_shadow_share<UNI>(account_addr) == 80400, 0);
+
+    }
+    #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
+    fun test_repay_shadow_with_rebalance_to_repay_all(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
+        prepare_to_exec_repay_shadow_with_rebalance(owner, lp, account, aptos_framework);
+        let account_addr = signer::address_of(account);
+
+        usdz::mint_for_test(account_addr, 1000);
+        repay_shadow_with_rebalance(account, 201000);
+        assert!(shadow_pool::borrowed_amount<USDC>() == 0, 0);
+        assert!(account_position::borrowed_shadow_share<USDC>(account_addr) == 0, 0);
+        assert!(shadow_pool::borrowed_amount<USDT>() == 0, 0);
+        assert!(account_position::borrowed_shadow_share<USDT>(account_addr) == 0, 0);
+        assert!(shadow_pool::borrowed_amount<WETH>() == 0, 0);
+        assert!(account_position::borrowed_shadow_share<WETH>(account_addr) == 0, 0);
+        assert!(shadow_pool::borrowed_amount<UNI>() == 0, 0);
+        assert!(account_position::borrowed_shadow_share<UNI>(account_addr) == 0, 0);
+        assert!(coin::balance<USDZ>(account_addr) == 0, 0);
+    }
+    #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
+    fun test_repay_shadow_with_rebalance_to_repay_all_in_part(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
+        prepare_to_exec_repay_shadow_with_rebalance(owner, lp, account, aptos_framework);
+        let account_addr = signer::address_of(account);
+
+        repay_shadow_with_rebalance(account, 40201 * 4);
+        assert!(shadow_pool::borrowed_amount<USDC>() == 0, 0);
+        assert!(account_position::borrowed_shadow_share<USDC>(account_addr) == 0, 0);
+        assert!(shadow_pool::borrowed_amount<USDT>() == 0, 0);
+        assert!(account_position::borrowed_shadow_share<USDT>(account_addr) == 0, 0);
+        assert!(shadow_pool::borrowed_amount<WETH>() == 20099, 0);
+        assert!(account_position::borrowed_shadow_share<WETH>(account_addr) == 20099, 0);
+        assert!(shadow_pool::borrowed_amount<UNI>() == 40199, 0);
+        assert!(account_position::borrowed_shadow_share<UNI>(account_addr) == 40199, 0);
+        assert!(coin::balance<USDZ>(account_addr) == 200000 - (40201 * 4) + (40201 - 20100) + (40201 - 40200), 0);
+    }
+    #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
+    fun test_repay_shadow_with_rebalance_to_repay_evenly(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
+        prepare_to_exec_repay_shadow_with_rebalance(owner, lp, account, aptos_framework);
+        let account_addr = signer::address_of(account);
+
+        repay_shadow_with_rebalance(account, 20000 * 4);
+        assert!(shadow_pool::borrowed_amount<USDC>() == 100, 0);
+        assert!(account_position::borrowed_shadow_share<USDC>(account_addr) == 100, 0);
+        assert!(shadow_pool::borrowed_amount<USDT>() == 20200, 0);
+        assert!(account_position::borrowed_shadow_share<USDT>(account_addr) == 20200, 0);
+        assert!(shadow_pool::borrowed_amount<WETH>() == 40300, 0);
+        assert!(account_position::borrowed_shadow_share<WETH>(account_addr) == 40300, 0);
+        assert!(shadow_pool::borrowed_amount<UNI>() == 60400, 0);
+        assert!(account_position::borrowed_shadow_share<UNI>(account_addr) == 60400, 0);
+        assert!(coin::balance<USDZ>(account_addr) == 200000 - (20000 * 4), 0);
     }
 
     #[test(owner=@leizd_aptos_entry,account=@0x111,aptos_framework=@aptos_framework)]
