@@ -227,7 +227,7 @@ module leizd_aptos_entry::money_market {
 
     public entry fun repay_shadow_with_rebalance(account: &signer, amount: u64) acquires LendingPoolModKeys {
         let account_addr = signer::address_of(account);
-        let (_, _, shadow_pool_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
+        let (account_position_key, _, shadow_pool_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
 
         let (target_keys, target_borrowed_shares) = account_position::borrowed_shadow_share_all(account_addr); // get all shadow borrowed_share
         let length = vector::length(&target_keys);
@@ -241,10 +241,10 @@ module leizd_aptos_entry::money_market {
         if (amount >= borrowed_total_amount) {
             // repay in full, if input is greater than or equal to total borrowed amount
             while (i > 0) {
-                let _key = vector::borrow<String>(&target_keys, i-1);
-                let _share = vector::borrow<u64>(&target_borrowed_shares, i-1);
-                // let (_, repaid_share) = shadow_pool::repay_by_share_with(key, account, share, shadow_pool_key); // TODO: implemented
-                // vector::push_back(&mut repaid_shares, repaid_share);
+                let key = vector::borrow<String>(&target_keys, i-1);
+                let share = vector::borrow<u64>(&target_borrowed_shares, i-1);
+                let (_, repaid_share) = shadow_pool::repay_by_share_with(*key, account, *share, shadow_pool_key);
+                vector::push_back(&mut repaid_shares, repaid_share);
                 i = i - 1;
             };
         } else {
@@ -257,9 +257,8 @@ module leizd_aptos_entry::money_market {
                 if (amount_per_pool < *borrowed_amount) {
                     (_, repaid_share) = shadow_pool::repay_with(*key, account, amount_per_pool, shadow_pool_key);
                 } else {
-                    let _share = vector::borrow<u64>(&target_borrowed_shares, i-1);
-                    // (_, repaid_share) = shadow_pool::repay_by_share_with(key, account, share, shadow_pool_key); // TODO: implemented
-                    repaid_share = 0 // temp
+                    let share = vector::borrow<u64>(&target_borrowed_shares, i-1);
+                    (_, repaid_share) = shadow_pool::repay_by_share_with(*key, account, *share, shadow_pool_key);
                 };
                 vector::push_back(&mut repaid_shares, repaid_share);
                 i = i - 1;
@@ -269,9 +268,9 @@ module leizd_aptos_entry::money_market {
         // update account_position
         let j = copy length;
         while (j > 0) {
-            let _key = vector::borrow<String>(&target_keys, j-1);
-            let _repaid_share = vector::borrow<u64>(&repaid_shares, j-1);
-            // account_position::repay_with(account, key, repaid_share) // NOTE: like account_position::update_position_for_repay
+            let key = vector::borrow<String>(&target_keys, j-1);
+            let repaid_share = vector::borrow<u64>(&repaid_shares, j-1);
+            account_position::repay_shadow_with(*key, account_addr, *repaid_share, account_position_key);
             j = j - 1;
         };
     }

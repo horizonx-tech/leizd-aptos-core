@@ -499,6 +499,15 @@ module leizd::account_position {
         repaid_share
     }
 
+    public fun repay_shadow_with(
+        key: String,
+        addr: address,
+        share: u64,
+        _key: &OperatorKey
+    ): u64 acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
+        update_position_for_repay<AssetToShadow>(key, addr, share)
+    }
+
     /// @return (repay_keys, repay_amounts)
     public fun repay_shadow_with_rebalance(addr: address, amount: u64, _key: &OperatorKey): (vector<String>, vector<u64>, u64) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
         repay_shadow_with_rebalance_internal(addr, amount)

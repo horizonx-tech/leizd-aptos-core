@@ -414,7 +414,7 @@ module leizd::shadow_pool {
         )
     }
 
-    public fun withdraw_for_with_by_share(
+    public fun withdraw_for_by_share_with(
         key: String,
         depositor_addr: address,
         receiver_addr: address,
@@ -618,7 +618,7 @@ module leizd::shadow_pool {
         repay_internal(key<C>(), account, share, true)
     }
 
-    public fun repay_with_by_share(
+    public fun repay_by_share_with(
         key: String,
         account: &signer,
         share: u64,
