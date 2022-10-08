@@ -327,7 +327,7 @@ module leizd::asset_pool {
             if (is_collateral_only) {
                 amount_u128 = math128::to_amount(share_u128, asset_storage_ref.total_conly_deposited_amount, asset_storage_ref.total_conly_deposited_share);
             } else {
-                amount_u128 = math128::to_amount(share_u128, asset_storage_ref.total_normal_deposited_amount, asset_storage_ref.total_normal_deposited_amount);
+                amount_u128 = math128::to_amount(share_u128, asset_storage_ref.total_normal_deposited_amount, asset_storage_ref.total_normal_deposited_share);
             };
         } else {
             amount_u128 = (value as u128);
@@ -340,7 +340,6 @@ module leizd::asset_pool {
 
         let amount_to_transfer = (amount_u128 as u64) - liquidation_fee;
         coin::deposit<C>(receiver_addr, coin::extract(&mut pool_ref.asset, amount_to_transfer));
-
         if (is_collateral_only) {
             asset_storage_ref.total_conly_deposited_amount = asset_storage_ref.total_conly_deposited_amount - amount_u128;
             asset_storage_ref.total_conly_deposited_share = asset_storage_ref.total_conly_deposited_share - share_u128;
@@ -1112,10 +1111,6 @@ module leizd::asset_pool {
         let event_handle = borrow_global<PoolEventHandle<WETH>>(signer::address_of(owner));
         assert!(event::counter<WithdrawEvent>(&event_handle.withdraw_event) == 2, 0);
     }
-    // TODO: add case to use `share` as input
-    #[test(_owner=@leizd)]
-    public entry fun test_withdraw_by_share(_owner: &signer) {}
-
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
     public entry fun test_withdraw_to_check_share(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, AssetManagerKeys, PoolEventHandle {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
@@ -1155,6 +1150,61 @@ module leizd::asset_pool {
         assert!(share == 5000, 0);
         assert!(total_normal_deposited_amount<WETH>() == 0, 0);
         assert!(total_normal_deposited_share<WETH>() == 0, 0);
+    }
+    #[test(owner=@leizd,depositor=@0x111,withdrawer=@0x222,aptos_framework=@aptos_framework)]
+    public entry fun test_withdraw_by_share(owner: &signer, depositor: &signer, withdrawer: &signer, aptos_framework: &signer) acquires Pool, Storage, AssetManagerKeys, PoolEventHandle {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+
+        let owner_addr = permission::owner_address();
+        let depositor_addr = signer::address_of(depositor);
+        account::create_account_for_test(depositor_addr);
+        managed_coin::register<WETH>(depositor);
+        managed_coin::mint<WETH>(owner, depositor_addr, 50000);
+        let withdrawer_addr = signer::address_of(withdrawer);
+        account::create_account_for_test(withdrawer_addr);
+        managed_coin::register<WETH>(withdrawer);
+
+        deposit_for_internal<WETH>(depositor, depositor_addr, 10000, false);
+        let total_normal_deposited_amount = &mut borrow_mut_asset_storage<WETH>(borrow_global_mut<Storage>(owner_addr)).total_normal_deposited_amount;
+        *total_normal_deposited_amount = *total_normal_deposited_amount - 9000;
+        assert!(total_normal_deposited_amount<WETH>() == 1000, 0);
+        assert!(total_normal_deposited_share<WETH>() == 10000, 0);
+
+        // by share
+        let (amount, share) = withdraw_for_internal<WETH>(withdrawer_addr, withdrawer_addr, 2000, false, true, 0);
+        assert!(amount == 200, 0);
+        assert!(share == 2000, 0);
+        assert!(total_normal_deposited_amount<WETH>() == 800, 0);
+        assert!(total_normal_deposited_share<WETH>() == 8000, 0);
+        // by amount
+        let (amount, share) = withdraw_for_internal<WETH>(withdrawer_addr, withdrawer_addr, 500, false, false, 0);
+        assert!(amount == 500, 0);
+        assert!(share == 5000, 0);
+        assert!(total_normal_deposited_amount<WETH>() == 300, 0);
+        assert!(total_normal_deposited_share<WETH>() == 3000, 0);
+    }
+    #[test(owner=@leizd,depositor=@0x111,withdrawer=@0x222,aptos_framework=@aptos_framework)]
+    #[expected_failure] // TODO: add validation & use error code (when amount calculated by share is more than deposited)
+    public entry fun test_withdraw_by_share_with_more_than_deposited(owner: &signer, depositor: &signer, withdrawer: &signer, aptos_framework: &signer) acquires Pool, Storage, AssetManagerKeys, PoolEventHandle {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+
+        let owner_addr = permission::owner_address();
+        let depositor_addr = signer::address_of(depositor);
+        account::create_account_for_test(depositor_addr);
+        managed_coin::register<WETH>(depositor);
+        managed_coin::mint<WETH>(owner, depositor_addr, 50000);
+        let withdrawer_addr = signer::address_of(withdrawer);
+        account::create_account_for_test(withdrawer_addr);
+        managed_coin::register<WETH>(withdrawer);
+
+        deposit_for_internal<WETH>(depositor, depositor_addr, 10000, false);
+        let total_normal_deposited_amount = &mut borrow_mut_asset_storage<WETH>(borrow_global_mut<Storage>(owner_addr)).total_normal_deposited_amount;
+        *total_normal_deposited_amount = *total_normal_deposited_amount - 9000;
+        assert!(total_normal_deposited_amount<WETH>() == 1000, 0);
+        assert!(total_normal_deposited_share<WETH>() == 10000, 0);
+
+        // by share
+        withdraw_for_internal<WETH>(withdrawer_addr, withdrawer_addr, 10001, false, true, 0);
     }
 
     // for borrow
