@@ -14,7 +14,6 @@ module leizd_aptos_entry::money_market {
     use std::string::{String};
     use leizd_aptos_common::pool_type;
     use leizd_aptos_common::permission;
-    use leizd_aptos_lib::constant;
     use leizd_aptos_logic::rebalance::{Self,Rebalance};
     use leizd_aptos_central_liquidity_pool::central_liquidity_pool;
     use leizd_aptos_core::asset_pool::{Self, OperatorKey as AssetPoolKey};
@@ -204,22 +203,26 @@ module leizd_aptos_entry::money_market {
         let (account_position_key, asset_pool_key, shadow_pool_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
 
         let repayer = signer::address_of(account);
-        if (amount == constant::u64_max()) {
-            let repaid_amount = account_position::repay<C,P>(repayer, amount, account_position_key);
-            if (pool_type::is_type_asset<P>()) {
-                asset_pool::repay<C>(account, repaid_amount, asset_pool_key);
-            } else {
-                shadow_pool::repay<C>(account, repaid_amount, shadow_pool_key);
-            };
+        let repaid_user_share: u64;
+        if (pool_type::is_type_asset<P>()) {
+            (_, repaid_user_share) = asset_pool::repay<C>(account, amount, asset_pool_key);
         } else {
-            let repaid_user_share: u64;
-            if (pool_type::is_type_asset<P>()) {
-                (_, repaid_user_share) = asset_pool::repay<C>(account, amount, asset_pool_key);
-            } else {
-                (_, repaid_user_share) = shadow_pool::repay<C>(account, amount, shadow_pool_key);
-            };
-            account_position::repay<C,P>(repayer, repaid_user_share, account_position_key);
-        }
+            (_, repaid_user_share) = shadow_pool::repay<C>(account, amount, shadow_pool_key);
+        };
+        account_position::repay<C,P>(repayer, repaid_user_share, account_position_key);
+    }
+
+    public entry fun repay_all<C,P>(account: &signer) acquires LendingPoolModKeys {
+        pool_type::assert_pool_type<P>();
+        let (account_position_key, asset_pool_key, shadow_pool_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
+
+        let repayer = signer::address_of(account);
+        let user_share_all = account_position::repay_all<C,P>(repayer, account_position_key);
+        if (pool_type::is_type_asset<P>()) {
+            asset_pool::repay_by_share<C>(account, user_share_all, asset_pool_key);
+        } else {
+            shadow_pool::repay_by_share<C>(account, user_share_all, shadow_pool_key);
+        };
     }
 
     public entry fun repay_shadow_with_rebalance(account: &signer, amount: u64) acquires LendingPoolModKeys {
@@ -658,6 +661,12 @@ module leizd_aptos_entry::money_market {
         assert!(asset_pool::total_borrowed_amount<WETH>() == 40, 0);
         assert!(account_position::borrowed_asset_share<WETH>(account_addr) == 40, 0);
     }
+    // TODO: check repay_all
+    #[test(_owner=@leizd_aptos_entry)]
+    fun test_repay_all_shadow(_owner: &signer) {}
+    #[test(_owner=@leizd_aptos_entry)]
+    fun test_repay_all_asset(_owner: &signer) {}
+
     #[test(owner=@leizd_aptos_entry,account=@0x111,aptos_framework=@aptos_framework)]
     fun test_enable_to_rebalance_and_unable_to_rebalance(owner: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
         initialize_lending_pool_for_test(owner, aptos_framework);
