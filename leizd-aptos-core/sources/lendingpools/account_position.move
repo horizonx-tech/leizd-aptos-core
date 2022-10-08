@@ -198,6 +198,27 @@ module leizd::account_position {
         withdrawn_amount
     }
 
+    public fun withdraw_all<C,P>(
+        depositor_addr: address,
+        is_collateral_only: bool,
+        _key: &OperatorKey
+    ): u64 acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
+        withdraw_all_internal<C,P>(depositor_addr, is_collateral_only)
+    }
+
+    fun withdraw_all_internal<C,P>(depositor_addr: address, is_collateral_only: bool): u64 acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
+        let withdrawn_share;
+        if (pool_type::is_type_asset<P>()) {
+            let share = if (is_collateral_only) conly_deposited_asset_share<C>(depositor_addr) else deposited_asset_share<C>(depositor_addr);
+            withdrawn_share = update_on_withdraw<C,AssetToShadow>(depositor_addr, share, is_collateral_only);
+            assert!(is_safe<C,AssetToShadow>(depositor_addr), error::invalid_state(ENO_SAFE_POSITION));
+        } else {
+            let share = if (is_collateral_only) conly_deposited_shadow_share<C>(depositor_addr) else deposited_shadow_share<C>(depositor_addr);
+            withdrawn_share = update_on_withdraw<C,ShadowToAsset>(depositor_addr, share, is_collateral_only);
+            assert!(is_safe<C,ShadowToAsset>(depositor_addr), error::invalid_state(ENO_SAFE_POSITION));
+        };
+        withdrawn_share
+    }
 
     ////////////////////////////////////////////////////
     /// Borrow
@@ -463,6 +484,21 @@ module leizd::account_position {
         repaid_amount
     }
 
+    public fun repay_all<C,P>(addr: address, _key: &OperatorKey): u64 acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
+        repay_all_internal<C,P>(addr)
+    }
+    fun repay_all_internal<C,P>(addr: address): u64 acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
+        let repaid_share;
+        if (pool_type::is_type_asset<P>()) {
+            let share = borrowed_asset_share<C>(addr);
+            repaid_share = update_on_repay<C,ShadowToAsset>(addr, share);
+        } else {
+            let share = borrowed_shadow_share<C>(addr);
+            repaid_share = update_on_repay<C,AssetToShadow>(addr, share);
+        };
+        repaid_share
+    }
+
     /// @return (repay_keys, repay_amounts)
     public fun repay_shadow_with_rebalance(addr: address, amount: u64, _key: &OperatorKey): (vector<String>, vector<u64>, u64) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
         repay_shadow_with_rebalance_internal(addr, amount)
@@ -473,7 +509,7 @@ module leizd::account_position {
 
         let (sum_repayable_shadow, repayable_position_count) = sum_repayable_shadow(&coins, addr);        
         if (sum_repayable_shadow <= amount) {
-            let (keys, amounts) = repay_all(&coins, addr);
+            let (keys, amounts) = repay_all_with_selected(&coins, addr);
             (keys, amounts, 0)
         } else {
             repay_to_even_out(&coins, addr, amount, repayable_position_count)
@@ -496,7 +532,7 @@ module leizd::account_position {
         (sum_repayable_shadow, repayable_position_count)
     }
 
-    fun repay_all(coins: &vector<String>, addr: address): (vector<String>, vector<u64>) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
+    fun repay_all_with_selected(coins: &vector<String>, addr: address): (vector<String>, vector<u64>) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
         let repay_keys = vector::empty<String>();
         let repay_amounts = vector::empty<u64>();
         let i = vector::length<String>(coins);
