@@ -236,59 +236,59 @@ module leizd_aptos_entry::money_market {
         let (borrowed_amounts, borrowed_total_amount) = borrowed_shares_to_amounts_for_shadow(target_keys, target_borrowed_shares); // convert `share` to `amount`
 
         // repay to shadow_pools
-        let i = copy length;
+        let i = 0;
         let repaid_shares = vector::empty<u64>();
         if (amount >= borrowed_total_amount) {
             // repay in full, if input is greater than or equal to total borrowed amount
-            while (i > 0) {
-                let key = vector::borrow<String>(&target_keys, i-1);
-                let share = vector::borrow<u64>(&target_borrowed_shares, i-1);
+            while (i < length) {
+                let key = vector::borrow<String>(&target_keys, i);
+                let share = vector::borrow<u64>(&target_borrowed_shares, i);
                 let (_, repaid_share) = shadow_pool::repay_by_share_with(*key, account, *share, shadow_pool_key);
                 vector::push_back(&mut repaid_shares, repaid_share);
-                i = i - 1;
+                i = i + 1;
             };
         } else {
             // repay the same amount, if input is less than total borrowed amount
             let amount_per_pool = amount / length;
-            while (i > 0) {
+            while (i < length) {
                 let repaid_share: u64;
-                let key = vector::borrow<String>(&target_keys, i-1);
-                let borrowed_amount = vector::borrow<u64>(&borrowed_amounts, i-1);
+                let key = vector::borrow<String>(&target_keys, i);
+                let borrowed_amount = vector::borrow<u64>(&borrowed_amounts, i);
                 if (amount_per_pool < *borrowed_amount) {
                     (_, repaid_share) = shadow_pool::repay_with(*key, account, amount_per_pool, shadow_pool_key);
                 } else {
-                    let share = vector::borrow<u64>(&target_borrowed_shares, i-1);
+                    let share = vector::borrow<u64>(&target_borrowed_shares, i);
                     (_, repaid_share) = shadow_pool::repay_by_share_with(*key, account, *share, shadow_pool_key);
                 };
                 vector::push_back(&mut repaid_shares, repaid_share);
-                i = i - 1;
+                i = i + 1;
             };
         };
 
         // update account_position
-        let j = copy length;
-        while (j > 0) {
-            let key = vector::borrow<String>(&target_keys, j-1);
-            let repaid_share = vector::borrow<u64>(&repaid_shares, j-1);
+        let j = 0;
+        while (j < length) {
+            let key = vector::borrow<String>(&target_keys, j);
+            let repaid_share = vector::borrow<u64>(&repaid_shares, j);
             account_position::repay_shadow_with(*key, account_addr, *repaid_share, account_position_key);
-            j = j - 1;
+            j = j + 1;
         };
     }
     fun borrowed_shares_to_amounts_for_shadow(keys: vector<String>, shares: vector<u64>): (
         vector<u64>, // amounts
         u64 // total amount // TODO: u128?
     ) {
-        let i = vector::length(&keys);
+        let i = 0;
         let amounts = vector::empty<u64>();
         let total_amount = 0;
-        while (i > 0) {
+        while (i < vector::length(&keys)) {
             let amount = shadow_pool::borrowed_share_to_amount(
-                *vector::borrow<String>(&keys, i-1),
-                *vector::borrow<u64>(&shares, i-1),
+                *vector::borrow<String>(&keys, i),
+                *vector::borrow<u64>(&shares, i),
             );
             total_amount = total_amount + (amount as u64); // TODO: check type (u64?u128)
             vector::push_back(&mut amounts, (amount as u64)); // TODO: check type (u64?u128)
-            i = i - 1;
+            i = i + 1;
         };
         (amounts, total_amount)
     }
@@ -828,21 +828,21 @@ module leizd_aptos_entry::money_market {
         deposit<USDT, Asset>(account, 200000, false);
         deposit<WETH, Asset>(account, 200000, false);
         deposit<UNI, Asset>(account, 200000, false);
-        borrow<USDC, Shadow>(account, 100000);
-        borrow<USDT, Shadow>(account, 100000);
-        borrow<WETH, Shadow>(account, 100000);
-        borrow<UNI, Shadow>(account, 100000);
-        assert!(shadow_pool::borrowed_amount<USDC>() == 100500, 0);
-        assert!(account_position::borrowed_shadow_share<USDC>(account_addr) == 100500, 0);
-        assert!(shadow_pool::borrowed_amount<USDT>() == 100500, 0);
-        assert!(account_position::borrowed_shadow_share<USDT>(account_addr) == 100500, 0);
-        assert!(shadow_pool::borrowed_amount<WETH>() == 100500, 0);
-        assert!(account_position::borrowed_shadow_share<WETH>(account_addr) == 100500, 0);
-        assert!(shadow_pool::borrowed_amount<UNI>() == 100500, 0);
-        assert!(account_position::borrowed_shadow_share<UNI>(account_addr) == 100500, 0);
+        borrow<USDC, Shadow>(account, 20000);
+        borrow<USDT, Shadow>(account, 40000);
+        borrow<WETH, Shadow>(account, 60000);
+        borrow<UNI, Shadow>(account, 80000);
+        assert!(shadow_pool::borrowed_amount<USDC>() == 20100, 0);
+        assert!(account_position::borrowed_shadow_share<USDC>(account_addr) == 20100, 0);
+        assert!(shadow_pool::borrowed_amount<USDT>() == 40200, 0);
+        assert!(account_position::borrowed_shadow_share<USDT>(account_addr) == 40200, 0);
+        assert!(shadow_pool::borrowed_amount<WETH>() == 60300, 0);
+        assert!(account_position::borrowed_shadow_share<WETH>(account_addr) == 60300, 0);
+        assert!(shadow_pool::borrowed_amount<UNI>() == 80400, 0);
+        assert!(account_position::borrowed_shadow_share<UNI>(account_addr) == 80400, 0);
 
-        usdz::mint_for_test(account_addr, 2000);
-        repay_shadow_with_rebalance(account, 402000);
+        usdz::mint_for_test(account_addr, 1000);
+        repay_shadow_with_rebalance(account, 201000);
         assert!(shadow_pool::borrowed_amount<USDC>() == 0, 0);
         assert!(account_position::borrowed_shadow_share<USDC>(account_addr) == 0, 0);
         assert!(shadow_pool::borrowed_amount<USDT>() == 0, 0);
