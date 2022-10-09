@@ -871,7 +871,7 @@ module leizd::shadow_pool {
         if (central_liquidity_pool::borrowed(key) > 0) {
             let accrued_interest_by_central = total_accrued_interest * central_liquidity_pool::borrowed(key) / asset_storage_ref.borrowed_amount;
             if (accrued_interest_by_central > 0) {
-                accrued_interest - accrued_interest_by_central;
+                accrued_interest = accrued_interest - accrued_interest_by_central;
                 central_liquidity_pool::accrue_interest(key, accrued_interest_by_central, key_for_central);
             };
         };
