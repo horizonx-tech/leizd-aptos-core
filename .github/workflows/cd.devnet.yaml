@@ -65,7 +65,7 @@ jobs:
           token: ${{ secrets.PERSONAL_TOKEN }}
 
       - name: push key file to test
-        run: sh push_new_key_to_test.sh
+        run: cd .. && sh push_new_key_to_test.sh
 
       - name: Slack Notification on Success
         if: success()
