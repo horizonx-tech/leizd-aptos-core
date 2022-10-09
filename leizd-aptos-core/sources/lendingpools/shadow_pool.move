@@ -805,7 +805,7 @@ module leizd::shadow_pool {
         let uncollected_support_fee = central_liquidity_pool::uncollected_support_fee(key);
         let remaining_amount = amount;
 
-        // reapy
+        // repay
         if (borrowed >= (amount as u128)) {
             central_liquidity_pool::repay(key, account, amount, key_for_central);
             return amount
@@ -864,7 +864,6 @@ module leizd::shadow_pool {
         storage_ref: &mut Storage,
         rcomp: u128,
         share_fee: u64,
-        // for support fee from central-liqudity-pool
     ) acquires Keys {
         let asset_storage_ref = simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key);
         let accrued_interest = (asset_storage_ref.borrowed_amount as u128) * rcomp / interest_rate::precision();
