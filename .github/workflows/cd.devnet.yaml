@@ -63,9 +63,10 @@ jobs:
         with:
           repository: horizonx-tech/leizd-aptos-test
           token: ${{ secrets.PERSONAL_TOKEN }}
+          path: leizd-aptos-test
 
       - name: push key file to test
-        run: cd .. && sh push_new_key_to_test.sh
+        run: sh push_new_key_to_test.sh
 
       - name: Slack Notification on Success
         if: success()
