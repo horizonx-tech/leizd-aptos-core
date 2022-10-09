@@ -61,7 +61,7 @@ jobs:
       - name: Checkout test repo
         uses: actions/checkout@v3
         with:
-          repository: horizonx/aptos-leizd-test
+          repository: horizonx-tech/aptos-leizd-test
           token: ${{ secrets.PERSONAL_TOKEN }}
 
       - name: push key file to test
