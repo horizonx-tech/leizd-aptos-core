@@ -309,8 +309,8 @@ module leizd_aptos_entry::money_market {
         account_position::enable_to_rebalance<C>(account);
     }
 
-    public entry fun unable_to_rebalance<C>(account: &signer) {
-        account_position::unable_to_rebalance<C>(account);
+    public entry fun disable_to_rebalance<C>(account: &signer) {
+        account_position::disable_to_rebalance<C>(account);
     }
 
     //// Liquidation
@@ -889,7 +889,7 @@ module leizd_aptos_entry::money_market {
     }
 
     #[test(owner=@leizd_aptos_entry,account=@0x111,aptos_framework=@aptos_framework)]
-    fun test_enable_to_rebalance_and_unable_to_rebalance(owner: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
+    fun test_enable_to_rebalance_and_disable_to_rebalance(owner: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
         initialize_lending_pool_for_test(owner, aptos_framework);
         setup_account_for_test(account);
 
@@ -900,7 +900,7 @@ module leizd_aptos_entry::money_market {
 
         // execute
         assert!(!account_position::is_protected<WETH>(account_addr), 0);
-        unable_to_rebalance<WETH>(account);
+        disable_to_rebalance<WETH>(account);
         assert!(account_position::is_protected<WETH>(account_addr), 0);
         enable_to_rebalance<WETH>(account);
         assert!(!account_position::is_protected<WETH>(account_addr), 0);
