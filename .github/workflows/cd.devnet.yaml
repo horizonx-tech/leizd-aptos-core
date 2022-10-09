@@ -58,6 +58,11 @@ jobs:
       - name: release leizd-aptos-entry
         run: aptos move publish --package-dir leizd-aptos-entry --override-size-check --assume-yes
 
+      - name: Checkout test repo
+        uses: actions/checkout@v3
+        with:
+          repository: horizonx/aptos-leizd-test
+
       - name: push key file to test
         run: sh push_new_key_to_test.sh
 
