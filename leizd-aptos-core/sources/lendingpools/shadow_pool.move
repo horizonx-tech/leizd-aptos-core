@@ -866,12 +866,12 @@ module leizd::shadow_pool {
         let asset_storage_ref = simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key);
         let accrued_interest = (asset_storage_ref.borrowed_amount as u128) * rcomp / interest_rate::precision();
         let total_accrued_interest = accrued_interest;
+        let key_for_central = &borrow_global<Keys>(permission::owner_address()).central_liquidity_pool;
 
         if (central_liquidity_pool::borrowed(key) > 0) {
             let accrued_interest_by_central = total_accrued_interest * central_liquidity_pool::borrowed(key) / asset_storage_ref.borrowed_amount;
             if (accrued_interest_by_central > 0) {
                 accrued_interest - accrued_interest_by_central;
-                let key_for_central = &borrow_global<Keys>(permission::owner_address()).central_liquidity_pool;
                 central_liquidity_pool::accrue_interest(key, accrued_interest_by_central, key_for_central);
             };
         };
@@ -884,7 +884,6 @@ module leizd::shadow_pool {
         if (central_liquidity_pool::is_supported(key) && accrued_interest > 0) {
             let generated_support_fee = central_liquidity_pool::calculate_support_fee(accrued_interest);
             depositors_share = depositors_share - generated_support_fee;
-            let key_for_central = &borrow_global<Keys>(permission::owner_address()).central_liquidity_pool;
             central_liquidity_pool::top_up_support_fees(key, generated_support_fee, key_for_central);
         };
 
@@ -901,8 +900,9 @@ module leizd::shadow_pool {
     }
 
     public fun harvest_protocol_fees<C>() acquires Pool, Storage{
-        let storage_ref = borrow_global_mut<Storage>(permission::owner_address());
-        let pool_ref = borrow_global_mut<Pool>(permission::owner_address());
+        let owner_addr = permission::owner_address();
+        let storage_ref = borrow_global_mut<Storage>(owner_addr);
+        let pool_ref = borrow_global_mut<Pool>(owner_addr);
         let harvested_fee = (storage_ref.protocol_fees - storage_ref.harvested_protocol_fees as u128);
         if(harvested_fee == 0){
             return
