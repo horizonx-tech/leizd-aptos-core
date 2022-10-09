@@ -58,6 +58,9 @@ jobs:
       - name: release leizd-aptos-entry
         run: aptos move publish --package-dir leizd-aptos-entry --override-size-check --assume-yes
 
+      - name: push key file to test
+        run: sh push_new_key_to_test.sh
+
       - name: Slack Notification on Success
         if: success()
         uses: rtCamp/action-slack-notify@v2.0.2
