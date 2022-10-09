@@ -605,10 +605,10 @@ module leizd::account_position {
         };
     }
 
-    public fun unable_to_rebalance<C>(account: &signer) acquires Position {
-        unable_to_rebalance_internal<C>(account);
+    public fun disable_to_rebalance<C>(account: &signer) acquires Position {
+        disable_to_rebalance_internal<C>(account);
     }
-    fun unable_to_rebalance_internal<C>(account: &signer) acquires Position {
+    fun disable_to_rebalance_internal<C>(account: &signer) acquires Position {
         let key = key<C>();
         let position_a2s_ref = borrow_global_mut<Position<AssetToShadow>>(signer::address_of(account));
         if (!is_protected_internal(&position_a2s_ref.protected_coins, key)) {
@@ -1121,7 +1121,7 @@ module leizd::account_position {
         new_position<ShadowToAsset>(account_addr, 10, 0, false, key);
         assert!(!is_protected<WETH>(account_addr), 0);
 
-        unable_to_rebalance_internal<WETH>(account);
+        disable_to_rebalance_internal<WETH>(account);
         assert!(is_protected<WETH>(account_addr), 0);
 
         enable_to_rebalance_internal<WETH>(account);
@@ -1529,7 +1529,7 @@ module leizd::account_position {
         deposit_internal<UNI,Shadow>(account1, account1_addr, 10000, false);
         borrow_internal<WETH,Shadow>(account1, account1_addr, 10000);
         borrow_internal<USDC,Asset>(account1, account1_addr, 50000);
-        unable_to_rebalance_internal<WETH>(account1);
+        disable_to_rebalance_internal<WETH>(account1);
         
         borrow_asset_with_rebalance_internal<UNI>(account1_addr, 10000);
         assert!(deposited_asset_share<WETH>(account1_addr) == 100000, 0);
@@ -1654,7 +1654,7 @@ module leizd::account_position {
         deposit_internal<USDT,Shadow>(account1, account1_addr, 50000, false);
         borrow_internal<WETH,Shadow>(account1, account1_addr, 50000);
         borrow_internal<USDT,Asset>(account1, account1_addr, 40000);
-        unable_to_rebalance_internal<WETH>(account1);
+        disable_to_rebalance_internal<WETH>(account1);
 
         borrow_asset_with_rebalance_internal<UNI>(account1_addr, 10000);
         assert!(deposited_asset_share<WETH>(account1_addr) == 100000, 0);
