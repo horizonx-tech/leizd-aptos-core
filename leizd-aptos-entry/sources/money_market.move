@@ -16,7 +16,9 @@ module leizd_aptos_entry::money_market {
     use leizd_aptos_common::pool_type;
     use leizd_aptos_common::permission;
     use leizd_aptos_common::coin_key;
+    use leizd_aptos_common::pool_type::{Asset, Shadow};
     use leizd_aptos_logic::risk_factor;
+    use leizd_aptos_trove::usdz::{USDZ};
     use leizd_aptos_external::price_oracle;
     // use leizd_aptos_logic::rebalance::{Self,Rebalance};
     use leizd_aptos_central_liquidity_pool::central_liquidity_pool;
@@ -626,9 +628,7 @@ module leizd_aptos_entry::money_market {
     #[test_only]
     use leizd_aptos_common::test_coin::{Self, USDC, USDT, WETH, UNI};
     #[test_only]
-    use leizd_aptos_trove::usdz::{Self, USDZ};
-    #[test_only]
-    use leizd_aptos_common::pool_type::{Asset, Shadow};
+    use leizd_aptos_trove::usdz;
     #[test_only]
     use leizd_aptos_treasury::treasury;
     #[test_only]
