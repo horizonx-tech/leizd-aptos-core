@@ -763,7 +763,12 @@ module leizd::shadow_pool {
     ////////////////////////////////////////////////////
     /// Update status
     ////////////////////////////////////////////////////
-    public fun exec_accrue_interest(
+    public fun exec_accrue_interest<C>(
+        _key: &OperatorKey
+    ) acquires Storage, Keys {
+        exec_accrue_interest_internal(key<C>());
+    }
+    public fun exec_accrue_interest_with(
         key: String,
         _key: &OperatorKey
     ) acquires Storage, Keys {
