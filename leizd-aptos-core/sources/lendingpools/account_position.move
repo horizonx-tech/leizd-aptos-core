@@ -43,7 +43,7 @@ module leizd::account_position {
         balance: SimpleMap<String,Balance>,
     }
 
-    struct Balance has store, drop {
+    struct Balance has copy, store, drop {
         normal_deposited_share: u64,
         conly_deposited_share: u64,
         borrowed_share: u64,
@@ -499,6 +499,9 @@ module leizd::account_position {
         repaid_share
     }
 
+    ////////////////////////////////////////////////////
+    /// Rebalance
+    ////////////////////////////////////////////////////
     ////// for repay_shadow_with_rebalance
     public fun repay_shadow_with(
         key: String,
@@ -1022,6 +1025,41 @@ module leizd::account_position {
             i = i - 1;
         };
         (keys, borrowed_shares)
+    }
+
+    ////// for borrow_asset_with_rebalance
+    public fun deposited_coins<P>(addr: address): vector<String> acquires Position {
+        let (coins, balances): (vector<String>, SimpleMap<String,Balance>);
+        if (pool_type::is_type_asset<P>()) {
+            (coins, _, balances) = position<AssetToShadow>(addr);
+        } else {
+            (coins, _, balances) = position<ShadowToAsset>(addr);
+        };
+        let deposited_coins = vector::empty<String>();
+        let i = 0;
+        while (i < vector::length(&coins)) {
+            let coin = vector::borrow(&coins, i);
+            if (!simple_map::contains_key(&balances, coin)) continue;
+            let balance = simple_map::borrow(&balances, coin);
+            if (balance.normal_deposited_share > 0 || balance.conly_deposited_share > 0) {
+                vector::push_back(&mut deposited_coins, *coin);
+            };
+            i = i + 1;
+        };
+        deposited_coins
+    }
+    fun position<P>(addr: address): (vector<String>, SimpleMap<String,bool>, SimpleMap<String,Balance>) acquires Position {
+        position_type::assert_position_type<P>();
+        if (position_type::is_asset_to_shadow<P>()) {
+            if (!exists<Position<AssetToShadow>>(addr)) return (vector::empty<String>(), simple_map::create<String, bool>(), simple_map::create<String, Balance>());
+            position_internal(borrow_global<Position<AssetToShadow>>(addr))
+        } else {
+            if (!exists<Position<ShadowToAsset>>(addr)) return (vector::empty<String>(), simple_map::create<String, bool>(), simple_map::create<String, Balance>());
+            position_internal(borrow_global<Position<ShadowToAsset>>(addr))
+        }
+    }
+    fun position_internal<C>(position_ref: &Position<C>): (vector<String>, SimpleMap<String,bool>, SimpleMap<String,Balance>) {
+        (position_ref.coins, position_ref.protected_coins, position_ref.balance)
     }
 
     //// get total from pools
