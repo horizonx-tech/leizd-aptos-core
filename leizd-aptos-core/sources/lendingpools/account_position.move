@@ -581,7 +581,7 @@ module leizd::account_position {
         }
     }
 
-    fun extra_and_insufficient_shadow(key: String, addr: address): (u64,u64,u64,u64) acquires Position {
+    public fun extra_and_insufficient_shadow(key: String, addr: address): (u64,u64,u64,u64) acquires Position {
         let borrowed = borrowed_volume<ShadowToAsset>(addr, key);
         let deposited = deposited_volume<ShadowToAsset>(addr, key);
         let required_deposit = borrowed * risk_factor::precision() / risk_factor::ltv_of_shadow();

@@ -154,6 +154,12 @@ module leizd_aptos_external::price_oracle {
         (result as u64) // TODO: use u128
     }
 
+    public fun to_amount(name: &String, volume: u64): u64 acquires Storage {
+        let (value, dec) = price_of(name);
+        let result = (volume as u128) * math128::pow(10, (dec as u128)) / value;
+        (result as u64) // TODO: use u128
+    }
+
     #[test_only]
     use leizd_aptos_common::test_coin::{WETH};
     #[test(owner = @leizd_aptos_external)]
