@@ -763,7 +763,12 @@ module leizd::shadow_pool {
     ////////////////////////////////////////////////////
     /// Update status
     ////////////////////////////////////////////////////
-    public fun exec_accrue_interest(
+    public fun exec_accrue_interest<C>(
+        _key: &OperatorKey
+    ) acquires Storage, Keys {
+        exec_accrue_interest_internal(key<C>());
+    }
+    public fun exec_accrue_interest_with(
         key: String,
         _key: &OperatorKey
     ) acquires Storage, Keys {
@@ -976,11 +981,11 @@ module leizd::shadow_pool {
         borrow_global<Storage>(permission::owner_address()).total_borrowed_amount
     }
 
-    fun is_initialized_asset<C>(): bool acquires Storage {
+    public fun is_initialized_asset<C>(): bool acquires Storage {
         let storage_ref = borrow_global<Storage>(permission::owner_address());
         is_initialized_asset_with_internal(&key<C>(), storage_ref)
     }
-    fun is_initialized_asset_with(key: &String): bool acquires Storage {
+    public fun is_initialized_asset_with(key: &String): bool acquires Storage {
         let storage_ref = borrow_global<Storage>(permission::owner_address());
         is_initialized_asset_with_internal(key, storage_ref)
     }

@@ -544,6 +544,22 @@ module leizd::asset_pool {
         );
     }
 
+    ////////////////////////////////////////////////////
+    /// Update status
+    ////////////////////////////////////////////////////
+    public fun exec_accrue_interest<C>(
+        _key: &OperatorKey
+    ) acquires Storage {
+        exec_accrue_interest_internal<C>(key<C>());
+    }
+    fun exec_accrue_interest_internal<C>(
+        key: String,
+    ) acquires Storage {
+        let owner_address = permission::owner_address();
+        let storage_ref = borrow_global_mut<Storage>(owner_address);
+        accrue_interest<C>(borrow_mut_asset_storage_with(storage_ref, key));
+    }
+
     /// This function is called on every user action.
     fun accrue_interest<C>(asset_storage_ref: &mut AssetStorage) {
         let now = timestamp::now_microseconds();
