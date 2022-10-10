@@ -175,7 +175,7 @@ module leizd_aptos_entry::money_market {
 
         let (coins, _, balances) = account_position::position<Shadow>(account_addr);
         let unprotected = unprotected_coins(account_addr, coins);
-        let (deposited_amounts, deposited_total_amount, borrowed_amounts) = shares_to_amounts_for_shadow(unprotected, balances);
+        let (deposited_amounts, _, borrowed_amounts) = shares_to_amounts_for_shadow(unprotected, balances);
         let (sum_extra, sum_insufficient, total_deposited_volume, total_borrowed_volume, deposited_volumes, borrowed_volumes) = sum_extra_and_insufficient_shadow(
             unprotected,
             deposited_amounts,
@@ -207,7 +207,7 @@ module leizd_aptos_entry::money_market {
             // finally, borrow asset
             asset_pool::borrow_for<C>(account_addr, account_addr, amount, asset_pool_key);
 
-            return;
+            ()
         };
 
         // TODO: execute
@@ -382,7 +382,7 @@ module leizd_aptos_entry::money_market {
         withdraws: SimpleMap<String, u64>,
         borrows: SimpleMap<String, u64>,
         repays: SimpleMap<String, u64>,
-        _account_position_key: &AccountPositionKey,
+        account_position_key: &AccountPositionKey,
         shadow_pool_key: &ShadowPoolKey,
     ) {
         let account_addr = signer::address_of(account);
@@ -396,8 +396,8 @@ module leizd_aptos_entry::money_market {
                 let key = vector::borrow(&coins, i);
                 if (simple_map::contains_key(&borrows, key)) {
                     let amount = simple_map::borrow(&borrows, key);
-                    let (_ ,_share) = shadow_pool::borrow_for_with(*key, account_addr, account_addr, *amount, shadow_pool_key);
-                    // account_position::borrow_unsafe_with<Asset>(key, account_addr, share);
+                    let (_ ,share) = shadow_pool::borrow_for_with(*key, account_addr, account_addr, *amount, shadow_pool_key);
+                    account_position::borrow_unsafe_with<Asset>(*key, account_addr, share, account_position_key);
                 };
                 i = i + 1;
             };
@@ -410,8 +410,8 @@ module leizd_aptos_entry::money_market {
                 let key = vector::borrow(&coins, i);
                 if (simple_map::contains_key(&withdraws, key)) {
                     let amount = simple_map::borrow(&withdraws, key);
-                    let (_ ,_share) = shadow_pool::withdraw_for_with(*key, account_addr, account_addr, *amount, false, 0, shadow_pool_key); // TODO: set correct is_collateral_only
-                    // account_position::withdraw_unsafe_with<Shadow>(key, account_addr, share, false); // TODO: set correct is_collateral_only
+                    let (_ ,share) = shadow_pool::withdraw_for_with(*key, account_addr, account_addr, *amount, false, 0, shadow_pool_key); // TODO: set correct is_collateral_only
+                    account_position::withdraw_unsafe_with<Shadow>(*key, account_addr, share, false, account_position_key); // TODO: set correct is_collateral_only
                 };
                 i = i + 1;
             };
@@ -424,8 +424,8 @@ module leizd_aptos_entry::money_market {
                 let key = vector::borrow(&coins, i);
                 if (simple_map::contains_key(&repays, key)) {
                     let amount = simple_map::borrow(&repays, key);
-                    let (_ ,_share) = shadow_pool::repay_with(*key, account, *amount, shadow_pool_key);
-                    // account_position::repay_with<Asset>(key, account_addr, share);
+                    let (_ ,share) = shadow_pool::repay_with(*key, account, *amount, shadow_pool_key);
+                    account_position::repay_with<Asset>(*key, account_addr, share, account_position_key);
                 };
                 i = i + 1;
             };
@@ -438,8 +438,8 @@ module leizd_aptos_entry::money_market {
                 let key = vector::borrow(&coins, i);
                 if (simple_map::contains_key(&deposits, key)) {
                     let amount = simple_map::borrow(&deposits, key);
-                    let (_ ,_share) = shadow_pool::deposit_for_with(*key, account, account_addr, *amount, false, shadow_pool_key); // TODO: set correct is_collateral_only
-                    // account_position::deposit_with<Shadow>(key, account_addr, share, false); // TODO: set correct is_collateral_only
+                    let (_ ,share) = shadow_pool::deposit_for_with(*key, account, account_addr, *amount, false, shadow_pool_key); // TODO: set correct is_collateral_only
+                    account_position::deposit_with<Shadow>(*key, account, account_addr, share, false, account_position_key); // TODO: set correct is_collateral_only
                 };
                 i = i + 1;
             };

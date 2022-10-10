@@ -1236,7 +1236,7 @@ module leizd::account_position {
     }
     #[test_only]
     fun borrow_unsafe_for_test<C,P>(borrower_addr: address, amount: u64) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        borrow_unsafe_internal<C,P>(borrower_addr, amount)
+        borrow_unsafe_internal<P>(key<C>(), borrower_addr, amount)
     }
     #[test_only]
     public fun initialize_position_if_necessary_for_test(account: &signer) {
