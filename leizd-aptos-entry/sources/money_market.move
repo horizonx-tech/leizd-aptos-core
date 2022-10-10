@@ -12,9 +12,10 @@ module leizd_aptos_entry::money_market {
     use std::signer;
     use std::vector;
     use std::string::{String};
+    use aptos_std::simple_map::{Self,SimpleMap};
     use leizd_aptos_common::pool_type;
     use leizd_aptos_common::permission;
-    use leizd_aptos_logic::rebalance::{Self,Rebalance};
+    // use leizd_aptos_logic::rebalance::{Self,Rebalance};
     use leizd_aptos_central_liquidity_pool::central_liquidity_pool;
     use leizd_aptos_core::asset_pool::{Self, OperatorKey as AssetPoolKey};
     use leizd_aptos_core::shadow_pool::{Self, OperatorKey as ShadowPoolKey};
@@ -152,50 +153,122 @@ module leizd_aptos_entry::money_market {
     /// Borrow the coin C with the shadow that is collected from the best pool.
     /// If there is enough shadow on the pool a user want to borrow, it would be
     /// the same action as the `borrow` function above.
+
     public entry fun borrow_asset_with_rebalance<C>(account: &signer, amount: u64) acquires LendingPoolModKeys {
-        borrow_asset_for_with_rebalance<C>(account, signer::address_of(account), amount);
-    }
+        assert!(asset_pool::is_pool_initialized<C>() , 0);
+        assert!(shadow_pool::is_initialized_asset<C>() , 0);
 
-    public entry fun borrow_asset_for_with_rebalance<C>(account: &signer, receiver_addr: address, amount: u64) acquires LendingPoolModKeys {
-        let borrower_addr = signer::address_of(account);
         let (account_position_key, asset_pool_key, shadow_pool_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
-        let (deposits, withdraws, borrows, repays) = account_position::borrow_asset_with_rebalance<C>(borrower_addr, amount, account_position_key);
+        let account_addr = signer::address_of(account);
 
-        // borrow shadow
-        let i = vector::length<Rebalance>(&borrows);
-        while (i > 0) {
-            let rebalance = *vector::borrow<Rebalance>(&borrows, i-1);
-            shadow_pool::borrow_for_with(rebalance::key(rebalance), borrower_addr, borrower_addr, rebalance::amount(rebalance), shadow_pool_key);
-            i = i - 1;
+        let deposited_coins = account_position::deposited_coins<Shadow>(account_addr);
+        asset_pool::exec_accrue_interest<C>(asset_pool_key);
+        shadow_pool::exec_accrue_interest<C>(shadow_pool_key);
+        shadow_pool::exec_accrue_interest_for_selected(deposited_coins, shadow_pool_key);
+
+        account_position::borrow_unsafe<C, Asset>(account_addr, amount, account_position_key);
+
+        let (coins, _, balances) = account_position::position<Shadow>(account_addr);
+        let unprotected = unprotected_coins(account_addr, coins);
+        let (amounts, total_amount) = deposited_shares_to_amounts_for_shadow(unprotected, balances);
+
+        // for debug
+        aptos_std::debug::print(&total_amount);
+        let i = 0;
+        while (i < vector::length(&coins)) {
+            let key = vector::borrow(&coins, i);
+            if (simple_map::contains_key(&amounts, key)) {
+                aptos_std::debug::print(&true);
+                aptos_std::debug::print(simple_map::borrow(&amounts, key));
+            } else {
+                aptos_std::debug::print(&false);
+            };
+            i = i + 1;
         };
-
-        // withdraw shadow
-        let i = vector::length<Rebalance>(&withdraws);
-        while (i > 0) {
-            let rebalance = *vector::borrow<Rebalance>(&withdraws, i-1);
-            shadow_pool::withdraw_for_with(rebalance::key(rebalance), borrower_addr, borrower_addr, rebalance::amount(rebalance), false, 0, shadow_pool_key);
-            i = i - 1;
-        };
-
-        // repay shadow
-        let i = vector::length<Rebalance>(&repays);
-        while (i > 0) {
-            let rebalance = *vector::borrow<Rebalance>(&repays, i-1);
-            shadow_pool::repay_with(rebalance::key(rebalance), account, rebalance::amount(rebalance), shadow_pool_key);
-            i = i - 1;
-        };
-
-        // deposit shadow
-        let i = vector::length<Rebalance>(&deposits);
-        while (i > 0) {
-            let rebalance = *vector::borrow<Rebalance>(&deposits, i-1);
-            shadow_pool::deposit_for_with(rebalance::key(rebalance), account, borrower_addr, rebalance::amount(rebalance), false, shadow_pool_key);
-            i = i - 1;
-        };
-
-        // borrow asset
-        asset_pool::borrow_for<C>(borrower_addr, receiver_addr, amount, asset_pool_key);
     }
+    fun unprotected_coins(addr: address, coins: vector<String>): vector<String> {
+        let unprotected = vector::empty<String>();
+        let i = 0;
+        while (i < vector::length(&coins)) {
+            let coin = vector::borrow(&coins, i);
+            if (!account_position::is_protected_with(*coin, addr)){
+                vector::push_back(&mut unprotected, *coin);
+            };
+            i = i + 1;
+        };
+        unprotected
+    }
+    fun deposited_shares_to_amounts_for_shadow(keys: vector<String>, balances: SimpleMap<String, account_position::Balance>): (
+        SimpleMap<String, u64>, // amounts
+        u64 // total amount // TODO: u128?
+    ) {
+        let i = 0;
+        let amounts = simple_map::create<String, u64>();
+        let total_amount = 0;
+        while (i < vector::length(&keys)) {
+            let key = vector::borrow<String>(&keys, i);
+            if (simple_map::contains_key(&balances, key)) {
+                let (normal_deposited_share, conly_deposited_share, _) = account_position::balance_value(simple_map::borrow(&balances, key));
+                let normal_deposited_amount = shadow_pool::normal_deposited_share_to_amount(
+                    *key,
+                    normal_deposited_share,
+                );
+                let conly_deposited_amount = shadow_pool::conly_deposited_share_to_amount(
+                    *key,
+                    conly_deposited_share,
+                );
+                total_amount = total_amount + ((normal_deposited_amount + conly_deposited_amount) as u64); // TODO: check type (u64?u128?)
+                simple_map::add(&mut amounts, *key, ((normal_deposited_amount + conly_deposited_amount) as u64)); // TODO: check type (u64?u128?)
+            };
+            i = i + 1;
+        };
+        (amounts, total_amount)
+    }
+
+    // public entry fun borrow_asset_with_rebalance<C>(account: &signer, amount: u64) acquires LendingPoolModKeys {
+    //     borrow_asset_for_with_rebalance<C>(account, signer::address_of(account), amount);
+    // }
+
+    // public entry fun borrow_asset_for_with_rebalance<C>(account: &signer, receiver_addr: address, amount: u64) acquires LendingPoolModKeys {
+    //     let borrower_addr = signer::address_of(account);
+    //     let (account_position_key, asset_pool_key, shadow_pool_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
+    //     let (deposits, withdraws, borrows, repays) = account_position::borrow_asset_with_rebalance<C>(borrower_addr, amount, account_position_key);
+
+    //     // borrow shadow
+    //     let i = vector::length<Rebalance>(&borrows);
+    //     while (i > 0) {
+    //         let rebalance = *vector::borrow<Rebalance>(&borrows, i-1);
+    //         shadow_pool::borrow_for_with(rebalance::key(rebalance), borrower_addr, borrower_addr, rebalance::amount(rebalance), shadow_pool_key);
+    //         i = i - 1;
+    //     };
+
+    //     // withdraw shadow
+    //     let i = vector::length<Rebalance>(&withdraws);
+    //     while (i > 0) {
+    //         let rebalance = *vector::borrow<Rebalance>(&withdraws, i-1);
+    //         shadow_pool::withdraw_for_with(rebalance::key(rebalance), borrower_addr, borrower_addr, rebalance::amount(rebalance), false, 0, shadow_pool_key);
+    //         i = i - 1;
+    //     };
+
+    //     // repay shadow
+    //     let i = vector::length<Rebalance>(&repays);
+    //     while (i > 0) {
+    //         let rebalance = *vector::borrow<Rebalance>(&repays, i-1);
+    //         shadow_pool::repay_with(rebalance::key(rebalance), account, rebalance::amount(rebalance), shadow_pool_key);
+    //         i = i - 1;
+    //     };
+
+    //     // deposit shadow
+    //     let i = vector::length<Rebalance>(&deposits);
+    //     while (i > 0) {
+    //         let rebalance = *vector::borrow<Rebalance>(&deposits, i-1);
+    //         shadow_pool::deposit_for_with(rebalance::key(rebalance), account, borrower_addr, rebalance::amount(rebalance), false, shadow_pool_key);
+    //         i = i - 1;
+    //     };
+
+    //     // borrow asset
+    //     asset_pool::borrow_for<C>(borrower_addr, receiver_addr, amount, asset_pool_key);
+    // }
 
     /// Repay an asset or a shadow from the pool.
     public entry fun repay<C,P>(account: &signer, amount: u64) acquires LendingPoolModKeys {
@@ -836,7 +909,6 @@ module leizd_aptos_entry::money_market {
         assert!(account_position::borrowed_shadow_share<WETH>(account_addr) == 60300, 0);
         assert!(shadow_pool::borrowed_amount<UNI>() == 80400, 0);
         assert!(account_position::borrowed_shadow_share<UNI>(account_addr) == 80400, 0);
-
     }
     #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
     fun test_repay_shadow_with_rebalance_to_repay_all(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
@@ -1134,5 +1206,31 @@ module leizd_aptos_entry::money_market {
         assert!(asset_pool::total_normal_deposited_amount<USDC>() == 500000000000, 0);
         assert!(account_position::deposited_asset_share<USDC>(borrower_addr) == 500000000000, 0);
         // TODO: amount -> share
+    }
+
+    // temp
+    #[test_only]
+    fun prepare_to_exec_borrow_asset_with_rebalance(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
+        initialize_lending_pool_for_test(owner, aptos_framework);
+        setup_liquidity_provider_for_test(owner, lp);
+        setup_account_for_test(account);
+        let account_addr = signer::address_of(account);
+        managed_coin::mint<USDC>(owner, account_addr, 200000);
+        managed_coin::mint<USDT>(owner, account_addr, 200000);
+        managed_coin::mint<WETH>(owner, account_addr, 200000);
+        managed_coin::mint<UNI>(owner, account_addr, 200000);
+        // usdz::mint_for_test(account_addr, 200000);
+
+        // prerequisite
+        deposit<WETH, Shadow>(lp, 1, false);
+        deposit<USDC, Shadow>(lp, 200000, false);
+        deposit<USDT, Shadow>(lp, 200000, false);
+        deposit<UNI, Shadow>(lp, 200000, false);
+        disable_to_rebalance<USDT>(lp);
+    }
+    #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
+    fun test_borrow_asset_with_rebalance(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
+        prepare_to_exec_borrow_asset_with_rebalance(owner, lp, account, aptos_framework);
+        borrow_asset_with_rebalance<WETH>(lp, 0);
     }
 }
