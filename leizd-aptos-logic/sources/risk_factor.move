@@ -225,7 +225,9 @@ module leizd_aptos_logic::risk_factor {
         if (deposited == 0) {
             0
         } else {
-            let u = (borrowed * precision() / (deposited * lt_of(key) / precision()));
+            let scaled_numerator = borrowed * precision() * precision();
+            let denominator = deposited * lt_of(key);
+            let u = scaled_numerator / denominator;
             if (precision() < u) {
                 0
             } else {

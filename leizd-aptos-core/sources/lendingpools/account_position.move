@@ -220,6 +220,25 @@ module leizd::account_position {
         withdrawn_share
     }
 
+    public fun withdraw_unsafe<C,P>(
+        depositor_addr: address,
+        share: u64,
+        is_collateral_only: bool,
+        _key: &OperatorKey
+    ): u64 acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
+        withdraw_unsafe_internal<C,P>(depositor_addr, share, is_collateral_only)
+    }
+
+    fun withdraw_unsafe_internal<C,P>(depositor_addr: address, share: u64, is_collateral_only: bool): u64 acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
+        let withdrawn_amount;
+        if (pool_type::is_type_asset<P>()) {
+            withdrawn_amount = update_on_withdraw<C,AssetToShadow>(depositor_addr, share, is_collateral_only);
+        } else {
+            withdrawn_amount = update_on_withdraw<C,ShadowToAsset>(depositor_addr, share, is_collateral_only);
+        };
+        withdrawn_amount
+    }
+
     ////////////////////////////////////////////////////
     /// Borrow
     ////////////////////////////////////////////////////
@@ -251,22 +270,22 @@ module leizd::account_position {
 
     public fun borrow_unsafe<C,P>(
         borrower_addr: address,
-        amount: u64,
+        share: u64,
         _key: &OperatorKey
     ) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        borrow_unsafe_internal<C,P>(borrower_addr, amount)
+        borrow_unsafe_internal<C,P>(borrower_addr, share)
     }
 
     public fun borrow_unsafe_internal<C,P>(
         borrower_addr: address,
-        amount: u64,
+        share: u64,
     ) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
         assert!(exists<Position<AssetToShadow>>(borrower_addr), error::invalid_argument(ENO_POSITION_RESOURCE));
 
         if (pool_type::is_type_asset<P>()) {
-            update_on_borrow<C,ShadowToAsset>(borrower_addr, amount);
+            update_on_borrow<C,ShadowToAsset>(borrower_addr, share);
         } else {
-            update_on_borrow<C,AssetToShadow>(borrower_addr, amount);
+            update_on_borrow<C,AssetToShadow>(borrower_addr, share);
         };
     }
 

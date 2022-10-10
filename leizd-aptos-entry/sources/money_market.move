@@ -176,31 +176,63 @@ module leizd_aptos_entry::money_market {
         let (coins, _, balances) = account_position::position<Shadow>(account_addr);
         let unprotected = unprotected_coins(account_addr, coins);
         let (deposited_amounts, deposited_total_amount, borrowed_amounts) = shares_to_amounts_for_shadow(unprotected, balances);
-        let (sum_extra, sum_insufficient) = sum_extra_and_insufficient_shadow(
+        let (sum_extra, sum_insufficient, total_deposited_volume, total_borrowed_volume, deposited_volumes, borrowed_volumes) = sum_extra_and_insufficient_shadow(
             unprotected,
             deposited_amounts,
             borrowed_amounts,
         );
         if (sum_extra >= sum_insufficient) {
-            // exec rebalance by only deposit and withdraw
-        }
+            let optimized_hf = risk_factor::health_factor_of(
+                coin_key::key<USDZ>(),
+                total_deposited_volume,
+                total_borrowed_volume
+            );
+            let (amounts_to_deposit, amounts_to_withdraw) = calc_to_optimize_shadow_by_rebalance_without_borrow(
+                unprotected,
+                optimized_hf,
+                deposited_volumes,
+                borrowed_volumes
+            );
+            execute_rebalance(
+                account,
+                unprotected,
+                amounts_to_deposit,
+                amounts_to_withdraw,
+                simple_map::create<String, u64>(),
+                simple_map::create<String, u64>(),
+                account_position_key,
+                shadow_pool_key
+            );
 
-        // for debug
-        aptos_std::debug::print(&deposited_total_amount);
-        aptos_std::debug::print(&sum_extra);
-        aptos_std::debug::print(&sum_insufficient);
-        let i = 0;
-        while (i < vector::length(&coins)) {
-            let key = vector::borrow(&coins, i);
-            if (simple_map::contains_key(&deposited_amounts, key)) {
-                aptos_std::debug::print(&true);
-                aptos_std::debug::print(simple_map::borrow(&deposited_amounts, key));
-                aptos_std::debug::print(simple_map::borrow(&borrowed_amounts, key));
-            } else {
-                aptos_std::debug::print(&false);
+            // finally, borrow asset
+            asset_pool::borrow_for<C>(account_addr, account_addr, amount, asset_pool_key);
+
+            // return;
+
+            // for debug
+            aptos_std::debug::print(&(9999999999999999999));
+            aptos_std::debug::print(&deposited_total_amount);
+            aptos_std::debug::print(&sum_extra);
+            aptos_std::debug::print(&sum_insufficient);
+            aptos_std::debug::print(&total_deposited_volume);
+            aptos_std::debug::print(&total_borrowed_volume);
+            let i = 0;
+            while (i < vector::length(&coins)) {
+                let key = vector::borrow(&coins, i);
+                if (simple_map::contains_key(&deposited_amounts, key)) {
+                    aptos_std::debug::print(&true);
+                    aptos_std::debug::print(simple_map::borrow(&deposited_amounts, key));
+                    aptos_std::debug::print(simple_map::borrow(&borrowed_amounts, key));
+                } else {
+                    aptos_std::debug::print(&false);
+                };
+                i = i + 1;
             };
-            i = i + 1;
+
         };
+
+        // TODO: execute
+
     }
     fun unprotected_coins(addr: address, coins: vector<String>): vector<String> {
         let unprotected = vector::empty<String>();
@@ -252,14 +284,25 @@ module leizd_aptos_entry::money_market {
         keys: vector<String>,
         deposited_amounts: SimpleMap<String, u64>,
         borrowed_amounts: SimpleMap<String, u64>
-    ): (u64, u64) {
+    ): (
+        u64, // sum extra
+        u64, // sum insufficient
+        u64, // total deposited volume
+        u64, // total borrowed volume
+        SimpleMap<String, u64>, // deposited volumes
+        SimpleMap<String, u64>, // borrowed volumes
+    ) {
         let sum_extra = 0;
         let sum_insufficient = 0;
+        let total_deposited_volume = 0;
+        let total_borrowed_volume = 0;
+        let deposited_volumes = simple_map::create<String, u64>();
+        let borrowed_volumes = simple_map::create<String, u64>();
 
         let i = 0;
         while (i < vector::length(&keys)) {
             let key = vector::borrow(&keys, i);
-            let (extra, insufficient, _, _) = extra_and_insufficient_shadow(
+            let (extra, insufficient, deposited_volume, borrowed_volume) = extra_and_insufficient_shadow(
                 coin_key::key<USDZ>(),
                 *simple_map::borrow(&deposited_amounts, key),
                 *key,
@@ -267,9 +310,13 @@ module leizd_aptos_entry::money_market {
             );
             sum_extra = sum_extra + extra;
             sum_insufficient = sum_insufficient + insufficient;
+            total_deposited_volume = total_deposited_volume + deposited_volume;
+            total_borrowed_volume = total_borrowed_volume + borrowed_volume;
+            simple_map::add(&mut deposited_volumes, *key, deposited_volume);
+            simple_map::add(&mut borrowed_volumes, *key, borrowed_volume);
             i = i + 1;
         };
-        (sum_extra, sum_insufficient)
+        (sum_extra, sum_insufficient, total_deposited_volume, total_borrowed_volume, deposited_volumes, borrowed_volumes)
     }
     fun extra_and_insufficient_shadow(
         deposited_key: String,
@@ -307,6 +354,118 @@ module leizd_aptos_entry::money_market {
                 borrowed_volume
             )
         }
+    }
+    fun calc_to_optimize_shadow_by_rebalance_without_borrow(
+        coins: vector<String>,
+        optimized_hf: u64,
+        deposited_volumes: SimpleMap<String, u64>,
+        borrowed_volumes: SimpleMap<String, u64>
+    ): (
+        SimpleMap<String, u64>, // amounts to deposit
+        SimpleMap<String, u64>, // amounts to withdraw
+    ) {
+        let i = 0;
+        let usdz_key = coin_key::key<USDZ>();
+        let amount_to_deposit = simple_map::create<String, u64>();
+        let amount_to_withdraw = simple_map::create<String, u64>();
+        while (i < vector::length<String>(&coins)) {
+            let key = vector::borrow(&coins, i);
+            let deposited_volume = simple_map::borrow(&deposited_volumes, key);
+            let borrowed_volume = simple_map::borrow(&borrowed_volumes, key);
+            let current_hf = risk_factor::health_factor_of(
+                usdz_key,
+                *deposited_volume,
+                *borrowed_volume,
+            );
+            // deposited + delta = borrowed_volume / (LTV * (1 - optimized_hf))
+            let opt_deposit_volume = (*borrowed_volume * risk_factor::precision() / (risk_factor::precision() - optimized_hf)) // borrowed volume / (1 - optimized_hf)
+                * risk_factor::precision() / risk_factor::lt_of_shadow(); // * (1 / LTV)
+            if (current_hf > optimized_hf) {
+                simple_map::add(
+                    &mut amount_to_withdraw,
+                    *key,
+                    price_oracle::to_amount(&usdz_key, *deposited_volume - opt_deposit_volume)
+                );
+            } else if (current_hf < optimized_hf) {
+                simple_map::add(
+                    &mut amount_to_deposit,
+                    *key,
+                    price_oracle::to_amount(&usdz_key, opt_deposit_volume - *deposited_volume)
+                );
+            };
+            i = i + 1;
+        };
+        (amount_to_deposit, amount_to_withdraw)
+    }
+    public entry fun execute_rebalance(
+        account: &signer,
+        coins: vector<String>,
+        deposits: SimpleMap<String, u64>,
+        withdraws: SimpleMap<String, u64>,
+        borrows: SimpleMap<String, u64>,
+        repays: SimpleMap<String, u64>,
+        _account_position_key: &AccountPositionKey,
+        shadow_pool_key: &ShadowPoolKey,
+    ) {
+        let account_addr = signer::address_of(account);
+        let i: u64;
+        let length = vector::length(&coins);
+
+        // borrow shadow
+        if (simple_map::length(&borrows) > 0) {
+            i = 0;
+            while (i < length) {
+                let key = vector::borrow(&coins, i);
+                if (simple_map::contains_key(&borrows, key)) {
+                    let amount = simple_map::borrow(&borrows, key);
+                    let (_ ,_share) = shadow_pool::borrow_for_with(*key, account_addr, account_addr, *amount, shadow_pool_key);
+                    // account_position::borrow_unsafe_with<Asset>(key, account_addr, share);
+                };
+                i = i + 1;
+            };
+        };
+
+        // withdraw shadow
+        if (simple_map::length(&withdraws) > 0) {
+            i = 0;
+            while (i < length) {
+                let key = vector::borrow(&coins, i);
+                if (simple_map::contains_key(&withdraws, key)) {
+                    let amount = simple_map::borrow(&withdraws, key);
+                    let (_ ,_share) = shadow_pool::withdraw_for_with(*key, account_addr, account_addr, *amount, false, 0, shadow_pool_key); // TODO: set correct is_collateral_only
+                    // account_position::withdraw_unsafe_with<Shadow>(key, account_addr, share, false); // TODO: set correct is_collateral_only
+                };
+                i = i + 1;
+            };
+        };
+
+        // repay shadow
+        if (simple_map::length(&repays) > 0) {
+            i = 0;
+            while (i < length) {
+                let key = vector::borrow(&coins, i);
+                if (simple_map::contains_key(&repays, key)) {
+                    let amount = simple_map::borrow(&repays, key);
+                    let (_ ,_share) = shadow_pool::repay_with(*key, account, *amount, shadow_pool_key);
+                    // account_position::repay_with<Asset>(key, account_addr, share);
+                };
+                i = i + 1;
+            };
+        };
+
+        // deposit shadow
+        if (simple_map::length(&deposits) > 0) {
+            i = 0;
+            while (i < length) {
+                let key = vector::borrow(&coins, i);
+                if (simple_map::contains_key(&deposits, key)) {
+                    let amount = simple_map::borrow(&deposits, key);
+                    let (_ ,_share) = shadow_pool::deposit_for_with(*key, account, account_addr, *amount, false, shadow_pool_key); // TODO: set correct is_collateral_only
+                    // account_position::deposit_with<Shadow>(key, account_addr, share, false); // TODO: set correct is_collateral_only
+                };
+                i = i + 1;
+            };
+        };
     }
 
     // public entry fun borrow_asset_with_rebalance<C>(account: &signer, amount: u64) acquires LendingPoolModKeys {
@@ -1302,10 +1461,10 @@ module leizd_aptos_entry::money_market {
         managed_coin::mint<WETH>(owner, account_addr, 200000);
         managed_coin::mint<UNI>(owner, account_addr, 200000);
         // usdz::mint_for_test(account_addr, 200000);
-        deposit<WETH, Asset>(account, 50000, false);
+        deposit<WETH, Asset>(account, 200000, false);
 
         // prerequisite
-        deposit<WETH, Shadow>(lp, 1, false);
+        deposit<WETH, Shadow>(lp, 20000, false);
         deposit<USDC, Shadow>(lp, 200000, false);
         deposit<USDT, Shadow>(lp, 200000, false);
         deposit<UNI, Shadow>(lp, 200000, false);
@@ -1314,6 +1473,6 @@ module leizd_aptos_entry::money_market {
     #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
     fun test_borrow_asset_with_rebalance(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
         prepare_to_exec_borrow_asset_with_rebalance(owner, lp, account, aptos_framework);
-        borrow_asset_with_rebalance<WETH>(lp, 100);
+        borrow_asset_with_rebalance<WETH>(lp, 50000);
     }
 }
