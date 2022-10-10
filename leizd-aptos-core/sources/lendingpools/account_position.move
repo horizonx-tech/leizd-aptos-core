@@ -124,30 +124,30 @@ module leizd::account_position {
         assert!(exists<Position<AssetToShadow>>(depositor_addr), error::invalid_argument(ENO_POSITION_RESOURCE));
 
         if (pool_type::is_type_asset<P>()) {
-            assert_invalid_deposit_asset<C>(depositor_addr, is_collateral_only);
+            assert_invalid_deposit_asset(key<C>(), depositor_addr, is_collateral_only);
             update_on_deposit<C,AssetToShadow>(depositor_addr, share, is_collateral_only);
         } else {
-            assert_invalid_deposit_shadow<C>(depositor_addr, is_collateral_only);
+            assert_invalid_deposit_shadow(key<C>(), depositor_addr, is_collateral_only);
             update_on_deposit<C,ShadowToAsset>(depositor_addr, share, is_collateral_only);
         };
     }
 
-    fun assert_invalid_deposit_asset<C>(depositor_addr: address, is_collateral_only: bool) acquires Position {
+    fun assert_invalid_deposit_asset(key: String, depositor_addr: address, is_collateral_only: bool) acquires Position {
         if (is_collateral_only) {
-            let deposited = deposited_asset_share<C>(depositor_addr);
+            let deposited = deposited_asset_share_with(key, depositor_addr);
             assert!(deposited == 0, error::invalid_argument(EALREADY_DEPOSITED_AS_NORMAL));
         } else {
-            let conly_deposited = conly_deposited_asset_share<C>(depositor_addr);
+            let conly_deposited = conly_deposited_asset_share_with(key, depositor_addr);
             assert!(conly_deposited == 0, error::invalid_argument(EALREADY_DEPOSITED_AS_COLLATERAL_ONLY));
         };
     }
 
-    fun assert_invalid_deposit_shadow<C>(depositor_addr: address, is_collateral_only: bool) acquires Position {
+    fun assert_invalid_deposit_shadow(key: String, depositor_addr: address, is_collateral_only: bool) acquires Position {
         if (is_collateral_only) {
-            let deposited = deposited_shadow_share<C>(depositor_addr);
+            let deposited = deposited_shadow_share_with(key, depositor_addr);
             assert!(deposited == 0, error::invalid_argument(EALREADY_DEPOSITED_AS_NORMAL));
         } else {
-            let conly_deposited = conly_deposited_shadow_share<C>(depositor_addr);
+            let conly_deposited = conly_deposited_shadow_share_with(key, depositor_addr);
             assert!(conly_deposited == 0, error::invalid_argument(EALREADY_DEPOSITED_AS_COLLATERAL_ONLY));
         };
     }
@@ -190,10 +190,10 @@ module leizd::account_position {
         let withdrawn_amount;
         if (pool_type::is_type_asset<P>()) {
             withdrawn_amount = update_on_withdraw<C,AssetToShadow>(depositor_addr, share, is_collateral_only);
-            assert!(is_safe<C,AssetToShadow>(depositor_addr), error::invalid_state(ENO_SAFE_POSITION));
+            assert!(is_safe_with<AssetToShadow>(key<C>(), depositor_addr), error::invalid_state(ENO_SAFE_POSITION));
         } else {
             withdrawn_amount = update_on_withdraw<C,ShadowToAsset>(depositor_addr, share, is_collateral_only);
-            assert!(is_safe<C,ShadowToAsset>(depositor_addr), error::invalid_state(ENO_SAFE_POSITION));
+            assert!(is_safe_with<ShadowToAsset>(key<C>(), depositor_addr), error::invalid_state(ENO_SAFE_POSITION));
         };
         withdrawn_amount
     }
@@ -211,11 +211,11 @@ module leizd::account_position {
         if (pool_type::is_type_asset<P>()) {
             let share = if (is_collateral_only) conly_deposited_asset_share<C>(depositor_addr) else deposited_asset_share<C>(depositor_addr);
             withdrawn_share = update_on_withdraw<C,AssetToShadow>(depositor_addr, share, is_collateral_only);
-            assert!(is_safe<C,AssetToShadow>(depositor_addr), error::invalid_state(ENO_SAFE_POSITION));
+            assert!(is_safe_with<AssetToShadow>(key<C>(), depositor_addr), error::invalid_state(ENO_SAFE_POSITION));
         } else {
             let share = if (is_collateral_only) conly_deposited_shadow_share<C>(depositor_addr) else deposited_shadow_share<C>(depositor_addr);
             withdrawn_share = update_on_withdraw<C,ShadowToAsset>(depositor_addr, share, is_collateral_only);
-            assert!(is_safe<C,ShadowToAsset>(depositor_addr), error::invalid_state(ENO_SAFE_POSITION));
+            assert!(is_safe_with<ShadowToAsset>(key<C>(), depositor_addr), error::invalid_state(ENO_SAFE_POSITION));
         };
         withdrawn_share
     }
@@ -242,10 +242,10 @@ module leizd::account_position {
 
         if (pool_type::is_type_asset<P>()) {
             update_on_borrow<C,ShadowToAsset>(borrower_addr, share);
-            assert!(is_safe<C,ShadowToAsset>(borrower_addr), error::invalid_state(ENO_SAFE_POSITION));
+            assert!(is_safe_with<ShadowToAsset>(key<C>(), borrower_addr), error::invalid_state(ENO_SAFE_POSITION));
         } else {
             update_on_borrow<C,AssetToShadow>(borrower_addr, share);
-            assert!(is_safe<C,AssetToShadow>(borrower_addr), error::invalid_state(ENO_SAFE_POSITION));
+            assert!(is_safe_with<AssetToShadow>(key<C>(), borrower_addr), error::invalid_state(ENO_SAFE_POSITION));
         };
     }
 
@@ -807,7 +807,9 @@ module leizd::account_position {
     /// View Functions
     ////////////////////////////////////////////////////
     fun is_safe<C,P>(addr: address): bool acquires Position {
-        let key = key<C>();
+        is_safe_with<P>(key<C>(), addr)
+    }
+    fun is_safe_with<P>(key: String, addr: address): bool acquires Position {
         let position_ref = borrow_global<Position<P>>(addr);
         if (position_type::is_asset_to_shadow<P>()) {
             utilization_of<P>(position_ref, key) < risk_factor::lt_of(key)
