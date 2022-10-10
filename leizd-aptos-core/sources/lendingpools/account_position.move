@@ -613,7 +613,10 @@ module leizd::account_position {
     }
 
     public fun is_protected<C>(account_addr: address): bool acquires Position {
-        let key = key<C>();
+        let position_ref = borrow_global<Position<ShadowToAsset>>(account_addr);
+        is_protected_internal(&position_ref.protected_coins, key<C>())
+    }
+    public fun is_protected_with(key: String, account_addr: address): bool acquires Position {
         let position_ref = borrow_global<Position<ShadowToAsset>>(account_addr);
         is_protected_internal(&position_ref.protected_coins, key)
     }
