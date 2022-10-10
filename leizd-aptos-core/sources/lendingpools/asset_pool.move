@@ -239,7 +239,7 @@ module leizd::asset_pool {
         let pool_ref = borrow_global_mut<Pool<C>>(owner_address);
         let asset_storage_ref = borrow_mut_asset_storage<C>(borrow_global_mut<Storage>(owner_address));
 
-        accrue_interest<C>(asset_storage_ref);
+        accrue_interest(key<C>(), asset_storage_ref);
 
         let user_share_u128: u128;
         coin::merge(&mut pool_ref.asset, coin::withdraw<C>(account, amount));
@@ -317,7 +317,7 @@ module leizd::asset_pool {
         let pool_ref = borrow_global_mut<Pool<C>>(owner_address);
         let asset_storage_ref = borrow_mut_asset_storage<C>(borrow_global_mut<Storage>(owner_address));
 
-        accrue_interest<C>(asset_storage_ref);
+        accrue_interest(key<C>(), asset_storage_ref);
         collect_asset_fee<C>(pool_ref, liquidation_fee);
 
         let amount_u128: u128;
@@ -385,7 +385,7 @@ module leizd::asset_pool {
         let pool_ref = borrow_global_mut<Pool<C>>(owner_address);
         let asset_storage_ref = borrow_mut_asset_storage<C>(borrow_global_mut<Storage>(owner_address));
 
-        accrue_interest<C>(asset_storage_ref);
+        accrue_interest(key<C>(), asset_storage_ref);
 
         let fee = risk_factor::calculate_entry_fee(amount);
         let amount_with_fee = amount + fee;
@@ -446,7 +446,7 @@ module leizd::asset_pool {
         let pool_ref = borrow_global_mut<Pool<C>>(owner_address);
         let asset_storage_ref = borrow_mut_asset_storage<C>(borrow_global_mut<Storage>(owner_address));
 
-        accrue_interest<C>(asset_storage_ref);
+        accrue_interest(key<C>(), asset_storage_ref);
 
         let amount_u128: u128;
         let share_u128: u128;
@@ -495,7 +495,7 @@ module leizd::asset_pool {
         let owner_address = permission::owner_address();
         let asset_storage_ref = borrow_mut_asset_storage<C>(borrow_global_mut<Storage>(owner_address));
 
-        accrue_interest<C>(asset_storage_ref);
+        accrue_interest(key<C>(), asset_storage_ref);
         let liquidation_fee = risk_factor::calculate_liquidation_fee(withdrawing);
         let (amount, share) = withdraw_for_internal<C>(liquidator_addr, liquidator_addr, withdrawing, is_collateral_only, false, liquidation_fee);
 
@@ -561,9 +561,8 @@ module leizd::asset_pool {
     }
 
     /// This function is called on every user action.
-    fun accrue_interest<C>(asset_storage_ref: &mut AssetStorage) {
+    fun accrue_interest(key: String, asset_storage_ref: &mut AssetStorage) {
         let now = timestamp::now_microseconds();
-        let key = key<C>();
 
         // This is the first time
         if (asset_storage_ref.last_updated == 0) {

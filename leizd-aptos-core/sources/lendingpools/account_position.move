@@ -582,33 +582,25 @@ module leizd::account_position {
     }
 
     fun extra_and_insufficient_shadow(key: String, addr: address): (u64,u64,u64,u64) acquires Position {
-        let extra = 0;
-        let insufficient = 0;
-        
         let borrowed = borrowed_volume<ShadowToAsset>(addr, key);
         let deposited = deposited_volume<ShadowToAsset>(addr, key);
         let required_deposit = borrowed * risk_factor::precision() / risk_factor::ltv_of_shadow();
         if (deposited < required_deposit) {
-            insufficient = insufficient + (required_deposit - deposited);
+            (0, (required_deposit - deposited), deposited, borrowed)
         } else {
-            extra = extra + (deposited - required_deposit);
-        };
-        (extra, insufficient, deposited, borrowed)
+            ((deposited - required_deposit), 0, deposited, borrowed)
+        }
     }
 
     fun capacity_and_overdebt_shadow(key: String, addr: address): (u64,u64,u64,u64) acquires Position {
-        let capacity = 0;
-        let overdebt = 0;
-        
         let borrowed = borrowed_volume<AssetToShadow>(addr, key);
         let deposited = deposited_volume<AssetToShadow>(addr, key);
         let borrowable = deposited * risk_factor::ltv_of(key) / risk_factor::precision();
         if (borrowable < borrowed) {
-            overdebt = overdebt + (borrowed - borrowable);
+            (0, (borrowable - borrowed), deposited, borrowed)
         } else {
-            capacity = capacity + (borrowable - borrowed);
-        };
-        (capacity, overdebt, deposited, borrowed)
+            ((borrowable - borrowed), 0, deposited, borrowed)
+        }
     }
 
     ////////////////////////////////////////////////////
