@@ -166,10 +166,10 @@ module leizd_aptos_entry::money_market {
         let (account_position_key, asset_pool_key, shadow_pool_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
         let account_addr = signer::address_of(account);
 
-        let deposited_coins = account_position::deposited_coins<Shadow>(account_addr);
+        // update interests for pools that may be used
         asset_pool::exec_accrue_interest<C>(asset_pool_key);
         shadow_pool::exec_accrue_interest<C>(shadow_pool_key);
-        shadow_pool::exec_accrue_interest_for_selected(deposited_coins, shadow_pool_key);
+        shadow_pool::exec_accrue_interest_for_selected(account_position::deposited_coins<Shadow>(account_addr), shadow_pool_key); // for deposit, withdraw for rebalance
 
         // borrow asset for first without checking HF because updating account position & totals in asset_pool
         let (_, share) = asset_pool::borrow_for<C>(account_addr, account_addr, amount, asset_pool_key);
@@ -178,29 +178,30 @@ module leizd_aptos_entry::money_market {
             return ()
         };
 
-        let (coins, _, balances) = account_position::position<Shadow>(account_addr);
-        let unprotected = unprotected_coins(account_addr, coins);
-        let (deposited_amounts, _, borrowed_amounts) = shares_to_amounts_for_shadow(unprotected, balances);
+        let (coins_in_shadow_pos, _, balances_in_shadow_pos) = account_position::position<Shadow>(account_addr);
+        let unprotected_in_shadow_pos = unprotected_coins(account_addr, coins_in_shadow_pos);
+        let (deposited_amounts, _, borrowed_amounts) = shares_to_amounts_for_shadow_to_asset_pos(unprotected_in_shadow_pos, balances_in_shadow_pos);
         let (sum_extra, sum_insufficient, total_deposited_volume, total_borrowed_volume, deposited_volumes, borrowed_volumes) = sum_extra_and_insufficient_shadow(
-            unprotected,
+            unprotected_in_shadow_pos,
             deposited_amounts,
             borrowed_amounts,
         );
         if (sum_extra >= sum_insufficient) {
+            // execute rebalance with borrow
             let optimized_hf = risk_factor::health_factor_of(
                 coin_key::key<USDZ>(),
                 total_deposited_volume,
                 total_borrowed_volume
             );
             let (amounts_to_deposit, amounts_to_withdraw) = calc_to_optimize_shadow_by_rebalance_without_borrow(
-                unprotected,
+                unprotected_in_shadow_pos,
                 optimized_hf,
                 deposited_volumes,
                 borrowed_volumes
             );
             execute_rebalance(
                 account,
-                unprotected,
+                unprotected_in_shadow_pos,
                 amounts_to_deposit,
                 amounts_to_withdraw,
                 simple_map::create<String, u64>(),
@@ -212,7 +213,40 @@ module leizd_aptos_entry::money_market {
             return ()
         };
 
-        // TODO: execute rebalance with borrow
+        // execute rebalance with borrow
+        // re: update interests for pools that may be used
+        shadow_pool::exec_accrue_interest_for_selected(account_position::deposited_coins<Asset>(account_addr), shadow_pool_key); // for borrow, repay shadow for rebalance
+
+        let required_shadow = (sum_insufficient - sum_extra) * risk_factor::precision() / risk_factor::ltv_of_shadow(); // TODO: check (is this really okay?)
+        let (coins_in_asset_pos, _, balances_in_asset_pos) = account_position::position<Asset>(account_addr);
+        let unprotected_in_asset_pos = unprotected_coins(account_addr, coins_in_asset_pos);
+        let (deposited_amounts_atos, borrowed_amounts_atos, _) = shares_to_amounts_for_asset_to_shadow_pos(unprotected_in_asset_pos, balances_in_asset_pos);
+        let (sum_capacity, _, capacities, _, total_deposited_volume, total_borrowed_volume, deposited_volumes, borrowed_volumes) = sum_capacity_and_overdebt_shadow(
+            unprotected_in_asset_pos,
+            deposited_amounts_atos,
+            borrowed_amounts_atos,
+        ); // TODO: whether check sum_overdebt or not?
+        if (sum_capacity >= required_shadow) {
+            // supply shadow deficiency by borrowing
+            make_up_for_required_shadow_by_borrow(
+                unprotected_in_asset_pos,
+                required_shadow,
+                capacities,
+                &mut borrowed_amounts_atos,
+                &mut borrowed_volumes,
+            );
+            total_borrowed_volume = total_borrowed_volume + price_oracle::volume(&coin_key::key<USDZ>(), required_shadow);
+
+            // TODO: optimize AssetToShadow position (including borrowing USDZ)
+
+            // TODO: optimize ShadowToAsset position
+
+            // execute_rebalance
+
+            return ()
+        };
+
+        abort 0 // TODO error code
     }
     fun unprotected_coins(addr: address, coins: vector<String>): vector<String> {
         let unprotected = vector::empty<String>();
@@ -226,7 +260,8 @@ module leizd_aptos_entry::money_market {
         };
         unprotected
     }
-    fun shares_to_amounts_for_shadow(keys: vector<String>, balances: SimpleMap<String, account_position::Balance>): (
+    //// for ShadowToAsset position
+    fun shares_to_amounts_for_shadow_to_asset_pos(keys: vector<String>, balances: SimpleMap<String, account_position::Balance>): (
         SimpleMap<String, u64>, // deposited amounts
         u64, // total deposited amount // TODO: u128?
         SimpleMap<String, u64> // borrowed amounts
@@ -377,6 +412,153 @@ module leizd_aptos_entry::money_market {
         };
         (amount_to_deposit, amount_to_withdraw)
     }
+    //// for AssetToShadow position
+    fun shares_to_amounts_for_asset_to_shadow_pos(keys: vector<String>, balances: SimpleMap<String, account_position::Balance>): (
+        SimpleMap<String, u64>, // deposited amounts
+        SimpleMap<String, u64>, // borrowed amounts
+        u64, // total borrowed amount // TODO: u128?
+    ) {
+        let i = 0;
+        let deposited = simple_map::create<String, u64>();
+        let borrowed = simple_map::create<String, u64>();
+        let total_borrowed = 0;
+        while (i < vector::length(&keys)) {
+            let key = vector::borrow<String>(&keys, i);
+            if (simple_map::contains_key(&balances, key)) {
+                let (normal_deposited_share, conly_deposited_share, borrowed_share) = account_position::balance_value(simple_map::borrow(&balances, key));
+                let normal_deposited_amount = asset_pool::normal_deposited_share_to_amount(
+                    *key,
+                    normal_deposited_share,
+                );
+                let conly_deposited_amount = asset_pool::conly_deposited_share_to_amount(
+                    *key,
+                    conly_deposited_share,
+                );
+                simple_map::add(&mut deposited, *key, ((normal_deposited_amount + conly_deposited_amount) as u64)); // TODO: check type (u64?u128?)
+
+                let borrowed_amount = shadow_pool::borrowed_share_to_amount(
+                    *key,
+                    borrowed_share,
+                );
+                total_borrowed = total_borrowed + (borrowed_amount as u64); // TODO: check type (u64?u128?)
+                simple_map::add(&mut borrowed, *key, (borrowed_amount as u64)); // TODO: check type (u64?u128?)
+            };
+            i = i + 1;
+        };
+        (deposited, borrowed, total_borrowed)
+    }
+    fun sum_capacity_and_overdebt_shadow(
+        keys: vector<String>,
+        deposited_amounts: SimpleMap<String, u64>,
+        borrowed_amounts: SimpleMap<String, u64>
+    ): (
+        u64, // sum capacity
+        u64, // sum overdebt
+        SimpleMap<String, u64>, // capacities
+        SimpleMap<String, u64>, // overdebts
+        u64, // total deposited volume
+        u64, // total borrowed volume
+        SimpleMap<String, u64>, // deposited volumes
+        SimpleMap<String, u64>, // borrowed volumes
+    ) {
+        let sum_capacity = 0;
+        let sum_overdebt = 0;
+        let capacities = simple_map::create<String, u64>();
+        let overdebts = simple_map::create<String, u64>();
+        let total_deposited_volume = 0;
+        let total_borrowed_volume = 0;
+        let deposited_volumes = simple_map::create<String, u64>();
+        let borrowed_volumes = simple_map::create<String, u64>();
+
+        let i = 0;
+        while (i < vector::length(&keys)) {
+            let key = vector::borrow(&keys, i);
+            let (capacity, overdebt, deposited_volume, borrowed_volume) = capacity_and_overdebt_shadow(
+                *key,
+                *simple_map::borrow(&deposited_amounts, key),
+                coin_key::key<USDZ>(),
+                *simple_map::borrow(&borrowed_amounts, key),
+            );
+            sum_capacity = sum_capacity + capacity;
+            sum_overdebt = sum_overdebt + overdebt;
+            simple_map::add(&mut capacities, *key, capacity);
+            simple_map::add(&mut overdebts, *key, overdebt);
+            total_deposited_volume = total_deposited_volume + deposited_volume;
+            total_borrowed_volume = total_borrowed_volume + borrowed_volume;
+            simple_map::add(&mut deposited_volumes, *key, deposited_volume);
+            simple_map::add(&mut borrowed_volumes, *key, borrowed_volume);
+            i = i + 1;
+        };
+        (sum_capacity, sum_overdebt, capacities, overdebts, total_deposited_volume, total_borrowed_volume, deposited_volumes, borrowed_volumes)
+    }
+    fun capacity_and_overdebt_shadow(
+        deposited_key: String,
+        deposited_amount: u64,
+        borrowed_key: String,
+        borrowed_amount: u64
+    ): (
+        u64, // amount as capacity (borrowale additionally)
+        u64, // amount as overdebt (should repay)
+        u64, // deposited_volume
+        u64, // borrowed_volume
+    ) {
+        let deposited_volume = price_oracle::volume(&deposited_key, (deposited_amount as u64));
+        let borrowed_volume = price_oracle::volume(&borrowed_key, (borrowed_amount as u64));
+        let borrowable_volume = deposited_volume * risk_factor::ltv_of_shadow() / risk_factor::precision();
+        if (borrowable_volume > borrowed_volume) {
+            (
+                price_oracle::to_amount(&borrowed_key, borrowable_volume - borrowed_volume),
+                0,
+                deposited_volume,
+                borrowed_volume
+            )
+        } else if (borrowable_volume < borrowed_volume) {
+            (
+                0,
+                price_oracle::to_amount(&borrowed_key, borrowed_volume - borrowable_volume),
+                deposited_volume,
+                borrowed_volume
+            )
+        } else {
+            (
+                0,
+                0,
+                deposited_volume,
+                borrowed_volume
+            )
+        }
+    }
+    fun make_up_for_required_shadow_by_borrow(
+        keys: vector<String>,
+        required: u64,
+        capacities: SimpleMap<String, u64>,
+        borrowed_amounts: &mut SimpleMap<String, u64>,
+        borrowed_volumes: &mut SimpleMap<String, u64>,
+    ) {
+        let i = 0;
+        let required_remains = required;
+        while (i < vector::length(&keys)) {
+            let key = vector::borrow(&keys, i);
+            let capacity = simple_map::borrow(&capacities, key);
+            if (*capacity > 0) {
+                let borrowed_amount = simple_map::borrow_mut(borrowed_amounts, key);
+                let borrowed_volume = simple_map::borrow_mut(borrowed_volumes, key);
+                if (*capacity >= required_remains) {
+                    *borrowed_amount = *borrowed_amount + required_remains;
+                    let volume = price_oracle::volume(&coin_key::key<USDZ>(), required_remains);
+                    *borrowed_volume = *borrowed_volume + volume;
+                    break
+                } else {
+                    *borrowed_amount = *borrowed_amount + *capacity;
+                    required_remains = required_remains - *capacity;
+                    let volume = price_oracle::volume(&coin_key::key<USDZ>(), *capacity);
+                    *borrowed_volume = *borrowed_volume + volume;
+                };
+            };
+            i = i + 1;
+        }
+    }
+
     fun execute_rebalance(
         account: &signer,
         coins: vector<String>,
@@ -1558,5 +1740,36 @@ module leizd_aptos_entry::money_market {
         assert!(coin::balance<USDC>(account_addr) == 50000, 0);
         assert!(coin::balance<USDZ>(account_addr) == 2, 0); // -> 0, TODO: check
         assert!(coin::balance<UNI>(account_addr) == 10000, 0);
+    }
+    #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
+    fun test_borrow_asset_with_rebalance__borrow_and_deposit_2(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
+        prepare_to_exec_borrow_asset_with_rebalance(owner, lp, account, aptos_framework);
+
+        // prerequisite
+        let account_addr = signer::address_of(account);
+        managed_coin::mint<WETH>(owner, account_addr, 100000);
+        managed_coin::mint<USDC>(owner, account_addr, 50000);
+        deposit<WETH, Asset>(account, 100000, false);
+        deposit<USDC, Asset>(account, 50000, false);
+        assert!(account_position::deposited_asset_share<WETH>(account_addr) == 100000, 0);
+        assert!(account_position::deposited_asset_share<USDC>(account_addr) == 50000, 0);
+        assert!(coin::balance<WETH>(account_addr) == 0, 0);
+        assert!(coin::balance<USDC>(account_addr) == 0, 0);
+
+        // execute
+        borrow_asset_with_rebalance<UNI>(account, 10000);
+
+        // check
+        // NOTE: `share` value is equal to `amount` value in this situation
+        aptos_std::debug::print(&account_position::deposited_asset_share<WETH>(account_addr));
+        aptos_std::debug::print(&account_position::borrowed_shadow_share<WETH>(account_addr));
+        aptos_std::debug::print(&account_position::deposited_asset_share<USDC>(account_addr));
+        aptos_std::debug::print(&account_position::borrowed_shadow_share<USDC>(account_addr));
+        aptos_std::debug::print(&account_position::deposited_shadow_share<UNI>(account_addr));
+        aptos_std::debug::print(&account_position::borrowed_asset_share<UNI>(account_addr));
+        aptos_std::debug::print(&coin::balance<WETH>(account_addr));
+        aptos_std::debug::print(&coin::balance<USDC>(account_addr));
+        aptos_std::debug::print(&coin::balance<USDZ>(account_addr));
+        aptos_std::debug::print(&coin::balance<UNI>(account_addr));
     }
 }
