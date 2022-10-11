@@ -13,6 +13,7 @@ module leizd_aptos_entry::money_market {
     use std::vector;
     use std::string::{String};
     use aptos_std::simple_map::{Self,SimpleMap};
+    use aptos_framework::coin;
     use leizd_aptos_common::pool_type;
     use leizd_aptos_common::permission;
     use leizd_aptos_common::coin_key;
@@ -904,8 +905,6 @@ module leizd_aptos_entry::money_market {
 
     #[test_only]
     use aptos_framework::account;
-    #[test_only]
-    use aptos_framework::coin;
     #[test_only]
     use aptos_framework::managed_coin;
     #[test_only]
