@@ -910,6 +910,25 @@ module leizd::account_position {
         }
     }
 
+    public fun is_safe_asset_to_shadow<C>(addr: address): bool acquires Position {
+        is_safe_with<AssetToShadow>(key<C>(), addr)
+    }
+    public fun is_safe_asset_to_shadow_with(key: String, addr: address): bool acquires Position {
+        is_safe_with<AssetToShadow>(key, addr)
+    }
+    public fun assert_is_safe_asset_to_shadow(key: String, addr: address) acquires Position {
+        assert!(is_safe_asset_to_shadow_with(key, addr), error::invalid_state(ENO_SAFE_POSITION));
+    }
+    public fun is_safe_shadow_to_asset<C>(addr: address): bool acquires Position {
+        is_safe_with<ShadowToAsset>(key<C>(), addr)
+    }
+    public fun is_safe_shadow_to_asset_with(key: String, addr: address): bool acquires Position {
+        is_safe_with<ShadowToAsset>(key, addr)
+    }
+    public fun assert_is_safe_shadow_to_asset(key: String, addr: address) acquires Position {
+        assert!(is_safe_shadow_to_asset_with(key, addr), error::invalid_state(ENO_SAFE_POSITION));
+    }
+
     fun is_zero_position<C,P>(addr: address): bool acquires Position {
         let key = key<C>();
         let position_ref = borrow_global<Position<P>>(addr);
