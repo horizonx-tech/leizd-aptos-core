@@ -7,7 +7,7 @@ module leizd_aptos_central_liquidity_pool::clp_usdz {
 
     friend leizd_aptos_central_liquidity_pool::central_liquidity_pool;
 
-    struct StabilityCollateral {
+    struct LiquidityCentralPoolCollateral {
         coin: coin::Coin<USDZ>
     }
 
@@ -26,31 +26,31 @@ module leizd_aptos_central_liquidity_pool::clp_usdz {
         let symbol = string::utf8(b"CLP ");
         string::append(&mut name, coin_name);
         string::append(&mut symbol, coin_symbol);
-        coin_base_clp_usdz::initialize<StabilityCollateral>(owner, name, symbol, coin_decimals);
+        coin_base_clp_usdz::initialize<LiquidityCentralPoolCollateral>(owner, name, symbol, coin_decimals);
     }
 
     public fun register(account: &signer) {
-        coin_base_clp_usdz::register<StabilityCollateral>(account);
+        coin_base_clp_usdz::register<LiquidityCentralPoolCollateral>(account);
     }
 
     public fun is_account_registered(addr: address): bool {
-        coin::is_account_registered<StabilityCollateral>(addr)
+        coin::is_account_registered<LiquidityCentralPoolCollateral>(addr)
     }
 
     public(friend) fun mint(minter_addr: address, amount: u64) {
-        coin_base_clp_usdz::mint<StabilityCollateral>(minter_addr, amount);
+        coin_base_clp_usdz::mint<LiquidityCentralPoolCollateral>(minter_addr, amount);
     }
 
     public(friend) fun burn(account: &signer, amount: u64) {
-        coin_base_clp_usdz::burn<StabilityCollateral>(account, amount);
+        coin_base_clp_usdz::burn<LiquidityCentralPoolCollateral>(account, amount);
     }
 
     public fun balance_of(addr: address): u64 {
-        coin_base_clp_usdz::balance_of<StabilityCollateral>(addr)
+        coin_base_clp_usdz::balance_of<LiquidityCentralPoolCollateral>(addr)
     }
 
     public fun supply(): u128 {
-        coin_base_clp_usdz::supply<StabilityCollateral>()
+        coin_base_clp_usdz::supply<LiquidityCentralPoolCollateral>()
     }
 
     #[test_only]
@@ -59,9 +59,9 @@ module leizd_aptos_central_liquidity_pool::clp_usdz {
     fun test_initialize(owner: &signer) {
         trove_manager::initialize(owner);
         initialize(owner);
-        assert!(coin::is_coin_initialized<StabilityCollateral>(), 0);
-        assert!(coin::name<StabilityCollateral>() == string::utf8(b"Leizd CLP Collateral USDZ"), 0);
-        assert!(coin::symbol<StabilityCollateral>() == string::utf8(b"CLP USDZ"), 0);
-        assert!(coin::decimals<StabilityCollateral>() == 8, 0);
+        assert!(coin::is_coin_initialized<LiquidityCentralPoolCollateral>(), 0);
+        assert!(coin::name<LiquidityCentralPoolCollateral>() == string::utf8(b"Leizd CLP Collateral USDZ"), 0);
+        assert!(coin::symbol<LiquidityCentralPoolCollateral>() == string::utf8(b"CLP USDZ"), 0);
+        assert!(coin::decimals<LiquidityCentralPoolCollateral>() == 8, 0);
     }
 }
