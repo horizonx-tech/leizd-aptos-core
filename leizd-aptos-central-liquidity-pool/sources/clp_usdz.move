@@ -22,8 +22,8 @@ module leizd_aptos_central_liquidity_pool::clp_usdz {
         let coin_symbol = coin::symbol<USDZ>();
         let coin_decimals = coin::decimals<USDZ>();
 
-        let name = string::utf8(b"Leizd Stabilized Collateral ");
-        let symbol = string::utf8(b"stb");
+        let name = string::utf8(b"Leizd CLP Collateral ");
+        let symbol = string::utf8(b"CLP ");
         string::append(&mut name, coin_name);
         string::append(&mut symbol, coin_symbol);
         coin_base_clp_usdz::initialize<StabilityCollateral>(owner, name, symbol, coin_decimals);
@@ -51,5 +51,17 @@ module leizd_aptos_central_liquidity_pool::clp_usdz {
 
     public fun supply(): u128 {
         coin_base_clp_usdz::supply<StabilityCollateral>()
+    }
+
+    #[test_only]
+    use leizd_aptos_trove::trove_manager;
+    #[test(owner = @leizd_aptos_central_liquidity_pool)]
+    fun test_initialize(owner: &signer) {
+        trove_manager::initialize(owner);
+        initialize(owner);
+        assert!(coin::is_coin_initialized<StabilityCollateral>(), 0);
+        assert!(coin::name<StabilityCollateral>() == string::utf8(b"Leizd CLP Collateral USDZ"), 0);
+        assert!(coin::symbol<StabilityCollateral>() == string::utf8(b"CLP USDZ"), 0);
+        assert!(coin::decimals<StabilityCollateral>() == 8, 0);
     }
 }
