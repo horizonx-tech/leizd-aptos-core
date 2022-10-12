@@ -25,41 +25,35 @@ jobs:
           version: latest
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: aptos init
-        run: aptos init --rest-url https://fullnode.devnet.aptoslabs.com/v1 --faucet-url https://faucet.devnet.aptoslabs.com --assume-yes
-
-      - name: lookup addres
-        run: aptos account lookup-address
-
       - name: Set up release
         run: sh prerelease.sh
 
       - name: release leizd-aptos-common
-        run: aptos move publish --package-dir leizd-aptos-common --override-size-check --account default --assume-yes
+        run: aptos move publish --package-dir leizd-aptos-common --override-size-check --assume-yes
 
       - name: release leizd-aptos-lib
-        run: aptos move publish --package-dir leizd-aptos-lib --override-size-check --account default --assume-yes
+        run: aptos move publish --package-dir leizd-aptos-lib --override-size-check --assume-yes
 
       - name: release leizd-aptos-external
-        run: aptos move publish --package-dir leizd-aptos-external --override-size-check --account default --assume-yes
+        run: aptos move publish --package-dir leizd-aptos-external --override-size-check --assume-yes
 
       - name: release leizd-aptos-trove
-        run: aptos move publish --package-dir leizd-aptos-trove --override-size-check --account default --assume-yes
+        run: aptos move publish --package-dir leizd-aptos-trove --override-size-check --assume-yes
 
       - name: release leizd-aptos-treasury
-        run: aptos move publish --package-dir leizd-aptos-treasury --override-size-check --account default --assume-yes
+        run: aptos move publish --package-dir leizd-aptos-treasury --override-size-check --assume-yes
 
       - name: release leizd-aptos-central-liquidity-pool
-        run: aptos move publish --package-dir leizd-aptos-central-liquidity-pool --override-size-check --account default --assume-yes
+        run: aptos move publish --package-dir leizd-aptos-central-liquidity-pool --override-size-check --assume-yes
 
       - name: release leizd-aptos-logic
-        run: aptos move publish --package-dir leizd-aptos-logic --override-size-check --account default --assume-yes
+        run: aptos move publish --package-dir leizd-aptos-logic --override-size-check --assume-yes
 
       - name: release leizd-aptos-core
-        run: aptos move publish --package-dir leizd-aptos-core --override-size-check --account default --assume-yes --included-artifacts none
+        run: aptos move publish --package-dir leizd-aptos-core --override-size-check --assume-yes --included-artifacts none
 
       - name: release leizd-aptos-entry
-        run: aptos move publish --package-dir leizd-aptos-entry --override-size-check --account default --assume-yes
+        run: aptos move publish --package-dir leizd-aptos-entry --override-size-check --assume-yes
 
       - name: Checkout test repo
         uses: actions/checkout@v3
