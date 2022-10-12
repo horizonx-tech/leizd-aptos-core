@@ -549,29 +549,84 @@ module leizd::interest_rate {
         let x = calc_x(r0, r1, rlin, slope, time);
         assert!(i128::as_u128(&i128::abs(&x)) == 2019074, 0);
     }
-
+    use std::debug;
     #[test]
     public entry fun test_calc_slope_i() {
-        let ki = 367011;
-        let uopt = 700000000;
-        let u = 500000000; // 50%
-        let slopei = calc_slope_i(ki, u, uopt);
-        assert!(i128::is_neg(&slopei), 0);
-        assert!(i128::as_u128(&i128::abs(&slopei)) == 73402, 0);
-
         let ki = 367011;
         let uopt = 700000000;
         let u = 0; // 0%
         let slopei = calc_slope_i(ki, u, uopt);
         assert!(i128::is_neg(&slopei), 0);
-        assert!(i128::as_u128(&i128::abs(&slopei)) == 256907, 0);
+        assert!(i128::as_u128(&i128::abs(&slopei)) == 256907, 0); // -256907
+
+        let ki = 367011;
+        let uopt = 700000000;
+        let u = 100000000; // 10%
+        let slopei = calc_slope_i(ki, u, uopt);
+        assert!(i128::is_neg(&slopei), 0);
+        assert!(i128::as_u128(&i128::abs(&slopei)) == 220206, 0); // -220206
+
+        let ki = 367011;
+        let uopt = 700000000;
+        let u = 200000000; // 20%
+        let slopei = calc_slope_i(ki, u, uopt);
+        assert!(i128::is_neg(&slopei), 0);
+        assert!(i128::as_u128(&i128::abs(&slopei)) == 183505, 0); // -183505
+
+        let ki = 367011;
+        let uopt = 700000000;
+        let u = 300000000; // 30%
+        let slopei = calc_slope_i(ki, u, uopt);
+        assert!(i128::is_neg(&slopei), 0);
+        assert!(i128::as_u128(&i128::abs(&slopei)) == 146804, 0); // -146804
+
+        let ki = 367011;
+        let uopt = 700000000;
+        let u = 400000000; // 40%
+        let slopei = calc_slope_i(ki, u, uopt);
+        assert!(i128::is_neg(&slopei), 0);
+        assert!(i128::as_u128(&i128::abs(&slopei)) == 110103, 0); // -110103
+
+        let ki = 367011;
+        let uopt = 700000000;
+        let u = 500000000; // 50%
+        let slopei = calc_slope_i(ki, u, uopt);
+        assert!(i128::is_neg(&slopei), 0);
+        assert!(i128::as_u128(&i128::abs(&slopei)) == 73402, 0); // -73402
+
+        let ki = 367011;
+        let uopt = 700000000;
+        let u = 600000000; // 60%
+        let slopei = calc_slope_i(ki, u, uopt);
+        assert!(i128::is_neg(&slopei), 0);
+        assert!(i128::as_u128(&i128::abs(&slopei)) == 36701, 0); // -36701
+
+        let ki = 367011;
+        let uopt = 700000000;
+        let u = 700000000; // 70%
+        let slopei = calc_slope_i(ki, u, uopt);
+        assert!(i128::as_u128(&i128::abs(&slopei)) == 0, 0); // 0
+
+        let ki = 367011;
+        let uopt = 700000000;
+        let u = 800000000; // 80%
+        let slopei = calc_slope_i(ki, u, uopt);
+        assert!(!i128::is_neg(&slopei), 0);
+        assert!(i128::as_u128(&i128::abs(&slopei)) == 36701, 0); // 36701
+
+        let ki = 367011;
+        let uopt = 700000000;
+        let u = 900000000; // 90%
+        let slopei = calc_slope_i(ki, u, uopt);
+        assert!(!i128::is_neg(&slopei), 0);
+        assert!(i128::as_u128(&i128::abs(&slopei)) == 73402, 0); // 73402
 
         let ki = 367011;
         let uopt = 700000000;
         let u = 1000000000; // 100%
         let slopei = calc_slope_i(ki, u, uopt);
         assert!(!i128::is_neg(&slopei), 0);
-        assert!(i128::as_u128(&i128::abs(&slopei)) == 110103, 0);
+        assert!(i128::as_u128(&i128::abs(&slopei)) == 110103, 0); // 110103
     }
 
     #[test]
