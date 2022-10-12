@@ -25,6 +25,9 @@ jobs:
           version: latest
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: aptos init
+        run: aptos init --rest-url https://fullnode.devnet.aptoslabs.com/v1 --faucet-url https://faucet.devnet.aptoslabs.com/ --assume-yes
+
       - name: Set up release
         run: sh prerelease.sh
 
