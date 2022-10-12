@@ -513,35 +513,55 @@ module leizd::asset_pool {
     ////////////////////////////////////////////////////
     /// Switch Collateral
     ////////////////////////////////////////////////////
-    public fun switch_collateral<C>(caller: address, amount: u64, to_collateral_only: bool, _key: &OperatorKey) acquires Pool, Storage, PoolEventHandle {
-        switch_collateral_internal<C>(caller, amount, to_collateral_only);
+    public fun switch_collateral<C>(caller: address, share: u64, to_collateral_only: bool, _key: &OperatorKey): (u64, u64, u64) acquires Storage, PoolEventHandle {
+        switch_collateral_internal<C>(caller, share, to_collateral_only)
     }
 
-    fun switch_collateral_internal<C>(caller: address, amount: u64, to_collateral_only: bool) acquires Pool, Storage, PoolEventHandle {
+    fun switch_collateral_internal<C>(caller: address, share: u64, to_collateral_only: bool): (
+        u64, // amount
+        u64, // share for from
+        u64, // share for to
+    ) acquires Storage, PoolEventHandle {
         assert!(pool_status::can_switch_collateral<C>(), error::invalid_state(ENOT_AVAILABLE_STATUS));
-        assert!(amount > 0, error::invalid_argument(EAMOUNT_ARG_IS_ZERO));
+        assert!(share > 0, error::invalid_argument(EAMOUNT_ARG_IS_ZERO));
         let owner_address = permission::owner_address();
-        let pool_ref = borrow_global<Pool<C>>(owner_address);
         let asset_storage_ref = borrow_mut_asset_storage<C>(borrow_global_mut<Storage>(owner_address));
 
-        let amount_u128 = (amount as u128);
+        accrue_interest(key<C>(), asset_storage_ref);
+
+        let from_share_u128 = (share as u128);
+        let amount_u128: u128;
+        let to_share_u128: u128;
         if (to_collateral_only) {
-            assert!(amount_u128 <= liquidity_internal(pool_ref, asset_storage_ref), error::invalid_argument(EINSUFFICIENT_LIQUIDITY));
-            asset_storage_ref.total_conly_deposited_amount = asset_storage_ref.total_conly_deposited_amount + amount_u128;
+            amount_u128 = math128::to_amount(from_share_u128, asset_storage_ref.total_normal_deposited_amount, asset_storage_ref.total_normal_deposited_share);
+            to_share_u128 = math128::to_share(amount_u128, asset_storage_ref.total_conly_deposited_amount, asset_storage_ref.total_conly_deposited_share);
+
+            // assert!(amount_u128 <= liquidity_internal(pool_ref, asset_storage_ref), error::invalid_argument(EINSUFFICIENT_LIQUIDITY));
             asset_storage_ref.total_normal_deposited_amount = asset_storage_ref.total_normal_deposited_amount - amount_u128;
+            asset_storage_ref.total_normal_deposited_share = asset_storage_ref.total_normal_deposited_share - from_share_u128;
+            asset_storage_ref.total_conly_deposited_amount = asset_storage_ref.total_conly_deposited_amount + amount_u128;
+            asset_storage_ref.total_conly_deposited_share = asset_storage_ref.total_conly_deposited_share + to_share_u128;
         } else {
-            assert!(amount_u128 <= asset_storage_ref.total_conly_deposited_amount, error::invalid_argument(EINSUFFICIENT_CONLY_DEPOSITED));
-            asset_storage_ref.total_normal_deposited_amount = asset_storage_ref.total_normal_deposited_amount + amount_u128;
+            amount_u128 = math128::to_amount(from_share_u128, asset_storage_ref.total_conly_deposited_amount, asset_storage_ref.total_conly_deposited_share);
+            to_share_u128 = math128::to_share(amount_u128, asset_storage_ref.total_normal_deposited_amount, asset_storage_ref.total_normal_deposited_share);
+
+            // assert!(amount_u128 <= asset_storage_ref.total_conly_deposited_amount, error::invalid_argument(EINSUFFICIENT_CONLY_DEPOSITED));
             asset_storage_ref.total_conly_deposited_amount = asset_storage_ref.total_conly_deposited_amount - amount_u128;
+            asset_storage_ref.total_conly_deposited_share = asset_storage_ref.total_conly_deposited_share - from_share_u128;
+            asset_storage_ref.total_normal_deposited_amount = asset_storage_ref.total_normal_deposited_amount + amount_u128;
+            asset_storage_ref.total_normal_deposited_share = asset_storage_ref.total_normal_deposited_share + to_share_u128;
         };
+
         event::emit_event<SwitchCollateralEvent>(
             &mut borrow_global_mut<PoolEventHandle<C>>(owner_address).switch_collateral_event,
             SwitchCollateralEvent {
                 caller,
-                amount,
+                amount: (amount_u128 as u64),
                 to_collateral_only,
             },
         );
+
+        ((amount_u128 as u64), (from_share_u128 as u64), (to_share_u128 as u64))
     }
 
     ////////////////////////////////////////////////////
