@@ -43,7 +43,7 @@ module leizd::account_position {
         balance: SimpleMap<String,Balance>,
     }
 
-    struct Balance has store, drop {
+    struct Balance has copy, store, drop {
         normal_deposited_share: u64,
         conly_deposited_share: u64,
         borrowed_share: u64,
@@ -215,6 +215,33 @@ module leizd::account_position {
         withdrawn_amount
     }
 
+    public fun withdraw_unsafe<C,P>(
+        depositor_addr: address,
+        share: u64,
+        is_collateral_only: bool,
+        _key: &OperatorKey
+    ): u64 acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
+        withdraw_unsafe_internal<P>(key<C>(), depositor_addr, share, is_collateral_only)
+    }
+    public fun withdraw_unsafe_with<P>(
+        key: String,
+        depositor_addr: address,
+        share: u64,
+        is_collateral_only: bool,
+        _key: &OperatorKey
+    ): u64 acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
+        withdraw_unsafe_internal<P>(key, depositor_addr, share, is_collateral_only)
+    }
+    fun withdraw_unsafe_internal<P>(key: String, depositor_addr: address, share: u64, is_collateral_only: bool): u64 acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
+        let withdrawn_amount;
+        if (pool_type::is_type_asset<P>()) {
+            withdrawn_amount = update_on_withdraw<AssetToShadow>(key, depositor_addr, share, is_collateral_only);
+        } else {
+            withdrawn_amount = update_on_withdraw<ShadowToAsset>(key, depositor_addr, share, is_collateral_only);
+        };
+        withdrawn_amount
+    }
+
     public fun withdraw_all<C,P>(
         depositor_addr: address,
         is_collateral_only: bool,
@@ -273,6 +300,35 @@ module leizd::account_position {
         } else {
             update_on_borrow<AssetToShadow>(key, borrower_addr, share);
             assert!(is_safe_with<AssetToShadow>(key, borrower_addr), error::invalid_state(ENO_SAFE_POSITION));
+        };
+    }
+
+    public fun borrow_unsafe<C,P>(
+        borrower_addr: address,
+        share: u64,
+        _key: &OperatorKey
+    ) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
+        borrow_unsafe_internal<P>(key<C>(), borrower_addr, share)
+    }
+    public fun borrow_unsafe_with<P>(
+        key: String,
+        borrower_addr: address,
+        share: u64,
+        _key: &OperatorKey
+    ) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
+        borrow_unsafe_internal<P>(key, borrower_addr, share)
+    }
+    public fun borrow_unsafe_internal<P>(
+        key: String,
+        borrower_addr: address,
+        share: u64,
+    ) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
+        assert!(exists<Position<AssetToShadow>>(borrower_addr), error::invalid_argument(ENO_POSITION_RESOURCE));
+
+        if (pool_type::is_type_asset<P>()) {
+            update_on_borrow<ShadowToAsset>(key, borrower_addr, share);
+        } else {
+            update_on_borrow<AssetToShadow>(key, borrower_addr, share);
         };
     }
 
@@ -530,6 +586,9 @@ module leizd::account_position {
         repaid_share
     }
 
+    ////////////////////////////////////////////////////
+    /// Rebalance
+    ////////////////////////////////////////////////////
     ////// for repay_shadow_with_rebalance
     public fun repay_shadow_with(
         key: String,
@@ -589,7 +648,7 @@ module leizd::account_position {
         }
     }
 
-    fun extra_and_insufficient_shadow(key: String, addr: address): (u64,u64,u64,u64) acquires Position {
+    public fun extra_and_insufficient_shadow(key: String, addr: address): (u64,u64,u64,u64) acquires Position {
         let borrowed = borrowed_volume<ShadowToAsset>(addr, key);
         let deposited = deposited_volume<ShadowToAsset>(addr, key);
         let required_deposit = borrowed * risk_factor::precision() / risk_factor::ltv_of_shadow();
@@ -851,6 +910,25 @@ module leizd::account_position {
         }
     }
 
+    public fun is_safe_asset_to_shadow<C>(addr: address): bool acquires Position {
+        is_safe_with<AssetToShadow>(key<C>(), addr)
+    }
+    public fun is_safe_asset_to_shadow_with(key: String, addr: address): bool acquires Position {
+        is_safe_with<AssetToShadow>(key, addr)
+    }
+    public fun assert_is_safe_asset_to_shadow(key: String, addr: address) acquires Position {
+        assert!(is_safe_asset_to_shadow_with(key, addr), error::invalid_state(ENO_SAFE_POSITION));
+    }
+    public fun is_safe_shadow_to_asset<C>(addr: address): bool acquires Position {
+        is_safe_with<ShadowToAsset>(key<C>(), addr)
+    }
+    public fun is_safe_shadow_to_asset_with(key: String, addr: address): bool acquires Position {
+        is_safe_with<ShadowToAsset>(key, addr)
+    }
+    public fun assert_is_safe_shadow_to_asset(key: String, addr: address) acquires Position {
+        assert!(is_safe_shadow_to_asset_with(key, addr), error::invalid_state(ENO_SAFE_POSITION));
+    }
+
     fun is_zero_position<C,P>(addr: address): bool acquires Position {
         let key = key<C>();
         let position_ref = borrow_global<Position<P>>(addr);
@@ -1054,6 +1132,53 @@ module leizd::account_position {
         (keys, borrowed_shares)
     }
 
+    ////// for borrow_asset_with_rebalance
+    public fun deposited_coins<P>(addr: address): vector<String> acquires Position {
+        let (coins, _, balances) = position<P>(addr);
+        let deposited_coins = vector::empty<String>();
+        let i = 0;
+        while (i < vector::length(&coins)) {
+            let coin = vector::borrow(&coins, i);
+            if (!simple_map::contains_key(&balances, coin)) continue;
+            let balance = simple_map::borrow(&balances, coin);
+            if (balance.normal_deposited_share > 0 || balance.conly_deposited_share > 0) {
+                vector::push_back(&mut deposited_coins, *coin);
+            };
+            i = i + 1;
+        };
+        deposited_coins
+    }
+    public fun position<P>(addr: address): (vector<String>, SimpleMap<String,bool>, SimpleMap<String,Balance>) acquires Position {
+        pool_type::assert_pool_type<P>();
+        if (pool_type::is_type_asset<P>()) {
+            position_internal<AssetToShadow>(addr)
+        } else {
+            position_internal<ShadowToAsset>(addr)
+        }
+    }
+    fun position_internal<P>(addr: address): (vector<String>, SimpleMap<String,bool>, SimpleMap<String,Balance>) acquires Position {
+        position_type::assert_position_type<P>();
+        if (position_type::is_asset_to_shadow<P>()) {
+            if (!exists<Position<AssetToShadow>>(addr)) return (vector::empty<String>(), simple_map::create<String, bool>(), simple_map::create<String, Balance>());
+            position_value(borrow_global<Position<AssetToShadow>>(addr))
+        } else {
+            if (!exists<Position<ShadowToAsset>>(addr)) return (vector::empty<String>(), simple_map::create<String, bool>(), simple_map::create<String, Balance>());
+            position_value(borrow_global<Position<ShadowToAsset>>(addr))
+        }
+    }
+
+    public fun position_value<P>(position: &Position<P>): (vector<String>, SimpleMap<String,bool>, SimpleMap<String,Balance>) {
+        (position.coins, position.protected_coins, position.balance)
+    }
+
+    public fun balance_value(balance: &Balance): (u64, u64, u64) {
+        (
+            balance.normal_deposited_share,
+            balance.conly_deposited_share,
+            balance.borrowed_share,
+        )
+    }
+
     //// get total from pools
     fun total_normal_deposited<P>(key: String): (u128, u128) {
         if (position_type::is_asset_to_shadow<P>()) {
@@ -1130,11 +1255,7 @@ module leizd::account_position {
     }
     #[test_only]
     fun borrow_unsafe_for_test<C,P>(borrower_addr: address, amount: u64) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        if (pool_type::is_type_asset<P>()) {
-            update_on_borrow<ShadowToAsset>(key<C>(), borrower_addr, amount);
-        } else {
-            update_on_borrow<AssetToShadow>(key<C>(), borrower_addr, amount);
-        };
+        borrow_unsafe_internal<P>(key<C>(), borrower_addr, amount)
     }
     #[test_only]
     public fun initialize_position_if_necessary_for_test(account: &signer) {

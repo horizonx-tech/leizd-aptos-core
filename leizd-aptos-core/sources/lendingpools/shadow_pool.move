@@ -981,11 +981,11 @@ module leizd::shadow_pool {
         borrow_global<Storage>(permission::owner_address()).total_borrowed_amount
     }
 
-    fun is_initialized_asset<C>(): bool acquires Storage {
+    public fun is_initialized_asset<C>(): bool acquires Storage {
         let storage_ref = borrow_global<Storage>(permission::owner_address());
         is_initialized_asset_with_internal(&key<C>(), storage_ref)
     }
-    fun is_initialized_asset_with(key: &String): bool acquires Storage {
+    public fun is_initialized_asset_with(key: &String): bool acquires Storage {
         let storage_ref = borrow_global<Storage>(permission::owner_address());
         is_initialized_asset_with_internal(key, storage_ref)
     }

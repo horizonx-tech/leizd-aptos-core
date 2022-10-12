@@ -5,6 +5,7 @@ module leizd_aptos_logic::risk_factor {
     use std::vector;
     use std::string::{Self,String};
     use aptos_std::event;
+    use aptos_std::simple_map::{Self,SimpleMap};
     use aptos_framework::account;
     use aptos_framework::table;
     use leizd_aptos_common::coin_key::{key};
@@ -225,7 +226,9 @@ module leizd_aptos_logic::risk_factor {
         if (deposited == 0) {
             0
         } else {
-            let u = (borrowed * precision() / (deposited * lt_of(key) / precision()));
+            let scaled_numerator = borrowed * precision() * precision();
+            let denominator = deposited * lt_of(key);
+            let u = scaled_numerator / denominator;
             if (precision() < u) {
                 0
             } else {
@@ -260,6 +263,18 @@ module leizd_aptos_logic::risk_factor {
                 precision() - u
             }
         }
+    }
+    public fun health_factor_weighted_average_by_map(keys: vector<String>, deposits: SimpleMap<String, u64>, borrows: SimpleMap<String, u64>): u64 acquires Config {
+        let deposits_vec = vector::empty<u64>();
+        let borrows_vec = vector::empty<u64>();
+        let i = 0;
+        while (i < vector::length(&keys)) {
+            let key = vector::borrow(&keys, i);
+            vector::push_back(&mut deposits_vec, *simple_map::borrow(&deposits, key));
+            vector::push_back(&mut borrows_vec, *simple_map::borrow(&borrows, key));
+            i = i + 1;
+        };
+        health_factor_weighted_average(keys, deposits_vec, borrows_vec)
     }
 
     // about fee
