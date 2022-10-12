@@ -883,14 +883,12 @@ module leizd::interest_rate {
         assert!(i128::as_u128(&i128::abs(&r0)) == 139523084728, 0); // 139523084728
     }
 
-    // use std::debug;
-
     #[test]
     public entry fun test_calc_r1() {
         let last_updated = 1648738800 * 1000000;
         let now = (1648738800 + 31556926) * 1000000; // about 1 year later
-        let time = now - last_updated;
-        
+        let time = (((now - last_updated) / 1000000 ) as u128);
+
         // common params
         let ucrit = 850000000; // 85%
         let ulow = 400000000; // 40%
@@ -911,7 +909,7 @@ module leizd::interest_rate {
         let r0 = i128::add(&ri, &rp);
         let r1 = calc_r1(r0, slope, time);
         assert!(i128::is_neg(&r1), 0);
-        assert!(i128::as_u128(&i128::abs(&r1)) == 8107195225933750380, 0); // -8107195225933750380
+        assert!(i128::as_u128(&i128::abs(&r1)) == 8145246938262, 0); // -8145246938262
 
         let u = 100000000; // 10%
         let slopei = calc_slope_i(ki, u, uopt);
@@ -922,7 +920,7 @@ module leizd::interest_rate {
         let r0 = i128::add(&ri, &rp);
         let r1 = calc_r1(r0, slope, time);
         assert!(i128::is_neg(&r1), 0);
-        assert!(i128::as_u128(&i128::abs(&r1)) == 6949024475136263826, 0); // -6949024475136263826
+        assert!(i128::as_u128(&i128::abs(&r1)) == 6977404710582, 0); // -6977404710582
 
         let u = 200000000; // 20%
         let slopei = calc_slope_i(ki, u, uopt);
@@ -933,7 +931,7 @@ module leizd::interest_rate {
         let r0 = i128::add(&ri, &rp);
         let r1 = calc_r1(r0, slope, time);
         assert!(i128::is_neg(&r1), 0);
-        assert!(i128::as_u128(&i128::abs(&r1)) == 5790853724338777271, 0); // -5790853724338777271
+        assert!(i128::as_u128(&i128::abs(&r1)) == 5809562482901, 0); // -5809562482901
 
         let u = 300000000; // 30%
         let slopei = calc_slope_i(ki, u, uopt);
@@ -944,7 +942,7 @@ module leizd::interest_rate {
         let r0 = i128::add(&ri, &rp);
         let r1 = calc_r1(r0, slope, time);
         assert!(i128::is_neg(&r1), 0);
-        assert!(i128::as_u128(&i128::abs(&r1)) == 4632682973541290716, 0); // -4632682973541290716
+        assert!(i128::as_u128(&i128::abs(&r1)) == 4641720255220, 0); // -4641720255220
 
         let u = 400000000; // 40%
         let slopei = calc_slope_i(ki, u, uopt);
@@ -955,7 +953,7 @@ module leizd::interest_rate {
         let r0 = i128::add(&ri, &rp);
         let r1 = calc_r1(r0, slope, time);
         assert!(i128::is_neg(&r1), 0);
-        assert!(i128::as_u128(&i128::abs(&r1)) == 3474512222743804161, 0); // -3474512222743804161
+        assert!(i128::as_u128(&i128::abs(&r1)) == 3473878027539, 0); // -3473878027539
 
         let u = 500000000; // 50%
         let slopei = calc_slope_i(ki, u, uopt);
@@ -966,7 +964,7 @@ module leizd::interest_rate {
         let r0 = i128::add(&ri, &rp);
         let r1 = calc_r1(r0, slope, time);
         assert!(i128::is_neg(&r1), 0);
-        assert!(i128::as_u128(&i128::abs(&r1)) == 2316341481459255201, 0); // -2316341481459255201
+        assert!(i128::as_u128(&i128::abs(&r1)) == 2315548737453, 0); // -2315548737453
 
         let u = 600000000; // 60%
         let slopei = calc_slope_i(ki, u, uopt);
@@ -977,7 +975,7 @@ module leizd::interest_rate {
         let r0 = i128::add(&ri, &rp);
         let r1 = calc_r1(r0, slope, time);
         assert!(i128::is_neg(&r1), 0);
-        assert!(i128::as_u128(&i128::abs(&r1)) == 1158170740174706241, 0); // -1158170740174706241
+        assert!(i128::as_u128(&i128::abs(&r1)) == 1157219447367, 0); // -1157219447367
 
         let u = 700000000; // 70%
         let slopei = calc_slope_i(ki, u, uopt);
@@ -999,7 +997,7 @@ module leizd::interest_rate {
         let r0 = i128::add(&ri, &rp);
         let r1 = calc_r1(r0, slope, time);
         assert!(!i128::is_neg(&r1), 0);
-        assert!(i128::as_u128(&i128::abs(&r1)) == 1158170742394391679, 0); // 1158170742394391679
+        assert!(i128::as_u128(&i128::abs(&r1)) == 1159439132805, 0); // 1159439132805
 
         let u = 900000000; // 90%
         let slopei = calc_slope_i(ki, u, uopt);
@@ -1010,7 +1008,7 @@ module leizd::interest_rate {
         let r0 = i128::add(&ri, &rp);
         let r1 = calc_r1(r0, slope, time);
         assert!(!i128::is_neg(&r1), 0);
-        assert!(i128::as_u128(&i128::abs(&r1)) == 2316341529658139015, 0); // 2316341529658139015
+        assert!(i128::as_u128(&i128::abs(&r1)) == 2363747621267, 0); // 2363747621267
 
         let u = 1000000000; // 100%
         let slopei = calc_slope_i(ki, u, uopt);
@@ -1021,23 +1019,127 @@ module leizd::interest_rate {
         let r0 = i128::add(&ri, &rp);
         let r1 = calc_r1(r0, slope, time);
         assert!(!i128::is_neg(&r1), 0);
-        assert!(i128::as_u128(&i128::abs(&r1)) == 3474512362901084728, 0); // 3474512362901084728
+        assert!(i128::as_u128(&i128::abs(&r1)) == 3614035308106, 0); // 3614035308106
     }
+
+    use std::debug;
 
     #[test]
     public entry fun test_calc_x() {
-        // slope: -36701
-        // rlin: 951293759
-        // ri: 951293759
-        // r0: 951293759
-        // r1: 5716213612 (time:181671)
-        // x: 605646
-        let r0 = i128::from(951293759);
-        let r1 = i128::from(5716213612);
-        let rlin = i128::from(951293759);
-        let slope = i128::neg_from(36701);
-        let time = 605646;
+        let last_updated = 1648738800 * 1000000;
+        let now = (1648738800 + 31556926) * 1000000; // about 1 year later
+        let time = (((now - last_updated) / 1000000 ) as u128);
+        
+        // common params
+        let ucrit = 850000000; // 85%
+        let ulow = 400000000; // 40%
+        let kcrit = 919583967529; // 29%
+        let klow = 95129375951;   // 3%
+        let klin = 1585489599;
+        let tcrit = 0;
+        let ki = 367011;
+        let uopt = 700000000;
+        let beta = 277778;
+
+        let u = 0; // 0%
+        let slopei = calc_slope_i(ki, u, uopt);
+        let slope = calc_slope(slopei, u, ucrit, kcrit, beta);
+        let rlin = i128::from(klin * u / PRECISION);
+        let ri = rlin; // (ri < rlin)
+        let rp = calc_rp(u, ucrit, ulow, kcrit, klow, tcrit);
+        let r0 = i128::add(&ri, &rp);
+        let r1 = calc_r1(r0, slope, time);
         let x = calc_x(r0, r1, rlin, slope, time);
-        assert!(i128::as_u128(&i128::abs(&x)) == 2019074, 0);
+        assert!(i128::as_u128(&i128::abs(&x)) == 0, 0);
+
+        let u = 100000000; // 10%
+        let slopei = calc_slope_i(ki, u, uopt);
+        let slope = calc_slope(slopei, u, ucrit, kcrit, beta);
+        let rlin = i128::from(klin * u / PRECISION);
+        let ri = rlin; // (ri < rlin)
+        let rp = calc_rp(u, ucrit, ulow, kcrit, klow, tcrit);
+        let r0 = i128::add(&ri, &rp);
+        let r1 = calc_r1(r0, slope, time);
+        let x = calc_x(r0, r1, rlin, slope, time);
+        assert!(i128::as_u128(&i128::abs(&x)) == 5003317, 0);
+
+        let u = 200000000; // 20%
+        let slopei = calc_slope_i(ki, u, uopt);
+        let slope = calc_slope(slopei, u, ucrit, kcrit, beta);
+        let rlin = i128::from(klin * u / PRECISION);
+        let ri = rlin; // (ri < rlin)
+        let rp = calc_rp(u, ucrit, ulow, kcrit, klow, tcrit);
+        let r0 = i128::add(&ri, &rp);
+        let r1 = calc_r1(r0, slope, time);
+        let x = calc_x(r0, r1, rlin, slope, time);
+        assert!(i128::as_u128(&i128::abs(&x)) == 10006635, 0);
+
+        let u = 300000000; // 30%
+        let slopei = calc_slope_i(ki, u, uopt);
+        let slope = calc_slope(slopei, u, ucrit, kcrit, beta);
+        let rlin = i128::from(klin * u / PRECISION);
+        let ri = rlin; // (ri < rlin)
+        let rp = calc_rp(u, ucrit, ulow, kcrit, klow, tcrit);
+        let r0 = i128::add(&ri, &rp);
+        let r1 = calc_r1(r0, slope, time);
+        let x = calc_x(r0, r1, rlin, slope, time);
+        assert!(i128::as_u128(&i128::abs(&x)) == 15009953, 0);
+
+        let u = 400000000; // 40%
+        let slopei = calc_slope_i(ki, u, uopt);
+        let slope = calc_slope(slopei, u, ucrit, kcrit, beta);
+        let rlin = i128::from(klin * u / PRECISION);
+        let ri = rlin; // (ri < rlin)
+        let rp = calc_rp(u, ucrit, ulow, kcrit, klow, tcrit);
+        let r0 = i128::add(&ri, &rp);
+        let r1 = calc_r1(r0, slope, time);
+        let x = calc_x(r0, r1, rlin, slope, time);
+        assert!(i128::as_u128(&i128::abs(&x)) == 20013271, 0);
+               
+        let u = 500000000; // 50%
+        let slopei = calc_slope_i(ki, u, uopt);
+        let slope = calc_slope(slopei, u, ucrit, kcrit, beta);
+        let rlin = i128::from(klin * u / PRECISION);
+        let ri = rlin; // (ri < rlin)
+        let rp = calc_rp(u, ucrit, ulow, kcrit, klow, tcrit);
+        let r0 = i128::add(&ri, &rp);
+        let r1 = calc_r1(r0, slope, time);
+        let x = calc_x(r0, r1, rlin, slope, time);
+        assert!(i128::as_u128(&i128::abs(&x)) == 25016588, 0);
+
+        let u = 600000000; // 60%
+        let slopei = calc_slope_i(ki, u, uopt);
+        let slope = calc_slope(slopei, u, ucrit, kcrit, beta);
+        let rlin = i128::from(klin * u / PRECISION);
+        let ri = rlin; // (ri < rlin)
+        let rp = calc_rp(u, ucrit, ulow, kcrit, klow, tcrit);
+        let r0 = i128::add(&ri, &rp);
+        let r1 = calc_r1(r0, slope, time);
+        let x = calc_x(r0, r1, rlin, slope, time);
+        debug::print(&i128::as_u128(&i128::abs(&x)));
+        assert!(i128::as_u128(&i128::abs(&x)) == 30019906, 0);
+        
+        let u = 700000000; // 70%
+        let slopei = calc_slope_i(ki, u, uopt);
+        let slope = calc_slope(slopei, u, ucrit, kcrit, beta);
+        let rlin = i128::from(klin * u / PRECISION);
+        let ri = rlin; // (ri < rlin)
+        let rp = calc_rp(u, ucrit, ulow, kcrit, klow, tcrit);
+        let r0 = i128::add(&ri, &rp);
+        let r1 = calc_r1(r0, slope, time);
+        let x = calc_x(r0, r1, rlin, slope, time);
+        assert!(i128::as_u128(&i128::abs(&x)) == 35023224, 0);
+
+        let u = 800000000; // 80%
+        let slopei = calc_slope_i(ki, u, uopt);
+        let slope = calc_slope(slopei, u, ucrit, kcrit, beta);
+        let rlin = i128::from(klin * u / PRECISION);
+        let ri = rlin; // (ri < rlin)
+        let rp = calc_rp(u, ucrit, ulow, kcrit, klow, tcrit);
+        let r0 = i128::add(&ri, &rp);
+        let r1 = calc_r1(r0, slope, time);
+        let x = calc_x(r0, r1, rlin, slope, time);
+        debug::print(&i128::as_u128(&i128::abs(&x)));
+        assert!(i128::as_u128(&i128::abs(&x)) == 18314180728, 0); // TODO: check
     }
 }
