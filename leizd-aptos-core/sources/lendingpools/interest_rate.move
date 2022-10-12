@@ -261,7 +261,7 @@ module leizd::interest_rate {
     fun calc_rp(u: u128, ucrit: u128, ulow: u128, kcrit: u128, klow: u128, tcrit: u128): i128::I128 {
         if (u > ucrit) {
             // _l.rp = _c.kcrit * (_DP + Tcrit) / _DP * (_l.u - _c.ucrit) / _DP;
-            i128::from(kcrit * (PRECISION + tcrit) / PRECISION * (u - ucrit) / PRECISION / PRECISION)
+            i128::from(kcrit * (PRECISION + tcrit) / PRECISION * (u - ucrit) / PRECISION)
         } else {
             // _l.rp = _min(0, _c.klow * (_l.u - _c.ulow) / _DP);
             if (u >= ulow) i128::zero() 
@@ -273,7 +273,7 @@ module leizd::interest_rate {
                         &i128::from(ulow)
                     )
                 ),
-                &i128::from(PRECISION*PRECISION)
+                &i128::from(PRECISION)
             )
         }
     }
@@ -549,7 +549,7 @@ module leizd::interest_rate {
         let x = calc_x(r0, r1, rlin, slope, time);
         assert!(i128::as_u128(&i128::abs(&x)) == 2019074, 0);
     }
-    use std::debug;
+
     #[test]
     public entry fun test_calc_slope_i() {
         let ki = 367011;
@@ -667,37 +667,81 @@ module leizd::interest_rate {
     #[test]
     public entry fun test_calc_rp() {
 
-        // ucrit < u
-        let u = 1000000000; // 100%
+        // common params
         let ucrit = 850000000; // 85%
         let ulow = 400000000; // 40%
         let kcrit = 919583967529; // 29%
         let klow = 95129375951;   // 3%
-        let tcrit = 0;
-        let rp = calc_rp(u, ucrit, ulow, kcrit, klow, tcrit);
-        let expected = kcrit * (PRECISION + tcrit) / PRECISION * (u - ucrit) / PRECISION / PRECISION;
-        assert!(i128::as_u128(&i128::abs(&rp)) == expected, 0);
-
-        // ulow <= u < ucrit
-        let u = 500000000; // 50%
-        let ucrit = 850000000; // 85%
-        let ulow = 400000000; // 40%
-        let kcrit = 919583967529; // 29%
-        let klow = 95129375951;   // 3%
-        let tcrit = 0;
-        let rp = calc_rp(u, ucrit, ulow, kcrit, klow, tcrit);
-        assert!(i128::as_u128(&i128::abs(&rp)) == 0, 0);
 
         // u < ulow
         let u = 0; // 0%
-        let ucrit = 850000000; // 85%
-        let ulow = 400000000; // 40%
-        let kcrit = 919583967529; // 29%
-        let klow = 95129375951;   // 3%
         let tcrit = 0;
         let rp = calc_rp(u, ucrit, ulow, kcrit, klow, tcrit);
-        let expected = klow * (ulow - u) / PRECISION / PRECISION;
+        let expected = klow * (ulow - u) / PRECISION; // rp=-38051750380
+        assert!(i128::is_neg(&rp), 0);
         assert!(i128::as_u128(&i128::abs(&rp)) == expected, 0);
+        
+        let u = 100000000; // 10%
+        let tcrit = 0;
+        let rp = calc_rp(u, ucrit, ulow, kcrit, klow, tcrit);
+        let expected = klow * (ulow - u) / PRECISION; // rp=-28538812785
+        assert!(i128::is_neg(&rp), 0);
+        assert!(i128::as_u128(&i128::abs(&rp)) == expected, 0);
+
+        let u = 200000000; // 20%
+        let tcrit = 0;
+        let rp = calc_rp(u, ucrit, ulow, kcrit, klow, tcrit);
+        let expected = klow * (ulow - u) / PRECISION; // rp=-19025875190
+        assert!(i128::is_neg(&rp), 0);
+        assert!(i128::as_u128(&i128::abs(&rp)) == expected, 0);
+
+        let u = 300000000; // 30%
+        let tcrit = 0;
+        let rp = calc_rp(u, ucrit, ulow, kcrit, klow, tcrit);
+        let expected = klow * (ulow - u) / PRECISION; // rp=-9512937595
+        assert!(i128::as_u128(&i128::abs(&rp)) == expected, 0);
+
+        let u = 400000000; // 40%
+        let tcrit = 0;
+        let rp = calc_rp(u, ucrit, ulow, kcrit, klow, tcrit);
+        let expected = klow * (ulow - u) / PRECISION; // rp=0
+        assert!(i128::as_u128(&i128::abs(&rp)) == expected, 0);
+        
+        // ulow <= u < ucrit
+        let u = 500000000; // 50%
+        let tcrit = 0;
+        let rp = calc_rp(u, ucrit, ulow, kcrit, klow, tcrit);
+        assert!(i128::as_u128(&i128::abs(&rp)) == 0, 0); // rp=0
+
+        let u = 600000000; // 60%
+        let tcrit = 0;
+        let rp = calc_rp(u, ucrit, ulow, kcrit, klow, tcrit);
+        assert!(i128::as_u128(&i128::abs(&rp)) == 0, 0); // rp=0
+
+        let u = 700000000; // 70%
+        let tcrit = 0;
+        let rp = calc_rp(u, ucrit, ulow, kcrit, klow, tcrit);
+        assert!(i128::as_u128(&i128::abs(&rp)) == 0, 0); // rp=0
+
+        // ucrit < u
+        let u = 800000000; // 80%
+        let tcrit = 0;
+        let rp = calc_rp(u, ucrit, ulow, kcrit, klow, tcrit);
+        assert!(i128::as_u128(&i128::abs(&rp)) == 0, 0); // rp=0
+
+        let u = 900000000; // 90%
+        let tcrit = 0;
+        let rp = calc_rp(u, ucrit, ulow, kcrit, klow, tcrit);
+        let expected = kcrit * (PRECISION + tcrit) / PRECISION * (u - ucrit) / PRECISION;
+        assert!(!i128::is_neg(&rp), 0);
+        assert!(i128::as_u128(&i128::abs(&rp)) == expected, 0); // rp=45979198376
+
+        let u = 1000000000; // 100%
+        let tcrit = 0;
+        let rp = calc_rp(u, ucrit, ulow, kcrit, klow, tcrit);
+        let expected = kcrit * (PRECISION + tcrit) / PRECISION * (u - ucrit) / PRECISION;
+        assert!(!i128::is_neg(&rp), 0);
+        assert!(i128::as_u128(&i128::abs(&rp)) == expected, 0); // rp=137937595129
     }
 
     #[test]
