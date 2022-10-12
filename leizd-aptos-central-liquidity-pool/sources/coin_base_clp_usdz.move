@@ -1,11 +1,11 @@
-module leizd_aptos_central_liquidity_pool::coin_base_stb_usdz {
+module leizd_aptos_central_liquidity_pool::coin_base_clp_usdz {
     use std::string;
     use std::signer;
     use std::option;
     use aptos_framework::coin;
     use leizd_aptos_common::permission;
 
-    friend leizd_aptos_central_liquidity_pool::stb_usdz;
+    friend leizd_aptos_central_liquidity_pool::clp_usdz;
     
     struct Capabilities<phantom C> has key {
         burn_cap: coin::BurnCapability<C>,
