@@ -11,7 +11,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
     use leizd_aptos_common::permission;
     use leizd_aptos_common::coin_key::{key};
     use leizd_aptos_trove::usdz::{USDZ};
-    use leizd_aptos_central_liquidity_pool::stb_usdz;
+    use leizd_aptos_central_liquidity_pool::clp_usdz;
     use leizd_aptos_treasury::treasury;
     use leizd_aptos_lib::math128;
     use leizd_aptos_lib::constant;
@@ -105,7 +105,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         permission::assert_owner(owner_address);
         assert!(!is_pool_initialized(), error::invalid_state(EALREADY_INITIALIZED));
 
-        stb_usdz::initialize(owner);
+        clp_usdz::initialize(owner);
         move_to(owner, CentralLiquidityPool {
             left: coin::zero<USDZ>(),
             total_deposited: 0,
@@ -229,11 +229,11 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         let owner_address = permission::owner_address();
         let account_address = signer::address_of(account);
         let pool_ref = borrow_global_mut<CentralLiquidityPool>(owner_address);
-        if (!stb_usdz::is_account_registered(account_address)) {
-            stb_usdz::register(account);
+        if (!clp_usdz::is_account_registered(account_address)) {
+            clp_usdz::register(account);
         };
-        let user_share = math128::to_share((amount as u128), pool_ref.total_deposited, stb_usdz::supply());
-        stb_usdz::mint(account_address, (user_share as u64));
+        let user_share = math128::to_share((amount as u128), pool_ref.total_deposited, clp_usdz::supply());
+        clp_usdz::mint(account_address, (user_share as u64));
         pool_ref.total_deposited = pool_ref.total_deposited + (amount as u128);
         coin::merge(&mut pool_ref.left, coin::withdraw<USDZ>(account, amount));
 
@@ -256,8 +256,8 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         let owner_address = permission::owner_address();
         let account_addr = signer::address_of(account);
         let pool_ref = borrow_global_mut<CentralLiquidityPool>(owner_address);
-        let user_share = (stb_usdz::balance_of(account_addr) as u128);
-        let withdrawable_amount = math128::to_amount(user_share, pool_ref.total_deposited, stb_usdz::supply());
+        let user_share = (clp_usdz::balance_of(account_addr) as u128);
+        let withdrawable_amount = math128::to_amount(user_share, pool_ref.total_deposited, clp_usdz::supply());
 
         let burned_share: u128;
         let withdrawn_amount: u128;
@@ -266,13 +266,13 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
             withdrawn_amount = withdrawable_amount;
         } else {
             assert!(withdrawable_amount >= (amount as u128), error::invalid_argument(EEXCEED_DEPOSITED_AMOUNT));
-            burned_share = math128::to_share_roundup((amount as u128), pool_ref.total_deposited, stb_usdz::supply());
+            burned_share = math128::to_share_roundup((amount as u128), pool_ref.total_deposited, clp_usdz::supply());
             withdrawn_amount = (amount as u128);
         };
         assert!((coin::value<USDZ>(&pool_ref.left) as u128) >= withdrawn_amount, error::invalid_argument(EEXCEED_REMAINING_AMOUNT));
         pool_ref.total_deposited = pool_ref.total_deposited - withdrawn_amount;
         coin::deposit(account_addr, coin::extract(&mut pool_ref.left, (withdrawn_amount as u64)));
-        stb_usdz::burn(account, (burned_share as u64));
+        clp_usdz::burn(account, (burned_share as u64));
         event::emit_event<WithdrawEvent>(
             &mut borrow_global_mut<CentralLiquidityPoolEventHandle>(owner_address).withdraw_event,
             WithdrawEvent {
@@ -616,7 +616,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         assert!(left() == 400000, 0);
         assert!(total_deposited() == 400000, 0);
         assert!(usdz::balance_of(account_addr) == 600000, 0);
-        assert!(stb_usdz::balance_of(account_addr) == 400000, 0);
+        assert!(clp_usdz::balance_of(account_addr) == 400000, 0);
 
         assert!(event::counter<DepositEvent>(&borrow_global<CentralLiquidityPoolEventHandle>(signer::address_of(owner)).deposit_event) == 1, 0);
     }
@@ -655,16 +655,16 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
 
         deposit(account, 100);
         assert!(usdz::balance_of(account_addr) == 900, 0);
-        assert!(stb_usdz::balance_of(account_addr) == 100, 0);
+        assert!(clp_usdz::balance_of(account_addr) == 100, 0);
         deposit(account, 200);
         assert!(usdz::balance_of(account_addr) == 700, 0);
-        assert!(stb_usdz::balance_of(account_addr) == 300, 0);
+        assert!(clp_usdz::balance_of(account_addr) == 300, 0);
         deposit(account, 300);
         assert!(usdz::balance_of(account_addr) == 400, 0);
-        assert!(stb_usdz::balance_of(account_addr) == 600, 0);
+        assert!(clp_usdz::balance_of(account_addr) == 600, 0);
         deposit(account, 400);
         assert!(usdz::balance_of(account_addr) == 0, 0);
-        assert!(stb_usdz::balance_of(account_addr) == 1000, 0);
+        assert!(clp_usdz::balance_of(account_addr) == 1000, 0);
     }
 
     // for withdraw
@@ -683,7 +683,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         assert!(left() == 100000, 0);
         assert!(total_deposited() == 100000, 0);
         assert!(usdz::balance_of(account_addr) == 900000, 0);
-        assert!(stb_usdz::balance_of(account_addr) == 100000, 0);
+        assert!(clp_usdz::balance_of(account_addr) == 100000, 0);
 
         assert!(event::counter<WithdrawEvent>(&borrow_global<CentralLiquidityPoolEventHandle>(signer::address_of(owner)).withdraw_event) == 1, 0);
     }
@@ -711,7 +711,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
 
         managed_coin::register<USDZ>(account1);
         managed_coin::register<USDZ>(account2);
-        stb_usdz::register(account2);
+        clp_usdz::register(account2);
         usdz::mint_for_test(account1_addr, 400000);
 
         deposit(account1, 400000);
@@ -730,7 +730,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         withdraw(account, 300000);
 
         assert!(usdz::balance_of(account_addr) == 300000, 0);
-        assert!(stb_usdz::balance_of(account_addr) == 0, 0);
+        assert!(clp_usdz::balance_of(account_addr) == 0, 0);
     }
     #[test(owner=@leizd_aptos_central_liquidity_pool,account=@0x111)]
     #[expected_failure(abort_code = 65541)]
@@ -757,16 +757,16 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         deposit(account, 1000);
         withdraw(account, 100);
         assert!(usdz::balance_of(account_addr) == 100, 0);
-        assert!(stb_usdz::balance_of(account_addr) == 900, 0);
+        assert!(clp_usdz::balance_of(account_addr) == 900, 0);
         withdraw(account, 200);
         assert!(usdz::balance_of(account_addr) == 300, 0);
-        assert!(stb_usdz::balance_of(account_addr) == 700, 0);
+        assert!(clp_usdz::balance_of(account_addr) == 700, 0);
         withdraw(account, 300);
         assert!(usdz::balance_of(account_addr) == 600, 0);
-        assert!(stb_usdz::balance_of(account_addr) == 400, 0);
+        assert!(clp_usdz::balance_of(account_addr) == 400, 0);
         withdraw(account, 400);
         assert!(usdz::balance_of(account_addr) == 1000, 0);
-        assert!(stb_usdz::balance_of(account_addr) == 0, 0);
+        assert!(clp_usdz::balance_of(account_addr) == 0, 0);
     }
 
     // for borrow
@@ -793,7 +793,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         assert!(left() == 100000, 0);
         assert!(total_borrowed() == (300000 as u128), 0);
         assert!(borrowed(key<WETH>()) == (300000 as u128), 0);
-        assert!(stb_usdz::balance_of(account1_addr) == 400000, 0);
+        assert!(clp_usdz::balance_of(account1_addr) == 400000, 0);
         assert!(usdz::balance_of(account2_addr) == 300000, 0);
         //// event
         assert!(event::counter<BorrowEvent>(&borrow_global<CentralLiquidityPoolEventHandle>(signer::address_of(owner)).borrow_event) == 1, 0);
@@ -906,7 +906,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         assert!(total_borrowed() == 100000, 0);
         assert!(borrowed(key<WETH>()) == 100000, 0);
         assert!(usdz::balance_of(account2_addr) == 100000, 0);
-        assert!(stb_usdz::balance_of(account1_addr) == 400000, 0);
+        assert!(clp_usdz::balance_of(account1_addr) == 400000, 0);
         //// event
         assert!(event::counter<RepayEvent>(&borrow_global<CentralLiquidityPoolEventHandle>(signer::address_of(owner)).repay_event) == 1, 0);
     }
@@ -959,7 +959,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         assert!(left() == 0, 0);
         assert!(total_borrowed() == 10000, 0);
         assert!(borrowed(key<WETH>()) == 10000, 0);
-        assert!(stb_usdz::balance_of(depositor_addr) == 10000, 0);
+        assert!(clp_usdz::balance_of(depositor_addr) == 10000, 0);
         assert!(usdz::balance_of(borrower_addr) == 10000, 0);
         //// repay to total_borrowed
         repay_internal(key<WETH>(), borrower, 9900);
@@ -1082,31 +1082,31 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         assert!(usdz::balance_of(account_addr1) == 0, 0);
         assert!(total_deposited() == 1000, 0);
         assert!(left() == 1000, 0);
-        assert!(stb_usdz::balance_of(account_addr1) == 1000, 0);
-        assert!(stb_usdz::supply() == 1000, 0);
+        assert!(clp_usdz::balance_of(account_addr1) == 1000, 0);
+        assert!(clp_usdz::supply() == 1000, 0);
 
         // account1 withdraw half amount
         withdraw(account1, 500);
         assert!(usdz::balance_of(account_addr1) == 500, 0);
         assert!(total_deposited() == 500, 0);
         assert!(left() == 500, 0);
-        assert!(stb_usdz::balance_of(account_addr1) == 500, 0);
-        assert!(stb_usdz::supply() == 500, 0);
+        assert!(clp_usdz::balance_of(account_addr1) == 500, 0);
+        assert!(clp_usdz::supply() == 500, 0);
 
         // account2 deposit
         deposit(account2, 1000);
         assert!(usdz::balance_of(account_addr2) == 0, 0);
         assert!(total_deposited() == 1500, 0);
         assert!(left() == 1500, 0);
-        assert!(stb_usdz::balance_of(account_addr2) == (1000 * 500 / 500), 0);
-        assert!(stb_usdz::supply() == 1500, 0);
+        assert!(clp_usdz::balance_of(account_addr2) == (1000 * 500 / 500), 0);
+        assert!(clp_usdz::supply() == 1500, 0);
 
         // // account2 withdraw all
         withdraw(account2, constant::u64_max());
         assert!(usdz::balance_of(account_addr2) == 1000, 0);
         assert!(total_deposited() == 500, 0);
         assert!(left() == 500, 0);
-        assert!(stb_usdz::balance_of(account_addr2) == 0, 0);
-        assert!(stb_usdz::supply() == 500, 0);
+        assert!(clp_usdz::balance_of(account_addr2) == 0, 0);
+        assert!(clp_usdz::supply() == 500, 0);
     }
 }
