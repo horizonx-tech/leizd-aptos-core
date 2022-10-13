@@ -496,28 +496,28 @@ module leizd::account_position {
     ////////////////////////////////////////////////////
     /// Switch Collateral
     ////////////////////////////////////////////////////
-    public fun switch_collateral<C,P>(addr: address, to_collateral_only: bool, from_share: u64, to_share: u64, _key: &OperatorKey) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        switch_collateral_internal<C,P>(addr, to_collateral_only, from_share, to_share)
+    public fun switch_collateral<C,P>(addr: address, to_collateral_only: bool, to_share: u64, _key: &OperatorKey) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
+        switch_collateral_internal<C,P>(addr, to_collateral_only, to_share)
     }
-    fun switch_collateral_internal<C,P>(addr: address, to_collateral_only: bool, from_share: u64, to_share: u64) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
+    fun switch_collateral_internal<C,P>(addr: address, to_collateral_only: bool, to_share: u64) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
         let key = key<C>();
         if (pool_type::is_type_asset<P>()) {
             if (to_collateral_only) {
-                update_on_withdraw<AssetToShadow>(key, addr, from_share, false);
+                update_on_withdraw<AssetToShadow>(key, addr, deposited_asset_share<C>(addr), false);
                 update_on_deposit<AssetToShadow>(key, addr, to_share, true);
                 assert_invalid_deposit_asset(key, addr, true);
             } else {
-                update_on_withdraw<AssetToShadow>(key, addr, from_share, true);
+                update_on_withdraw<AssetToShadow>(key, addr, conly_deposited_asset_share<C>(addr), true);
                 update_on_deposit<AssetToShadow>(key, addr, to_share, false);
                 assert_invalid_deposit_asset(key, addr, false);
             }
         } else {
             if (to_collateral_only) {
-                update_on_withdraw<ShadowToAsset>(key, addr, from_share, false);
+                update_on_withdraw<ShadowToAsset>(key, addr, deposited_shadow_share<C>(addr), false);
                 update_on_deposit<ShadowToAsset>(key, addr, to_share, true);
                 assert_invalid_deposit_shadow(key, addr, true);
             } else {
-                update_on_withdraw<ShadowToAsset>(key, addr, from_share, true);
+                update_on_withdraw<ShadowToAsset>(key, addr, conly_deposited_shadow_share<C>(addr), true);
                 update_on_deposit<ShadowToAsset>(key, addr, to_share, false);
                 assert_invalid_deposit_shadow(key, addr, false);
             }

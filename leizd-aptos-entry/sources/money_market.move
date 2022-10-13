@@ -881,18 +881,17 @@ module leizd_aptos_entry::money_market {
         let account_addr = signer::address_of(account);
         let key = coin_key::key<C>();
         let (account_position_key, asset_pool_key, shadow_pool_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
-        let from_share: u64;
         let to_share: u64;
         if (pool_type::is_type_asset<P>()) {
             account_position::assert_invalid_deposit_asset(key, account_addr, !to_collateral_only);
             let all_user_share = if (to_collateral_only) account_position::deposited_asset_share<C>(account_addr) else account_position::conly_deposited_asset_share<C>(account_addr);
-            (_, from_share, to_share) = asset_pool::switch_collateral<C>(account_addr, all_user_share, to_collateral_only, asset_pool_key);
+            (_, _, to_share) = asset_pool::switch_collateral<C>(account_addr, all_user_share, to_collateral_only, asset_pool_key);
         } else {
             account_position::assert_invalid_deposit_shadow(key, account_addr, !to_collateral_only);
             let all_user_share = if (to_collateral_only) account_position::deposited_shadow_share<C>(account_addr) else account_position::conly_deposited_shadow_share<C>(account_addr);
-            (_, from_share, to_share) = shadow_pool::switch_collateral<C>(account_addr, all_user_share, to_collateral_only, shadow_pool_key);
+            (_, _, to_share) = shadow_pool::switch_collateral<C>(account_addr, all_user_share, to_collateral_only, shadow_pool_key);
         };
-        account_position::switch_collateral<C,P>(account_addr, to_collateral_only, from_share, to_share, account_position_key);
+        account_position::switch_collateral<C,P>(account_addr, to_collateral_only, to_share, account_position_key);
     }
 
     /// central liquidity pool
