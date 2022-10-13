@@ -762,8 +762,6 @@ module leizd::asset_pool {
         asset_storage_ref.last_updated
     }
 
-    // #[test_only]
-    // use aptos_std::debug;
     #[test_only]
     use aptos_framework::managed_coin;
     #[test_only]

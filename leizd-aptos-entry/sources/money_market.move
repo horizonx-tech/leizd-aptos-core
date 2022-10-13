@@ -924,11 +924,11 @@ module leizd_aptos_entry::money_market {
     #[test_only]
     use leizd_aptos_core::test_initializer;
     #[test_only]
-    use leizd::interest_rate;
+    use leizd_aptos_core::interest_rate;
     #[test_only]
-    use leizd::pool_manager;
+    use leizd_aptos_core::pool_manager;
     #[test_only]
-    use leizd::initializer;
+    use leizd_aptos_core::initializer;
     #[test(owner=@leizd)]
     fun test_initialize(owner: &signer) {
         let owner_addr = signer::address_of(owner);

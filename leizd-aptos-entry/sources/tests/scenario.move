@@ -4,7 +4,6 @@ module leizd_aptos_entry::scenario {
     use std::signer;
     use std::vector;
     use std::unit_test;
-    // use aptos_std::debug;
     use aptos_framework::account;
     use aptos_framework::coin;
     use aptos_framework::managed_coin;

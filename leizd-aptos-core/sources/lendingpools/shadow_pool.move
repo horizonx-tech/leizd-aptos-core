@@ -1117,8 +1117,6 @@ module leizd::shadow_pool {
         borrow_global<Storage>(permission::owner_address()).harvested_protocol_fees
     }
 
-    // #[test_only]
-    // use aptos_std::debug;
     #[test_only]
     use aptos_framework::managed_coin;
     #[test_only]
