@@ -24,7 +24,7 @@ module leizd_aptos_entry::scenario {
     use leizd_aptos_entry::initializer;
 
     #[test_only]
-    fun initialize_signer_for_test(num_signers: u64): vector<signer> {
+    public fun initialize_signer_for_test(num_signers: u64): vector<signer> {
         let signers = unit_test::create_signers_for_testing(num_signers);
 
         let i = vector::length<signer>(&signers);
@@ -38,12 +38,12 @@ module leizd_aptos_entry::scenario {
         signers
     }
     #[test_only]
-    fun borrow_account(accounts: &vector<signer>, index: u64): (&signer, address) {
+    public fun borrow_account(accounts: &vector<signer>, index: u64): (&signer, address) {
         let account = vector::borrow(accounts, index);
         (account, signer::address_of(account))
     }
     #[test_only]
-    fun initialize_scenario(owner: &signer, aptos_framework: &signer) {
+    public fun initialize_scenario(owner: &signer, aptos_framework: &signer) {
         timestamp::set_time_has_started_for_testing(aptos_framework);
         timestamp::update_global_time_for_test(1648738800 * 1000 * 1000); // 20220401T00:00:00
 
@@ -60,7 +60,7 @@ module leizd_aptos_entry::scenario {
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner); // TODO: clean
     }
     #[test_only]
-    fun register_all_coins(account: &signer) {
+    public fun register_all_coins(account: &signer) {
         managed_coin::register<USDC>(account);
         managed_coin::register<USDT>(account);
         managed_coin::register<WETH>(account);
@@ -68,7 +68,7 @@ module leizd_aptos_entry::scenario {
         managed_coin::register<USDZ>(account);
     }
     #[test_only]
-    fun mint_all(owner: &signer, account_addr: address, amount: u64) {
+    public fun mint_all(owner: &signer, account_addr: address, amount: u64) {
         managed_coin::mint<WETH>(owner, account_addr, amount);
         managed_coin::mint<USDT>(owner, account_addr, amount);
         managed_coin::mint<WETH>(owner, account_addr, amount);
