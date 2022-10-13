@@ -27,7 +27,7 @@ module leizd_aptos_entry::edge {
 
         // deposit & borrow
         money_market::deposit<WETH, Asset>(account1, max, false);
-        assert!(account_position::deposited_volume<AssetToShadow>(account1_addr, key<WETH>()) == max, 0);
+        assert!(account_position::deposited_volume<AssetToShadow>(account1_addr, key<WETH>()) == (max as u128), 0);
         assert!(coin::balance<WETH>(account1_addr) == 0, 0);
     }
     #[test(owner = @leizd_aptos_entry, aptos_framework = @aptos_framework)]
@@ -42,7 +42,7 @@ module leizd_aptos_entry::edge {
 
         // execute
         money_market::deposit<USDC, Shadow>(account1, max, false);
-        assert!(account_position::deposited_volume<ShadowToAsset>(account1_addr, key<USDC>()) == max, 0);
+        assert!(account_position::deposited_volume<ShadowToAsset>(account1_addr, key<USDC>()) == (max as u128), 0);
         assert!(coin::balance<USDZ>(account1_addr) == 0, 0);
     }
     #[test(owner = @leizd_aptos_entry, aptos_framework = @aptos_framework)]
