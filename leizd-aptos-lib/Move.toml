@@ -10,3 +10,4 @@ subdir = 'aptos-move/framework/aptos-framework'
 
 [addresses]
 leizd_aptos_lib="0x0123456789ABCDEF"
+std = "0x1"

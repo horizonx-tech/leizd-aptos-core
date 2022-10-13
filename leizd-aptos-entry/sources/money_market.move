@@ -1732,7 +1732,7 @@ module leizd_aptos_entry::money_market {
     //     // TODO: amount -> share
     // }
 
-    // temp
+    // borrow_asset_with_rebalance
     #[test_only]
     fun prepare_to_exec_borrow_asset_with_rebalance(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
         initialize_lending_pool_for_test(owner, aptos_framework);

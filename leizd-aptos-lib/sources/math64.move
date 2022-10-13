@@ -1,6 +1,10 @@
 module leizd_aptos_lib::math64 {
 
+    use std::error;
     use leizd_aptos_lib::constant;
+
+    const EOVERFLOW: u64 = 1;
+    const EUNDERFLOW: u64 = 2;
 
     public fun to_share(amount: u64, total_amount: u64, total_shares: u64): u64 {
         if (total_shares == 0 || total_amount == 0) {
@@ -88,6 +92,30 @@ module leizd_aptos_lib::math64 {
         }
     }
 
+    public fun is_overflow_by_add(a: u64, b: u64): bool {
+        if (a == 0 || b == 0) return false;
+        if (constant::u64_max() - a < b) {
+            true
+        } else {
+            false
+        }
+    }
+    public fun assert_overflow_by_add(a: u64, b: u64) {
+        assert!(!is_overflow_by_add(a, b), error::invalid_argument(EOVERFLOW));
+    }
+
+    public fun is_underflow_by_sub(from: u64, to: u64): bool {
+        if (from == 0 || to == 0) return false;
+        if (from < to) {
+            true
+        } else {
+            false
+        }
+    }
+    public fun assert_underflow_by_sub(from: u64, to: u64) {
+        assert!(!is_underflow_by_sub(from, to), error::invalid_argument(EUNDERFLOW));
+    }
+
     #[test]
     public entry fun test_pow() {
         let result = pow(10, 18);
@@ -98,5 +126,37 @@ module leizd_aptos_lib::math64 {
 
         let result = pow(10, 0);
         assert!(result == 1, 0);
+    }
+    #[test]
+    public entry fun test_is_overflow_by_add() {
+        let max = constant::u64_max();
+        assert!(is_overflow_by_add(max - 1, 2), 0);
+        assert!(is_overflow_by_add(2, max - 1), 0);
+        assert!(!is_overflow_by_add(max - 1, 1), 0);
+        assert!(!is_overflow_by_add(1, max - 1), 0);
+    }
+    #[test]
+    public entry fun test_assert_overflow_by_add_when_not_be_overflow() {
+        assert_overflow_by_add(constant::u64_max() - 1, 1);
+    }
+    #[test]
+    #[expected_failure(abort_code = 65537)]
+    public entry fun test_assert_overflow_by_add_when_be_overflow() {
+        assert_overflow_by_add(constant::u64_max() - 1, 2);
+    }
+    #[test]
+    public entry fun test_is_underflow_by_sub() {
+        assert!(is_underflow_by_sub(2, 3), 0);
+        assert!(!is_underflow_by_sub(2, 2), 0);
+        assert!(!is_underflow_by_sub(2, 1), 0);
+    }
+    #[test]
+    public entry fun test_assert_underflow_by_sub_when_not_be_underflow() {
+        assert_underflow_by_sub(1, 1);
+    }
+    #[test]
+    #[expected_failure(abort_code = 65538)]
+    public entry fun test_assert_underflow_by_sub_when_be_underflow() {
+        assert_underflow_by_sub(1, 2);
     }
 }

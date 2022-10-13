@@ -14,6 +14,7 @@ module leizd::account_position {
     use leizd_aptos_common::position_type::{Self,AssetToShadow,ShadowToAsset};
     use leizd_aptos_external::price_oracle;
     use leizd_aptos_lib::constant;
+    use leizd_aptos_lib::math64;
     use leizd_aptos_lib::math128;
     use leizd::asset_pool;
     use leizd::shadow_pool;
@@ -427,28 +428,6 @@ module leizd::account_position {
         }
     }
 
-    public fun extra_and_insufficient_shadow(key: String, addr: address): (u64,u64,u64,u64) acquires Position {
-        let borrowed = borrowed_volume<ShadowToAsset>(addr, key);
-        let deposited = deposited_volume<ShadowToAsset>(addr, key);
-        let required_deposit = borrowed * risk_factor::precision() / risk_factor::ltv_of_shadow();
-        if (deposited < required_deposit) {
-            (0, (required_deposit - deposited), deposited, borrowed)
-        } else {
-            ((deposited - required_deposit), 0, deposited, borrowed)
-        }
-    }
-
-    fun capacity_and_overdebt_shadow(key: String, addr: address): (u64,u64,u64,u64) acquires Position {
-        let borrowed = borrowed_volume<AssetToShadow>(addr, key);
-        let deposited = deposited_volume<AssetToShadow>(addr, key);
-        let borrowable = deposited * risk_factor::ltv_of(key) / risk_factor::precision();
-        if (borrowable < borrowed) {
-            (0, (borrowable - borrowed), deposited, borrowed)
-        } else {
-            ((borrowable - borrowed), 0, deposited, borrowed)
-        }
-    }
-
     ////////////////////////////////////////////////////
     /// Rebalance Protection
     ////////////////////////////////////////////////////
@@ -573,11 +552,15 @@ module leizd::account_position {
         let position_ref = borrow_global_mut<Position<P>>(addr);
         if (vector::contains<String>(&position_ref.coins, &key)) {
             let balance_ref = simple_map::borrow_mut<String,Balance>(&mut position_ref.balance, &key);
+            let deposited_share: &mut u64;
             if (is_collateral_only) {
-                balance_ref.conly_deposited_share = balance_ref.conly_deposited_share + share;
+                deposited_share = &mut balance_ref.conly_deposited_share;
             } else {
-                balance_ref.normal_deposited_share = balance_ref.normal_deposited_share + share;
+                deposited_share = &mut balance_ref.normal_deposited_share;
             };
+            math64::assert_overflow_by_add(*deposited_share, share);
+            *deposited_share = *deposited_share + share;
+
             emit_update_position_event<P>(addr, key, balance_ref);
         } else {
             new_position<P>(addr, share, 0, is_collateral_only, key);
@@ -587,15 +570,15 @@ module leizd::account_position {
     fun update_position_for_withdraw<P>(key: String, addr: address, share: u64, is_collateral_only: bool): u64 acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
         let position_ref = borrow_global_mut<Position<P>>(addr);
         let balance_ref = simple_map::borrow_mut<String,Balance>(&mut position_ref.balance, &key);
+        let deposited_share: &mut u64;
         if (is_collateral_only) {
-            share = if (share == constant::u64_max()) balance_ref.conly_deposited_share else share;
-            assert!(balance_ref.conly_deposited_share >= share, error::invalid_argument(EOVER_DEPOSITED_AMOUNT));
-            balance_ref.conly_deposited_share = balance_ref.conly_deposited_share - share;
+            deposited_share = &mut balance_ref.conly_deposited_share;
         } else {
-            share = if (share == constant::u64_max()) balance_ref.normal_deposited_share else share;
-            assert!(balance_ref.normal_deposited_share >= share, error::invalid_argument(EOVER_DEPOSITED_AMOUNT));
-            balance_ref.normal_deposited_share = balance_ref.normal_deposited_share - share;
+            deposited_share = &mut balance_ref.normal_deposited_share;
         };
+        assert!(!math64::is_underflow_by_sub(*deposited_share, share), error::invalid_argument(EOVER_DEPOSITED_AMOUNT));
+        *deposited_share = *deposited_share - share;
+
         emit_update_position_event<P>(addr, key, balance_ref);
         remove_balance_if_unused<P>(addr, key);
         share
@@ -605,7 +588,9 @@ module leizd::account_position {
         let position_ref = borrow_global_mut<Position<P>>(addr);
         if (vector::contains<String>(&position_ref.coins, &key)) {
             let balance_ref = simple_map::borrow_mut<String,Balance>(&mut position_ref.balance, &key);
-            balance_ref.borrowed_share = balance_ref.borrowed_share + share;
+            let borrowed_share = &mut balance_ref.borrowed_share;
+            math64::assert_overflow_by_add(*borrowed_share, share);
+            *borrowed_share = *borrowed_share + share;
             emit_update_position_event<P>(addr, key, balance_ref);
         } else {
             new_position<P>(addr, 0, share, false, key);
@@ -615,9 +600,10 @@ module leizd::account_position {
     fun update_position_for_repay<P>(key: String, addr: address, share: u64): u64 acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
         let position_ref = borrow_global_mut<Position<P>>(addr);
         let balance_ref = simple_map::borrow_mut<String,Balance>(&mut position_ref.balance, &key);
-        share = if (share == constant::u64_max()) balance_ref.borrowed_share else share;
-        assert!(balance_ref.borrowed_share >= share, error::invalid_argument(EOVER_BORROWED_AMOUNT));
-        balance_ref.borrowed_share = balance_ref.borrowed_share - share;
+        let borrowed_share = &mut balance_ref.borrowed_share;
+        assert!(!math64::is_underflow_by_sub(*borrowed_share, share), error::invalid_argument(EOVER_BORROWED_AMOUNT));
+        *borrowed_share = *borrowed_share - share;
+
         emit_update_position_event<P>(addr, key, balance_ref);
         remove_balance_if_unused<P>(addr, key);
         share
@@ -721,31 +707,37 @@ module leizd::account_position {
         !vector::contains<String>(&position_ref.coins, &key)
     }
 
+    // calculate utilization_of
+    // NOTE: return value means ratio
     fun utilization_of<P>(position_ref: &Position<P>, key: String): u64 {
         if (vector::contains<String>(&position_ref.coins, &key)) {
             let deposited = deposited_volume_internal(position_ref, key);
             let borrowed = borrowed_volume_internal(position_ref, key);
-            if (deposited == 0 && borrowed != 0) {
-                return constant::u64_max()
-            } else if (deposited == 0) { 
-                return 0 
+            if (deposited == 0) {
+                if (borrowed > 0) {
+                    return constant::u64_max()
+                } else {
+                    return 0
+                }
             };
-            borrowed * risk_factor::precision() / deposited // TODO: check calculation order (division is last?)
+            let numerator = borrowed * (risk_factor::precision() as u128); // TODO: use u256 or check overflow
+            ((numerator / deposited) as u64)
         } else {
             0
         }
     }
 
     //// get volume, amount from share
-    public fun deposited_volume<P>(addr: address, key: String): u64 acquires Position {
+    public fun deposited_volume<P>(addr: address, key: String): u128 acquires Position {
         let position_ref = borrow_global_mut<Position<P>>(addr);
         deposited_volume_internal<P>(position_ref, key)
     }
-    fun deposited_volume_internal<P>(position_ref: &Position<P>, key: String): u64 {
+    fun deposited_volume_internal<P>(position_ref: &Position<P>, key: String): u128 {
         let normal_deposited = normal_deposited_amount_internal(position_ref, key);
         let conly_deposited = conly_deposited_amount_internal(position_ref, key);
         if (normal_deposited > 0 || conly_deposited > 0) {
-            price_oracle::volume(&key, ((normal_deposited + conly_deposited) as u64)) // TODO: consider cast
+            let result = price_oracle::volume(&key, ((normal_deposited + conly_deposited) as u64)); // TODO: consider cast (price_oracle::volume to u128)
+            (result as u128)
         } else {
             0
         }
@@ -785,14 +777,15 @@ module leizd::account_position {
         }
     }
 
-    public fun borrowed_volume<P>(addr: address, key: String): u64 acquires Position {
+    public fun borrowed_volume<P>(addr: address, key: String): u128 acquires Position {
         let position_ref = borrow_global_mut<Position<P>>(addr);
         borrowed_volume_internal<P>(position_ref, key)
     }
-    fun borrowed_volume_internal<P>(position_ref: &Position<P>, key: String): u64 {
+    fun borrowed_volume_internal<P>(position_ref: &Position<P>, key: String): u128 {
         let borrowed = borrowed_amount_internal(position_ref, key);
         if (borrowed > 0) {
-            price_oracle::volume(&key, (borrowed as u64)) // TODO: consider cast
+            let result = price_oracle::volume(&key, (borrowed as u64)); // TODO: consider cast (price_oracle::volume to u128)
+            (result as u128)
         } else {
             0
         }
@@ -1177,6 +1170,17 @@ module leizd::account_position {
         deposit_internal<Shadow>(key<WETH>(), account, account_addr, 1, true);
         deposit_internal<Shadow>(key<WETH>(), account, account_addr, 1, false);
     }
+    #[test(owner=@leizd,account=@0x111)]
+    public entry fun test_deposit_with_u64_max(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
+        setup(owner);
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+
+        deposit_internal<Asset>(key<WETH>(), account, account_addr, constant::u64_max(), false);
+        assert!(deposited_asset_share<WETH>(account_addr) == constant::u64_max(), 0);
+        deposit_internal<Shadow>(key<WETH>(), account, account_addr, constant::u64_max(), true);
+        assert!(conly_deposited_shadow_share<WETH>(account_addr) == constant::u64_max(), 0);
+    }
 
     // for withdraw
     #[test(owner=@leizd,account=@0x111)]
@@ -1326,9 +1330,9 @@ module leizd::account_position {
         borrow_internal<Asset>(key<WETH>(), account, account_addr, borrow_amount);
         let weth_key = key<WETH>();
         assert!(deposited_shadow_share<WETH>(account_addr) == deposit_amount, 0);
-        assert!(deposited_volume<ShadowToAsset>(account_addr, weth_key) == deposit_amount, 0);
+        assert!(deposited_volume<ShadowToAsset>(account_addr, weth_key) == (deposit_amount as u128), 0);
         assert!(borrowed_asset_share<WETH>(account_addr) == borrow_amount, 0);
-        assert!(borrowed_volume<ShadowToAsset>(account_addr, weth_key) == borrow_amount, 0);
+        assert!(borrowed_volume<ShadowToAsset>(account_addr, weth_key) == (borrow_amount as u128), 0);
         //// calculate
         let utilization = utilization_of<ShadowToAsset>(borrow_global<Position<ShadowToAsset>>(account_addr), key<WETH>());
         assert!(lt - utilization == (9500 - borrow_amount) * risk_factor::precision() / deposit_amount, 0);
@@ -1351,9 +1355,9 @@ module leizd::account_position {
         deposit_internal<Asset>(key<WETH>(), account, account_addr, deposit_amount, false);
         borrow_internal<Shadow>(key<WETH>(), account, account_addr, borrow_amount);
         assert!(deposited_asset_share<WETH>(account_addr) == deposit_amount, 0);
-        assert!(deposited_volume<AssetToShadow>(account_addr, weth_key) == deposit_amount, 0);
+        assert!(deposited_volume<AssetToShadow>(account_addr, weth_key) == (deposit_amount as u128), 0);
         assert!(borrowed_shadow_share<WETH>(account_addr) == borrow_amount, 0);
-        assert!(borrowed_volume<AssetToShadow>(account_addr, weth_key) == borrow_amount, 0);
+        assert!(borrowed_volume<AssetToShadow>(account_addr, weth_key) == (borrow_amount as u128), 0);
         //// calculate
         let utilization = utilization_of<AssetToShadow>(borrow_global<Position<AssetToShadow>>(account_addr), weth_key);
         assert!(lt - utilization == (8500 - borrow_amount) * risk_factor::precision() / deposit_amount, 0);
@@ -1978,4 +1982,53 @@ module leizd::account_position {
         deposit_internal<Shadow>(key<WETH>(), account1, account1_addr, 10000, true);
         switch_collateral_internal<WETH,Shadow>(account1_addr, true, 10000);
     }
+
+    // about overflow/underflow
+    #[test(owner=@leizd,account=@0x111)]
+    #[expected_failure(abort_code = 65537)]
+    public entry fun test_deposit_when_deposited_will_be_over_u64_max(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
+        setup(owner);
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+
+        deposit_internal<Asset>(key<WETH>(), account, account_addr, constant::u64_max(), false);
+        assert!(deposited_asset_share<WETH>(account_addr) == constant::u64_max(), 0);
+        deposit_internal<Asset>(key<WETH>(), account, account_addr, 1, false);
+    }
+    #[test(owner=@leizd,account=@0x111)]
+    #[expected_failure(abort_code = 65541)]
+    public entry fun test_withdraw_when_remains_will_be_underflow(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
+        setup(owner);
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+
+        deposit_internal<Shadow>(key<WETH>(), account, account_addr, 1, false);
+        withdraw_internal<Shadow>(key<WETH>(), account_addr, 2, false);
+    }
+    #[test(owner=@leizd,account=@0x111)]
+    #[expected_failure(abort_code = 65537)]
+    public entry fun test_borrow_when_borrowed_will_be_over_u64_max(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
+        setup(owner);
+        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+
+        deposit_internal<Asset>(key<WETH>(), account, account_addr, constant::u64_max(), false);
+        borrow_internal<Shadow>(key<WETH>(), account, account_addr, 1);
+        assert!(borrowed_shadow_share<WETH>(account_addr) == 1, 0);
+        borrow_internal<Shadow>(key<WETH>(), account, account_addr, constant::u64_max());
+    }
+    #[test(owner=@leizd,account=@0x111)]
+    #[expected_failure(abort_code = 65542)]
+    public entry fun test_repay_when_remains_will_be_underflow(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
+        setup(owner);
+        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+
+        deposit_internal<Shadow>(key<WETH>(), account, account_addr, 100, false);
+        borrow_internal<Asset>(key<WETH>(), account, account_addr, 1);
+        repay_internal<Asset>(key<WETH>(), account_addr, 2);
+    }
+
 }
