@@ -1120,6 +1120,8 @@ module leizd::shadow_pool {
     #[test_only]
     use aptos_framework::managed_coin;
     #[test_only]
+    use leizd_aptos_lib::constant;
+    #[test_only]
     use leizd_aptos_common::system_administrator;
     #[test_only]
     use leizd_aptos_common::test_coin::{Self,WETH,UNI};
@@ -1304,6 +1306,23 @@ module leizd::shadow_pool {
         assert!(normal_deposited_amount<WETH>() == 0, 0);
         assert!(conly_deposited_amount<WETH>() == 800000, 0);
         assert!(borrowed_amount<WETH>() == 0, 0);
+    }
+    #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
+    public entry fun test_deposit_with_u64_max(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+        managed_coin::register<USDZ>(account);
+        let max = constant::u64_max();
+        usdz::mint_for_test(account_addr, max);
+
+        let (amount, _) = deposit_for_internal(key<WETH>(), account, account_addr, max, false);
+        assert!(amount == max, 0);
+        assert!(coin::balance<USDZ>(account_addr) == 0, 0);
+        assert!(total_normal_deposited_amount() == (max as u128), 0);
+        assert!(normal_deposited_amount<WETH>() == (max as u128), 0);
+        assert!(total_liquidity() == (max as u128), 0);
     }
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
     public entry fun test_deposit_to_check_share(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, Keys, PoolEventHandle {
@@ -1504,6 +1523,26 @@ module leizd::shadow_pool {
         assert!(share == 5000, 0);
         assert!(normal_deposited_amount<WETH>() == 0, 0);
         assert!(normal_deposited_share<WETH>() == 0, 0);
+    }
+    #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
+    public entry fun test_withdraw_with_u64_max(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+        managed_coin::register<USDZ>(account);
+        let max = constant::u64_max();
+        usdz::mint_for_test(account_addr, max);
+
+        deposit_for_internal(key<WETH>(), account, account_addr, max, false);
+        let (amount, _) = withdraw_for_internal(key<WETH>(), account_addr, account_addr, max, false, false, 0);
+
+        assert!(amount == max, 0);
+        assert!(coin::balance<USDZ>(account_addr) == max, 0);
+        assert!(total_normal_deposited_amount() == 0, 0);
+        assert!(normal_deposited_amount<WETH>() == 0, 0);
+        assert!(total_liquidity() == 0, 0);
     }
     #[test(owner=@leizd,depositor=@0x111,withdrawer=@0x222,aptos_framework=@aptos_framework)]
     public entry fun test_withdraw_by_share(owner: &signer, depositor: &signer, withdrawer: &signer, aptos_framework: &signer) acquires Pool, Storage, Keys, PoolEventHandle {
@@ -1742,6 +1781,43 @@ module leizd::shadow_pool {
         // borrow UNI
         borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 120);
     }
+    #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
+    public entry fun test_borrow_with_u64_max(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+
+        let depositor_addr = signer::address_of(depositor);
+        let borrower_addr = signer::address_of(borrower);
+        account::create_account_for_test(depositor_addr);
+        account::create_account_for_test(borrower_addr);
+        managed_coin::register<USDZ>(depositor);
+        managed_coin::register<USDZ>(borrower);
+        let max = constant::u64_max();
+        usdz::mint_for_test(depositor_addr, max);
+
+        // prerequisite
+        risk_factor::update_protocol_fees_unsafe(
+            0,
+            0,
+            risk_factor::default_liquidation_fee(),
+        ); // NOTE: remove entry fee / share fee to make it easy to calcurate borrowed amount/share
+        //// add liquidity
+        deposit_for_internal(key<UNI>(), depositor, depositor_addr, max, false);
+
+        // borrow
+        let (borrowed, _) = borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, max);
+        assert!(borrowed == max, 0);
+        assert!(coin::balance<USDZ>(borrower_addr) == max, 0);
+        assert!(total_normal_deposited_amount() == (max as u128), 0);
+        assert!(normal_deposited_amount<UNI>() == (max as u128), 0);
+        assert!(total_liquidity() == 0, 0);
+        assert!(total_borrowed_amount() == (max as u128), 0);
+        assert!(borrowed_amount<UNI>() == (max as u128), 0);
+
+        // check about fee
+        assert!(risk_factor::entry_fee() == 0, 0);
+        assert!(treasury::balance<USDZ>() == 0, 0);
+    }
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
     public entry fun test_borrow_to_check_share(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, Keys, PoolEventHandle {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
@@ -1968,6 +2044,43 @@ module leizd::shadow_pool {
     //     let event_handle = borrow_global<PoolEventHandle>(signer::address_of(owner));
     //     assert!(event::counter<RepayEvent>(&event_handle.repay_event) == 3, 0);
     // }
+
+    #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
+    public entry fun test_repay_with_u64_value(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+
+        let owner_address = signer::address_of(owner);
+        let depositor_addr = signer::address_of(depositor);
+        let borrower_addr = signer::address_of(borrower);
+        account::create_account_for_test(depositor_addr);
+        account::create_account_for_test(borrower_addr);
+        managed_coin::register<USDZ>(depositor);
+        managed_coin::register<USDZ>(borrower);
+
+        // prerequisite
+        risk_factor::update_protocol_fees_unsafe(
+            0,
+            0,
+            risk_factor::default_liquidation_fee(),
+        ); // NOTE: remove entry fee / share fee to make it easy to calcurate borrowed amount/share
+        assert!(risk_factor::entry_fee() == 0, 0);
+        //// add liquidity
+        let max = constant::u64_max();
+        usdz::mint_for_test(depositor_addr, max);
+        deposit_for_internal(key<UNI>(), depositor, depositor_addr, max, false);
+
+        // execute
+        borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, max);
+        assert!(pool_value(owner_address) == 0, 0);
+        assert!(borrowed_amount<UNI>() == (max as u128), 0);
+        let (amount, _) = repay_internal(key<UNI>(), borrower, max, false);
+        assert!(amount == max, 0);
+        assert!(pool_value(owner_address) == max, 0);
+        assert!(borrowed_amount<UNI>() == 0, 0);
+        assert!(coin::balance<USDZ>(borrower_addr) == 0, 0);
+    }
+
     // TODO: add case to use `share` as input
     #[test(_owner=@leizd)]
     public entry fun test_repay_by_share(_owner: &signer) {}
@@ -3034,6 +3147,93 @@ module leizd::shadow_pool {
     fun test_conly_deposited_share_to_amount(_owner: &signer) {}
     #[test(_owner=@leizd)]
     fun test_borrowed_share_to_amount(_owner: &signer) {}
+
+    // about overflow/underflow
+    #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
+    #[expected_failure] // TODO: validation with appropriate errors
+    public entry fun test_deposit_when_deposited_will_be_over_u64_max(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+        managed_coin::register<USDZ>(account);
+
+        usdz::mint_for_test(account_addr, 1);
+        deposit_for_internal(key<WETH>(), account, account_addr, 1, false);
+        let max = constant::u64_max();
+        usdz::mint_for_test(account_addr, max);
+        deposit_for_internal(key<WETH>(), account, account_addr, max, false);
+    }
+    #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
+    #[expected_failure] // TODO: validation with appropriate errors
+    public entry fun test_withdraw_when_remains_will_be_underflow(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+        managed_coin::register<USDZ>(account);
+        usdz::mint_for_test(account_addr, 1);
+
+        deposit_for_internal(key<WETH>(), account, account_addr, 1, false);
+        withdraw_for_internal(key<WETH>(), account_addr, account_addr, 2, false, false, 0);
+    }
+    #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
+    #[expected_failure] // TODO: validation with appropriate errors
+    public entry fun test_borrow_when_borrowed_will_be_over_u64_max(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+
+        let depositor_addr = signer::address_of(depositor);
+        let borrower_addr = signer::address_of(borrower);
+        account::create_account_for_test(depositor_addr);
+        account::create_account_for_test(borrower_addr);
+        managed_coin::register<USDZ>(depositor);
+        managed_coin::register<USDZ>(borrower);
+        let max = constant::u64_max();
+        usdz::mint_for_test(depositor_addr, max);
+
+        // prerequisite
+        risk_factor::update_protocol_fees_unsafe(
+            0,
+            0,
+            risk_factor::default_liquidation_fee(),
+        ); // NOTE: remove entry fee / share fee to make it easy to calcurate borrowed amount/share
+        //// add liquidity
+        deposit_for_internal(key<UNI>(), depositor, depositor_addr, max, false);
+
+        // borrow
+        borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 1);
+        borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, max);
+    }
+    #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
+    #[expected_failure] // TODO: validation with appropriate errors
+    public entry fun test_repay_when_remains_will_be_underflow(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+
+        let depositor_addr = signer::address_of(depositor);
+        let borrower_addr = signer::address_of(borrower);
+        account::create_account_for_test(depositor_addr);
+        account::create_account_for_test(borrower_addr);
+        managed_coin::register<USDZ>(depositor);
+        managed_coin::register<USDZ>(borrower);
+
+        // prerequisite
+        risk_factor::update_protocol_fees_unsafe(
+            0,
+            0,
+            risk_factor::default_liquidation_fee(),
+        ); // NOTE: remove entry fee / share fee to make it easy to calcurate borrowed amount/share
+        assert!(risk_factor::entry_fee() == 0, 0);
+        //// add liquidity
+        usdz::mint_for_test(depositor_addr, 1);
+        deposit_for_internal(key<UNI>(), depositor, depositor_addr, 1, false);
+
+        // execute
+        borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 1);
+        repay_internal(key<UNI>(), borrower, 2, false);
+    }
 
     // scenario
     #[test_only]
