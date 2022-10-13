@@ -94,11 +94,14 @@ module leizd_aptos_entry::edge {
             0,
             risk_factor::default_liquidation_fee(),
         ); // NOTE: remove entry fee / share fee to make it easy to calcurate borrowed amount/share
+        risk_factor::update_config<USDZ>(owner, risk_factor::precision(), risk_factor::precision()); // NOTE: to allow borrowing to the maximum
 
         // execute
         money_market::deposit<WETH, Asset>(account1, max, false);
         money_market::deposit<WETH, Shadow>(account2, max, false);
-        money_market::borrow<WETH, Asset>(account2, max);
+        money_market::borrow<WETH, Asset>(account2, max - 1); // NOTE: minus 1 from amount because HF must be less than LT
+        assert!(account_position::borrowed_volume<ShadowToAsset>(account2_addr, key<WETH>()) == (max - 1 as u128), 0);
+        assert!(coin::balance<WETH>(account2_addr) == max - 1, 0);
     }
     #[test(owner = @leizd_aptos_entry, aptos_framework = @aptos_framework)]
     fun test_borrow_shadow_with_u64_except_interest_rate(owner: &signer, aptos_framework: &signer) {
@@ -117,11 +120,14 @@ module leizd_aptos_entry::edge {
             0,
             risk_factor::default_liquidation_fee(),
         ); // NOTE: remove entry fee / share fee to make it easy to calcurate borrowed amount/share
+        risk_factor::update_config<USDC>(owner, risk_factor::precision(), risk_factor::precision()); // NOTE: to allow borrowing to the maximum
 
         // execute
         money_market::deposit<USDC, Shadow>(account1, max, false);
         money_market::deposit<USDC, Asset>(account2, max, false);
-        money_market::borrow<USDC, Shadow>(account2, max);
+        money_market::borrow<USDC, Shadow>(account2, max - 1); // NOTE: minus 1 from amount because HF must be less than LT
+        assert!(account_position::borrowed_volume<AssetToShadow>(account2_addr, key<USDC>()) == (max - 1 as u128), 0);
+        assert!(coin::balance<USDZ>(account2_addr) == max - 1, 0);
     }
     #[test(owner = @leizd_aptos_entry, aptos_framework = @aptos_framework)]
     fun test_repay_asset_with_u64_max_except_interest_rate_and_fee(owner: &signer, aptos_framework: &signer) {
@@ -140,11 +146,15 @@ module leizd_aptos_entry::edge {
             0,
             risk_factor::default_liquidation_fee(),
         ); // NOTE: remove entry fee / share fee to make it easy to calcurate borrowed amount/share
+        risk_factor::update_config<USDZ>(owner, risk_factor::precision(), risk_factor::precision()); // NOTE: to allow borrowing to the maximum
 
         // execute
         money_market::deposit<WETH, Asset>(account1, max, false);
         money_market::deposit<WETH, Shadow>(account2, max, false);
-        money_market::borrow<WETH, Asset>(account2, max);
+        money_market::borrow<WETH, Asset>(account2, max - 1); // NOTE: minus 1 from amount because HF must be less than LT
+        money_market::repay<WETH, Asset>(account2, max - 1);
+        assert!(account_position::borrowed_volume<ShadowToAsset>(account2_addr, key<WETH>()) == 0, 0);
+        assert!(coin::balance<WETH>(account2_addr) == 0, 0);
     }
     #[test(owner = @leizd_aptos_entry, aptos_framework = @aptos_framework)]
     fun test_repay_shadow_with_u64_max_except_interest_rate_and_fee(owner: &signer, aptos_framework: &signer) {
@@ -163,10 +173,14 @@ module leizd_aptos_entry::edge {
             0,
             risk_factor::default_liquidation_fee(),
         ); // NOTE: remove entry fee / share fee to make it easy to calcurate borrowed amount/share
+        risk_factor::update_config<USDC>(owner, risk_factor::precision(), risk_factor::precision()); // NOTE: to allow borrowing to the maximum
 
         // execute
         money_market::deposit<USDC, Shadow>(account1, max, false);
         money_market::deposit<USDC, Asset>(account2, max, false);
-        money_market::borrow<USDC, Shadow>(account2, max);
+        money_market::borrow<USDC, Shadow>(account2, max - 1); // NOTE: minus 1 from amount because HF must be less than LT
+        money_market::repay<USDC, Shadow>(account2, max - 1);
+        assert!(account_position::borrowed_volume<AssetToShadow>(account2_addr, key<USDC>()) == 0, 0);
+        assert!(coin::balance<USDZ>(account2_addr) == 0, 0);
     }
 }
