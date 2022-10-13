@@ -723,41 +723,64 @@ module leizd::shadow_pool {
     ////////////////////////////////////////////////////
     /// Switch Collateral
     ////////////////////////////////////////////////////
-    public fun switch_collateral<C>(caller: address, amount: u64, to_collateral_only: bool, _key: &OperatorKey) acquires Storage, PoolEventHandle {
-        switch_collateral_internal(key<C>(), caller, amount, to_collateral_only);
+    public fun switch_collateral<C>(caller: address, share: u64, to_collateral_only: bool, _key: &OperatorKey): (u64, u64, u64) acquires Storage, Keys, PoolEventHandle {
+        switch_collateral_internal(key<C>(), caller, share, to_collateral_only)
     }
 
-    fun switch_collateral_internal(key: String, caller: address, amount: u64, to_collateral_only: bool) acquires Storage, PoolEventHandle {
+    fun switch_collateral_internal(key: String, caller: address, share: u64, to_collateral_only: bool): (
+        u64, // amount
+        u64, // share for from
+        u64, // share for to
+    ) acquires Storage, Keys, PoolEventHandle {
         assert!(pool_status::can_switch_collateral_with(key), error::invalid_state(ENOT_AVAILABLE_STATUS));
-        assert!(amount > 0, error::invalid_argument(EAMOUNT_ARG_IS_ZERO));
+        assert!(share > 0, error::invalid_argument(EAMOUNT_ARG_IS_ZERO));
         let owner_address = permission::owner_address();
         let storage_ref = borrow_global_mut<Storage>(owner_address);
-        let amount_u128 = (amount as u128);
-        // TODO: consider share
+
+        accrue_interest(key, storage_ref);
+
+        let from_share_u128 = (share as u128);
+        let amount_u128: u128;
+        let to_share_u128: u128;
         if (to_collateral_only) {
-            assert!(amount_u128 <= normal_deposited_amount_internal(key, storage_ref) - conly_deposited_amount_internal(key, storage_ref), error::invalid_argument(EINSUFFICIENT_LIQUIDITY));
+            assert!(from_share_u128 <= normal_deposited_share_internal(key, storage_ref), error::invalid_argument(EINSUFFICIENT_LIQUIDITY));
+
             let asset_storage_ref = simple_map::borrow_mut<String, AssetStorage>(&mut storage_ref.asset_storages, &key);
-            asset_storage_ref.conly_deposited_amount = asset_storage_ref.conly_deposited_amount + amount_u128;
-            storage_ref.total_conly_deposited_amount = storage_ref.total_conly_deposited_amount + amount_u128;
-            asset_storage_ref.normal_deposited_amount = asset_storage_ref.normal_deposited_amount - amount_u128;
+            amount_u128 = math128::to_amount(from_share_u128, asset_storage_ref.normal_deposited_amount, asset_storage_ref.normal_deposited_share);
+            to_share_u128 = math128::to_share(amount_u128, asset_storage_ref.conly_deposited_amount, asset_storage_ref.conly_deposited_share);
+
             storage_ref.total_normal_deposited_amount = storage_ref.total_normal_deposited_amount - amount_u128;
+            asset_storage_ref.normal_deposited_amount = asset_storage_ref.normal_deposited_amount - amount_u128;
+            asset_storage_ref.normal_deposited_share = asset_storage_ref.normal_deposited_share - from_share_u128;
+            storage_ref.total_conly_deposited_amount = storage_ref.total_conly_deposited_amount + amount_u128;
+            asset_storage_ref.conly_deposited_amount = asset_storage_ref.conly_deposited_amount + amount_u128;
+            asset_storage_ref.conly_deposited_share = asset_storage_ref.conly_deposited_share + to_share_u128;
         } else {
-            assert!(amount_u128 <= conly_deposited_amount_internal(key, storage_ref), error::invalid_argument(EINSUFFICIENT_CONLY_DEPOSITED));
+            assert!(from_share_u128 <= conly_deposited_share_internal(key, storage_ref), error::invalid_argument(EINSUFFICIENT_CONLY_DEPOSITED));
+
             let asset_storage_ref = simple_map::borrow_mut<String, AssetStorage>(&mut storage_ref.asset_storages, &key);
-            asset_storage_ref.normal_deposited_amount = asset_storage_ref.normal_deposited_amount + amount_u128;
-            storage_ref.total_normal_deposited_amount = storage_ref.total_normal_deposited_amount + amount_u128;
-            asset_storage_ref.conly_deposited_amount = asset_storage_ref.conly_deposited_amount - amount_u128;
+            amount_u128 = math128::to_amount(from_share_u128, asset_storage_ref.conly_deposited_amount, asset_storage_ref.conly_deposited_share);
+            to_share_u128 = math128::to_share(amount_u128, asset_storage_ref.normal_deposited_amount, asset_storage_ref.normal_deposited_share);
+
             storage_ref.total_conly_deposited_amount = storage_ref.total_conly_deposited_amount - amount_u128;
+            asset_storage_ref.conly_deposited_amount = asset_storage_ref.conly_deposited_amount - amount_u128;
+            asset_storage_ref.conly_deposited_share = asset_storage_ref.conly_deposited_share - from_share_u128;
+            storage_ref.total_normal_deposited_amount = storage_ref.total_normal_deposited_amount + amount_u128;
+            asset_storage_ref.normal_deposited_amount = asset_storage_ref.normal_deposited_amount + amount_u128;
+            asset_storage_ref.normal_deposited_share = asset_storage_ref.normal_deposited_share + to_share_u128;
         };
+
         event::emit_event<SwitchCollateralEvent>(
             &mut borrow_global_mut<PoolEventHandle>(owner_address).switch_collateral_event,
             SwitchCollateralEvent {
                 key,
                 caller,
-                amount,
+                amount: (amount_u128 as u64),
                 to_collateral_only,
             },
         );
+
+        ((amount_u128 as u64), (from_share_u128 as u64), (to_share_u128 as u64))
     }
 
     ////////////////////////////////////////////////////
@@ -2691,7 +2714,10 @@ module leizd::shadow_pool {
         assert!(normal_deposited_amount<WETH>() == 1000, 0);
         assert!(conly_deposited_amount<WETH>() == 0, 0);
 
-        switch_collateral_internal(key<WETH>(), account_addr, 800, true);
+        let (amount, from_share, to_share) = switch_collateral_internal(key<WETH>(), account_addr, 800, true);
+        assert!(amount == 800, 0);
+        assert!(from_share == 800, 0);
+        assert!(to_share == 800, 0);
         assert!(total_liquidity() == 200, 0);
         assert!(total_normal_deposited_amount() == 200, 0);
         assert!(total_conly_deposited_amount() == 800, 0);
@@ -2699,13 +2725,38 @@ module leizd::shadow_pool {
         assert!(conly_deposited_amount<WETH>() == 800, 0);
         assert!(event::counter<SwitchCollateralEvent>(&borrow_global<PoolEventHandle>(owner_addr).switch_collateral_event) == 1, 0);
 
-        switch_collateral_internal(key<WETH>(), account_addr, 400, false);
+        let (amount, from_share, to_share) = switch_collateral_internal(key<WETH>(), account_addr, 400, false);
+        assert!(amount == 400, 0);
+        assert!(from_share == 400, 0);
+        assert!(to_share == 400, 0);
         assert!(total_liquidity() == 600, 0);
         assert!(total_normal_deposited_amount() == 600, 0);
         assert!(total_conly_deposited_amount() == 400, 0);
         assert!(normal_deposited_amount<WETH>() == 600, 0);
         assert!(conly_deposited_amount<WETH>() == 400, 0);
         assert!(event::counter<SwitchCollateralEvent>(&borrow_global<PoolEventHandle>(owner_addr).switch_collateral_event) == 2, 0);
+
+        // to check share
+        update_normal_deposited_amount_state(borrow_global_mut<Storage>(owner_addr), &key<WETH>(), 2400, false);
+        assert!(normal_deposited_amount<WETH>() == 3000, 0);
+        assert!(normal_deposited_share<WETH>() == 600, 0);
+        assert!(total_normal_deposited_amount() == 3000, 0);
+        let (amount, from_share, to_share) = switch_collateral_internal(key<WETH>(), account_addr, 100, true);
+        assert!(amount == 500, 0);
+        assert!(from_share == 100, 0);
+        assert!(to_share == 500, 0);
+        assert!(normal_deposited_amount<WETH>() == 2500, 0);
+        assert!(normal_deposited_share<WETH>() == 500, 0);
+        assert!(conly_deposited_amount<WETH>() == 900, 0);
+        assert!(conly_deposited_share<WETH>() == 900, 0);
+        let (amount, from_share, to_share) = switch_collateral_internal(key<WETH>(), account_addr, 500, false);
+        assert!(amount == 500, 0);
+        assert!(from_share == 500, 0);
+        assert!(to_share == 100, 0);
+        assert!(normal_deposited_amount<WETH>() == 3000, 0);
+        assert!(normal_deposited_share<WETH>() == 600, 0);
+        assert!(conly_deposited_amount<WETH>() == 400, 0);
+        assert!(conly_deposited_share<WETH>() == 400, 0);
     }
     #[test(owner=@leizd, account=@0x111, aptos_framework=@aptos_framework)]
     #[expected_failure(abort_code = 65547)]

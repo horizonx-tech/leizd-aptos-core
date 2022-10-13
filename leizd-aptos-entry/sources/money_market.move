@@ -879,14 +879,19 @@ module leizd_aptos_entry::money_market {
     public entry fun switch_collateral<C,P>(account: &signer, to_collateral_only: bool) acquires LendingPoolModKeys {
         pool_type::assert_pool_type<P>();
         let account_addr = signer::address_of(account);
+        let key = coin_key::key<C>();
         let (account_position_key, asset_pool_key, shadow_pool_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
-
-        let amount = account_position::switch_collateral<C,P>(account_addr, to_collateral_only, account_position_key);
+        let to_share: u64;
         if (pool_type::is_type_asset<P>()) {
-            asset_pool::switch_collateral<C>(account_addr, amount, to_collateral_only, asset_pool_key);
+            account_position::assert_invalid_deposit_asset(key, account_addr, !to_collateral_only);
+            let all_user_share = if (to_collateral_only) account_position::deposited_asset_share<C>(account_addr) else account_position::conly_deposited_asset_share<C>(account_addr);
+            (_, _, to_share) = asset_pool::switch_collateral<C>(account_addr, all_user_share, to_collateral_only, asset_pool_key);
         } else {
-            shadow_pool::switch_collateral<C>(account_addr, amount, to_collateral_only, shadow_pool_key);
+            account_position::assert_invalid_deposit_shadow(key, account_addr, !to_collateral_only);
+            let all_user_share = if (to_collateral_only) account_position::deposited_shadow_share<C>(account_addr) else account_position::conly_deposited_shadow_share<C>(account_addr);
+            (_, _, to_share) = shadow_pool::switch_collateral<C>(account_addr, all_user_share, to_collateral_only, shadow_pool_key);
         };
+        account_position::switch_collateral<C,P>(account_addr, to_collateral_only, to_share, account_position_key);
     }
 
     /// central liquidity pool
@@ -918,6 +923,8 @@ module leizd_aptos_entry::money_market {
     use leizd_aptos_treasury::treasury;
     #[test_only]
     use leizd_aptos_core::test_initializer;
+    #[test_only]
+    use leizd::interest_rate;
     #[test_only]
     use leizd::pool_manager;
     #[test_only]
@@ -1616,6 +1623,63 @@ module leizd_aptos_entry::money_market {
         assert!(shadow_pool::conly_deposited_amount<WETH>() == 0, 0);
         assert!(account_position::deposited_shadow_share<WETH>(account_addr) == 1000, 0);
         assert!(account_position::conly_deposited_shadow_share<WETH>(account_addr) == 0, 0);
+    }
+    #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
+    fun test_switch_collateral_for_checking_share(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
+        initialize_lending_pool_for_test(owner, aptos_framework);
+        setup_liquidity_provider_for_test(owner, lp);
+        setup_account_for_test(account);
+        let account_addr = signer::address_of(account);
+        managed_coin::mint<WETH>(owner, account_addr, 50000);
+
+        // prerequisite
+        risk_factor::update_protocol_fees_unsafe(
+            0,
+            0,
+            risk_factor::default_liquidation_fee(),
+        ); // NOTE: remove entry fee / share fee to make it easy to calcurate borrowed amount/share
+
+        deposit<WETH, Asset>(lp, 150000, false);
+        deposit<WETH, Shadow>(lp, 150000, false);
+        borrow<WETH, Asset>(lp, 40000);
+        deposit<WETH, Asset>(account, 50000, false);
+        assert!(asset_pool::total_normal_deposited_amount<WETH>() == 200000, 0);
+        assert!(asset_pool::total_conly_deposited_amount<WETH>() == 0, 0);
+        assert!(asset_pool::total_normal_deposited_share<WETH>() == 200000, 0);
+        assert!(asset_pool::total_conly_deposited_share<WETH>() == 0, 0);
+        assert!(asset_pool::total_borrowed_amount<WETH>() == 40000, 0);
+        assert!(account_position::deposited_asset_share<WETH>(account_addr) == 50000, 0);
+        assert!(account_position::conly_deposited_asset_share<WETH>(account_addr) == 0, 0);
+
+        // execute: normal -> collateral only
+        asset_pool::earn_interest_without_using_interest_rate_module_for_test<WETH>(
+            (interest_rate::precision() as u128) // 100%
+        );
+        assert!(asset_pool::total_normal_deposited_amount<WETH>() == 200000 + 40000, 0);
+        assert!(asset_pool::total_borrowed_amount<WETH>() == 40000 + 40000, 0);
+
+        switch_collateral<WETH, Asset>(account, true);
+        assert!(asset_pool::total_normal_deposited_amount<WETH>() == (200000 + 40000) - (50000 + 10000), 0);
+        assert!(asset_pool::total_conly_deposited_amount<WETH>() == (50000 + 10000), 0);
+        assert!(asset_pool::total_normal_deposited_share<WETH>() == 150000, 0);
+        assert!(asset_pool::total_conly_deposited_share<WETH>() == 60000, 0);
+        assert!(account_position::deposited_asset_share<WETH>(account_addr) == 0, 0);
+        assert!(account_position::conly_deposited_asset_share<WETH>(account_addr) == 60000, 0);
+
+        // execute: collateral only -> normal
+        asset_pool::earn_interest_without_using_interest_rate_module_for_test<WETH>(
+            ((interest_rate::precision() / 1000 * 750) as u128) // 75%
+        );
+        assert!(asset_pool::total_normal_deposited_amount<WETH>() == 180000 + 60000, 0);
+        assert!(asset_pool::total_borrowed_amount<WETH>() == 80000 + 60000, 0);
+
+        switch_collateral<WETH, Asset>(account, false);
+        assert!(asset_pool::total_normal_deposited_amount<WETH>() == 240000 + 60000, 0);
+        assert!(asset_pool::total_conly_deposited_amount<WETH>() == 0, 0);
+        assert!(asset_pool::total_normal_deposited_share<WETH>() == 150000 + (60000 * 150000 / 240000), 0);
+        assert!(asset_pool::total_conly_deposited_share<WETH>() == 0, 0);
+        assert!(account_position::deposited_asset_share<WETH>(account_addr) == 60000 * 150000 / 240000, 0);
+        assert!(account_position::conly_deposited_asset_share<WETH>(account_addr) == 0, 0);
     }
 
     // scenario
