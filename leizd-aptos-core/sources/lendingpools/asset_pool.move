@@ -533,19 +533,21 @@ module leizd::asset_pool {
         let amount_u128: u128;
         let to_share_u128: u128;
         if (to_collateral_only) {
+            assert!(from_share_u128 <= asset_storage_ref.total_normal_deposited_share, error::invalid_argument(EINSUFFICIENT_LIQUIDITY));
+
             amount_u128 = math128::to_amount(from_share_u128, asset_storage_ref.total_normal_deposited_amount, asset_storage_ref.total_normal_deposited_share);
             to_share_u128 = math128::to_share(amount_u128, asset_storage_ref.total_conly_deposited_amount, asset_storage_ref.total_conly_deposited_share);
 
-            // assert!(amount_u128 <= liquidity_internal(pool_ref, asset_storage_ref), error::invalid_argument(EINSUFFICIENT_LIQUIDITY));
             asset_storage_ref.total_normal_deposited_amount = asset_storage_ref.total_normal_deposited_amount - amount_u128;
             asset_storage_ref.total_normal_deposited_share = asset_storage_ref.total_normal_deposited_share - from_share_u128;
             asset_storage_ref.total_conly_deposited_amount = asset_storage_ref.total_conly_deposited_amount + amount_u128;
             asset_storage_ref.total_conly_deposited_share = asset_storage_ref.total_conly_deposited_share + to_share_u128;
         } else {
+            assert!(from_share_u128 <= asset_storage_ref.total_conly_deposited_share, error::invalid_argument(EINSUFFICIENT_CONLY_DEPOSITED));
+
             amount_u128 = math128::to_amount(from_share_u128, asset_storage_ref.total_conly_deposited_amount, asset_storage_ref.total_conly_deposited_share);
             to_share_u128 = math128::to_share(amount_u128, asset_storage_ref.total_normal_deposited_amount, asset_storage_ref.total_normal_deposited_share);
 
-            // assert!(amount_u128 <= asset_storage_ref.total_conly_deposited_amount, error::invalid_argument(EINSUFFICIENT_CONLY_DEPOSITED));
             asset_storage_ref.total_conly_deposited_amount = asset_storage_ref.total_conly_deposited_amount - amount_u128;
             asset_storage_ref.total_conly_deposited_share = asset_storage_ref.total_conly_deposited_share - from_share_u128;
             asset_storage_ref.total_normal_deposited_amount = asset_storage_ref.total_normal_deposited_amount + amount_u128;
@@ -1733,6 +1735,28 @@ module leizd::asset_pool {
         assert!(total_normal_deposited_amount<WETH>() == 600, 0);
         assert!(total_conly_deposited_amount<WETH>() == 400, 0);
         assert!(event::counter<SwitchCollateralEvent>(&borrow_global<PoolEventHandle<WETH>>(owner_addr).switch_collateral_event) == 2, 0);
+
+        // to check share
+        let total_normal_deposited_amount = &mut borrow_mut_asset_storage<WETH>(borrow_global_mut<Storage>(owner_addr)).total_normal_deposited_amount;
+        *total_normal_deposited_amount = *total_normal_deposited_amount + 2400;
+        assert!(total_normal_deposited_amount<WETH>() == 3000, 0);
+        assert!(total_normal_deposited_share<WETH>() == 600, 0);
+        let (amount, from_share, to_share) = switch_collateral_internal<WETH>(account_addr, 100, true);
+        assert!(amount == 500, 0);
+        assert!(from_share == 100, 0);
+        assert!(to_share == 500, 0);
+        assert!(total_normal_deposited_amount<WETH>() == 2500, 0);
+        assert!(total_normal_deposited_share<WETH>() == 500, 0);
+        assert!(total_conly_deposited_amount<WETH>() == 900, 0);
+        assert!(total_conly_deposited_share<WETH>() == 900, 0);
+        let (amount, from_share, to_share) = switch_collateral_internal<WETH>(account_addr, 500, false);
+        assert!(amount == 500, 0);
+        assert!(from_share == 500, 0);
+        assert!(to_share == 100, 0);
+        assert!(total_normal_deposited_amount<WETH>() == 3000, 0);
+        assert!(total_normal_deposited_share<WETH>() == 600, 0);
+        assert!(total_conly_deposited_amount<WETH>() == 400, 0);
+        assert!(total_conly_deposited_share<WETH>() == 400, 0);
     }
     #[test(owner=@leizd, account=@0x111, aptos_framework=@aptos_framework)]
     #[expected_failure(abort_code = 65547)]
