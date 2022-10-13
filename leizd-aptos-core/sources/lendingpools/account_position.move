@@ -29,6 +29,7 @@ module leizd::account_position {
     const EALREADY_DEPOSITED_AS_COLLATERAL_ONLY: u64 = 9;
     const ECANNOT_REBALANCE: u64 = 10;
     const ENO_DEPOSITED: u64 = 11;
+    const EINPUT_IS_ZERO: u64 = 12;
 
     //// resources
     /// access control
@@ -501,23 +502,32 @@ module leizd::account_position {
     }
     fun switch_collateral_internal<C,P>(addr: address, to_collateral_only: bool, to_share: u64) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
         let key = key<C>();
+        assert!(to_share > 0, error::invalid_argument(EINPUT_IS_ZERO));
         if (pool_type::is_type_asset<P>()) {
             if (to_collateral_only) {
-                update_on_withdraw<AssetToShadow>(key, addr, deposited_asset_share<C>(addr), false);
+                let from_share = deposited_asset_share<C>(addr);
+                assert!(from_share > 0, error::invalid_argument(ENO_DEPOSITED));
+                update_on_withdraw<AssetToShadow>(key, addr, from_share, false);
                 update_on_deposit<AssetToShadow>(key, addr, to_share, true);
                 assert_invalid_deposit_asset(key, addr, true);
             } else {
-                update_on_withdraw<AssetToShadow>(key, addr, conly_deposited_asset_share<C>(addr), true);
+                let from_share = conly_deposited_asset_share<C>(addr);
+                assert!(from_share > 0, error::invalid_argument(ENO_DEPOSITED));
+                update_on_withdraw<AssetToShadow>(key, addr, from_share, true);
                 update_on_deposit<AssetToShadow>(key, addr, to_share, false);
                 assert_invalid_deposit_asset(key, addr, false);
             }
         } else {
             if (to_collateral_only) {
-                update_on_withdraw<ShadowToAsset>(key, addr, deposited_shadow_share<C>(addr), false);
+                let from_share = deposited_shadow_share<C>(addr);
+                assert!(from_share > 0, error::invalid_argument(ENO_DEPOSITED));
+                update_on_withdraw<ShadowToAsset>(key, addr, from_share, false);
                 update_on_deposit<ShadowToAsset>(key, addr, to_share, true);
                 assert_invalid_deposit_shadow(key, addr, true);
             } else {
-                update_on_withdraw<ShadowToAsset>(key, addr, conly_deposited_shadow_share<C>(addr), true);
+                let from_share = conly_deposited_shadow_share<C>(addr);
+                assert!(from_share > 0, error::invalid_argument(ENO_DEPOSITED));
+                update_on_withdraw<ShadowToAsset>(key, addr, from_share, true);
                 update_on_deposit<ShadowToAsset>(key, addr, to_share, false);
                 assert_invalid_deposit_shadow(key, addr, false);
             }
@@ -1928,19 +1938,44 @@ module leizd::account_position {
         assert!(conly_deposited_shadow_share<WETH>(account1_addr) == 40000, 0);
     }
     #[test(owner = @leizd, account1 = @0x111)]
-    public entry fun test_switch_collateral_when_(owner: &signer, account1: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
+    #[expected_failure(abort_code = 65548)]
+    public entry fun test_switch_collateral_with_share_is_zero(account1: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
+        switch_collateral_internal<WETH,Asset>(signer::address_of(account1), true, 0);
+    }
+    #[test(owner = @leizd, account1 = @0x111)]
+    #[expected_failure(abort_code = 65547)]
+    public entry fun test_switch_collateral_for_asset_when_to_normal_with_no_collateral_only_deposited(owner: &signer, account1: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
         setup(owner);
         let account1_addr = signer::address_of(account1);
         account::create_account_for_test(account1_addr);
         deposit_internal<Asset>(key<WETH>(), account1, account1_addr, 10000, false);
-
+        switch_collateral_internal<WETH,Asset>(account1_addr, false, 10000);
+    }
+    #[test(owner = @leizd, account1 = @0x111)]
+    #[expected_failure(abort_code = 65547)]
+    public entry fun test_switch_collateral_for_asset_when_to_collateral_only_with_no_normal_deposited(owner: &signer, account1: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
+        setup(owner);
+        let account1_addr = signer::address_of(account1);
+        account::create_account_for_test(account1_addr);
+        deposit_internal<Asset>(key<WETH>(), account1, account1_addr, 10000, true);
         switch_collateral_internal<WETH,Asset>(account1_addr, true, 10000);
-        assert!(deposited_asset_share<WETH>(account1_addr) == 0, 0);
-        assert!(conly_deposited_asset_share<WETH>(account1_addr) == 10000, 0);
-
-        deposit_internal<Asset>(key<WETH>(), account1, account1_addr, 30000, true);
-        switch_collateral_internal<WETH,Asset>(account1_addr, false, 40000);
-        assert!(deposited_asset_share<WETH>(account1_addr) == 40000, 0);
-        assert!(conly_deposited_asset_share<WETH>(account1_addr) == 0, 0);
+    }
+    #[test(owner = @leizd, account1 = @0x111)]
+    #[expected_failure(abort_code = 65547)]
+    public entry fun test_switch_collateral_for_shadow_when_to_normal_with_no_collateral_only_deposited(owner: &signer, account1: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
+        setup(owner);
+        let account1_addr = signer::address_of(account1);
+        account::create_account_for_test(account1_addr);
+        deposit_internal<Shadow>(key<WETH>(), account1, account1_addr, 10000, false);
+        switch_collateral_internal<WETH,Shadow>(account1_addr, false, 10000);
+    }
+    #[test(owner = @leizd, account1 = @0x111)]
+    #[expected_failure(abort_code = 65547)]
+    public entry fun test_switch_collateral_for_shadow_when_to_collateral_only_with_no_normal_deposited(owner: &signer, account1: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
+        setup(owner);
+        let account1_addr = signer::address_of(account1);
+        account::create_account_for_test(account1_addr);
+        deposit_internal<Shadow>(key<WETH>(), account1, account1_addr, 10000, true);
+        switch_collateral_internal<WETH,Shadow>(account1_addr, true, 10000);
     }
 }
