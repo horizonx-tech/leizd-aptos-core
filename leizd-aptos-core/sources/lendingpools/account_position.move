@@ -1900,14 +1900,12 @@ module leizd::account_position {
         assert!(deposited_asset_share<WETH>(account1_addr) == 10000, 0);
         assert!(conly_deposited_asset_share<WETH>(account1_addr) == 0, 0);
 
-        let deposited = switch_collateral_internal<WETH,Asset>(account1_addr, true);
-        assert!(deposited == 10000, 0);
+        switch_collateral_internal<WETH,Asset>(account1_addr, true, 10000);
         assert!(deposited_asset_share<WETH>(account1_addr) == 0, 0);
         assert!(conly_deposited_asset_share<WETH>(account1_addr) == 10000, 0);
 
         deposit_internal<Asset>(key<WETH>(), account1, account1_addr, 30000, true);
-        let deposited = switch_collateral_internal<WETH,Asset>(account1_addr, false);
-        assert!(deposited == 40000, 0);
+        switch_collateral_internal<WETH,Asset>(account1_addr, false, 40000);
         assert!(deposited_asset_share<WETH>(account1_addr) == 40000, 0);
         assert!(conly_deposited_asset_share<WETH>(account1_addr) == 0, 0);
     }
@@ -1920,15 +1918,29 @@ module leizd::account_position {
         assert!(deposited_shadow_share<WETH>(account1_addr) == 0, 0);
         assert!(conly_deposited_shadow_share<WETH>(account1_addr) == 10000, 0);
 
-        let deposited = switch_collateral_internal<WETH,Shadow>(account1_addr, false);
-        assert!(deposited == 10000, 0);
+        switch_collateral_internal<WETH,Shadow>(account1_addr, false, 10000);
         assert!(deposited_shadow_share<WETH>(account1_addr) == 10000, 0);
         assert!(conly_deposited_shadow_share<WETH>(account1_addr) == 0, 0);
 
         deposit_internal<Shadow>(key<WETH>(), account1, account1_addr, 30000, false);
-        let deposited = switch_collateral_internal<WETH,Shadow>(account1_addr, true);
-        assert!(deposited == 40000, 0);
+        switch_collateral_internal<WETH,Shadow>(account1_addr, true, 40000);
         assert!(deposited_shadow_share<WETH>(account1_addr) == 0, 0);
         assert!(conly_deposited_shadow_share<WETH>(account1_addr) == 40000, 0);
+    }
+    #[test(owner = @leizd, account1 = @0x111)]
+    public entry fun test_switch_collateral_when_(owner: &signer, account1: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
+        setup(owner);
+        let account1_addr = signer::address_of(account1);
+        account::create_account_for_test(account1_addr);
+        deposit_internal<Asset>(key<WETH>(), account1, account1_addr, 10000, false);
+
+        switch_collateral_internal<WETH,Asset>(account1_addr, true, 10000);
+        assert!(deposited_asset_share<WETH>(account1_addr) == 0, 0);
+        assert!(conly_deposited_asset_share<WETH>(account1_addr) == 10000, 0);
+
+        deposit_internal<Asset>(key<WETH>(), account1, account1_addr, 30000, true);
+        switch_collateral_internal<WETH,Asset>(account1_addr, false, 40000);
+        assert!(deposited_asset_share<WETH>(account1_addr) == 40000, 0);
+        assert!(conly_deposited_asset_share<WETH>(account1_addr) == 0, 0);
     }
 }
