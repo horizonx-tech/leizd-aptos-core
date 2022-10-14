@@ -68,16 +68,6 @@ jobs:
       - name: push key file to test
         run: sh push_new_key_to_test.sh ${{ github.sha }}
 
-      - name: Checkout indexer repo
-        uses: actions/checkout@v3
-        with:
-          repository: horizonx-tech/leizd-indexer
-          token: ${{ secrets.PERSONAL_TOKEN }}
-          path: leizd-indexer
-
-      - name: push new account to indexer
-        run: sh push_new_account_to_indexer.sh ${{ github.sha }}
-
       - name: Slack Notification on Success
         if: success()
         uses: rtCamp/action-slack-notify@v2.0.2
