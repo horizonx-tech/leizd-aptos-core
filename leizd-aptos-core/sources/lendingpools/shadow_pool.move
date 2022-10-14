@@ -2564,55 +2564,55 @@ module leizd::shadow_pool {
     //     assert!(central_liquidity_pool::left() == 5000, 0);
     //     assert!(usdz::balance_of(borrower_addr) == 0, 0);
     // }
-    // #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)] // TODO: check
-    // public entry fun test_with_central_liquidity_pool_to_open_position_more_than_once(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
-    //     setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
-    //     test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
-    //     central_liquidity_pool::add_supported_pool<UNI>(owner);
-    //     central_liquidity_pool::update_config(owner, 0, 0);
+    #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)] // TODO: check
+    public entry fun test_with_central_liquidity_pool_to_open_position_more_than_once(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+        central_liquidity_pool::add_supported_pool<UNI>(owner);
+        central_liquidity_pool::update_config(owner, 0, 0);
 
-    //     let depositor_addr = signer::address_of(depositor);
-    //     let borrower_addr = signer::address_of(borrower);
-    //     account::create_account_for_test(depositor_addr);
-    //     account::create_account_for_test(borrower_addr);
-    //     managed_coin::register<USDZ>(depositor);
-    //     managed_coin::register<USDZ>(borrower);
-    //     usdz::mint_for_test(depositor_addr, 100000);
+        let depositor_addr = signer::address_of(depositor);
+        let borrower_addr = signer::address_of(borrower);
+        account::create_account_for_test(depositor_addr);
+        account::create_account_for_test(borrower_addr);
+        managed_coin::register<USDZ>(depositor);
+        managed_coin::register<USDZ>(borrower);
+        usdz::mint_for_test(depositor_addr, 100000);
 
-    //     // check prerequisite
-    //     assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
+        // check prerequisite
+        assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
 
-    //     // execute
-    //     //// prepares
-    //     central_liquidity_pool::deposit(depositor, 50000);
-    //     //// 1st
-    //     borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 5000);
-    //     usdz::mint_for_test(borrower_addr, 25); // fee in shadow
-    //     repay_internal(key<UNI>(), borrower, 5000 + 25, false);
-    //     assert!(central_liquidity_pool::borrowed(key<UNI>()) == 0, 0);
-    //     //// 2nd
-    //     borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 10000);
-    //     borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 20000);
-    //     usdz::mint_for_test(borrower_addr, 100); // fee in shadow for 20000
-    //     usdz::mint_for_test(borrower_addr, 50); // fee in shadow for 10000
-    //     repay_internal(key<UNI>(), borrower, 20000 + 100, false);
-    //     repay_internal(key<UNI>(), borrower, 10000 + 50, false);
-    //     assert!(central_liquidity_pool::borrowed(key<UNI>()) == 0, 0);
-    //     //// 3rd
-    //     borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 10);
-    //     repay_internal(key<UNI>(), borrower, 10, false);
-    //     borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 20);
-    //     repay_internal(key<UNI>(), borrower, 20, false);
-    //     borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 50);
-    //     repay_internal(key<UNI>(), borrower, 40, false);
-    //     repay_internal(key<UNI>(), borrower, 10, false);
-    //     usdz::mint_for_test(borrower_addr, 3);
-    //     repay_internal(key<UNI>(), borrower, 3, false);
-    //     assert!(central_liquidity_pool::borrowed(key<UNI>()) == 0, 0);
-    //     //// still open position
-    //     borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 5000);
-    //     assert!(central_liquidity_pool::borrowed(key<UNI>()) == 5025, 0);
-    // }
+        // execute
+        //// prepares
+        central_liquidity_pool::deposit(depositor, 50000);
+        //// 1st
+        borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 5000);
+        usdz::mint_for_test(borrower_addr, 25); // fee in shadow
+        repay_internal(key<UNI>(), borrower, 5000 + 25, false);
+        assert!(central_liquidity_pool::borrowed(key<UNI>()) == 0, 0);
+        //// 2nd
+        borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 10000);
+        borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 20000);
+        usdz::mint_for_test(borrower_addr, 100); // fee in shadow for 20000
+        usdz::mint_for_test(borrower_addr, 50); // fee in shadow for 10000
+        repay_internal(key<UNI>(), borrower, 20000 + 100, false);
+        repay_internal(key<UNI>(), borrower, 10000 + 50, false);
+        assert!(central_liquidity_pool::borrowed(key<UNI>()) == 0, 0);
+        //// 3rd
+        borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 10);
+        repay_internal(key<UNI>(), borrower, 10, false);
+        borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 20);
+        repay_internal(key<UNI>(), borrower, 20, false);
+        borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 50);
+        repay_internal(key<UNI>(), borrower, 40, false);
+        repay_internal(key<UNI>(), borrower, 10, false);
+        usdz::mint_for_test(borrower_addr, 3);
+        repay_internal(key<UNI>(), borrower, 3, false);
+        assert!(central_liquidity_pool::borrowed(key<UNI>()) == 0, 0);
+        //// still open position
+        borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 5000);
+        assert!(central_liquidity_pool::borrowed(key<UNI>()) == 5025, 0);
+    }
     #[test(owner=@leizd,depositor=@0x111,borrower1=@0x222,borrower2=@0x333,aptos_framework=@aptos_framework)]
     public entry fun test_with_central_liquidity_pool_to_open_multi_position(owner: &signer, depositor: &signer, borrower1: &signer, borrower2: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
