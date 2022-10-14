@@ -148,16 +148,16 @@ module leizd_aptos_external::price_oracle {
         abort error::invalid_argument(EINACTIVE)
     }
 
-    public fun volume(name: &String, amount: u64): u64 acquires Storage {
+    public fun volume(name: &String, amount: u128): u128 acquires Storage {
         let (value, dec) = price_of(name);
-        let result = (amount as u128) * value / math128::pow(10, (dec as u128));
-        (result as u64) // TODO: use u128
+        let numerator = amount * value; // TODO: check overflow
+        numerator / math128::pow(10, (dec as u128))
     }
 
-    public fun to_amount(name: &String, volume: u64): u64 acquires Storage {
+    public fun to_amount(name: &String, volume: u128): u128 acquires Storage {
         let (value, dec) = price_of(name);
-        let result = (volume as u128) * math128::pow(10, (dec as u128)) / value;
-        (result as u64) // TODO: use u128
+        let numerator = volume * math128::pow(10, (dec as u128)); // TODO: check overflow
+        numerator / value
     }
 
     #[test_only]

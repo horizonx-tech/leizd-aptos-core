@@ -740,8 +740,8 @@ module leizd::account_position {
         let conly_deposited = conly_deposited_amount_internal(position_ref, key);
         if (normal_deposited > 0 || conly_deposited > 0) {
             let price_key = if (position_type::is_asset_to_shadow<P>()) key else key<USDZ>();
-            let result = price_oracle::volume(&price_key, ((normal_deposited + conly_deposited) as u64)); // TODO: consider cast (price_oracle::volume to u128)
-            (result as u128)
+            let result = price_oracle::volume(&price_key, normal_deposited + conly_deposited); // TODO: check overflow or use u256 (normal_deposited + conly_deposited)
+            result
         } else {
             0
         }
@@ -790,8 +790,7 @@ module leizd::account_position {
         let borrowed = borrowed_amount_internal(position_ref, key);
         if (borrowed > 0) {
             let price_key = if (position_type::is_asset_to_shadow<P>()) key<USDZ>() else key;
-            let result = price_oracle::volume(&price_key, (borrowed as u64)); // TODO: consider cast (price_oracle::volume to u128)
-            (result as u128)
+            price_oracle::volume(&price_key, borrowed)
         } else {
             0
         }

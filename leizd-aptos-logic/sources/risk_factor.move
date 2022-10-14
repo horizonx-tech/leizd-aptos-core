@@ -299,9 +299,10 @@ module leizd_aptos_logic::risk_factor {
     }
     //// for round up
     fun calculate_fee_with_round_up(value: u64, fee: u64): u64 {
-        let value_mul_by_fee = value * fee;
-        let result = value_mul_by_fee / precision();
-        if (value_mul_by_fee % precision() != 0) result + 1 else result
+        let value_mul_by_fee = (value * fee as u128); // NOTE: as not to overflow
+        let precision_u128 = (precision() as u128);
+        let result = value_mul_by_fee / precision_u128;
+        if (value_mul_by_fee % precision_u128 != 0) (result + 1 as u64) else (result as u64)
     }
 
     public entry fun precision(): u64 {
