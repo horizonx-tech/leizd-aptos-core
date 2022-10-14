@@ -6,11 +6,12 @@ module leizd_aptos_entry::edge {
     use leizd_aptos_lib::constant;
     use leizd_aptos_common::coin_key::{key};
     use leizd_aptos_common::pool_type::{Asset, Shadow};
-    use leizd_aptos_common::test_coin::{WETH, USDC};
+    use leizd_aptos_common::test_coin::{WETH, USDC, USDT, UNI};
     use leizd_aptos_common::position_type::{AssetToShadow, ShadowToAsset};
     use leizd_aptos_logic::risk_factor;
     use leizd_aptos_trove::usdz::{Self, USDZ};
     use leizd_aptos_core::pool_manager;
+    use leizd_aptos_core::shadow_pool;
     use leizd_aptos_core::account_position;
     use leizd_aptos_entry::money_market;
     use leizd_aptos_entry::scenario;
@@ -218,5 +219,80 @@ module leizd_aptos_entry::edge {
         money_market::switch_collateral<USDC, Shadow>(account1, false);
         assert!(account_position::deposited_shadow_share<USDC>(account1_addr) == max, 0);
         assert!(account_position::conly_deposited_shadow_share<USDC>(account1_addr) == 0, 0);
+    }
+    #[test(owner = @leizd_aptos_entry, aptos_framework = @aptos_framework)]
+    fun test_repay_shadow_with_rebalance_with_u64_max(owner: &signer, aptos_framework: &signer) {
+        // prepares
+        scenario::initialize_scenario(owner, aptos_framework);
+        let signers = scenario::initialize_signer_for_test(2);
+        let (lp, lp_addr) = scenario::borrow_account(&signers, 0);
+        let (account, account_addr) = scenario::borrow_account(&signers, 1);
+        pool_manager::add_pool<WETH>(owner);
+        pool_manager::add_pool<USDC>(owner);
+        pool_manager::add_pool<USDT>(owner);
+        pool_manager::add_pool<UNI>(owner);
+
+        // prerequisite
+        //// update risk_factor
+        risk_factor::update_protocol_fees_unsafe(
+            0,
+            0,
+            risk_factor::default_liquidation_fee(),
+        ); // NOTE: remove entry fee / share fee to make it easy to calcurate borrowed amount/share
+        risk_factor::update_config<USDC>(owner, risk_factor::precision(), risk_factor::precision()); // NOTE: to allow borrowing to the maximum
+        //// add liquidity
+        let max = constant::u64_max();
+        managed_coin::mint<WETH>(owner, account_addr, max);
+        managed_coin::mint<USDC>(owner, account_addr, max);
+        managed_coin::mint<USDT>(owner, account_addr, max);
+        managed_coin::mint<UNI>(owner, account_addr, max);
+        money_market::deposit<WETH, Asset>(account, max, false);
+        money_market::deposit<USDC, Asset>(account, max, false);
+        money_market::deposit<USDT, Asset>(account, max, false);
+        money_market::deposit<UNI, Asset>(account, max, false);
+
+        // execute
+        //// borrow
+        usdz::mint_for_test(lp_addr, max);
+        let amount: u64;
+        amount = max / 5 * 2; // 40%
+        money_market::deposit<WETH, Shadow>(lp, amount, false);
+        money_market::borrow<WETH, Shadow>(account, amount);
+
+        amount = max / 5; // 20%
+        money_market::deposit<USDC, Shadow>(lp, amount, false);
+        money_market::borrow<USDC, Shadow>(account, amount);
+
+        amount = max / 5 / 3 * 2; // 13.333...%
+        money_market::deposit<USDT, Shadow>(lp, amount, false);
+        money_market::borrow<USDT, Shadow>(account, amount);
+
+        amount = max / 5 / 3; // 6.666...%
+        money_market::deposit<UNI, Shadow>(lp, amount, false);
+        money_market::borrow<UNI, Shadow>(account, amount);
+
+        assert!(shadow_pool::borrowed_amount<WETH>() == (max / 5 * 2 as u128), 0);
+        assert!(shadow_pool::borrowed_amount<USDC>() == (max / 5 as u128), 0);
+        assert!(shadow_pool::borrowed_amount<USDT>() == (max / 5 / 3 * 2 as u128), 0);
+        assert!(shadow_pool::borrowed_amount<UNI>() == (max / 5 / 3 as u128), 0);
+        assert!(account_position::borrowed_shadow_share<WETH>(account_addr) == max / 5 * 2, 0);
+        assert!(account_position::borrowed_shadow_share<USDC>(account_addr) == max / 5, 0);
+        assert!(account_position::borrowed_shadow_share<USDT>(account_addr) == max / 5 / 3 * 2, 0);
+        assert!(account_position::borrowed_shadow_share<UNI>(account_addr) == max / 5 / 3, 0);
+
+        //// repay_shadow_with_rebalance
+        usdz::mint_for_test(account_addr, max / 5);
+        assert!(coin::balance<USDZ>(account_addr) == max, 0);
+        
+        money_market::repay_shadow_with_rebalance(account, max);
+        assert!(shadow_pool::borrowed_amount<WETH>() == 0, 0);
+        assert!(shadow_pool::borrowed_amount<USDC>() == 0, 0);
+        assert!(shadow_pool::borrowed_amount<USDT>() == 0, 0);
+        assert!(shadow_pool::borrowed_amount<UNI>() == 0, 0);
+        assert!(account_position::borrowed_shadow_share<WETH>(account_addr) == 0, 0);
+        assert!(account_position::borrowed_shadow_share<USDC>(account_addr) == 0, 0);
+        assert!(account_position::borrowed_shadow_share<USDT>(account_addr) == 0, 0);
+        assert!(account_position::borrowed_shadow_share<UNI>(account_addr) == 0, 0);
+        assert!(coin::balance<USDZ>(account_addr) == max / 5, 0);
     }
 }
