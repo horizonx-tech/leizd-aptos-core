@@ -237,7 +237,7 @@ module leizd_aptos_logic::risk_factor {
         }
     }
 
-    public fun health_factor_weighted_average(keys: vector<String>, deposits: vector<u64>, borrows: vector<u64>): u64 acquires Config {
+    fun health_factor_weighted_average(keys: vector<String>, deposits: vector<u128>, borrows: vector<u128>): u64 acquires Config {
         assert!(vector::length(&keys) == vector::length(&deposits), 0);
         assert!(vector::length(&keys) == vector::length(&borrows), 0);
 
@@ -249,24 +249,25 @@ module leizd_aptos_logic::risk_factor {
             let deposited = *vector::borrow(&deposits, i-1);
             let borrowed = *vector::borrow(&borrows, i-1);
             borrowed_sum = borrowed_sum + borrowed;
-            collateral_sum = collateral_sum + deposited * lt_of(key);
+            collateral_sum = collateral_sum + deposited * (lt_of(key) as u128);
             i = i - 1;
         };
 
+        let precion_u128 = (precision() as u128);
         if (collateral_sum == 0) {
             0
         } else {
-            let u = borrowed_sum * precision() / (collateral_sum / precision());
-            if (precision() < u) {
+            let u = borrowed_sum *precion_u128 / (collateral_sum / precion_u128);
+            if (precion_u128 < u) {
                 0
             } else {
-                precision() - u
+                (precion_u128 - u as u64)
             }
         }
     }
-    public fun health_factor_weighted_average_by_map(keys: vector<String>, deposits: SimpleMap<String, u64>, borrows: SimpleMap<String, u64>): u64 acquires Config {
-        let deposits_vec = vector::empty<u64>();
-        let borrows_vec = vector::empty<u64>();
+    public fun health_factor_weighted_average_by_map(keys: vector<String>, deposits: SimpleMap<String, u128>, borrows: SimpleMap<String, u128>): u64 acquires Config {
+        let deposits_vec = vector::empty<u128>();
+        let borrows_vec = vector::empty<u128>();
         let i = 0;
         while (i < vector::length(&keys)) {
             let key = vector::borrow(&keys, i);
