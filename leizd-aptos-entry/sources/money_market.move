@@ -27,6 +27,8 @@ module leizd_aptos_entry::money_market {
     use leizd_aptos_core::account_position::{Self, OperatorKey as AccountPositionKey};
 
     const EALREADY_INITIALIZED: u64 = 1;
+    const ENO_SAFE_POSITION: u64 = 2;
+    const ENO_DEPOSITED: u64 = 3;
 
     struct LendingPoolModKeys has key {
         account_position: AccountPositionKey,
@@ -896,20 +898,54 @@ module leizd_aptos_entry::money_market {
     //// Liquidation
     public entry fun liquidate<C,P>(account: &signer, target_addr: address) acquires LendingPoolModKeys {
         pool_type::assert_pool_type<P>();
+        let liquidator_addr = signer::address_of(account);
+        let (account_position_key, asset_pool_key, shadow_pool_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
 
-        let (account_position_key, _, _) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
-        let (deposited, borrowed, is_collateral_only) = account_position::liquidate<C,P>(target_addr, account_position_key);
-        liquidate_for_pool<C,P>(account, target_addr, deposited, borrowed, is_collateral_only);
-    }
-    fun liquidate_for_pool<C,P>(liquidator: &signer, target_addr: address, deposited: u64, borrowed: u64, is_collateral_only: bool) acquires LendingPoolModKeys {
-        let liquidator_addr = signer::address_of(liquidator);
-        let (_, asset_pool_key, shadow_pool_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
         if (pool_type::is_type_asset<P>()) {
-            shadow_pool::repay<C>(liquidator, borrowed, shadow_pool_key);
-            asset_pool::withdraw_for_liquidation<C>(liquidator_addr, target_addr, deposited, is_collateral_only, asset_pool_key);
+            // judge if the coin should be liquidated
+            assert!(!account_position::is_safe_asset_to_shadow<C>(target_addr), error::invalid_state(ENO_SAFE_POSITION));
+    
+            // TODO: rebalance by repaying shadow with left amount, that is from deposited as AssetToShadow
+
+            // execute liquidation (repay + withdraw)
+            let normal_deposited = account_position::deposited_asset_share<C>(target_addr);
+            let conly_deposited = account_position::conly_deposited_asset_share<C>(target_addr);
+            assert!(normal_deposited > 0 || conly_deposited > 0, error::invalid_argument(ENO_DEPOSITED));
+            let is_collateral_only = conly_deposited > 0;
+            let deposited = if (is_collateral_only) conly_deposited else normal_deposited;
+
+            let user_share_all = account_position::repay_all<C,P>(liquidator_addr, account_position_key);
+            shadow_pool::repay_by_share<C>(account, user_share_all, shadow_pool_key);
+            let (_, withdrawed_user_share) = asset_pool::withdraw_for_liquidation<C>(liquidator_addr, target_addr, deposited, is_collateral_only, asset_pool_key);
+            account_position::withdraw<C,P>(target_addr, withdrawed_user_share, is_collateral_only, account_position_key);
         } else {
-            asset_pool::repay<C>(liquidator, borrowed, asset_pool_key);
-            shadow_pool::withdraw_for_liquidation<C>(liquidator_addr, target_addr, deposited, is_collateral_only, shadow_pool_key);
+            // judge if the coin should be liquidated
+            assert!(!account_position::is_safe_shadow_to_asset<C>(target_addr), error::invalid_state(ENO_SAFE_POSITION));
+    
+            // TODO: rebalance by depositing shadow (borrow shadow and rebalance it)
+            // let (coins_in_stoa, _, balances_in_stoa) = account_position::position<Shadow>(target_addr);
+            // let unprotected_in_stoa = unprotected_coins(target_addr, coins_in_stoa);
+            // let (deposited_amounts, _, borrowed_amounts) = shares_to_amounts_for_shadow_to_asset_pos(unprotected_in_stoa, balances_in_stoa);
+            // let (sum_extra, sum_insufficient, total_deposited_volume_in_stoa, total_borrowed_volume_in_stoa, deposited_volumes_in_stoa, borrowed_volumes_in_stoa) = sum_extra_and_insufficient_shadow(
+            //     unprotected_in_stoa,
+            //     deposited_amounts,
+            //     borrowed_amounts,
+            // );
+            // if (sum_extra >= sum_insufficient) {
+            //     // rebalance
+            // };
+
+            // execute liquidation (repay + withdraw)
+            let normal_deposited = account_position::deposited_asset_share<C>(target_addr);
+            let conly_deposited = account_position::conly_deposited_asset_share<C>(target_addr);
+            assert!(normal_deposited > 0 || conly_deposited > 0, error::invalid_argument(ENO_DEPOSITED));
+            let is_collateral_only = conly_deposited > 0;
+            let deposited = if (is_collateral_only) conly_deposited else normal_deposited;
+
+            let user_share_all = account_position::repay_all<C,P>(liquidator_addr, account_position_key);
+            asset_pool::repay_by_share<C>(account, user_share_all, asset_pool_key);
+            let (_, withdrawed_user_share) = shadow_pool::withdraw_for_liquidation<C>(liquidator_addr, target_addr, deposited, is_collateral_only, shadow_pool_key);
+            account_position::withdraw<C,P>(target_addr, withdrawed_user_share, is_collateral_only, account_position_key);
         };
     }
 
