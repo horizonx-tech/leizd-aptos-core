@@ -7,16 +7,16 @@ module leizd::account_position {
     use aptos_std::event;
     use aptos_std::simple_map::{Self,SimpleMap};
     use aptos_framework::account;
-    use leizd_aptos_logic::risk_factor;
+    use leizd_aptos_lib::constant;
+    use leizd_aptos_lib::math64;
+    use leizd_aptos_lib::math128;
     use leizd_aptos_common::coin_key::{key};
     use leizd_aptos_common::permission;
     use leizd_aptos_common::pool_type;
     use leizd_aptos_common::position_type::{Self,AssetToShadow,ShadowToAsset};
     use leizd_aptos_external::price_oracle;
-    use leizd_aptos_lib::constant;
-    use leizd_aptos_lib::math64;
-    use leizd_aptos_lib::math128;
     use leizd_aptos_trove::usdz::{USDZ};
+    use leizd_aptos_logic::risk_factor;
     use leizd::asset_pool;
     use leizd::shadow_pool;
 
