@@ -537,8 +537,10 @@ module leizd::shadow_pool {
         let entry_fee = risk_factor::calculate_entry_fee(amount);
         let amount_with_entry_fee = amount + entry_fee;
 
-        let liquidity = normal_deposited_amount_internal(key, storage_ref)
-            - borrowed_amount_internal(key, storage_ref);
+        let liquidity = 0;
+        if (normal_deposited_amount_internal(key, storage_ref) >= borrowed_amount_internal(key, storage_ref)) {
+            liquidity = normal_deposited_amount_internal(key, storage_ref) - borrowed_amount_internal(key, storage_ref);
+        };
 
         // check liquidity
         let total_left = if (central_liquidity_pool::is_supported(key)) liquidity + central_liquidity_pool::left() else liquidity;
