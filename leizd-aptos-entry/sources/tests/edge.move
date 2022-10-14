@@ -1,6 +1,8 @@
 #[test_only]
 module leizd_aptos_entry::edge {
 
+    use std::signer;
+    use aptos_framework::account;
     use aptos_framework::coin;
     use aptos_framework::managed_coin;
     use leizd_aptos_lib::constant;
@@ -220,13 +222,17 @@ module leizd_aptos_entry::edge {
         assert!(account_position::deposited_shadow_share<USDC>(account1_addr) == max, 0);
         assert!(account_position::conly_deposited_shadow_share<USDC>(account1_addr) == 0, 0);
     }
-    #[test(owner = @leizd_aptos_entry, aptos_framework = @aptos_framework)]
-    fun test_repay_shadow_with_rebalance_with_u64_max(owner: &signer, aptos_framework: &signer) {
+    #[test_only]
+    fun prepare_to_exec_repay_shadow_with_rebalance(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) {
         // prepares
         scenario::initialize_scenario(owner, aptos_framework);
-        let signers = scenario::initialize_signer_for_test(2);
-        let (lp, lp_addr) = scenario::borrow_account(&signers, 0);
-        let (account, account_addr) = scenario::borrow_account(&signers, 1);
+        let owner_addr = signer::address_of(owner);
+        let lp_addr = signer::address_of(lp);
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(lp_addr);
+        account::create_account_for_test(account_addr);
+        scenario::register_all_coins(lp);
+        scenario::register_all_coins(account);
         pool_manager::add_pool<WETH>(owner);
         pool_manager::add_pool<USDC>(owner);
         pool_manager::add_pool<USDT>(owner);
@@ -280,11 +286,23 @@ module leizd_aptos_entry::edge {
         assert!(account_position::borrowed_shadow_share<USDT>(account_addr) == max / 5 / 3 * 2, 0);
         assert!(account_position::borrowed_shadow_share<UNI>(account_addr) == max / 5 / 3, 0);
 
-        //// repay_shadow_with_rebalance
-        usdz::mint_for_test(account_addr, max / 5);
-        assert!(coin::balance<USDZ>(account_addr) == max, 0);
-        
-        money_market::repay_shadow_with_rebalance(account, max);
+        //// post-process
+        managed_coin::register<USDZ>(owner);
+        coin::transfer<USDZ>(account, owner_addr, max / 5 * 4);
+        assert!(coin::balance<USDZ>(owner_addr) == max / 5 * 4, 0);
+        assert!(coin::balance<USDZ>(account_addr) == 0, 0);
+    }
+    #[test(owner = @leizd_aptos_entry, lp = @0x111, account = @0x222, aptos_framework = @aptos_framework)]
+    fun test_repay_shadow_with_rebalance_with_u64_max_except_fee_to_repay_all(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) {
+        prepare_to_exec_repay_shadow_with_rebalance(owner, lp, account, aptos_framework);
+        let account_addr = signer::address_of(account);
+        let max = constant::u64_max();
+
+        //// execute
+        let amount = max;
+        usdz::mint_for_test(account_addr, amount);
+        money_market::repay_shadow_with_rebalance(account, amount);
+
         assert!(shadow_pool::borrowed_amount<WETH>() == 0, 0);
         assert!(shadow_pool::borrowed_amount<USDC>() == 0, 0);
         assert!(shadow_pool::borrowed_amount<USDT>() == 0, 0);
@@ -294,5 +312,47 @@ module leizd_aptos_entry::edge {
         assert!(account_position::borrowed_shadow_share<USDT>(account_addr) == 0, 0);
         assert!(account_position::borrowed_shadow_share<UNI>(account_addr) == 0, 0);
         assert!(coin::balance<USDZ>(account_addr) == max / 5, 0);
+    }
+    #[test(owner = @leizd_aptos_entry, lp = @0x111, account = @0x222, aptos_framework = @aptos_framework)]
+    fun test_repay_shadow_with_rebalance_with_u64_max_except_fee_to_repay_all_in_part(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) {
+        prepare_to_exec_repay_shadow_with_rebalance(owner, lp, account, aptos_framework);
+        let account_addr = signer::address_of(account);
+        let max = constant::u64_max();
+
+        //// execute
+        let amount = (max / 5 - 1) * 4;
+        usdz::mint_for_test(account_addr, amount);
+        money_market::repay_shadow_with_rebalance(account, amount);
+
+        assert!(shadow_pool::borrowed_amount<WETH>() == (max / 5 + 1 as u128), 0);
+        assert!(shadow_pool::borrowed_amount<USDC>() == 1, 0);
+        assert!(shadow_pool::borrowed_amount<USDT>() == 0, 0);
+        assert!(shadow_pool::borrowed_amount<UNI>() == 0, 0);
+        assert!(account_position::borrowed_shadow_share<WETH>(account_addr) == max / 5 + 1, 0);
+        assert!(account_position::borrowed_shadow_share<USDC>(account_addr) == 1, 0);
+        assert!(account_position::borrowed_shadow_share<USDT>(account_addr) == 0, 0);
+        assert!(account_position::borrowed_shadow_share<UNI>(account_addr) == 0, 0);
+        assert!(coin::balance<USDZ>(account_addr) == (max / 5 - 1) * 2 - (max / 5), 0);
+    }
+    #[test(owner = @leizd_aptos_entry, lp = @0x111, account = @0x222, aptos_framework = @aptos_framework)]
+    fun test_repay_shadow_with_rebalance_with_u64_max_except_fee_to_repay_evenly(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) {
+        prepare_to_exec_repay_shadow_with_rebalance(owner, lp, account, aptos_framework);
+        let account_addr = signer::address_of(account);
+        let max = constant::u64_max();
+
+        //// execute
+        let amount = 4;
+        usdz::mint_for_test(account_addr, amount);
+        money_market::repay_shadow_with_rebalance(account, amount);
+
+        assert!(shadow_pool::borrowed_amount<WETH>() == (max / 5 * 2 - 1 as u128), 0);
+        assert!(shadow_pool::borrowed_amount<USDC>() == (max / 5 - 1 as u128), 0);
+        assert!(shadow_pool::borrowed_amount<USDT>() == (max / 5 / 3 * 2 - 1 as u128), 0);
+        assert!(shadow_pool::borrowed_amount<UNI>() == (max / 5 / 3 - 1 as u128), 0);
+        assert!(account_position::borrowed_shadow_share<WETH>(account_addr) == max / 5 * 2 - 1, 0);
+        assert!(account_position::borrowed_shadow_share<USDC>(account_addr) == max / 5 - 1, 0);
+        assert!(account_position::borrowed_shadow_share<USDT>(account_addr) == max / 5 / 3 * 2 - 1, 0);
+        assert!(account_position::borrowed_shadow_share<UNI>(account_addr) == max / 5 / 3 - 1, 0);
+        assert!(coin::balance<USDZ>(account_addr) == 0, 0);
     }
 }
