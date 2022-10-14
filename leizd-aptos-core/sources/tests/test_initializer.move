@@ -26,13 +26,13 @@ module leizd::test_initializer {
         permission::initialize(owner);
     }
     public entry fun initialize_price_oracle_with_fixed_price_for_test(owner: &signer) {
-        price_oracle::register_oracle_with_fixed_price<test_coin::USDC>(owner, 1000000000, 9, false);
+        price_oracle::register_oracle_with_fixed_price<test_coin::USDC>(owner, 999900000, 9, false);
         price_oracle::change_mode<test_coin::USDC>(owner, price_oracle::fixed_price_mode());
-        price_oracle::register_oracle_with_fixed_price<test_coin::WETH>(owner, 1000000000, 9, false);
+        price_oracle::register_oracle_with_fixed_price<test_coin::WETH>(owner, 1336370000000, 9, false);
         price_oracle::change_mode<test_coin::WETH>(owner, price_oracle::fixed_price_mode());
-        price_oracle::register_oracle_with_fixed_price<test_coin::UNI>(owner, 1000000000, 9, false);
+        price_oracle::register_oracle_with_fixed_price<test_coin::UNI>(owner, 6380000000, 9, false);
         price_oracle::change_mode<test_coin::UNI>(owner, price_oracle::fixed_price_mode());
-        price_oracle::register_oracle_with_fixed_price<test_coin::USDT>(owner, 1000000000, 9, false);
+        price_oracle::register_oracle_with_fixed_price<test_coin::USDT>(owner, 1000100000, 9, false);
         price_oracle::change_mode<test_coin::USDT>(owner, price_oracle::fixed_price_mode());
         price_oracle::register_oracle_with_fixed_price<test_coin::CoinDec10>(owner, 1000000000, 9, false);
         price_oracle::change_mode<test_coin::CoinDec10>(owner, price_oracle::fixed_price_mode());
