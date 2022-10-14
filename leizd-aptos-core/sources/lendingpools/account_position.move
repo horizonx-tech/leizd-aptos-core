@@ -16,6 +16,7 @@ module leizd::account_position {
     use leizd_aptos_lib::constant;
     use leizd_aptos_lib::math64;
     use leizd_aptos_lib::math128;
+    use leizd_aptos_trove::usdz::{USDZ};
     use leizd::asset_pool;
     use leizd::shadow_pool;
 
@@ -710,6 +711,7 @@ module leizd::account_position {
     // calculate utilization_of
     // NOTE: return value means ratio
     fun utilization_of<P>(position_ref: &Position<P>, key: String): u64 {
+        position_type::assert_position_type<P>();
         if (vector::contains<String>(&position_ref.coins, &key)) {
             let deposited = deposited_volume_internal(position_ref, key);
             let borrowed = borrowed_volume_internal(position_ref, key);
@@ -733,10 +735,12 @@ module leizd::account_position {
         deposited_volume_internal<P>(position_ref, key)
     }
     fun deposited_volume_internal<P>(position_ref: &Position<P>, key: String): u128 {
+        position_type::assert_position_type<P>();
         let normal_deposited = normal_deposited_amount_internal(position_ref, key);
         let conly_deposited = conly_deposited_amount_internal(position_ref, key);
         if (normal_deposited > 0 || conly_deposited > 0) {
-            let result = price_oracle::volume(&key, ((normal_deposited + conly_deposited) as u64)); // TODO: consider cast (price_oracle::volume to u128)
+            let price_key = if (position_type::is_asset_to_shadow<P>()) key else key<USDZ>();
+            let result = price_oracle::volume(&price_key, ((normal_deposited + conly_deposited) as u64)); // TODO: consider cast (price_oracle::volume to u128)
             (result as u128)
         } else {
             0
@@ -782,9 +786,11 @@ module leizd::account_position {
         borrowed_volume_internal<P>(position_ref, key)
     }
     fun borrowed_volume_internal<P>(position_ref: &Position<P>, key: String): u128 {
+        position_type::assert_position_type<P>();
         let borrowed = borrowed_amount_internal(position_ref, key);
         if (borrowed > 0) {
-            let result = price_oracle::volume(&key, (borrowed as u64)); // TODO: consider cast (price_oracle::volume to u128)
+            let price_key = if (position_type::is_asset_to_shadow<P>()) key<USDZ>() else key;
+            let result = price_oracle::volume(&price_key, (borrowed as u64)); // TODO: consider cast (price_oracle::volume to u128)
             (result as u128)
         } else {
             0
