@@ -268,7 +268,7 @@ module leizd_aptos_entry::money_market {
             // optimize ShadowToAsset position
             let optimized_hf_for_stoa = risk_factor::health_factor_of(
                 coin_key::key<USDZ>(),
-                total_deposited_volume_in_stoa + required_shadow_volume,
+                total_deposited_volume_in_stoa + (required_shadow_volume as u128),
                 total_borrowed_volume_in_stoa
             );
             let (amounts_to_deposit, amounts_to_withdraw) = calc_to_optimize_shadow_by_rebalance_without_borrow(
@@ -358,8 +358,8 @@ module leizd_aptos_entry::money_market {
     ): (
         u64, // sum extra
         u64, // sum insufficient
-        u64, // total deposited volume
-        u64, // total borrowed volume
+        u128, // total deposited volume
+        u128, // total borrowed volume
         SimpleMap<String, u64>, // deposited volumes
         SimpleMap<String, u64>, // borrowed volumes
     ) {
@@ -381,8 +381,8 @@ module leizd_aptos_entry::money_market {
             );
             sum_extra = sum_extra + extra;
             sum_insufficient = sum_insufficient + insufficient;
-            total_deposited_volume = total_deposited_volume + deposited_volume;
-            total_borrowed_volume = total_borrowed_volume + borrowed_volume;
+            total_deposited_volume = total_deposited_volume + (deposited_volume as u128);
+            total_borrowed_volume = total_borrowed_volume + (borrowed_volume as u128);
             simple_map::add(&mut deposited_volumes, *key, deposited_volume);
             simple_map::add(&mut borrowed_volumes, *key, borrowed_volume);
             i = i + 1;
@@ -445,8 +445,8 @@ module leizd_aptos_entry::money_market {
             let borrowed_volume = simple_map::borrow(&borrowed_volumes, key);
             let current_hf = risk_factor::health_factor_of(
                 usdz_key,
-                *deposited_volume,
-                *borrowed_volume,
+                (*deposited_volume as u128),
+                (*borrowed_volume as u128),
             ); // for ShadowToAsset position
             // deposited + delta = borrowed_volume / (LTV * (1 - optimized_hf))
             let opt_deposit_volume = (*borrowed_volume * risk_factor::precision() / (risk_factor::precision() - optimized_hf)) // borrowed volume / (1 - optimized_hf)
@@ -637,8 +637,8 @@ module leizd_aptos_entry::money_market {
             let borrowed_volume = simple_map::borrow(&borrowed_volumes, key);
             let current_hf = risk_factor::health_factor_of(
                 *key,
-                *deposited_volume,
-                *borrowed_volume
+                (*deposited_volume as u128),
+                (*borrowed_volume as u128),
             ); // for AssetToShadow position
             // borrowed_volume + delta = (1 - optimized_hf) * (deposited_volume * LTV)
             let opt_borrow_volume = (risk_factor::precision() - optimized_hf) * (*deposited_volume) * risk_factor::lt_of(*key) / risk_factor::precision() / risk_factor::precision();

@@ -222,17 +222,17 @@ module leizd_aptos_logic::risk_factor {
         *table::borrow<string::String,u64>(&config.lt, key<USDZ>())
     }
 
-    public fun health_factor_of(key: String, deposited: u64, borrowed: u64): u64 acquires Config {
+    public fun health_factor_of(key: String, deposited: u128, borrowed: u128): u64 acquires Config {
         if (deposited == 0) {
             0
         } else {
-            let scaled_numerator = borrowed * precision() * precision();
-            let denominator = deposited * lt_of(key);
+            let scaled_numerator = borrowed * (precision() * precision() as u128);
+            let denominator = deposited * (lt_of(key) as u128);
             let u = scaled_numerator / denominator;
-            if (precision() < u) {
+            if ((precision() as u128) < u) {
                 0
             } else {
-                precision() - u
+                ((precision() as u128) - u as u64)
             }
         }
     }
