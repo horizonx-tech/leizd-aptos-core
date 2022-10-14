@@ -183,4 +183,40 @@ module leizd_aptos_entry::edge {
         assert!(account_position::borrowed_volume<AssetToShadow>(account2_addr, key<USDC>()) == 0, 0);
         assert!(coin::balance<USDZ>(account2_addr) == 0, 0);
     }
+    #[test(owner = @leizd_aptos_entry, aptos_framework = @aptos_framework)]
+    fun test_switch_collateral_asset_with_u64_max(owner: &signer, aptos_framework: &signer) {
+        // prepares
+        scenario::initialize_scenario(owner, aptos_framework);
+        let signers = scenario::initialize_signer_for_test(1);
+        let (account1, account1_addr) = scenario::borrow_account(&signers, 0);
+        let max = constant::u64_max();
+        managed_coin::mint<WETH>(owner, account1_addr, max);
+        pool_manager::add_pool<WETH>(owner);
+
+        money_market::deposit<WETH, Asset>(account1, max, false);
+        money_market::switch_collateral<WETH, Asset>(account1, true);
+        assert!(account_position::deposited_asset_share<WETH>(account1_addr) == 0, 0);
+        assert!(account_position::conly_deposited_asset_share<WETH>(account1_addr) == max, 0);
+        money_market::switch_collateral<WETH, Asset>(account1, false);
+        assert!(account_position::deposited_asset_share<WETH>(account1_addr) == max, 0);
+        assert!(account_position::conly_deposited_asset_share<WETH>(account1_addr) == 0, 0);
+    }
+    #[test(owner = @leizd_aptos_entry, aptos_framework = @aptos_framework)]
+    fun test_switch_collateral_shadow_with_u64_max(owner: &signer, aptos_framework: &signer) {
+        // prepares
+        scenario::initialize_scenario(owner, aptos_framework);
+        let signers = scenario::initialize_signer_for_test(1);
+        let (account1, account1_addr) = scenario::borrow_account(&signers, 0);
+        let max = constant::u64_max();
+        usdz::mint_for_test(account1_addr, max);
+        pool_manager::add_pool<USDC>(owner);
+
+        money_market::deposit<USDC, Shadow>(account1, max, false);
+        money_market::switch_collateral<USDC, Shadow>(account1, true);
+        assert!(account_position::deposited_shadow_share<USDC>(account1_addr) == 0, 0);
+        assert!(account_position::conly_deposited_shadow_share<USDC>(account1_addr) == max, 0);
+        money_market::switch_collateral<USDC, Shadow>(account1, false);
+        assert!(account_position::deposited_shadow_share<USDC>(account1_addr) == max, 0);
+        assert!(account_position::conly_deposited_shadow_share<USDC>(account1_addr) == 0, 0);
+    }
 }
