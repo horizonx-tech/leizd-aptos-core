@@ -238,7 +238,7 @@ module leizd_aptos_entry::money_market {
             );
 
             let required_shadow_volume = price_oracle::volume(&coin_key::key<USDZ>(), required_shadow);
-            total_borrowed_volume_in_atos = total_borrowed_volume_in_atos + required_shadow_volume;
+            total_borrowed_volume_in_atos = total_borrowed_volume_in_atos + (required_shadow_volume as u128);
             total_borrowed_volume_in_atos;
             //// borrow from shadow_pool for required_shadow & update account_position
             let i = 0;
@@ -268,7 +268,7 @@ module leizd_aptos_entry::money_market {
             // optimize ShadowToAsset position
             let optimized_hf_for_stoa = risk_factor::health_factor_of(
                 coin_key::key<USDZ>(),
-                total_deposited_volume_in_stoa + required_shadow_volume,
+                total_deposited_volume_in_stoa + (required_shadow_volume as u128),
                 total_borrowed_volume_in_stoa
             );
             let (amounts_to_deposit, amounts_to_withdraw) = calc_to_optimize_shadow_by_rebalance_without_borrow(
@@ -358,17 +358,17 @@ module leizd_aptos_entry::money_market {
     ): (
         u64, // sum extra
         u64, // sum insufficient
-        u64, // total deposited volume
-        u64, // total borrowed volume
-        SimpleMap<String, u64>, // deposited volumes
-        SimpleMap<String, u64>, // borrowed volumes
+        u128, // total deposited volume
+        u128, // total borrowed volume
+        SimpleMap<String, u128>, // deposited volumes
+        SimpleMap<String, u128>, // borrowed volumes
     ) {
         let sum_extra = 0;
         let sum_insufficient = 0;
         let total_deposited_volume = 0;
         let total_borrowed_volume = 0;
-        let deposited_volumes = simple_map::create<String, u64>();
-        let borrowed_volumes = simple_map::create<String, u64>();
+        let deposited_volumes = simple_map::create<String, u128>();
+        let borrowed_volumes = simple_map::create<String, u128>();
 
         let i = 0;
         while (i < vector::length(&keys)) {
@@ -397,15 +397,15 @@ module leizd_aptos_entry::money_market {
     ): (
         u64, // extra amount
         u64, // insufiicient amount
-        u64, // deposited_volume
-        u64, // borrowed_volume
+        u128, // deposited_volume
+        u128, // borrowed_volume
     ) {
-        let deposited_volume = price_oracle::volume(&deposited_key, (deposited_amount as u64));
-        let borrowed_volume = price_oracle::volume(&borrowed_key, (borrowed_amount as u64));
-        let borrowable_volume = deposited_volume * risk_factor::ltv_of(borrowed_key) / risk_factor::precision();
+        let deposited_volume = (price_oracle::volume(&deposited_key, (deposited_amount as u64)) as u128);
+        let borrowed_volume = (price_oracle::volume(&borrowed_key, (borrowed_amount as u64)) as u128);
+        let borrowable_volume = deposited_volume * (risk_factor::ltv_of(borrowed_key) as u128) / (risk_factor::precision() as u128);
         if (borrowable_volume > borrowed_volume) {
             (
-                price_oracle::to_amount(&deposited_key, borrowable_volume - borrowed_volume),
+                price_oracle::to_amount(&deposited_key, (borrowable_volume - borrowed_volume as u64)),
                 0,
                 deposited_volume,
                 borrowed_volume
@@ -413,7 +413,7 @@ module leizd_aptos_entry::money_market {
         } else if (borrowable_volume < borrowed_volume) {
             (
                 0,
-                price_oracle::to_amount(&deposited_key, borrowed_volume - borrowable_volume),
+                price_oracle::to_amount(&deposited_key, (borrowed_volume - borrowable_volume as u64)),
                 deposited_volume,
                 borrowed_volume
             )
@@ -429,8 +429,8 @@ module leizd_aptos_entry::money_market {
     fun calc_to_optimize_shadow_by_rebalance_without_borrow(
         coins: vector<String>,
         optimized_hf: u64,
-        deposited_volumes: SimpleMap<String, u64>,
-        borrowed_volumes: SimpleMap<String, u64>
+        deposited_volumes: SimpleMap<String, u128>,
+        borrowed_volumes: SimpleMap<String, u128>
     ): (
         SimpleMap<String, u64>, // amounts to deposit
         SimpleMap<String, u64>, // amounts to withdraw
@@ -449,19 +449,20 @@ module leizd_aptos_entry::money_market {
                 *borrowed_volume,
             ); // for ShadowToAsset position
             // deposited + delta = borrowed_volume / (LTV * (1 - optimized_hf))
-            let opt_deposit_volume = (*borrowed_volume * risk_factor::precision() / (risk_factor::precision() - optimized_hf)) // borrowed volume / (1 - optimized_hf)
-                * risk_factor::precision() / risk_factor::lt_of_shadow(); // * (1 / LTV)
+            let precision_u128 = (risk_factor::precision() as u128);
+            let opt_deposit_volume = (*borrowed_volume * precision_u128 / (precision_u128 - (optimized_hf as u128))) // borrowed volume / (1 - optimized_hf)
+                * precision_u128 / (risk_factor::lt_of_shadow() as u128); // * (1 / LTV)
             if (current_hf > optimized_hf) {
                 simple_map::add(
                     &mut amount_to_withdraw,
                     *key,
-                    price_oracle::to_amount(&usdz_key, *deposited_volume - opt_deposit_volume)
+                    price_oracle::to_amount(&usdz_key, (*deposited_volume - opt_deposit_volume as u64))
                 );
             } else if (current_hf < optimized_hf) {
                 simple_map::add(
                     &mut amount_to_deposit,
                     *key,
-                    price_oracle::to_amount(&usdz_key, opt_deposit_volume - *deposited_volume)
+                    price_oracle::to_amount(&usdz_key, (opt_deposit_volume - *deposited_volume as u64))
                 );
             };
             i = i + 1;
@@ -512,10 +513,10 @@ module leizd_aptos_entry::money_market {
         u64, // sum overdebt
         SimpleMap<String, u64>, // capacities
         SimpleMap<String, u64>, // overdebts
-        u64, // total deposited volume
-        u64, // total borrowed volume
-        SimpleMap<String, u64>, // deposited volumes
-        SimpleMap<String, u64>, // borrowed volumes
+        u128, // total deposited volume
+        u128, // total borrowed volume
+        SimpleMap<String, u128>, // deposited volumes
+        SimpleMap<String, u128>, // borrowed volumes
     ) {
         let sum_capacity = 0;
         let sum_overdebt = 0;
@@ -523,8 +524,8 @@ module leizd_aptos_entry::money_market {
         let overdebts = simple_map::create<String, u64>();
         let total_deposited_volume = 0;
         let total_borrowed_volume = 0;
-        let deposited_volumes = simple_map::create<String, u64>();
-        let borrowed_volumes = simple_map::create<String, u64>();
+        let deposited_volumes = simple_map::create<String, u128>();
+        let borrowed_volumes = simple_map::create<String, u128>();
 
         let i = 0;
         while (i < vector::length(&keys)) {
@@ -555,15 +556,15 @@ module leizd_aptos_entry::money_market {
     ): (
         u64, // amount as capacity (borrowale additionally)
         u64, // amount as overdebt (should repay)
-        u64, // deposited_volume
-        u64, // borrowed_volume
+        u128, // deposited_volume
+        u128, // borrowed_volume
     ) {
-        let deposited_volume = price_oracle::volume(&deposited_key, (deposited_amount as u64));
-        let borrowed_volume = price_oracle::volume(&borrowed_key, (borrowed_amount as u64));
-        let borrowable_volume = deposited_volume * risk_factor::ltv_of_shadow() / risk_factor::precision();
+        let deposited_volume = (price_oracle::volume(&deposited_key, (deposited_amount as u64)) as u128);
+        let borrowed_volume = (price_oracle::volume(&borrowed_key, (borrowed_amount as u64)) as u128);
+        let borrowable_volume = deposited_volume * (risk_factor::ltv_of_shadow() as u128) / (risk_factor::precision() as u128);
         if (borrowable_volume > borrowed_volume) {
             (
-                price_oracle::to_amount(&borrowed_key, borrowable_volume - borrowed_volume),
+                price_oracle::to_amount(&borrowed_key, (borrowable_volume - borrowed_volume as u64)),
                 0,
                 deposited_volume,
                 borrowed_volume
@@ -571,7 +572,7 @@ module leizd_aptos_entry::money_market {
         } else if (borrowable_volume < borrowed_volume) {
             (
                 0,
-                price_oracle::to_amount(&borrowed_key, borrowed_volume - borrowable_volume),
+                price_oracle::to_amount(&borrowed_key, (borrowed_volume - borrowable_volume as u64)),
                 deposited_volume,
                 borrowed_volume
             )
@@ -589,7 +590,7 @@ module leizd_aptos_entry::money_market {
         required: u64,
         capacities: SimpleMap<String, u64>,
         borrowed_amounts: &mut SimpleMap<String, u64>,
-        borrowed_volumes: &mut SimpleMap<String, u64>,
+        borrowed_volumes: &mut SimpleMap<String, u128>,
     ): SimpleMap<String, u64> {
         let borrowings = simple_map::create<String, u64>();
         let i = 0;
@@ -603,14 +604,14 @@ module leizd_aptos_entry::money_market {
                 if (*capacity >= required_remains) {
                     *borrowed_amount = *borrowed_amount + required_remains;
                     simple_map::add(&mut borrowings, *key, required_remains);
-                    let volume = price_oracle::volume(&coin_key::key<USDZ>(), required_remains);
+                    let volume = (price_oracle::volume(&coin_key::key<USDZ>(), required_remains) as u128);
                     *borrowed_volume = *borrowed_volume + volume;
                     break
                 } else {
                     *borrowed_amount = *borrowed_amount + *capacity;
                     simple_map::add(&mut borrowings, *key, *capacity);
                     required_remains = required_remains - *capacity;
-                    let volume = price_oracle::volume(&coin_key::key<USDZ>(), *capacity);
+                    let volume = (price_oracle::volume(&coin_key::key<USDZ>(), *capacity) as u128);
                     *borrowed_volume = *borrowed_volume + volume;
                 };
             };
@@ -621,8 +622,8 @@ module leizd_aptos_entry::money_market {
     fun calc_to_optimize_shadow_by_borrow_and_repay_for_asset_to_shadow_pos(
         coins: vector<String>,
         optimized_hf: u64,
-        deposited_volumes: SimpleMap<String, u64>,
-        borrowed_volumes: SimpleMap<String, u64>
+        deposited_volumes: SimpleMap<String, u128>,
+        borrowed_volumes: SimpleMap<String, u128>
     ): (
         SimpleMap<String, u64>, // amounts to borrow
         SimpleMap<String, u64>, // amounts to repay
@@ -638,21 +639,22 @@ module leizd_aptos_entry::money_market {
             let current_hf = risk_factor::health_factor_of(
                 *key,
                 *deposited_volume,
-                *borrowed_volume
+                *borrowed_volume,
             ); // for AssetToShadow position
             // borrowed_volume + delta = (1 - optimized_hf) * (deposited_volume * LTV)
-            let opt_borrow_volume = (risk_factor::precision() - optimized_hf) * (*deposited_volume) * risk_factor::lt_of(*key) / risk_factor::precision() / risk_factor::precision();
+            let precision_u128 = (risk_factor::precision() as u128);
+            let opt_borrow_volume = (precision_u128 - (optimized_hf as u128)) * (*deposited_volume) * (risk_factor::lt_of(*key) as u128) / precision_u128 / precision_u128;
             if (current_hf > optimized_hf) {
                 simple_map::add(
                     &mut amount_to_borrow,
                     *key,
-                    price_oracle::to_amount(&usdz_key, opt_borrow_volume - *borrowed_volume)
+                    price_oracle::to_amount(&usdz_key, (opt_borrow_volume - *borrowed_volume as u64))
                 );
             } else if (current_hf < optimized_hf) {
                 simple_map::add(
                     &mut amount_to_repay,
                     *key,
-                    price_oracle::to_amount(&usdz_key, *borrowed_volume - opt_borrow_volume)
+                    price_oracle::to_amount(&usdz_key, (*borrowed_volume - opt_borrow_volume as u64))
                 );
             };
             i = i + 1;
