@@ -402,7 +402,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         let pool_ref = borrow_global_mut<CentralLiquidityPool>(owner_address);
         let uncollected_support_fee = simple_map::borrow_mut<String,u128>(&mut balance_ref.uncollected_support_fee, &key);
         *uncollected_support_fee = *uncollected_support_fee + amount;
-        pool_ref.total_uncollected_fee = pool_ref.total_uncollected_fee - amount;
+        pool_ref.total_uncollected_fee = pool_ref.total_uncollected_fee + amount;
         pool_ref.total_deposited = pool_ref.total_deposited + amount;
     }
 
