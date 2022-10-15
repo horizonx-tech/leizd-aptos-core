@@ -538,7 +538,7 @@ module leizd::shadow_pool {
         let amount_with_entry_fee = amount + entry_fee;
 
         let liquidity = 0;
-        if (normal_deposited_amount_internal(key, storage_ref) >= borrowed_amount_internal(key, storage_ref)) {
+        if (normal_deposited_amount_internal(key, storage_ref) > borrowed_amount_internal(key, storage_ref)) {
             liquidity = normal_deposited_amount_internal(key, storage_ref) - borrowed_amount_internal(key, storage_ref);
         };
 
