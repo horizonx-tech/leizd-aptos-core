@@ -239,7 +239,19 @@ module leizd::shadow_pool {
         accrue_interest(key, storage_ref);
 
         coin::merge(&mut pool_ref.shadow, coin::withdraw<USDZ>(account, amount));
+        let user_share = save_to_storage_for_deposit(key, signer::address_of(account), for_address, amount, is_collateral_only, storage_ref);
 
+        (amount, user_share)
+    }
+
+    fun save_to_storage_for_deposit(
+        key: String, 
+        caller: address,
+        for_address: address,
+        amount: u64,
+        is_collateral_only: bool,
+        storage_ref: &mut Storage,
+    ): u64 acquires PoolEventHandle{
         let asset_storage = simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key);
         let amount_u128: u128 = (amount as u128);
         let user_share_u128: u128;
@@ -254,114 +266,150 @@ module leizd::shadow_pool {
             asset_storage.normal_deposited_amount = asset_storage.normal_deposited_amount + amount_u128;
             asset_storage.normal_deposited_share = asset_storage.normal_deposited_share + user_share_u128;
         };
-
+        let owner_address = permission::owner_address();
         event::emit_event<DepositEvent>(
             &mut borrow_global_mut<PoolEventHandle>(owner_address).deposit_event,
             DepositEvent {
                 key,
-                caller: signer::address_of(account),
+                caller: caller,
                 receiver: for_address,
                 amount,
                 is_collateral_only,
             },
         );
-
-        (amount, (user_share_u128 as u64))
+        (user_share_u128 as u64)
     }
 
     ////////////////////////////////////////////////////
     /// Rebalance
     ////////////////////////////////////////////////////
-    public fun rebalance_shadow<C1,C2>(
+    public fun rebalance_for_deposit(
+        key: String, 
+        liquidator_addr: address,
+        target_addr: address,
         amount: u64,
-        is_collateral_only_C1: bool,
-        is_collateral_only_C2: bool,
         _key: &OperatorKey
-    ) acquires Storage, PoolEventHandle {
-        let key_from = key<C1>();
-        let key_to = key<C2>();
-        rebalance_shadow_internal(key_from, key_to, amount, is_collateral_only_C1, is_collateral_only_C2)
-    }
-
-    fun rebalance_shadow_internal(
-        key_from: String,
-        key_to: String,
-        amount: u64,
-        is_collateral_only_C1: bool,
-        is_collateral_only_C2: bool,
-    ) acquires Storage, PoolEventHandle {
+    ): u64 acquires Storage, PoolEventHandle {
         let owner_addr = permission::owner_address();
         let storage_ref = borrow_global_mut<Storage>(owner_addr);
-        assert!(is_initialized_asset_with_internal(&key_from, storage_ref), error::invalid_argument(ENOT_INITIALIZED_COIN));
-        assert!(is_initialized_asset_with_internal(&key_to, storage_ref), error::invalid_argument(ENOT_INITIALIZED_COIN));
 
-        let storage_from = simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key_from);
-        let amount_u128: u128 = (amount as u128);
-        // TODO: consider share removed
-        if (is_collateral_only_C1) {
-            storage_from.conly_deposited_amount = storage_from.conly_deposited_amount - amount_u128;
-        } else {
-            storage_from.normal_deposited_amount = storage_from.normal_deposited_amount - amount_u128;
-        };
+        save_to_storage_for_deposit(key, liquidator_addr, target_addr, amount, false, storage_ref)
+        // let i = vector::length<String>(keys_to_deposit);
+        // while (i > 0) {
+        //     let key = vector::borrow(keys_to_deposit, i);
+        //     let amount = simple_map::borrow<String,u64>(amounts_to_deposit, key);
+        //     save_to_storage_for_deposit(*key, liquidator_addr, target_addr, *amount, false, storage_ref);
+        //     i = i - 1;
+        // };
+        
+        // if (simple_map::length(&deposits) > 0) {
+        //     i = 0;
+        //     while (i < length) {
+        //         let key = vector::borrow(&coins, i);
+        //         if (simple_map::contains_key(&deposits, key)) {
+        //             let amount = simple_map::borrow(&deposits, key);
+                    
+        //             let balance = coin::balance<USDZ>(account_addr);
+        //             let amount_as_input = if (*amount > balance) balance else *amount; // TODO: check - short 1 amount because of rounded down somewhere
 
-        let storage_to = simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key_to);
-        // TODO: consider share added
-        if (is_collateral_only_C2) {
-            storage_to.conly_deposited_amount = storage_to.conly_deposited_amount + amount_u128;
-        } else {
-            storage_to.normal_deposited_amount = storage_to.normal_deposited_amount + amount_u128;
-        };
-
-        event::emit_event<RebalanceEvent>(
-            &mut borrow_global_mut<PoolEventHandle>(owner_addr).rebalance_event,
-            RebalanceEvent {
-                from: key_from,
-                to: key_to,
-                amount,
-                is_collateral_only_from: is_collateral_only_C1,
-                is_collateral_only_to: is_collateral_only_C2,
-                with_borrow: false,
-            },
-        );
+        //             let (_ ,share) = shadow_pool::deposit_for_with(*key, account, account_addr, amount_as_input, false, shadow_pool_key); // TODO: set correct is_collateral_only
+        //             account_position::deposit_with<Shadow>(*key, account, account_addr, share, false, account_position_key); // TODO: set correct is_collateral_only
+        //         };
+        //         i = i + 1;
+        //     };
+        // };
     }
+    /// 
+    // public fun rebalance_shadow<C1,C2>(
+    //     amount: u64,
+    //     is_collateral_only_C1: bool,
+    //     is_collateral_only_C2: bool,
+    //     _key: &OperatorKey
+    // ) acquires Storage, PoolEventHandle {
+    //     let key_from = key<C1>();
+    //     let key_to = key<C2>();
+    //     rebalance_shadow_internal(key_from, key_to, amount, is_collateral_only_C1, is_collateral_only_C2)
+    // }
 
-    // with borrow
-    public fun borrow_and_rebalance<C1,C2>(amount: u64, is_collateral_only: bool, _key: &OperatorKey) acquires Storage, PoolEventHandle {
-        let key_from = key<C1>();
-        let key_to = key<C2>();
-        borrow_and_rebalance_internal(key_from, key_to, amount, is_collateral_only)
-    }
+    // fun rebalance_shadow_internal(
+    //     key_from: String,
+    //     key_to: String,
+    //     amount: u64,
+    //     is_collateral_only_C1: bool,
+    //     is_collateral_only_C2: bool,
+    // ) acquires Storage, PoolEventHandle {
+    //     let owner_addr = permission::owner_address();
+    //     let storage_ref = borrow_global_mut<Storage>(owner_addr);
+    //     assert!(is_initialized_asset_with_internal(&key_from, storage_ref), error::invalid_argument(ENOT_INITIALIZED_COIN));
+    //     assert!(is_initialized_asset_with_internal(&key_to, storage_ref), error::invalid_argument(ENOT_INITIALIZED_COIN));
 
-    fun borrow_and_rebalance_internal(key_from: String, key_to: String, amount: u64, is_collateral_only: bool) acquires Storage, PoolEventHandle {
-        let owner_addr = permission::owner_address();
-        let storage_ref = borrow_global_mut<Storage>(owner_addr);
-        assert!(is_initialized_asset_with_internal(&key_from, storage_ref), error::invalid_argument(ENOT_INITIALIZED_COIN));
-        assert!(is_initialized_asset_with_internal(&key_to, storage_ref), error::invalid_argument(ENOT_INITIALIZED_COIN));
+    //     let storage_from = simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key_from);
+    //     let amount_u128: u128 = (amount as u128);
+    //     // TODO: consider share removed
+    //     if (is_collateral_only_C1) {
+    //         storage_from.conly_deposited_amount = storage_from.conly_deposited_amount - amount_u128;
+    //     } else {
+    //         storage_from.normal_deposited_amount = storage_from.normal_deposited_amount - amount_u128;
+    //     };
 
-        let amount_u128: u128 = (amount as u128);
-        let storage_from = simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key_from);
-        storage_from.borrowed_amount = storage_from.borrowed_amount + amount_u128;
+    //     let storage_to = simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key_to);
+    //     // TODO: consider share added
+    //     if (is_collateral_only_C2) {
+    //         storage_to.conly_deposited_amount = storage_to.conly_deposited_amount + amount_u128;
+    //     } else {
+    //         storage_to.normal_deposited_amount = storage_to.normal_deposited_amount + amount_u128;
+    //     };
 
-        let storage_to = simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key_to);
-        // TODO: consider share
-        if (is_collateral_only) {
-            storage_to.conly_deposited_amount = storage_to.conly_deposited_amount + amount_u128;
-        } else {
-            storage_to.normal_deposited_amount = storage_to.normal_deposited_amount + amount_u128;
-        };
+    //     event::emit_event<RebalanceEvent>(
+    //         &mut borrow_global_mut<PoolEventHandle>(owner_addr).rebalance_event,
+    //         RebalanceEvent {
+    //             from: key_from,
+    //             to: key_to,
+    //             amount,
+    //             is_collateral_only_from: is_collateral_only_C1,
+    //             is_collateral_only_to: is_collateral_only_C2,
+    //             with_borrow: false,
+    //         },
+    //     );
+    // }
 
-        event::emit_event<RebalanceEvent>(
-            &mut borrow_global_mut<PoolEventHandle>(owner_addr).rebalance_event,
-            RebalanceEvent {
-                from: key_from,
-                to: key_to,
-                amount,
-                is_collateral_only_from: is_collateral_only,
-                is_collateral_only_to: false,
-                with_borrow: true,
-            },
-        );
-    }
+    // // with borrow
+    // public fun borrow_and_rebalance<C1,C2>(amount: u64, is_collateral_only: bool, _key: &OperatorKey) acquires Storage, PoolEventHandle {
+    //     let key_from = key<C1>();
+    //     let key_to = key<C2>();
+    //     borrow_and_rebalance_internal(key_from, key_to, amount, is_collateral_only)
+    // }
+
+    // fun borrow_and_rebalance_internal(key_from: String, key_to: String, amount: u64, is_collateral_only: bool) acquires Storage, PoolEventHandle {
+    //     let owner_addr = permission::owner_address();
+    //     let storage_ref = borrow_global_mut<Storage>(owner_addr);
+    //     assert!(is_initialized_asset_with_internal(&key_from, storage_ref), error::invalid_argument(ENOT_INITIALIZED_COIN));
+    //     assert!(is_initialized_asset_with_internal(&key_to, storage_ref), error::invalid_argument(ENOT_INITIALIZED_COIN));
+
+    //     let amount_u128: u128 = (amount as u128);
+    //     let storage_from = simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key_from);
+    //     storage_from.borrowed_amount = storage_from.borrowed_amount + amount_u128;
+
+    //     let storage_to = simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key_to);
+    //     // TODO: consider share
+    //     if (is_collateral_only) {
+    //         storage_to.conly_deposited_amount = storage_to.conly_deposited_amount + amount_u128;
+    //     } else {
+    //         storage_to.normal_deposited_amount = storage_to.normal_deposited_amount + amount_u128;
+    //     };
+
+    //     event::emit_event<RebalanceEvent>(
+    //         &mut borrow_global_mut<PoolEventHandle>(owner_addr).rebalance_event,
+    //         RebalanceEvent {
+    //             from: key_from,
+    //             to: key_to,
+    //             amount,
+    //             is_collateral_only_from: is_collateral_only,
+    //             is_collateral_only_to: false,
+    //             with_borrow: true,
+    //         },
+    //     );
+    // }
 
     ////////////////////////////////////////////////////
     /// Withdraw
@@ -2790,138 +2838,138 @@ module leizd::shadow_pool {
     //     assert!(usdz::balance_of(borrower_addr) == 4999, 0);
     // }
 
-    // rebalance shadow
-    #[test(owner=@leizd,account1=@0x111,aptos_framework=@aptos_framework)]
-    public entry fun test_rebalance_shadow(owner: &signer, account1: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
-        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+    // // rebalance shadow
+    // #[test(owner=@leizd,account1=@0x111,aptos_framework=@aptos_framework)]
+    // public entry fun test_rebalance_shadow(owner: &signer, account1: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
+    //     setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
 
-        let account1_addr = signer::address_of(account1);
-        account::create_account_for_test(account1_addr);
-        managed_coin::register<WETH>(account1);
-        managed_coin::register<UNI>(account1);
-        managed_coin::register<USDZ>(account1);
-        managed_coin::mint<WETH>(owner, account1_addr, 1000000);
-        usdz::mint_for_test(account1_addr, 1000000);
+    //     let account1_addr = signer::address_of(account1);
+    //     account::create_account_for_test(account1_addr);
+    //     managed_coin::register<WETH>(account1);
+    //     managed_coin::register<UNI>(account1);
+    //     managed_coin::register<USDZ>(account1);
+    //     managed_coin::mint<WETH>(owner, account1_addr, 1000000);
+    //     usdz::mint_for_test(account1_addr, 1000000);
 
-        deposit_for_internal(key<WETH>(), account1, account1_addr, 100000, false);
-        deposit_for_internal(key<UNI>(), account1, account1_addr, 100000, false);
-        assert!(normal_deposited_amount<WETH>() == 100000, 0);
-        assert!(normal_deposited_amount<UNI>() == 100000, 0);
+    //     deposit_for_internal(key<WETH>(), account1, account1_addr, 100000, false);
+    //     deposit_for_internal(key<UNI>(), account1, account1_addr, 100000, false);
+    //     assert!(normal_deposited_amount<WETH>() == 100000, 0);
+    //     assert!(normal_deposited_amount<UNI>() == 100000, 0);
 
-        rebalance_shadow_internal(key<WETH>(), key<UNI>(), 10000, false, false);
-        assert!(normal_deposited_amount<WETH>() == 90000, 0);
-        assert!(normal_deposited_amount<UNI>() == 110000, 0);
+    //     rebalance_shadow_internal(key<WETH>(), key<UNI>(), 10000, false, false);
+    //     assert!(normal_deposited_amount<WETH>() == 90000, 0);
+    //     assert!(normal_deposited_amount<UNI>() == 110000, 0);
 
-        let event_handle = borrow_global<PoolEventHandle>(signer::address_of(owner));
-        assert!(event::counter<RebalanceEvent>(&event_handle.rebalance_event) == 1, 0);
-    }
-    #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
-    public entry fun test_rebalance_shadow_with_all_pattern(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
-        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
-        let account_addr = signer::address_of(account);
-        account::create_account_for_test(account_addr);
-        managed_coin::register<WETH>(account);
-        managed_coin::register<UNI>(account);
-        managed_coin::register<USDZ>(account);
+    //     let event_handle = borrow_global<PoolEventHandle>(signer::address_of(owner));
+    //     assert!(event::counter<RebalanceEvent>(&event_handle.rebalance_event) == 1, 0);
+    // }
+    // #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
+    // public entry fun test_rebalance_shadow_with_all_pattern(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
+    //     setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+    //     let account_addr = signer::address_of(account);
+    //     account::create_account_for_test(account_addr);
+    //     managed_coin::register<WETH>(account);
+    //     managed_coin::register<UNI>(account);
+    //     managed_coin::register<USDZ>(account);
 
-        usdz::mint_for_test(account_addr, 50000);
-        deposit_for_internal(key<WETH>(), account, account_addr, 10000, false);
-        deposit_for_internal(key<WETH>(), account, account_addr, 10000, true);
-        deposit_for_internal(key<UNI>(), account, account_addr, 10000, false);
-        deposit_for_internal(key<UNI>(), account, account_addr, 10000, true);
-        assert!(normal_deposited_amount<WETH>() == 10000, 0);
-        assert!(conly_deposited_amount<WETH>() == 10000, 0);
-        assert!(normal_deposited_amount<UNI>() == 10000, 0);
-        assert!(conly_deposited_amount<UNI>() == 10000, 0);
+    //     usdz::mint_for_test(account_addr, 50000);
+    //     deposit_for_internal(key<WETH>(), account, account_addr, 10000, false);
+    //     deposit_for_internal(key<WETH>(), account, account_addr, 10000, true);
+    //     deposit_for_internal(key<UNI>(), account, account_addr, 10000, false);
+    //     deposit_for_internal(key<UNI>(), account, account_addr, 10000, true);
+    //     assert!(normal_deposited_amount<WETH>() == 10000, 0);
+    //     assert!(conly_deposited_amount<WETH>() == 10000, 0);
+    //     assert!(normal_deposited_amount<UNI>() == 10000, 0);
+    //     assert!(conly_deposited_amount<UNI>() == 10000, 0);
 
-        // borrowable & borrowable
-        rebalance_shadow_internal(key<WETH>(), key<UNI>(), 5000, false, false);
-        assert!(normal_deposited_amount<WETH>() == 5000, 0);
-        assert!(conly_deposited_amount<WETH>() == 10000, 0);
-        assert!(normal_deposited_amount<UNI>() == 15000, 0);
-        assert!(conly_deposited_amount<UNI>() == 10000, 0);
+    //     // borrowable & borrowable
+    //     rebalance_shadow_internal(key<WETH>(), key<UNI>(), 5000, false, false);
+    //     assert!(normal_deposited_amount<WETH>() == 5000, 0);
+    //     assert!(conly_deposited_amount<WETH>() == 10000, 0);
+    //     assert!(normal_deposited_amount<UNI>() == 15000, 0);
+    //     assert!(conly_deposited_amount<UNI>() == 10000, 0);
 
-        // collateral only & collateral only
-        rebalance_shadow_internal(key<WETH>(), key<UNI>(), 5000, true, true);
-        assert!(normal_deposited_amount<WETH>() == 5000, 0);
-        assert!(conly_deposited_amount<WETH>() == 5000, 0);
-        assert!(normal_deposited_amount<UNI>() == 15000, 0);
-        assert!(conly_deposited_amount<UNI>() == 15000, 0);
+    //     // collateral only & collateral only
+    //     rebalance_shadow_internal(key<WETH>(), key<UNI>(), 5000, true, true);
+    //     assert!(normal_deposited_amount<WETH>() == 5000, 0);
+    //     assert!(conly_deposited_amount<WETH>() == 5000, 0);
+    //     assert!(normal_deposited_amount<UNI>() == 15000, 0);
+    //     assert!(conly_deposited_amount<UNI>() == 15000, 0);
 
-        // borrowable & collateral only
-        rebalance_shadow_internal(key<WETH>(), key<UNI>(), 5000, false, true);
-        assert!(normal_deposited_amount<WETH>() == 0, 0);
-        assert!(conly_deposited_amount<WETH>() == 5000, 0);
-        assert!(normal_deposited_amount<UNI>() == 15000, 0);
-        assert!(conly_deposited_amount<UNI>() == 20000, 0);
+    //     // borrowable & collateral only
+    //     rebalance_shadow_internal(key<WETH>(), key<UNI>(), 5000, false, true);
+    //     assert!(normal_deposited_amount<WETH>() == 0, 0);
+    //     assert!(conly_deposited_amount<WETH>() == 5000, 0);
+    //     assert!(normal_deposited_amount<UNI>() == 15000, 0);
+    //     assert!(conly_deposited_amount<UNI>() == 20000, 0);
 
-        // collateral only & borrowable
-        rebalance_shadow_internal(key<WETH>(), key<UNI>(), 5000, true, false);
-        assert!(normal_deposited_amount<WETH>() == 0, 0);
-        assert!(conly_deposited_amount<WETH>() == 0, 0);
-        assert!(normal_deposited_amount<UNI>() == 20000, 0);
-        assert!(conly_deposited_amount<UNI>() == 20000, 0);
-    }
-    #[test(owner=@leizd,aptos_framework=@aptos_framework)]
-    #[expected_failure(abort_code = 65541)]
-    public entry fun test_rebalance_shadow_to_set_not_added_coin_key_to_from(owner: &signer, aptos_framework: &signer) acquires Storage, PoolEventHandle {
-        timestamp::set_time_has_started_for_testing(aptos_framework);
-        let owner_addr = signer::address_of(owner);
-        account::create_account_for_test(owner_addr);
-        test_initializer::initialize(owner);
-        pool_manager::initialize(owner);
-        test_coin::init_weth(owner);
-        test_coin::init_uni(owner);
-        initialize(owner);
-        asset_pool::initialize(owner);
-        pool_manager::add_pool<WETH>(owner);
+    //     // collateral only & borrowable
+    //     rebalance_shadow_internal(key<WETH>(), key<UNI>(), 5000, true, false);
+    //     assert!(normal_deposited_amount<WETH>() == 0, 0);
+    //     assert!(conly_deposited_amount<WETH>() == 0, 0);
+    //     assert!(normal_deposited_amount<UNI>() == 20000, 0);
+    //     assert!(conly_deposited_amount<UNI>() == 20000, 0);
+    // }
+    // #[test(owner=@leizd,aptos_framework=@aptos_framework)]
+    // #[expected_failure(abort_code = 65541)]
+    // public entry fun test_rebalance_shadow_to_set_not_added_coin_key_to_from(owner: &signer, aptos_framework: &signer) acquires Storage, PoolEventHandle {
+    //     timestamp::set_time_has_started_for_testing(aptos_framework);
+    //     let owner_addr = signer::address_of(owner);
+    //     account::create_account_for_test(owner_addr);
+    //     test_initializer::initialize(owner);
+    //     pool_manager::initialize(owner);
+    //     test_coin::init_weth(owner);
+    //     test_coin::init_uni(owner);
+    //     initialize(owner);
+    //     asset_pool::initialize(owner);
+    //     pool_manager::add_pool<WETH>(owner);
 
-        rebalance_shadow_internal(key<UNI>(), key<WETH>(), 5000, true, true);
-    }
-    #[test(owner=@leizd,aptos_framework=@aptos_framework)]
-    #[expected_failure(abort_code = 65541)]
-    public entry fun test_rebalance_shadow_to_set_not_added_coin_key_to_to(owner: &signer, aptos_framework: &signer) acquires Storage, PoolEventHandle {
-        timestamp::set_time_has_started_for_testing(aptos_framework);
-        let owner_addr = signer::address_of(owner);
-        account::create_account_for_test(owner_addr);
-        test_initializer::initialize(owner);
-        pool_manager::initialize(owner);
-        test_coin::init_weth(owner);
-        test_coin::init_uni(owner);
-        initialize(owner);
-        asset_pool::initialize(owner);
-        pool_manager::add_pool<WETH>(owner);
+    //     rebalance_shadow_internal(key<UNI>(), key<WETH>(), 5000, true, true);
+    // }
+    // #[test(owner=@leizd,aptos_framework=@aptos_framework)]
+    // #[expected_failure(abort_code = 65541)]
+    // public entry fun test_rebalance_shadow_to_set_not_added_coin_key_to_to(owner: &signer, aptos_framework: &signer) acquires Storage, PoolEventHandle {
+    //     timestamp::set_time_has_started_for_testing(aptos_framework);
+    //     let owner_addr = signer::address_of(owner);
+    //     account::create_account_for_test(owner_addr);
+    //     test_initializer::initialize(owner);
+    //     pool_manager::initialize(owner);
+    //     test_coin::init_weth(owner);
+    //     test_coin::init_uni(owner);
+    //     initialize(owner);
+    //     asset_pool::initialize(owner);
+    //     pool_manager::add_pool<WETH>(owner);
 
-        rebalance_shadow_internal(key<UNI>(), key<WETH>(), 5000, true, true);
-    }
+    //     rebalance_shadow_internal(key<UNI>(), key<WETH>(), 5000, true, true);
+    // }
 
-    #[test(owner=@leizd,account1=@0x111,aptos_framework=@aptos_framework)]
-    public entry fun test_borrow_and_rebalance(owner: &signer, account1: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
-        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+    // #[test(owner=@leizd,account1=@0x111,aptos_framework=@aptos_framework)]
+    // public entry fun test_borrow_and_rebalance(owner: &signer, account1: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
+    //     setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
 
-        let owner_addr = signer::address_of(owner);
-        let account1_addr = signer::address_of(account1);
-        account::create_account_for_test(account1_addr);
-        managed_coin::register<USDZ>(owner);
-        managed_coin::register<USDZ>(account1);
-        usdz::mint_for_test(owner_addr, 1000000);
-        usdz::mint_for_test(account1_addr, 1000000);
+    //     let owner_addr = signer::address_of(owner);
+    //     let account1_addr = signer::address_of(account1);
+    //     account::create_account_for_test(account1_addr);
+    //     managed_coin::register<USDZ>(owner);
+    //     managed_coin::register<USDZ>(account1);
+    //     usdz::mint_for_test(owner_addr, 1000000);
+    //     usdz::mint_for_test(account1_addr, 1000000);
 
-        // execute
-        //// prepares
-        deposit_for_internal(key<WETH>(), owner, owner_addr, 100000, false);
-        deposit_for_internal(key<UNI>(), account1, account1_addr, 100000, false);
-        borrow_for_internal(key<WETH>(), account1_addr, account1_addr, 50000);
-        assert!(borrowed_amount<WETH>() == 50000 + 250, 0);
-        assert!(normal_deposited_amount<UNI>() == 100000, 0);
+    //     // execute
+    //     //// prepares
+    //     deposit_for_internal(key<WETH>(), owner, owner_addr, 100000, false);
+    //     deposit_for_internal(key<UNI>(), account1, account1_addr, 100000, false);
+    //     borrow_for_internal(key<WETH>(), account1_addr, account1_addr, 50000);
+    //     assert!(borrowed_amount<WETH>() == 50000 + 250, 0);
+    //     assert!(normal_deposited_amount<UNI>() == 100000, 0);
 
-        borrow_and_rebalance_internal(key<WETH>(), key<UNI>(), 10000, false);
-        assert!(borrowed_amount<WETH>() == 60000 + 250, 0); // WANT: check to charge fee in rebalance (maybe 300)
-        assert!(normal_deposited_amount<UNI>() == 110000, 0);
+    //     borrow_and_rebalance_internal(key<WETH>(), key<UNI>(), 10000, false);
+    //     assert!(borrowed_amount<WETH>() == 60000 + 250, 0); // WANT: check to charge fee in rebalance (maybe 300)
+    //     assert!(normal_deposited_amount<UNI>() == 110000, 0);
 
-        let event_handle = borrow_global<PoolEventHandle>(owner_addr);
-        assert!(event::counter<RebalanceEvent>(&event_handle.rebalance_event) == 1, 0);
-    }
+    //     let event_handle = borrow_global<PoolEventHandle>(owner_addr);
+    //     assert!(event::counter<RebalanceEvent>(&event_handle.rebalance_event) == 1, 0);
+    // }
 
     // for switch_collateral
     #[test(owner=@leizd, account=@0x111, aptos_framework=@aptos_framework)]

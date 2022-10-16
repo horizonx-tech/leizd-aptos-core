@@ -239,7 +239,7 @@ module leizd_aptos_logic::risk_factor {
         }
     }
 
-    fun health_factor_weighted_average(keys: vector<String>, deposits: vector<u128>, borrows: vector<u128>): u64 acquires Config {
+    public fun health_factor_weighted_average(keys: vector<String>, deposits: vector<u128>, borrows: vector<u128>): u64 acquires Config {
         assert!(vector::length(&keys) == vector::length(&deposits), 0);
         assert!(vector::length(&keys) == vector::length(&borrows), 0);
 

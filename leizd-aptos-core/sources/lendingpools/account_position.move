@@ -141,6 +141,16 @@ module leizd::account_position {
             update_on_deposit<ShadowToAsset>(key, depositor_addr, share, is_collateral_only);
         };
     }
+    public fun deposit_by_rebalance(
+        key: String,
+        depositor_addr: address,
+        share: u64,
+        _key: &OperatorKey
+    ) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
+        assert!(exists<Position<AssetToShadow>>(depositor_addr), error::invalid_argument(ENO_POSITION_RESOURCE));
+        assert_invalid_deposit_shadow(key, depositor_addr, false);
+        update_on_deposit<ShadowToAsset>(key, depositor_addr, share, false);
+    }
 
     public fun assert_invalid_deposit_asset(key: String, depositor_addr: address, is_collateral_only: bool) acquires Position {
         if (is_collateral_only) {
@@ -389,55 +399,6 @@ module leizd::account_position {
         _key: &OperatorKey
     ): u64 acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
         update_position_for_repay<AssetToShadow>(key, addr, share)
-    }
-
-    ////////////////////////////////////////////////////
-    /// Liquidate
-    ////////////////////////////////////////////////////
-    public fun liquidate<C,P>(target_addr: address, _key: &OperatorKey): (u64,u64,bool) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        liquidate_internal<C,P>(target_addr)
-    }
-
-    fun liquidate_internal<C,P>(target_addr: address): (u64,u64,bool) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        // TODO: rebalance between pools
-        let key = key<C>();
-        if (pool_type::is_type_asset<P>()) {
-            assert!(!is_safe<C,AssetToShadow>(target_addr), error::invalid_state(ENO_SAFE_POSITION));
-
-            let normal_deposited = deposited_asset_share<C>(target_addr);
-            let conly_deposited = conly_deposited_asset_share<C>(target_addr);
-            assert!(normal_deposited > 0 || conly_deposited > 0, error::invalid_argument(ENO_DEPOSITED));
-            let is_collateral_only = conly_deposited > 0;
-            let deposited = if (is_collateral_only) conly_deposited else normal_deposited;
-
-            update_on_withdraw<AssetToShadow>(key, target_addr, deposited, is_collateral_only);
-            let borrowed = borrowed_shadow_share<C>(target_addr);
-            update_on_repay<AssetToShadow>(key, target_addr, borrowed);
-            assert!(is_zero_position<C,AssetToShadow>(target_addr), error::invalid_state(EPOSITION_EXISTED));
-            (deposited, borrowed, is_collateral_only)
-        } else {
-            assert!(!is_safe<C,ShadowToAsset>(target_addr), error::invalid_state(ENO_SAFE_POSITION));
-            
-            // rebalance shadow if possible
-            // let from_key = key_rebalanced_from<C>(target_addr);
-            // if (option::is_some(&from_key)) {
-            //     // rebalance
-            //     rebalance_shadow_internal(target_addr, *option::borrow<String>(&from_key), key<C>());
-            //     return (0, 0, false)
-            // };
-
-            let normal_deposited = deposited_shadow_share<C>(target_addr);
-            let conly_deposited = conly_deposited_shadow_share<C>(target_addr);
-            assert!(normal_deposited > 0 || conly_deposited > 0, error::invalid_argument(ENO_DEPOSITED));
-            let is_collateral_only = conly_deposited > 0;
-            let deposited = if (is_collateral_only) conly_deposited else normal_deposited;
-
-            update_on_withdraw<ShadowToAsset>(key, target_addr, deposited, is_collateral_only);
-            let borrowed = borrowed_asset_share<C>(target_addr);
-            update_on_repay<ShadowToAsset>(key, target_addr, borrowed);
-            assert!(is_zero_position<C,ShadowToAsset>(target_addr), error::invalid_state(EPOSITION_EXISTED));
-            (deposited, borrowed, is_collateral_only)
-        }
     }
 
     ////////////////////////////////////////////////////
@@ -1568,170 +1529,170 @@ module leizd::account_position {
         repay_internal<Shadow>(key<WETH>(), account_addr, 7000);
     }
 
-    // for liquidation
-    #[test(owner=@leizd,account=@0x111)]
-    public entry fun test_liquidate_asset(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup(owner);
-        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
-        let account_addr = signer::address_of(account);
-        account::create_account_for_test(account_addr);
+    // // for liquidation
+    // #[test(owner=@leizd,account=@0x111)]
+    // public entry fun test_liquidate_asset(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
+    //     setup(owner);
+    //     test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+    //     let account_addr = signer::address_of(account);
+    //     account::create_account_for_test(account_addr);
 
-        deposit_internal<Asset>(key<WETH>(), account, account_addr, 100, false);
-        borrow_unsafe_for_test<WETH,Shadow>(account_addr, 90);
-        assert!(deposited_asset_share<WETH>(account_addr) == 100, 0);
-        assert!(conly_deposited_asset_share<WETH>(account_addr) == 0, 0);
-        assert!(borrowed_shadow_share<WETH>(account_addr) == 90, 0);
+    //     deposit_internal<Asset>(key<WETH>(), account, account_addr, 100, false);
+    //     borrow_unsafe_for_test<WETH,Shadow>(account_addr, 90);
+    //     assert!(deposited_asset_share<WETH>(account_addr) == 100, 0);
+    //     assert!(conly_deposited_asset_share<WETH>(account_addr) == 0, 0);
+    //     assert!(borrowed_shadow_share<WETH>(account_addr) == 90, 0);
 
-        let (deposited, borrowed, is_collateral_only) = liquidate_internal<WETH,Asset>(account_addr);
-        assert!(deposited == 100, 0);
-        assert!(borrowed == 90, 0);
-        assert!(!is_collateral_only, 0);
-        assert!(deposited_asset_share<WETH>(account_addr) == 0, 0);
-        assert!(conly_deposited_asset_share<WETH>(account_addr) == 0, 0);
-        assert!(borrowed_shadow_share<WETH>(account_addr) == 0, 0);
+    //     let (deposited, borrowed, is_collateral_only) = liquidate_internal<WETH,Asset>(account_addr);
+    //     assert!(deposited == 100, 0);
+    //     assert!(borrowed == 90, 0);
+    //     assert!(!is_collateral_only, 0);
+    //     assert!(deposited_asset_share<WETH>(account_addr) == 0, 0);
+    //     assert!(conly_deposited_asset_share<WETH>(account_addr) == 0, 0);
+    //     assert!(borrowed_shadow_share<WETH>(account_addr) == 0, 0);
 
-        assert!(event::counter<UpdatePositionEvent>(&borrow_global<AccountPositionEventHandle<AssetToShadow>>(account_addr).update_position_event) == 4, 0);
-    }
-    #[test(owner=@leizd,account=@0x111)]
-    public entry fun test_liquidate_asset_conly(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup(owner);
-        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
-        let account_addr = signer::address_of(account);
-        account::create_account_for_test(account_addr);
+    //     assert!(event::counter<UpdatePositionEvent>(&borrow_global<AccountPositionEventHandle<AssetToShadow>>(account_addr).update_position_event) == 4, 0);
+    // }
+    // #[test(owner=@leizd,account=@0x111)]
+    // public entry fun test_liquidate_asset_conly(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
+    //     setup(owner);
+    //     test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+    //     let account_addr = signer::address_of(account);
+    //     account::create_account_for_test(account_addr);
 
-        deposit_internal<Asset>(key<WETH>(), account, account_addr, 100, true);
-        borrow_unsafe_for_test<WETH,Shadow>(account_addr, 90);
-        assert!(deposited_asset_share<WETH>(account_addr) == 0, 0);
-        assert!(conly_deposited_asset_share<WETH>(account_addr) == 100, 0);
-        assert!(borrowed_shadow_share<WETH>(account_addr) == 90, 0);
+    //     deposit_internal<Asset>(key<WETH>(), account, account_addr, 100, true);
+    //     borrow_unsafe_for_test<WETH,Shadow>(account_addr, 90);
+    //     assert!(deposited_asset_share<WETH>(account_addr) == 0, 0);
+    //     assert!(conly_deposited_asset_share<WETH>(account_addr) == 100, 0);
+    //     assert!(borrowed_shadow_share<WETH>(account_addr) == 90, 0);
 
-        let (deposited, borrowed, is_collateral_only) = liquidate_internal<WETH,Asset>(account_addr);
-        assert!(deposited == 100, 0);
-        assert!(borrowed == 90, 0);
-        assert!(is_collateral_only, 0);
-        assert!(deposited_asset_share<WETH>(account_addr) == 0, 0);
-        assert!(conly_deposited_asset_share<WETH>(account_addr) == 0, 0);
-        assert!(borrowed_shadow_share<WETH>(account_addr) == 0, 0);
+    //     let (deposited, borrowed, is_collateral_only) = liquidate_internal<WETH,Asset>(account_addr);
+    //     assert!(deposited == 100, 0);
+    //     assert!(borrowed == 90, 0);
+    //     assert!(is_collateral_only, 0);
+    //     assert!(deposited_asset_share<WETH>(account_addr) == 0, 0);
+    //     assert!(conly_deposited_asset_share<WETH>(account_addr) == 0, 0);
+    //     assert!(borrowed_shadow_share<WETH>(account_addr) == 0, 0);
 
-        assert!(event::counter<UpdatePositionEvent>(&borrow_global<AccountPositionEventHandle<AssetToShadow>>(account_addr).update_position_event) == 4, 0);
-    }
-    #[test(owner=@leizd,account=@0x111)]
-    public entry fun test_liquidate_shadow(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup(owner);
-        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
-        let account_addr = signer::address_of(account);
-        account::create_account_for_test(account_addr);
+    //     assert!(event::counter<UpdatePositionEvent>(&borrow_global<AccountPositionEventHandle<AssetToShadow>>(account_addr).update_position_event) == 4, 0);
+    // }
+    // #[test(owner=@leizd,account=@0x111)]
+    // public entry fun test_liquidate_shadow(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
+    //     setup(owner);
+    //     test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+    //     let account_addr = signer::address_of(account);
+    //     account::create_account_for_test(account_addr);
 
-        deposit_internal<Shadow>(key<WETH>(), account, account_addr, 100, false);
-        borrow_unsafe_for_test<WETH,Asset>(account_addr, 110);
-        assert!(deposited_shadow_share<WETH>(account_addr) == 100, 0);
-        assert!(conly_deposited_shadow_share<WETH>(account_addr) == 0, 0);
-        assert!(borrowed_asset_share<WETH>(account_addr) == 110, 0);
+    //     deposit_internal<Shadow>(key<WETH>(), account, account_addr, 100, false);
+    //     borrow_unsafe_for_test<WETH,Asset>(account_addr, 110);
+    //     assert!(deposited_shadow_share<WETH>(account_addr) == 100, 0);
+    //     assert!(conly_deposited_shadow_share<WETH>(account_addr) == 0, 0);
+    //     assert!(borrowed_asset_share<WETH>(account_addr) == 110, 0);
 
-        let (deposited, borrowed, is_collateral_only) = liquidate_internal<WETH,Shadow>(account_addr);
-        assert!(deposited == 100, 0);
-        assert!(borrowed == 110, 0);
-        assert!(!is_collateral_only, 0);
-        assert!(deposited_shadow_share<WETH>(account_addr) == 0, 0);
-        assert!(conly_deposited_shadow_share<WETH>(account_addr) == 0, 0);
-        assert!(borrowed_asset_share<WETH>(account_addr) == 0, 0);
+    //     let (deposited, borrowed, is_collateral_only) = liquidate_internal<WETH,Shadow>(account_addr);
+    //     assert!(deposited == 100, 0);
+    //     assert!(borrowed == 110, 0);
+    //     assert!(!is_collateral_only, 0);
+    //     assert!(deposited_shadow_share<WETH>(account_addr) == 0, 0);
+    //     assert!(conly_deposited_shadow_share<WETH>(account_addr) == 0, 0);
+    //     assert!(borrowed_asset_share<WETH>(account_addr) == 0, 0);
 
-        assert!(event::counter<UpdatePositionEvent>(&borrow_global<AccountPositionEventHandle<ShadowToAsset>>(account_addr).update_position_event) == 4, 0);
-    }
-    #[test(owner=@leizd,account=@0x111)]
-    public entry fun test_liquidate_shadow_conly(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup(owner);
-        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
-        let account_addr = signer::address_of(account);
-        account::create_account_for_test(account_addr);
+    //     assert!(event::counter<UpdatePositionEvent>(&borrow_global<AccountPositionEventHandle<ShadowToAsset>>(account_addr).update_position_event) == 4, 0);
+    // }
+    // #[test(owner=@leizd,account=@0x111)]
+    // public entry fun test_liquidate_shadow_conly(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
+    //     setup(owner);
+    //     test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+    //     let account_addr = signer::address_of(account);
+    //     account::create_account_for_test(account_addr);
 
-        deposit_internal<Shadow>(key<WETH>(), account, account_addr, 100, true);
-        borrow_unsafe_for_test<WETH,Asset>(account_addr, 110);
-        assert!(deposited_shadow_share<WETH>(account_addr) == 0, 0);
-        assert!(conly_deposited_shadow_share<WETH>(account_addr) == 100, 0);
-        assert!(borrowed_asset_share<WETH>(account_addr) == 110, 0);
+    //     deposit_internal<Shadow>(key<WETH>(), account, account_addr, 100, true);
+    //     borrow_unsafe_for_test<WETH,Asset>(account_addr, 110);
+    //     assert!(deposited_shadow_share<WETH>(account_addr) == 0, 0);
+    //     assert!(conly_deposited_shadow_share<WETH>(account_addr) == 100, 0);
+    //     assert!(borrowed_asset_share<WETH>(account_addr) == 110, 0);
 
-        let (deposited, borrowed, is_collateral_only) = liquidate_internal<WETH,Shadow>(account_addr);
-        assert!(deposited == 100, 0);
-        assert!(borrowed == 110, 0);
-        assert!(is_collateral_only, 0);
-        assert!(deposited_shadow_share<WETH>(account_addr) == 0, 0);
-        assert!(conly_deposited_shadow_share<WETH>(account_addr) == 0, 0);
-        assert!(borrowed_asset_share<WETH>(account_addr) == 0, 0);
+    //     let (deposited, borrowed, is_collateral_only) = liquidate_internal<WETH,Shadow>(account_addr);
+    //     assert!(deposited == 100, 0);
+    //     assert!(borrowed == 110, 0);
+    //     assert!(is_collateral_only, 0);
+    //     assert!(deposited_shadow_share<WETH>(account_addr) == 0, 0);
+    //     assert!(conly_deposited_shadow_share<WETH>(account_addr) == 0, 0);
+    //     assert!(borrowed_asset_share<WETH>(account_addr) == 0, 0);
 
-        assert!(event::counter<UpdatePositionEvent>(&borrow_global<AccountPositionEventHandle<ShadowToAsset>>(account_addr).update_position_event) == 4, 0);
-    }
-    #[test(owner=@leizd,account=@0x111)]
-    public entry fun test_liquidate_two_shadow_position(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup(owner);
-        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
-        let account_addr = signer::address_of(account);
-        account::create_account_for_test(account_addr);
+    //     assert!(event::counter<UpdatePositionEvent>(&borrow_global<AccountPositionEventHandle<ShadowToAsset>>(account_addr).update_position_event) == 4, 0);
+    // }
+    // #[test(owner=@leizd,account=@0x111)]
+    // public entry fun test_liquidate_two_shadow_position(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
+    //     setup(owner);
+    //     test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+    //     let account_addr = signer::address_of(account);
+    //     account::create_account_for_test(account_addr);
 
-        deposit_internal<Shadow>(key<WETH>(), account, account_addr, 100, true);
-        borrow_unsafe_for_test<WETH,Asset>(account_addr, 190);
-        deposit_internal<Shadow>(key<UNI>(), account, account_addr, 80, false);
-        borrow_unsafe_for_test<UNI,Asset>(account_addr, 170);
-        assert!(deposited_shadow_share<WETH>(account_addr) == 0, 0);
-        assert!(deposited_shadow_share<UNI>(account_addr) == 80, 0);
-        assert!(conly_deposited_shadow_share<WETH>(account_addr) == 100, 0);
-        assert!(conly_deposited_shadow_share<UNI>(account_addr) == 0, 0);
-        assert!(borrowed_asset_share<WETH>(account_addr) == 190, 0);
-        assert!(borrowed_asset_share<UNI>(account_addr) == 170, 0);
+    //     deposit_internal<Shadow>(key<WETH>(), account, account_addr, 100, true);
+    //     borrow_unsafe_for_test<WETH,Asset>(account_addr, 190);
+    //     deposit_internal<Shadow>(key<UNI>(), account, account_addr, 80, false);
+    //     borrow_unsafe_for_test<UNI,Asset>(account_addr, 170);
+    //     assert!(deposited_shadow_share<WETH>(account_addr) == 0, 0);
+    //     assert!(deposited_shadow_share<UNI>(account_addr) == 80, 0);
+    //     assert!(conly_deposited_shadow_share<WETH>(account_addr) == 100, 0);
+    //     assert!(conly_deposited_shadow_share<UNI>(account_addr) == 0, 0);
+    //     assert!(borrowed_asset_share<WETH>(account_addr) == 190, 0);
+    //     assert!(borrowed_asset_share<UNI>(account_addr) == 170, 0);
 
-        let (deposited, borrowed, is_collateral_only) = liquidate_internal<WETH,Shadow>(account_addr);
-        assert!(deposited == 100, 0);
-        assert!(borrowed == 190, 0);
-        assert!(is_collateral_only, 0);
-        assert!(deposited_shadow_share<WETH>(account_addr) == 0, 0);
-        assert!(conly_deposited_shadow_share<WETH>(account_addr) == 0, 0);
-        assert!(borrowed_asset_share<WETH>(account_addr) == 0, 0);
-        let (deposited, borrowed, is_collateral_only) = liquidate_internal<UNI,Shadow>(account_addr);
-        assert!(deposited == 80, 0);
-        assert!(borrowed == 170, 0);
-        assert!(!is_collateral_only, 0);
-        assert!(deposited_shadow_share<UNI>(account_addr) == 0, 0);
-        assert!(conly_deposited_shadow_share<WETH>(account_addr) == 0, 0);
-        assert!(borrowed_asset_share<WETH>(account_addr) == 0, 0);
+    //     let (deposited, borrowed, is_collateral_only) = liquidate_internal<WETH,Shadow>(account_addr);
+    //     assert!(deposited == 100, 0);
+    //     assert!(borrowed == 190, 0);
+    //     assert!(is_collateral_only, 0);
+    //     assert!(deposited_shadow_share<WETH>(account_addr) == 0, 0);
+    //     assert!(conly_deposited_shadow_share<WETH>(account_addr) == 0, 0);
+    //     assert!(borrowed_asset_share<WETH>(account_addr) == 0, 0);
+    //     let (deposited, borrowed, is_collateral_only) = liquidate_internal<UNI,Shadow>(account_addr);
+    //     assert!(deposited == 80, 0);
+    //     assert!(borrowed == 170, 0);
+    //     assert!(!is_collateral_only, 0);
+    //     assert!(deposited_shadow_share<UNI>(account_addr) == 0, 0);
+    //     assert!(conly_deposited_shadow_share<WETH>(account_addr) == 0, 0);
+    //     assert!(borrowed_asset_share<WETH>(account_addr) == 0, 0);
 
-        assert!(event::counter<UpdatePositionEvent>(&borrow_global<AccountPositionEventHandle<ShadowToAsset>>(account_addr).update_position_event) == 8, 0);
-    }
-    #[test(owner=@leizd,account=@0x111)]
-    public entry fun test_liquidate_asset_and_shadow(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup(owner);
-        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
-        let account_addr = signer::address_of(account);
-        account::create_account_for_test(account_addr);
+    //     assert!(event::counter<UpdatePositionEvent>(&borrow_global<AccountPositionEventHandle<ShadowToAsset>>(account_addr).update_position_event) == 8, 0);
+    // }
+    // #[test(owner=@leizd,account=@0x111)]
+    // public entry fun test_liquidate_asset_and_shadow(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
+    //     setup(owner);
+    //     test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+    //     let account_addr = signer::address_of(account);
+    //     account::create_account_for_test(account_addr);
 
-        deposit_internal<Asset>(key<WETH>(), account, account_addr, 100, true);
-        borrow_unsafe_for_test<WETH,Shadow>(account_addr, 190);
-        deposit_internal<Shadow>(key<WETH>(), account, account_addr, 80, false);
-        borrow_unsafe_for_test<WETH,Asset>(account_addr, 170);
-        assert!(deposited_asset_share<WETH>(account_addr) == 0, 0);
-        assert!(deposited_shadow_share<WETH>(account_addr) == 80, 0);
-        assert!(conly_deposited_asset_share<WETH>(account_addr) == 100, 0);
-        assert!(conly_deposited_shadow_share<WETH>(account_addr) == 0, 0);
-        assert!(borrowed_shadow_share<WETH>(account_addr) == 190, 0);
-        assert!(borrowed_asset_share<WETH>(account_addr) == 170, 0);
+    //     deposit_internal<Asset>(key<WETH>(), account, account_addr, 100, true);
+    //     borrow_unsafe_for_test<WETH,Shadow>(account_addr, 190);
+    //     deposit_internal<Shadow>(key<WETH>(), account, account_addr, 80, false);
+    //     borrow_unsafe_for_test<WETH,Asset>(account_addr, 170);
+    //     assert!(deposited_asset_share<WETH>(account_addr) == 0, 0);
+    //     assert!(deposited_shadow_share<WETH>(account_addr) == 80, 0);
+    //     assert!(conly_deposited_asset_share<WETH>(account_addr) == 100, 0);
+    //     assert!(conly_deposited_shadow_share<WETH>(account_addr) == 0, 0);
+    //     assert!(borrowed_shadow_share<WETH>(account_addr) == 190, 0);
+    //     assert!(borrowed_asset_share<WETH>(account_addr) == 170, 0);
 
-        let (deposited, borrowed, is_collateral_only) = liquidate_internal<WETH,Asset>(account_addr);
-        assert!(deposited == 100, 0);
-        assert!(borrowed == 190, 0);
-        assert!(is_collateral_only, 0);
-        assert!(deposited_asset_share<WETH>(account_addr) == 0, 0);
-        assert!(conly_deposited_asset_share<WETH>(account_addr) == 0, 0);
-        assert!(borrowed_shadow_share<WETH>(account_addr) == 0, 0);
-        let (deposited, borrowed, is_collateral_only) = liquidate_internal<WETH,Shadow>(account_addr);
-        assert!(deposited == 80, 0);
-        assert!(borrowed == 170, 0);
-        assert!(!is_collateral_only, 0);
-        assert!(deposited_shadow_share<WETH>(account_addr) == 0, 0);
-        assert!(conly_deposited_shadow_share<WETH>(account_addr) == 0, 0);
-        assert!(borrowed_asset_share<WETH>(account_addr) == 0, 0);
+    //     let (deposited, borrowed, is_collateral_only) = liquidate_internal<WETH,Asset>(account_addr);
+    //     assert!(deposited == 100, 0);
+    //     assert!(borrowed == 190, 0);
+    //     assert!(is_collateral_only, 0);
+    //     assert!(deposited_asset_share<WETH>(account_addr) == 0, 0);
+    //     assert!(conly_deposited_asset_share<WETH>(account_addr) == 0, 0);
+    //     assert!(borrowed_shadow_share<WETH>(account_addr) == 0, 0);
+    //     let (deposited, borrowed, is_collateral_only) = liquidate_internal<WETH,Shadow>(account_addr);
+    //     assert!(deposited == 80, 0);
+    //     assert!(borrowed == 170, 0);
+    //     assert!(!is_collateral_only, 0);
+    //     assert!(deposited_shadow_share<WETH>(account_addr) == 0, 0);
+    //     assert!(conly_deposited_shadow_share<WETH>(account_addr) == 0, 0);
+    //     assert!(borrowed_asset_share<WETH>(account_addr) == 0, 0);
 
-        assert!(event::counter<UpdatePositionEvent>(&borrow_global<AccountPositionEventHandle<AssetToShadow>>(account_addr).update_position_event) == 4, 0);
-        assert!(event::counter<UpdatePositionEvent>(&borrow_global<AccountPositionEventHandle<ShadowToAsset>>(account_addr).update_position_event) == 4, 0);
-    }
+    //     assert!(event::counter<UpdatePositionEvent>(&borrow_global<AccountPositionEventHandle<AssetToShadow>>(account_addr).update_position_event) == 4, 0);
+    //     assert!(event::counter<UpdatePositionEvent>(&borrow_global<AccountPositionEventHandle<ShadowToAsset>>(account_addr).update_position_event) == 4, 0);
+    // }
     // #[test(owner=@leizd,account=@0x111)]
     // public entry fun test_liquidate_shadow_if_rebalance_should_be_done(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
     //     // TODO: logic
@@ -1762,28 +1723,28 @@ module leizd::account_position {
     //     // assert!(borrowed_asset_share<WETH>(account_addr) == 190, 0);
     //     // assert!(borrowed_asset_share<UNI>(account_addr) == 0, 0);
     // }
-    #[test(owner=@leizd,account=@0x111)]
-    #[expected_failure(abort_code = 196610)]
-    public entry fun test_liquidate_asset_if_safe(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup(owner);
-        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
-        let account_addr = signer::address_of(account);
-        account::create_account_for_test(account_addr);
+    // #[test(owner=@leizd,account=@0x111)]
+    // #[expected_failure(abort_code = 196610)]
+    // public entry fun test_liquidate_asset_if_safe(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
+    //     setup(owner);
+    //     test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+    //     let account_addr = signer::address_of(account);
+    //     account::create_account_for_test(account_addr);
 
-        deposit_internal<Asset>(key<WETH>(), account, account_addr, 1, true);
-        liquidate_internal<WETH,Asset>(account_addr);
-    }
-    #[test(owner=@leizd,account=@0x111)]
-    #[expected_failure(abort_code = 196610)]
-    public entry fun test_liquidate_shadow_if_safe(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        setup(owner);
-        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
-        let account_addr = signer::address_of(account);
-        account::create_account_for_test(account_addr);
+    //     deposit_internal<Asset>(key<WETH>(), account, account_addr, 1, true);
+    //     liquidate_internal<WETH,Asset>(account_addr);
+    // }
+    // #[test(owner=@leizd,account=@0x111)]
+    // #[expected_failure(abort_code = 196610)]
+    // public entry fun test_liquidate_shadow_if_safe(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
+    //     setup(owner);
+    //     test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+    //     let account_addr = signer::address_of(account);
+    //     account::create_account_for_test(account_addr);
 
-        deposit_internal<Shadow>(key<WETH>(), account, account_addr, 1, true);
-        liquidate_internal<WETH,Shadow>(account_addr);
-    }
+    //     deposit_internal<Shadow>(key<WETH>(), account, account_addr, 1, true);
+    //     liquidate_internal<WETH,Shadow>(account_addr);
+    // }
 
     // mixture
     //// check existence of resources
