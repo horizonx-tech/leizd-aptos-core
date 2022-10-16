@@ -677,9 +677,9 @@ module leizd::account_position {
     fun is_safe_with<P>(key: String, addr: address): bool acquires Position {
         let position_ref = borrow_global<Position<P>>(addr);
         if (position_type::is_asset_to_shadow<P>()) {
-            utilization_of<P>(position_ref, key) < risk_factor::lt_of(key)
+            utilization_of<P>(position_ref, key) < risk_factor::ltv_of(key)
         } else {
-            utilization_of<P>(position_ref, key) < risk_factor::lt_of_shadow()
+            utilization_of<P>(position_ref, key) < risk_factor::ltv_of_shadow()
         }
     }
 
