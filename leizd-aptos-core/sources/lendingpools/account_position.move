@@ -677,9 +677,9 @@ module leizd::account_position {
     fun is_safe_with<P>(key: String, addr: address): bool acquires Position {
         let position_ref = borrow_global<Position<P>>(addr);
         if (position_type::is_asset_to_shadow<P>()) {
-            utilization_of<P>(position_ref, key) < risk_factor::lt_of(key)
+            utilization_of<P>(position_ref, key) < risk_factor::ltv_of(key)
         } else {
-            utilization_of<P>(position_ref, key) < risk_factor::lt_of_shadow()
+            utilization_of<P>(position_ref, key) < risk_factor::ltv_of_shadow()
         }
     }
 
@@ -1351,12 +1351,12 @@ module leizd::account_position {
 
         // check prerequisite
         let weth_key = key<WETH>();
-        let lt = risk_factor::lt_of(weth_key);
-        assert!(lt == risk_factor::precision() * 85 / 100, 0); // 85%
+        let lt = risk_factor::ltv_of(weth_key);
+        assert!(lt == risk_factor::precision() * 70 / 100, 0); // 70%
 
         // execute
         let deposit_amount = 10000;
-        let borrow_amount = 8499; // (10000 * 85%) - 1
+        let borrow_amount = 6999; // (10000 * 70%) - 1
         deposit_internal<Asset>(key<WETH>(), account, account_addr, deposit_amount, false);
         borrow_internal<Shadow>(key<WETH>(), account, account_addr, borrow_amount);
         assert!(deposited_asset_share<WETH>(account_addr) == deposit_amount, 0);
@@ -1365,7 +1365,7 @@ module leizd::account_position {
         assert!(borrowed_volume<AssetToShadow>(account_addr, weth_key) == (borrow_amount as u128), 0);
         //// calculate
         let utilization = utilization_of<AssetToShadow>(borrow_global<Position<AssetToShadow>>(account_addr), weth_key);
-        assert!(lt - utilization == (8500 - borrow_amount) * risk_factor::precision() / deposit_amount, 0);
+        assert!(lt - utilization == (7000 - borrow_amount) * risk_factor::precision() / deposit_amount, 0);
     }
     #[test(owner=@leizd,account=@0x111)]
     #[expected_failure(abort_code = 196610)]
@@ -1498,15 +1498,15 @@ module leizd::account_position {
 
         // check prerequisite
         let weth_key = key<WETH>();
-        let lt = risk_factor::lt_of(weth_key);
-        assert!(lt == risk_factor::precision() * 85 / 100, 0); // 85%
+        let lt = risk_factor::ltv_of(weth_key);
+        assert!(lt == risk_factor::precision() * 70 / 100, 0); // 70%
 
         // execute
         deposit_internal<Asset>(key<WETH>(), account, account_addr, 10000, false);
-        borrow_internal<Shadow>(key<WETH>(), account, account_addr, 2999);
+        borrow_internal<Shadow>(key<WETH>(), account, account_addr, 1999);
         borrow_internal<Shadow>(key<WETH>(), account, account_addr, 5000);
         let share = repay_all_internal<WETH,Shadow>(account_addr);
-        assert!(share == 7999, 0);
+        assert!(share == 6999, 0);
         assert!(deposited_asset_share<WETH>(account_addr) == 10000, 0);
         assert!(deposited_volume<AssetToShadow>(account_addr, weth_key) == 10000, 0);
         assert!(borrowed_shadow_share<WETH>(account_addr) == 0, 0);
