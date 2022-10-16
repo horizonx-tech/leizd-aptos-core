@@ -366,6 +366,17 @@ module leizd::account_position {
         };
         repaid_share
     }
+    public fun repay_all_for_liquidation<C,P>(addr: address, _key: &OperatorKey): u64 acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
+        let repaid_share;
+        if (pool_type::is_type_asset<P>()) {
+            let share = borrowed_shadow_share<C>(addr);
+            repaid_share = update_on_repay<AssetToShadow>(key<C>(), addr, share);
+        } else {
+            let share = borrowed_asset_share<C>(addr);
+            repaid_share = update_on_repay<ShadowToAsset>(key<C>(), addr, share);
+        };
+        repaid_share
+    }
 
     ////////////////////////////////////////////////////
     /// Rebalance

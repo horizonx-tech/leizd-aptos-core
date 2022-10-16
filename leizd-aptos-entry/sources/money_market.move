@@ -909,7 +909,7 @@ module leizd_aptos_entry::money_market {
 
             // execute liquidation (repay + withdraw)
             let (deposited_amount, is_collateral_only) = account_position::deposited_asset_amount<C>(target_addr);
-            let user_share_all = account_position::repay_all<C,P>(liquidator_addr, account_position_key);
+            let user_share_all = account_position::repay_all_for_liquidation<C,P>(target_addr, account_position_key);
             shadow_pool::repay_by_share<C>(account, user_share_all, shadow_pool_key);
             let (_, withdrawed_user_share) = asset_pool::withdraw_for_liquidation<C>(liquidator_addr, target_addr, deposited_amount, is_collateral_only, asset_pool_key);
             account_position::withdraw<C,P>(target_addr, withdrawed_user_share, is_collateral_only, account_position_key);
@@ -932,7 +932,7 @@ module leizd_aptos_entry::money_market {
 
             // execute liquidation (repay + withdraw)
             let (deposited_amount, is_collateral_only) = account_position::deposited_shadow_amount<C>(target_addr);
-            let user_share_all = account_position::repay_all<C,P>(liquidator_addr, account_position_key);
+            let user_share_all = account_position::repay_all_for_liquidation<C,P>(target_addr, account_position_key);
             asset_pool::repay_by_share<C>(account, user_share_all, asset_pool_key);
             let (_, withdrawed_user_share) = shadow_pool::withdraw_for_liquidation<C>(liquidator_addr, target_addr, deposited_amount, is_collateral_only, shadow_pool_key);
             account_position::withdraw<C,P>(target_addr, withdrawed_user_share, is_collateral_only, account_position_key);
