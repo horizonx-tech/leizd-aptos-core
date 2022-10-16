@@ -746,6 +746,22 @@ module leizd::account_position {
             0
         }
     }
+    public fun deposited_asset_amount<C>(addr: address): (u64,bool) acquires Position {
+        let normal_deposited = normal_deposited_amount<AssetToShadow>(addr, key<C>());
+        let conly_deposited = conly_deposited_amount<AssetToShadow>(addr, key<C>());
+        assert!(normal_deposited > 0 || conly_deposited > 0, error::invalid_argument(ENO_DEPOSITED));
+        let is_collateral_only = conly_deposited > 0;
+        let deposited = if (is_collateral_only) conly_deposited else normal_deposited;
+        ((deposited as u64), is_collateral_only)
+    }
+    public fun deposited_shadow_amount<C>(addr: address): (u64,bool) acquires Position {
+        let normal_deposited = normal_deposited_amount<ShadowToAsset>(addr, key<C>());
+        let conly_deposited = conly_deposited_amount<ShadowToAsset>(addr, key<C>());
+        assert!(normal_deposited > 0 || conly_deposited > 0, error::invalid_argument(ENO_DEPOSITED));
+        let is_collateral_only = conly_deposited > 0;
+        let deposited = if (is_collateral_only) conly_deposited else normal_deposited;
+        ((deposited as u64), is_collateral_only)
+    }
     fun normal_deposited_amount<P>(addr: address, key: String): u128 acquires Position {
         let position_ref = borrow_global_mut<Position<P>>(addr);
         normal_deposited_amount_internal<P>(position_ref, key)

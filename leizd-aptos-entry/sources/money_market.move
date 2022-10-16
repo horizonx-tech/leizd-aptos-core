@@ -908,15 +908,10 @@ module leizd_aptos_entry::money_market {
             // TODO: rebalance by repaying shadow with left amount, that is from deposited as AssetToShadow
 
             // execute liquidation (repay + withdraw)
-            let normal_deposited = account_position::deposited_asset_share<C>(target_addr);
-            let conly_deposited = account_position::conly_deposited_asset_share<C>(target_addr);
-            assert!(normal_deposited > 0 || conly_deposited > 0, error::invalid_argument(ENO_DEPOSITED));
-            let is_collateral_only = conly_deposited > 0;
-            let deposited = if (is_collateral_only) conly_deposited else normal_deposited;
-
+            let (deposited_amount, is_collateral_only) = account_position::deposited_asset_amount<C>(target_addr);
             let user_share_all = account_position::repay_all<C,P>(liquidator_addr, account_position_key);
             shadow_pool::repay_by_share<C>(account, user_share_all, shadow_pool_key);
-            let (_, withdrawed_user_share) = asset_pool::withdraw_for_liquidation<C>(liquidator_addr, target_addr, deposited, is_collateral_only, asset_pool_key);
+            let (_, withdrawed_user_share) = asset_pool::withdraw_for_liquidation<C>(liquidator_addr, target_addr, deposited_amount, is_collateral_only, asset_pool_key);
             account_position::withdraw<C,P>(target_addr, withdrawed_user_share, is_collateral_only, account_position_key);
         } else {
             // judge if the coin should be liquidated
@@ -936,15 +931,10 @@ module leizd_aptos_entry::money_market {
             // };
 
             // execute liquidation (repay + withdraw)
-            let normal_deposited = account_position::deposited_asset_share<C>(target_addr);
-            let conly_deposited = account_position::conly_deposited_asset_share<C>(target_addr);
-            assert!(normal_deposited > 0 || conly_deposited > 0, error::invalid_argument(ENO_DEPOSITED));
-            let is_collateral_only = conly_deposited > 0;
-            let deposited = if (is_collateral_only) conly_deposited else normal_deposited;
-
+            let (deposited_amount, is_collateral_only) = account_position::deposited_shadow_amount<C>(target_addr);
             let user_share_all = account_position::repay_all<C,P>(liquidator_addr, account_position_key);
             asset_pool::repay_by_share<C>(account, user_share_all, asset_pool_key);
-            let (_, withdrawed_user_share) = shadow_pool::withdraw_for_liquidation<C>(liquidator_addr, target_addr, deposited, is_collateral_only, shadow_pool_key);
+            let (_, withdrawed_user_share) = shadow_pool::withdraw_for_liquidation<C>(liquidator_addr, target_addr, deposited_amount, is_collateral_only, shadow_pool_key);
             account_position::withdraw<C,P>(target_addr, withdrawed_user_share, is_collateral_only, account_position_key);
         };
     }
