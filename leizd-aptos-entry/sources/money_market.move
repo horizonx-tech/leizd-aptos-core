@@ -911,19 +911,21 @@ module leizd_aptos_entry::money_market {
             // judge if the coin should be liquidated
             assert!(!account_position::is_safe_shadow_to_asset<C>(target_addr), error::invalid_state(ENO_SAFE_POSITION));
             
-            flatten_positions(liquidator_addr, target_addr, account_position_key, shadow_pool_key);
+            flatten_positions(target_addr, account_position_key, shadow_pool_key);
 
-            // execute liquidation (repay + withdraw)
-            let (deposited_amount, is_collateral_only) = account_position::deposited_shadow_amount<C>(target_addr);
-            let user_share_all = account_position::repay_all_for_liquidation<C,P>(target_addr, account_position_key);
-            asset_pool::repay_by_share<C>(account, user_share_all, asset_pool_key);
-            let (_, withdrawed_user_share) = shadow_pool::withdraw_for_liquidation<C>(liquidator_addr, target_addr, deposited_amount, is_collateral_only, shadow_pool_key);
-            account_position::withdraw<C,P>(target_addr, withdrawed_user_share, is_collateral_only, account_position_key);
+            if (!account_position::is_safe_shadow_to_asset<C>(target_addr)) {
+                // execute liquidation (repay + withdraw)
+                let (deposited_amount, is_collateral_only) = account_position::deposited_shadow_amount<C>(target_addr);
+                let user_share_all = account_position::repay_all_for_liquidation<C,P>(target_addr, account_position_key);
+                asset_pool::repay_by_share<C>(account, user_share_all, asset_pool_key);
+                let (_, withdrawed_user_share) = shadow_pool::withdraw_for_liquidation<C>(liquidator_addr, target_addr, deposited_amount, is_collateral_only, shadow_pool_key);
+                account_position::withdraw<C,P>(target_addr, withdrawed_user_share, is_collateral_only, account_position_key);
+            };
         };
     }
 
     use std::debug;
-    fun flatten_positions(liquidator_addr: address, target_addr: address, account_position_key: &AccountPositionKey, shadow_pool_key: &ShadowPoolKey) {
+    fun flatten_positions(target_addr: address, account_position_key: &AccountPositionKey, shadow_pool_key: &ShadowPoolKey) {
         let coins = vector::empty<String>();
         let deposited_amounts = vector::empty<u128>();
         let borrowed_amounts = vector::empty<u128>();
@@ -965,8 +967,8 @@ module leizd_aptos_entry::money_market {
         );
         
         // Asset To Shadow: Prepare for Borrowing and Repaying Shadow
-        let amount_to_borrow = simple_map::create<String,u64>();
-        let amount_to_repay = simple_map::create<String,u64>();
+        // let amount_to_borrow = simple_map::create<String,u64>();
+        // let amount_to_repay = simple_map::create<String,u64>();
         let i = vector::length<String>(&unprotected_coins_in_atos);
         while (i > 0) {
             let key = vector::borrow(&unprotected_coins_in_atos, i);
@@ -976,22 +978,25 @@ module leizd_aptos_entry::money_market {
             let borrowed_volume = price_oracle::volume(key, (borrowed_amount as u128));
             let current_hf = risk_factor::health_factor_of(*key, (deposited_volume as u128), (borrowed_volume as u128));
             let precision_u128 = (risk_factor::precision() as u128);
-            // let opt_deposit_volume = ((borrowed_volume as u128) * precision_u128 / (precision_u128 - (optimized_hf as u128))) * precision_u128 / (risk_factor::lt_of(*key) as u128);
             let opt_borrow_volume = (deposited_volume as u128) * (risk_factor::lt_of(*key) as u128) * (precision_u128 - (optimized_hf as u128));
             if (current_hf > optimized_hf) {
                 // repay shadow
-                simple_map::add(
-                    &mut amount_to_repay,
+                let (_, share) = shadow_pool::rebalance_for_repay(
                     *key,
-                    price_oracle::to_amount(key, (borrowed_volume - (opt_borrow_volume as u64)))
+                    target_addr,
+                    price_oracle::to_amount(key, (borrowed_volume - (opt_borrow_volume as u64))),
+                    shadow_pool_key
                 );
+                account_position::repay_with<Shadow>(*key, target_addr, share, account_position_key);
             } else if (current_hf < optimized_hf) {
                 // borrow shadow
-                simple_map::add(
-                    &mut amount_to_borrow,
+                let (_, share) = shadow_pool::rebalance_for_borrow(
                     *key,
-                    price_oracle::to_amount(key, ((opt_borrow_volume as u64) - borrowed_volume))
+                    target_addr,
+                    price_oracle::to_amount(key, ((opt_borrow_volume as u64) - borrowed_volume)),
+                    shadow_pool_key
                 );
+                account_position::borrow_unsafe_with<Shadow>(*key, target_addr, share, account_position_key);
             };
             i = i - 1;
         };
@@ -1009,34 +1014,27 @@ module leizd_aptos_entry::money_market {
             let current_hf = risk_factor::health_factor_of(*key, (deposited_volume as u128), (borrowed_volume as u128));
             let precision_u128 = (risk_factor::precision() as u128);
             let opt_deposit_volume = ((borrowed_volume as u128) * precision_u128 / (precision_u128 - (optimized_hf as u128))) * precision_u128 / (risk_factor::lt_of(*key) as u128);
-            // let opt_borrow_volume = (deposited_volume as u128) * (risk_factor::lt_of(*key) as u128) * (precision_u128 - (optimized_hf as u128));
             if (current_hf > optimized_hf) {
-
-                // TODO: next
-
-                // withdraw shadow
-                // simple_map::add(
-                //     &mut amount_to_withdraw,
-                //     *key,
-                //     price_oracle::to_amount(key, (deposited_volume - (opt_deposit_volume as u64)))
-                // );
+                let (_,share) = shadow_pool::rebalance_for_withdraw(
+                    *key,
+                    target_addr,
+                    price_oracle::to_amount(key, (deposited_volume - (opt_deposit_volume as u64))),
+                    shadow_pool_key
+                );
+                account_position::withdraw_with<Shadow>(*key, target_addr, share, false, account_position_key);
             } else if (current_hf < optimized_hf) {
                 // deposit shadow
                 let share = shadow_pool::rebalance_for_deposit(
                     *key,
-                    liquidator_addr,
                     target_addr,
-                    price_oracle::to_amount(key, (deposited_volume - (opt_deposit_volume as u64))),
+                    price_oracle::to_amount(key, ((opt_deposit_volume as u64) - deposited_volume)),
                     shadow_pool_key
                 );
                 account_position::deposit_by_rebalance(*key, target_addr, share, account_position_key);
             };
             i = i - 1;
         };
-
         debug::print(&true);
-        // exec rebalance
-
     }
 
     /// Switch the deposited position.

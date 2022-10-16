@@ -285,40 +285,52 @@ module leizd::shadow_pool {
     ////////////////////////////////////////////////////
     public fun rebalance_for_deposit(
         key: String, 
-        liquidator_addr: address,
         target_addr: address,
         amount: u64,
         _key: &OperatorKey
     ): u64 acquires Storage, PoolEventHandle {
-        let owner_addr = permission::owner_address();
-        let storage_ref = borrow_global_mut<Storage>(owner_addr);
-
-        save_to_storage_for_deposit(key, liquidator_addr, target_addr, amount, false, storage_ref)
-        // let i = vector::length<String>(keys_to_deposit);
-        // while (i > 0) {
-        //     let key = vector::borrow(keys_to_deposit, i);
-        //     let amount = simple_map::borrow<String,u64>(amounts_to_deposit, key);
-        //     save_to_storage_for_deposit(*key, liquidator_addr, target_addr, *amount, false, storage_ref);
-        //     i = i - 1;
-        // };
-        
-        // if (simple_map::length(&deposits) > 0) {
-        //     i = 0;
-        //     while (i < length) {
-        //         let key = vector::borrow(&coins, i);
-        //         if (simple_map::contains_key(&deposits, key)) {
-        //             let amount = simple_map::borrow(&deposits, key);
-                    
-        //             let balance = coin::balance<USDZ>(account_addr);
-        //             let amount_as_input = if (*amount > balance) balance else *amount; // TODO: check - short 1 amount because of rounded down somewhere
-
-        //             let (_ ,share) = shadow_pool::deposit_for_with(*key, account, account_addr, amount_as_input, false, shadow_pool_key); // TODO: set correct is_collateral_only
-        //             account_position::deposit_with<Shadow>(*key, account, account_addr, share, false, account_position_key); // TODO: set correct is_collateral_only
-        //         };
-        //         i = i + 1;
-        //     };
-        // };
+        let storage_ref = borrow_global_mut<Storage>(permission::owner_address());
+        save_to_storage_for_deposit(key, target_addr, target_addr, amount, false, storage_ref)
     }
+
+    public fun rebalance_for_withdraw(
+        key: String, 
+        target_addr: address,
+        amount: u64,
+        _key: &OperatorKey
+    ): (u64,u64) acquires Storage, PoolEventHandle {
+        let storage_ref = borrow_global_mut<Storage>(permission::owner_address());
+        let (amount, share) = save_to_storage_for_withdraw(key, target_addr, target_addr, amount, false, false, storage_ref);
+        ((amount as u64), (share as u64))
+    }
+
+    public fun rebalance_for_borrow(
+        key: String, 
+        target_addr: address,
+        amount: u64,
+        _key: &OperatorKey
+    ): (u64,u64) acquires Storage, PoolEventHandle {
+        let storage_ref = borrow_global_mut<Storage>(permission::owner_address());
+        let entry_fee = risk_factor::calculate_entry_fee(amount);
+        let amount_with_entry_fee = amount + entry_fee;
+        let liquidity = normal_deposited_amount_internal(key, storage_ref)
+            - borrowed_amount_internal(key, storage_ref);
+        assert!((amount_with_entry_fee as u128) <= liquidity, error::invalid_argument(EEXCEED_BORROWABLE_AMOUNT)); // do not use clp
+        let (amount, share) = save_to_storage_for_borrow(key, target_addr, target_addr, amount, entry_fee, liquidity, 0, storage_ref);
+        ((amount as u64), (share as u64))
+    }
+
+    public fun rebalance_for_repay(
+        key: String,
+        target_addr: address,
+        amount: u64,
+        _key: &OperatorKey
+    ): (u64,u64) acquires Storage, PoolEventHandle {
+        let storage_ref = borrow_global_mut<Storage>(permission::owner_address());
+        let (amount, share) = save_to_storage_for_repay(key, target_addr, target_addr, amount, false, storage_ref);
+        ((amount as u64), (share as u64))
+    }
+
     /// 
     // public fun rebalance_shadow<C1,C2>(
     //     amount: u64,
@@ -498,6 +510,31 @@ module leizd::shadow_pool {
         accrue_interest(key, storage_ref);
         collect_shadow_fee(pool_ref, liquidation_fee);
 
+        let (amount_u128, share_u128) = save_to_storage_for_withdraw(
+            key,
+            depositor_addr,
+            receiver_addr,
+            value,
+            is_collateral_only,
+            is_share,
+            storage_ref
+        );
+        let amount_to_transfer = (amount_u128 as u64) - liquidation_fee;
+        coin::deposit<USDZ>(receiver_addr, coin::extract(&mut pool_ref.shadow, amount_to_transfer));
+
+        ((amount_u128 as u64), (share_u128 as u64))
+    }
+
+    fun save_to_storage_for_withdraw(
+        key: String,
+        depositor_addr: address,
+        receiver_addr: address,
+        value: u64,
+        is_collateral_only: bool,
+        is_share: bool,
+        storage_ref: &mut Storage,
+    ): (u128, u128) acquires PoolEventHandle {
+        let owner_address = permission::owner_address();
         let asset_storage = simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key);
         let amount_u128: u128;
         let share_u128: u128;
@@ -517,8 +554,6 @@ module leizd::shadow_pool {
             };
         };
 
-        let amount_to_transfer = (amount_u128 as u64) - liquidation_fee;
-        coin::deposit<USDZ>(receiver_addr, coin::extract(&mut pool_ref.shadow, amount_to_transfer));
         if (is_collateral_only) {
             storage_ref.total_conly_deposited_amount = storage_ref.total_conly_deposited_amount - amount_u128;
             asset_storage.conly_deposited_amount = asset_storage.conly_deposited_amount - amount_u128;
@@ -528,7 +563,6 @@ module leizd::shadow_pool {
             asset_storage.normal_deposited_amount = asset_storage.normal_deposited_amount - amount_u128;
             asset_storage.normal_deposited_share = asset_storage.normal_deposited_share - share_u128;
         };
-
         event::emit_event<WithdrawEvent>(
             &mut borrow_global_mut<PoolEventHandle>(owner_address).withdraw_event,
             WithdrawEvent {
@@ -539,8 +573,7 @@ module leizd::shadow_pool {
                 is_collateral_only,
             },
         );
-
-        ((amount_u128 as u64), (share_u128 as u64))
+        (amount_u128, share_u128)
     }
 
     ////////////////////////////////////////////////////
@@ -594,13 +627,14 @@ module leizd::shadow_pool {
         let total_left = if (central_liquidity_pool::is_supported(key)) liquidity + central_liquidity_pool::left() else liquidity;
         assert!((amount_with_entry_fee as u128) <= total_left, error::invalid_argument(EEXCEED_BORROWABLE_AMOUNT));
 
-        let asset_storage_ref = simple_map::borrow_mut<String, AssetStorage>(&mut storage_ref.asset_storages, &key);
+        // let asset_storage_ref = simple_map::borrow_mut<String, AssetStorage>(&mut storage_ref.asset_storages, &key);
+        let borrowing_value_from_central = 0;
         if ((amount_with_entry_fee as u128) > liquidity) {
             // use central-liquidity-pool
             if (liquidity > 0) {
                 // extract all from shadow_pool, supply the shortage to borrow from central-liquidity-pool
                 let extracted = coin::extract_all(&mut pool_ref.shadow);
-                let borrowing_value_from_central = amount_with_entry_fee - coin::value(&extracted);
+                borrowing_value_from_central = amount_with_entry_fee - coin::value(&extracted);
                 let borrowed_from_central = borrow_from_central_liquidity_pool(key, receiver_addr, borrowing_value_from_central);
                 //// add borrowed from central-liquidity-pool to deposited
                 storage_ref.total_clp_deposited_amount = storage_ref.total_clp_deposited_amount + (borrowing_value_from_central as u128);
@@ -630,6 +664,42 @@ module leizd::shadow_pool {
         };
 
         // update borrowed stats
+        let (amount_with_total_fee_u128, user_share_u128) = save_to_storage_for_borrow(key, borrower_addr, receiver_addr, amount, entry_fee, liquidity, borrowing_value_from_central, storage_ref);
+        (
+            (amount_with_total_fee_u128 as u64), // TODO: only amount
+            (user_share_u128 as u64)
+        )
+    }
+
+    fun save_to_storage_for_borrow(
+        key: String,
+        borrower_addr: address,
+        receiver_addr: address,
+        amount: u64,
+        entry_fee: u64,
+        liquidity: u128,
+        borrowing_value_from_central: u64,
+        storage_ref: &mut Storage
+    ): (u128,u128) acquires PoolEventHandle {
+        let owner_address = permission::owner_address();
+        let asset_storage_ref = simple_map::borrow_mut<String, AssetStorage>(&mut storage_ref.asset_storages, &key);
+        let amount_with_entry_fee = amount + entry_fee;
+
+        if ((amount_with_entry_fee as u128) > liquidity) {
+            // use central-liquidity-pool
+            if (liquidity > 0) {
+                //// add borrowed from central-liquidity-pool to deposited
+                storage_ref.total_normal_deposited_amount = storage_ref.total_normal_deposited_amount + (borrowing_value_from_central as u128);
+                asset_storage_ref.normal_deposited_amount = asset_storage_ref.normal_deposited_amount + (borrowing_value_from_central as u128);
+
+            } else {
+                //// add borrowed from central-liquidity-pool to deposited
+                storage_ref.total_normal_deposited_amount = storage_ref.total_normal_deposited_amount + (amount_with_entry_fee as u128);
+                asset_storage_ref.normal_deposited_amount = asset_storage_ref.normal_deposited_amount + (amount_with_entry_fee as u128);
+
+            }
+        };
+
         let amount_with_total_fee_u128 = (amount_with_entry_fee as u128);
         storage_ref.total_borrowed_amount = storage_ref.total_borrowed_amount + amount_with_total_fee_u128;
         let user_share_u128 = math128::to_share(amount_with_total_fee_u128, asset_storage_ref.borrowed_amount, asset_storage_ref.borrowed_share);
@@ -646,11 +716,7 @@ module leizd::shadow_pool {
                 amount,
             },
         );
-
-        (
-            (amount_with_total_fee_u128 as u64), // TODO: only amount
-            (user_share_u128 as u64)
-        )
+        (amount_with_total_fee_u128, user_share_u128)
     }
 
     ////////////////////////////////////////////////////
@@ -700,6 +766,53 @@ module leizd::shadow_pool {
 
         accrue_interest(key, storage_ref);
 
+        // let asset_storage_ref = simple_map::borrow_mut<String, AssetStorage>(&mut storage_ref.asset_storages, &key);
+        // let amount_u128: u128;
+        // let share_u128: u128;
+        // if (is_share) {
+        //     share_u128 = (value as u128);
+        //     amount_u128 = math128::to_amount(share_u128, asset_storage_ref.borrowed_amount, asset_storage_ref.borrowed_share);
+        // } else {
+        //     amount_u128 = (value as u128);
+        //     share_u128 = math128::to_share_roundup(amount_u128, asset_storage_ref.borrowed_amount, asset_storage_ref.borrowed_share);
+        // };
+        let account_addr = signer::address_of(account);
+        let (amount_u128, share_u128) = save_to_storage_for_repay(key, account_addr, account_addr, value, is_share, storage_ref);
+
+
+        // at first, repay to central_liquidity_pool and pay support fees
+        let repaid_to_central_liquidity_pool = repay_to_central_liquidity_pool(key, account, (amount_u128 as u64));
+        let to_shadow_pool = (amount_u128 as u64) - repaid_to_central_liquidity_pool;
+        if (to_shadow_pool > 0) {
+            let withdrawn = coin::withdraw<USDZ>(account, to_shadow_pool);
+            coin::merge(&mut pool_ref.shadow, withdrawn);
+        };
+
+        // storage_ref.total_borrowed_amount = storage_ref.total_borrowed_amount - amount_u128;
+        // asset_storage_ref.borrowed_amount = asset_storage_ref.borrowed_amount - amount_u128;
+        // asset_storage_ref.borrowed_share = asset_storage_ref.borrowed_share - share_u128;
+
+        // event::emit_event<RepayEvent>(
+        //     &mut borrow_global_mut<PoolEventHandle>(owner_address).repay_event,
+        //     RepayEvent {
+        //         key,
+        //         caller: account_addr,
+        //         repay_target: account_addr,
+        //         amount: (amount_u128 as u64),
+        //     },
+        // );
+
+        ((amount_u128 as u64), (share_u128 as u64))
+    }
+
+    fun save_to_storage_for_repay(
+        key: String,
+        caller_addr: address,
+        repayer_addr: address,
+        value: u64,
+        is_share: bool,
+        storage_ref: &mut Storage
+    ): (u128,u128) acquires PoolEventHandle {
         let asset_storage_ref = simple_map::borrow_mut<String, AssetStorage>(&mut storage_ref.asset_storages, &key);
         let amount_u128: u128;
         let share_u128: u128;
@@ -710,6 +823,7 @@ module leizd::shadow_pool {
             amount_u128 = (value as u128);
             share_u128 = math128::to_share_roundup(amount_u128, asset_storage_ref.borrowed_amount, asset_storage_ref.borrowed_share);
         };
+<<<<<<< HEAD
 
         // at first, repay to central_liquidity_pool and pay support fees
         let remaining_amount_u128 = amount_u128;
@@ -729,22 +843,23 @@ module leizd::shadow_pool {
             coin::merge(&mut pool_ref.shadow, withdrawn);
         };
 
+=======
+>>>>>>> b72edf5 (rebalance logic)
         storage_ref.total_borrowed_amount = storage_ref.total_borrowed_amount - amount_u128;
         asset_storage_ref.borrowed_amount = asset_storage_ref.borrowed_amount - amount_u128;
         asset_storage_ref.borrowed_share = asset_storage_ref.borrowed_share - share_u128;
-
-        let account_addr = signer::address_of(account);
+        
+        let owner_address = permission::owner_address();
         event::emit_event<RepayEvent>(
             &mut borrow_global_mut<PoolEventHandle>(owner_address).repay_event,
             RepayEvent {
                 key,
-                caller: account_addr,
-                repay_target: account_addr,
+                caller: caller_addr,
+                repay_target: repayer_addr,
                 amount: (amount_u128 as u64),
             },
         );
-
-        ((amount_u128 as u64), (share_u128 as u64))
+        (amount_u128, share_u128)
     }
 
     ////////////////////////////////////////////////////
@@ -1487,20 +1602,21 @@ module leizd::shadow_pool {
         assert!(total_borrowed_amount() == 0, 0);
         assert!(borrowed_amount<WETH>() == 0, 0);
     }
-    #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
-    #[expected_failure(abort_code = 65542)]
-    public entry fun test_withdraw_with_more_than_deposited_amount(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
-        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
-        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+    // TODO: move to money_market.move
+    // #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
+    // #[expected_failure(abort_code = 65542)]
+    // public entry fun test_withdraw_with_more_than_deposited_amount(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
+    //     setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+    //     test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
 
-        let account_addr = signer::address_of(account);
-        account::create_account_for_test(account_addr);
-        managed_coin::register<USDZ>(account);
-        usdz::mint_for_test(account_addr, 100);
+    //     let account_addr = signer::address_of(account);
+    //     account::create_account_for_test(account_addr);
+    //     managed_coin::register<USDZ>(account);
+    //     usdz::mint_for_test(account_addr, 100);
 
-        deposit_for_internal(key<WETH>(), account, account_addr, 100, false);
-        withdraw_for_internal(key<WETH>(), account_addr, account_addr, 101, false, false, 0);
-    }
+    //     deposit_for_internal(key<WETH>(), account, account_addr, 100, false);
+    //     withdraw_for_internal(key<WETH>(), account_addr, account_addr, 101, false, false, 0);
+    // }
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
     public entry fun test_withdraw_more_than_once_sequentially_over_time(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
