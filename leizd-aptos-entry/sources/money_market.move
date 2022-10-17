@@ -899,14 +899,16 @@ module leizd_aptos_entry::money_market {
             // judge if the coin should be liquidated
             assert!(!account_position::is_safe_asset_to_shadow<C>(target_addr), error::invalid_state(ENO_SAFE_POSITION));
     
-            // TODO: rebalance by repaying shadow with left amount, that is from deposited as AssetToShadow
+            flatten_positions(target_addr, account_position_key, shadow_pool_key);
 
-            // execute liquidation (repay + withdraw)
-            let (deposited_amount, is_collateral_only) = account_position::deposited_asset_amount<C>(target_addr);
-            let user_share_all = account_position::repay_all_for_liquidation<C,P>(target_addr, account_position_key);
-            shadow_pool::repay_by_share<C>(account, user_share_all, shadow_pool_key);
-            let (_, withdrawed_user_share) = asset_pool::withdraw_for_liquidation<C>(liquidator_addr, target_addr, deposited_amount, is_collateral_only, asset_pool_key);
-            account_position::withdraw<C,P>(target_addr, withdrawed_user_share, is_collateral_only, account_position_key);
+            if (!account_position::is_safe_asset_to_shadow<C>(target_addr)) {
+                // execute liquidation (repay + withdraw)
+                let (deposited_amount, is_collateral_only) = account_position::deposited_asset_amount<C>(target_addr);
+                let user_share_all = account_position::repay_all_for_liquidation<C,P>(target_addr, account_position_key);
+                shadow_pool::repay_by_share<C>(account, user_share_all, shadow_pool_key);
+                let (_, withdrawed_user_share) = asset_pool::withdraw_for_liquidation<C>(liquidator_addr, target_addr, deposited_amount, is_collateral_only, asset_pool_key);
+                account_position::withdraw<C,P>(target_addr, withdrawed_user_share, is_collateral_only, account_position_key);
+            };
         } else {
             // judge if the coin should be liquidated
             assert!(!account_position::is_safe_shadow_to_asset<C>(target_addr), error::invalid_state(ENO_SAFE_POSITION));
@@ -924,11 +926,10 @@ module leizd_aptos_entry::money_market {
         };
     }
 
-    use std::debug;
     fun flatten_positions(target_addr: address, account_position_key: &AccountPositionKey, shadow_pool_key: &ShadowPoolKey) {
         let coins = vector::empty<String>();
-        let deposited_amounts = vector::empty<u128>();
-        let borrowed_amounts = vector::empty<u128>();
+        let deposited_volumes = vector::empty<u128>();
+        let borrowed_volumes = vector::empty<u128>();
 
         // Asset to Shadow: Collect amounts of the position
         let (all_coins_in_atos, _, balances_in_atos) = account_position::position<Asset>(target_addr);
@@ -937,10 +938,12 @@ module leizd_aptos_entry::money_market {
         let i = vector::length(&unprotected_coins_in_atos);
         while (i > 0) {
             let key = vector::borrow<String>(&unprotected_coins_in_atos, i-1);
-            let deposited = *simple_map::borrow(&deposited_amounts_atos, key);
-            vector::push_back<u128>(&mut deposited_amounts, (deposited as u128));
-            let borrowed = *simple_map::borrow(&borrowed_amounts_atos, key);
-            vector::push_back<u128>(&mut borrowed_amounts, (borrowed as u128));
+            let deposited_amount = *simple_map::borrow(&deposited_amounts_atos, key);
+            let deposited_volume = price_oracle::volume(key, deposited_amount);
+            vector::push_back<u128>(&mut deposited_volumes, (deposited_volume as u128));
+            let borrowed_amount = *simple_map::borrow(&borrowed_amounts_atos, key);
+            let borrowed_volume = price_oracle::volume(key, borrowed_amount);
+            vector::push_back<u128>(&mut borrowed_volumes, (borrowed_volume as u128));
             vector::push_back<String>(&mut coins, *key);
             i = i - 1;
         };
@@ -952,26 +955,26 @@ module leizd_aptos_entry::money_market {
         let i = vector::length(&unprotected_coins_in_stoa);
         while (i > 0) {
             let key = vector::borrow<String>(&unprotected_coins_in_stoa, i-1);
-            let deposited = *simple_map::borrow(&deposited_amounts_stoa, key);
-            vector::push_back<u128>(&mut deposited_amounts, (deposited as u128));
-            let borrowed = *simple_map::borrow(&borrowed_amounts_stoa, key);
-            vector::push_back<u128>(&mut borrowed_amounts, (borrowed as u128));
+            let deposited_amount = *simple_map::borrow(&deposited_amounts_stoa, key);
+            let deposited_volume = price_oracle::volume(key, deposited_amount);
+            vector::push_back<u128>(&mut deposited_volumes, (deposited_volume as u128));
+            let borrowed_amount = *simple_map::borrow(&borrowed_amounts_stoa, key);
+            let borrowed_volume = price_oracle::volume(key, borrowed_amount);
+            vector::push_back<u128>(&mut borrowed_volumes, (borrowed_volume as u128));
             vector::push_back<String>(&mut coins, *key);
             i = i - 1;
         };
    
         let optimized_hf = risk_factor::health_factor_weighted_average(
             coins,
-            deposited_amounts,
-            borrowed_amounts
+            deposited_volumes,
+            borrowed_volumes
         );
-        
+
         // Asset To Shadow: Prepare for Borrowing and Repaying Shadow
-        // let amount_to_borrow = simple_map::create<String,u64>();
-        // let amount_to_repay = simple_map::create<String,u64>();
         let i = vector::length<String>(&unprotected_coins_in_atos);
         while (i > 0) {
-            let key = vector::borrow(&unprotected_coins_in_atos, i);
+            let key = vector::borrow(&unprotected_coins_in_atos, i-1);
             let deposited_amount = *simple_map::borrow(&deposited_amounts_atos, key);
             let borrowed_amount = *simple_map::borrow(&borrowed_amounts_atos, key);
             let deposited_volume = price_oracle::volume(key, (deposited_amount as u128));
@@ -1002,11 +1005,9 @@ module leizd_aptos_entry::money_market {
         };
         
         // Shadow To Asset: Prepare for Depositing & Withdrawing Shadow
-        // let amount_to_withdraw = simple_map::create<String,u64>();
-        // let amount_to_deposit = simple_map::create<String,u64>();
-        let i = vector::length<String>(&unprotected_coins_in_atos);
+        let i = vector::length<String>(&unprotected_coins_in_stoa);
         while (i > 0) {
-            let key = vector::borrow(&unprotected_coins_in_stoa, i);
+            let key = vector::borrow(&unprotected_coins_in_stoa, i-1);
             let deposited_amount = *simple_map::borrow(&deposited_amounts_stoa, key);
             let borrowed_amount = *simple_map::borrow(&borrowed_amounts_stoa, key);
             let deposited_volume = price_oracle::volume(key, deposited_amount);
@@ -1034,7 +1035,6 @@ module leizd_aptos_entry::money_market {
             };
             i = i - 1;
         };
-        debug::print(&true);
     }
 
     /// Switch the deposited position.
@@ -1660,7 +1660,8 @@ module leizd_aptos_entry::money_market {
         assert!(coin::balance<WETH>(liquidator_addr) == 0, 0);
         assert!(treasury::balance<WETH>() == 0, 0);
 
-        risk_factor::update_config<WETH>(owner, risk_factor::precision() / 100 * 10, risk_factor::precision() / 100 * 10); // 10%
+        // change price
+        price_oracle::update_fixed_price<USDZ>(owner, 2, 0, false);
 
         usdz::mint_for_test(liquidator_addr, 1005);
         liquidate<WETH, Asset>(liquidator, borrower_addr);
@@ -1776,8 +1777,9 @@ module leizd_aptos_entry::money_market {
         setup_account_for_test(liquidator);
         setup_account_for_test(target);
         let borrower_addr = signer::address_of(borrower);
-        // let liquidator_addr = signer::address_of(liquidator);
+        let liquidator_addr = signer::address_of(liquidator);
         usdz::mint_for_test(borrower_addr, 50000);
+        managed_coin::mint<WETH>(owner, liquidator_addr, 10000);
 
         // prerequisite
         deposit<WETH, Asset>(lp, 10000, false);

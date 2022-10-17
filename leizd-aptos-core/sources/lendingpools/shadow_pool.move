@@ -823,7 +823,6 @@ module leizd::shadow_pool {
             amount_u128 = (value as u128);
             share_u128 = math128::to_share_roundup(amount_u128, asset_storage_ref.borrowed_amount, asset_storage_ref.borrowed_share);
         };
-<<<<<<< HEAD
 
         // at first, repay to central_liquidity_pool and pay support fees
         let remaining_amount_u128 = amount_u128;
@@ -843,8 +842,6 @@ module leizd::shadow_pool {
             coin::merge(&mut pool_ref.shadow, withdrawn);
         };
 
-=======
->>>>>>> b72edf5 (rebalance logic)
         storage_ref.total_borrowed_amount = storage_ref.total_borrowed_amount - amount_u128;
         asset_storage_ref.borrowed_amount = asset_storage_ref.borrowed_amount - amount_u128;
         asset_storage_ref.borrowed_share = asset_storage_ref.borrowed_share - share_u128;
