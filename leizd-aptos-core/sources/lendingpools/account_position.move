@@ -1038,7 +1038,7 @@ module leizd::account_position {
         asset_pool::init_pool_for_test<USDT>(owner);
     }
     #[test_only]
-    fun borrow_unsafe_for_test<C,P>(borrower_addr: address, amount: u64) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
+    public fun borrow_unsafe_for_test<C,P>(borrower_addr: address, amount: u64) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
         borrow_unsafe_internal<P>(key<C>(), borrower_addr, amount)
     }
     #[test_only]
