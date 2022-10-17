@@ -683,6 +683,21 @@ module leizd_aptos_entry::money_market {
         let i: u64;
         let length = vector::length(&coins);
 
+        // prepare: check that whether existed deposited is conly or not
+        let is_conly_vec = simple_map::create<String, bool>();
+        i = 0;
+        while (i < length) {
+            let key = vector::borrow(&coins, i);
+            let conly_deposited = account_position::conly_deposited_asset_share_with(*key, account_addr);
+            if (conly_deposited > 0) {
+                simple_map::add(&mut is_conly_vec, *key, true);
+            } else {
+                // NOTE: default is also `normal_deposit`
+                simple_map::add(&mut is_conly_vec, *key, false);
+            };
+            i = i + 1;
+        };
+
         // borrow shadow
         if (simple_map::length(&borrows) > 0) {
             i = 0;
@@ -704,8 +719,9 @@ module leizd_aptos_entry::money_market {
                 let key = vector::borrow(&coins, i);
                 if (simple_map::contains_key(&withdraws, key)) {
                     let amount = simple_map::borrow(&withdraws, key);
-                    let (_ ,share) = shadow_pool::withdraw_for_with(*key, account_addr, account_addr, *amount, false, 0, shadow_pool_key); // TODO: set correct is_collateral_only
-                    account_position::withdraw_unsafe_with<Shadow>(*key, account_addr, share, false, account_position_key); // TODO: set correct is_collateral_only
+                    let is_conly = simple_map::borrow(&is_conly_vec, key);
+                    let (_ ,share) = shadow_pool::withdraw_for_with(*key, account_addr, account_addr, *amount, *is_conly, 0, shadow_pool_key);
+                    account_position::withdraw_unsafe_with<Shadow>(*key, account_addr, share, *is_conly, account_position_key);
                 };
                 i = i + 1;
             };
@@ -736,8 +752,9 @@ module leizd_aptos_entry::money_market {
                     let balance = coin::balance<USDZ>(account_addr);
                     let amount_as_input = if (*amount > balance) balance else *amount; // TODO: check - short 1 amount because of rounded down somewhere
 
-                    let (_ ,share) = shadow_pool::deposit_for_with(*key, account, account_addr, amount_as_input, false, shadow_pool_key); // TODO: set correct is_collateral_only
-                    account_position::deposit_with<Shadow>(*key, account, account_addr, share, false, account_position_key); // TODO: set correct is_collateral_only
+                    let is_conly = simple_map::borrow(&is_conly_vec, key);
+                    let (_ ,share) = shadow_pool::deposit_for_with(*key, account, account_addr, amount_as_input, *is_conly, shadow_pool_key);
+                    account_position::deposit_with<Shadow>(*key, account, account_addr, share, *is_conly, account_position_key);
                 };
                 i = i + 1;
             };
