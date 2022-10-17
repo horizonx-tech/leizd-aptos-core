@@ -918,6 +918,7 @@ module leizd_aptos_entry::money_market {
             if (!account_position::is_safe_shadow_to_asset<C>(target_addr)) {
                 // execute liquidation (repay + withdraw)
                 let (deposited_amount, is_collateral_only) = account_position::deposited_shadow_amount<C>(target_addr);
+                debug::print(&deposited_amount);
                 let user_share_all = account_position::repay_all_for_liquidation<C,P>(target_addr, account_position_key);
                 asset_pool::repay_by_share<C>(account, user_share_all, asset_pool_key);
                 let (_, withdrawed_user_share) = shadow_pool::withdraw_for_liquidation<C>(liquidator_addr, target_addr, deposited_amount, is_collateral_only, shadow_pool_key);
@@ -942,7 +943,7 @@ module leizd_aptos_entry::money_market {
             let deposited_volume = price_oracle::volume(key, deposited_amount);
             vector::push_back<u128>(&mut deposited_volumes, (deposited_volume as u128));
             let borrowed_amount = *simple_map::borrow(&borrowed_amounts_atos, key);
-            let borrowed_volume = price_oracle::volume(key, borrowed_amount);
+            let borrowed_volume = price_oracle::volume(&key<USDZ>(), borrowed_amount);
             vector::push_back<u128>(&mut borrowed_volumes, (borrowed_volume as u128));
             vector::push_back<String>(&mut coins, *key);
             i = i - 1;
@@ -956,12 +957,12 @@ module leizd_aptos_entry::money_market {
         while (i > 0) {
             let key = vector::borrow<String>(&unprotected_coins_in_stoa, i-1);
             let deposited_amount = *simple_map::borrow(&deposited_amounts_stoa, key);
-            let deposited_volume = price_oracle::volume(key, deposited_amount);
+            let deposited_volume = price_oracle::volume(&key<USDZ>(), deposited_amount);
             vector::push_back<u128>(&mut deposited_volumes, (deposited_volume as u128));
             let borrowed_amount = *simple_map::borrow(&borrowed_amounts_stoa, key);
             let borrowed_volume = price_oracle::volume(key, borrowed_amount);
             vector::push_back<u128>(&mut borrowed_volumes, (borrowed_volume as u128));
-            vector::push_back<String>(&mut coins, *key);
+            vector::push_back<String>(&mut coins, key<USDZ>());
             i = i - 1;
         };
    
@@ -970,6 +971,12 @@ module leizd_aptos_entry::money_market {
             deposited_volumes,
             borrowed_volumes
         );
+        debug::print(&optimized_hf);
+
+        if (optimized_hf == 0) {
+            // skip to flatten
+            return
+        };
 
         // Asset To Shadow: Prepare for Borrowing and Repaying Shadow
         let i = vector::length<String>(&unprotected_coins_in_atos);
@@ -1009,26 +1016,28 @@ module leizd_aptos_entry::money_market {
         while (i > 0) {
             let key = vector::borrow(&unprotected_coins_in_stoa, i-1);
             let deposited_amount = *simple_map::borrow(&deposited_amounts_stoa, key);
+            let deposited_volume = price_oracle::volume(&key<USDZ>(), deposited_amount);
             let borrowed_amount = *simple_map::borrow(&borrowed_amounts_stoa, key);
-            let deposited_volume = price_oracle::volume(key, deposited_amount);
             let borrowed_volume = price_oracle::volume(key, borrowed_amount);
-            let current_hf = risk_factor::health_factor_of(*key, (deposited_volume as u128), (borrowed_volume as u128));
+            let current_hf = risk_factor::health_factor_of(key<USDZ>(), (deposited_volume as u128), (borrowed_volume as u128));
+            debug::print(&current_hf);
             let precision_u128 = (risk_factor::precision() as u128);
-            let opt_deposit_volume = ((borrowed_volume as u128) * precision_u128 / (precision_u128 - (optimized_hf as u128))) * precision_u128 / (risk_factor::lt_of(*key) as u128);
+            let opt_deposit_volume = ((borrowed_volume as u128) * precision_u128 / (precision_u128 - (optimized_hf as u128))) * precision_u128 / (risk_factor::lt_of_shadow() as u128);
             if (current_hf > optimized_hf) {
+                // withdraw shadow
                 let (_,share) = shadow_pool::rebalance_for_withdraw(
                     *key,
                     target_addr,
-                    price_oracle::to_amount(key, (deposited_volume - (opt_deposit_volume as u64))),
+                    price_oracle::to_amount(&key<USDZ>(), (deposited_volume - (opt_deposit_volume as u64))),
                     shadow_pool_key
                 );
-                account_position::withdraw_with<Shadow>(*key, target_addr, share, false, account_position_key);
+                account_position::withdraw_by_rebalance(*key, target_addr, share, account_position_key);
             } else if (current_hf < optimized_hf) {
                 // deposit shadow
                 let share = shadow_pool::rebalance_for_deposit(
                     *key,
                     target_addr,
-                    price_oracle::to_amount(key, ((opt_deposit_volume as u64) - deposited_volume)),
+                    price_oracle::to_amount(&key<USDZ>(), ((opt_deposit_volume as u64) - deposited_volume)),
                     shadow_pool_key
                 );
                 account_position::deposit_by_rebalance(*key, target_addr, share, account_position_key);
@@ -1778,30 +1787,111 @@ module leizd_aptos_entry::money_market {
         setup_account_for_test(target);
         let borrower_addr = signer::address_of(borrower);
         let liquidator_addr = signer::address_of(liquidator);
-        usdz::mint_for_test(borrower_addr, 50000);
-        managed_coin::mint<WETH>(owner, liquidator_addr, 10000);
+        usdz::mint_for_test(borrower_addr, 500000);
+        managed_coin::mint<WETH>(owner, liquidator_addr, 100000);
 
         // prerequisite
-        deposit<WETH, Asset>(lp, 10000, false);
-        deposit<USDC, Asset>(lp, 10000, false);
+        deposit<WETH, Asset>(lp, 100000, false);
+        deposit<USDC, Asset>(lp, 100000, false);
 
         //// check risk_factor
         assert!(risk_factor::lt<WETH>() == risk_factor::default_lt(), 0);
         assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
 
         // deposit & borrow
-        deposit<WETH, Shadow>(borrower, 10000, false);
-        borrow<WETH, Asset>(borrower, 5000);
-        deposit<USDC, Shadow>(borrower, 20000, false);
-        borrow<USDC, Asset>(borrower, 5000);
+        deposit<WETH, Shadow>(borrower, 100000, false);
+        borrow<WETH, Asset>(borrower, 50000);
+        deposit<USDC, Shadow>(borrower, 200000, false);
+        borrow<USDC, Asset>(borrower, 50000);
 
         // change price
         price_oracle::update_fixed_price<WETH>(owner, 2, 0, false);
-        assert!(account_position::deposited_volume<ShadowToAsset>(borrower_addr, key<WETH>()) == 10000, 0);
+        assert!(account_position::deposited_volume<ShadowToAsset>(borrower_addr, key<WETH>()) == 100000, 0);
+        assert!(account_position::borrowed_volume<ShadowToAsset>(borrower_addr, key<WETH>()) == 100500, 0);
+        assert!(account_position::deposited_volume<ShadowToAsset>(borrower_addr, key<USDC>()) == 200000, 0);
+        assert!(account_position::borrowed_volume<ShadowToAsset>(borrower_addr, key<USDC>()) == 50250, 0);
 
         // liquidate
         liquidate<WETH, Shadow>(liquidator, borrower_addr);
+        assert!(account_position::deposited_volume<ShadowToAsset>(borrower_addr, key<WETH>()) == 200000, 0);
+        assert!(account_position::borrowed_volume<ShadowToAsset>(borrower_addr, key<WETH>()) == 100500, 0);
+        assert!(account_position::deposited_volume<ShadowToAsset>(borrower_addr, key<USDC>()) == 100000, 0);
+        assert!(account_position::borrowed_volume<ShadowToAsset>(borrower_addr, key<USDC>()) == 50250, 0);
     }
+    #[test(owner=@leizd_aptos_entry,lp=@0x111,borrower=@0x222,liquidator=@0x333,target=@0x444,aptos_framework=@aptos_framework)]
+    fun test_liquidate_with_rebalance_2(owner: &signer, lp: &signer, borrower: &signer, liquidator: &signer, target: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
+        initialize_lending_pool_for_test(owner, aptos_framework);
+        setup_liquidity_provider_for_test(owner, lp);
+        setup_account_for_test(borrower);
+        setup_account_for_test(liquidator);
+        setup_account_for_test(target);
+        let borrower_addr = signer::address_of(borrower);
+        let liquidator_addr = signer::address_of(liquidator);
+        usdz::mint_for_test(borrower_addr, 500000);
+        managed_coin::mint<WETH>(owner, liquidator_addr, 100000);
+
+        // prerequisite
+        deposit<WETH, Asset>(lp, 100000, false);
+        deposit<USDC, Asset>(lp, 100000, false);
+
+        //// check risk_factor
+        assert!(risk_factor::lt<WETH>() == risk_factor::default_lt(), 0);
+        assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
+
+        // deposit & borrow
+        deposit<WETH, Shadow>(borrower, 100000, false);
+        borrow<WETH, Asset>(borrower, 50000);
+        deposit<USDC, Shadow>(borrower, 55000, false);
+        borrow<USDC, Asset>(borrower, 50000);
+
+        // change price
+        price_oracle::update_fixed_price<WETH>(owner, 2, 0, false);
+        assert!(account_position::deposited_volume<ShadowToAsset>(borrower_addr, key<WETH>()) == 100000, 0);
+        assert!(account_position::borrowed_volume<ShadowToAsset>(borrower_addr, key<WETH>()) == 100500, 0);
+        assert!(account_position::deposited_volume<ShadowToAsset>(borrower_addr, key<USDC>()) == 55000, 0);
+        assert!(account_position::borrowed_volume<ShadowToAsset>(borrower_addr, key<USDC>()) == 50250, 0);
+
+        // liquidate
+        liquidate<WETH, Shadow>(liquidator, borrower_addr);
+        assert!(account_position::deposited_volume<ShadowToAsset>(borrower_addr, key<WETH>()) == 0, 0);
+        assert!(account_position::borrowed_volume<ShadowToAsset>(borrower_addr, key<WETH>()) == 0, 0);
+        assert!(account_position::deposited_volume<ShadowToAsset>(borrower_addr, key<USDC>()) == 55000, 0);
+        assert!(account_position::borrowed_volume<ShadowToAsset>(borrower_addr, key<USDC>()) == 50250, 0);
+    }
+    use std::debug;
+    // #[test(owner=@leizd_aptos_entry,lp=@0x111,borrower=@0x222,liquidator=@0x333,target=@0x444,aptos_framework=@aptos_framework)]
+    // fun test_liquidate_with_rebalance(owner: &signer, lp: &signer, borrower: &signer, liquidator: &signer, target: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
+    //     initialize_lending_pool_for_test(owner, aptos_framework);
+    //     setup_liquidity_provider_for_test(owner, lp);
+    //     setup_account_for_test(borrower);
+    //     setup_account_for_test(liquidator);
+    //     setup_account_for_test(target);
+    //     let borrower_addr = signer::address_of(borrower);
+    //     let liquidator_addr = signer::address_of(liquidator);
+    //     usdz::mint_for_test(borrower_addr, 500000);
+    //     managed_coin::mint<WETH>(owner, liquidator_addr, 100000);
+
+    //     // prerequisite
+    //     deposit<WETH, Asset>(lp, 100000, false);
+    //     deposit<USDC, Asset>(lp, 100000, false);
+
+    //     //// check risk_factor
+    //     assert!(risk_factor::lt<WETH>() == risk_factor::default_lt(), 0);
+    //     assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
+
+    //     // deposit & borrow
+    //     deposit<WETH, Shadow>(borrower, 100000, false);
+    //     borrow<WETH, Asset>(borrower, 50000);
+    //     deposit<USDC, Shadow>(borrower, 200000, false);
+    //     borrow<USDC, Asset>(borrower, 50000);
+
+    //     // change price
+    //     price_oracle::update_fixed_price<WETH>(owner, 2, 0, false);
+    //     assert!(account_position::deposited_volume<ShadowToAsset>(borrower_addr, key<WETH>()) == 100000, 0);
+
+    //     // liquidate
+    //     liquidate<WETH, Shadow>(liquidator, borrower_addr);
+    // }
     #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
     fun test_switch_collateral_to_collateral_only(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
         initialize_lending_pool_for_test(owner, aptos_framework);
