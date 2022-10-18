@@ -64,6 +64,7 @@ module leizd::interest_rate {
 
     struct SetConfigEvent has store, drop {
         caller: address,
+        key: String,
         uopt: u128,
         ucrit: u128,
         ulow: u128,
@@ -113,6 +114,7 @@ module leizd::interest_rate {
             &mut borrow_global_mut<InterestRateEventHandle>(owner_addr).set_config_event,
             SetConfigEvent {
                 caller: signer::address_of(account),
+                key: key<C>(),
                 uopt: config.uopt,
                 ucrit: config.ucrit,
                 ulow: config.ulow,
@@ -175,6 +177,7 @@ module leizd::interest_rate {
             &mut borrow_global_mut<InterestRateEventHandle>(owner_address).set_config_event,
             SetConfigEvent {
                 caller: owner_address,
+                key: key,
                 uopt: config.uopt,
                 ucrit: config.ucrit,
                 ulow: config.ulow,
