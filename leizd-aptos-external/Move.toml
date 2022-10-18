@@ -23,4 +23,4 @@ local = "../leizd-aptos-common"
 leizd_aptos_external="0x0123456789ABCDEF"
 leizd_aptos_lib="0x0123456789ABCDEF"
 leizd_aptos_common="0x0123456789ABCDEF"
-#switchboard = "0xc9b4bb0b1f7a343687c4f8bc6eea36dd2a3aa8d654e640050ab5b8635a6b9cbd" # devnet and testnet
+#switchboard = "0x34e2eead0aefbc3d0af13c0522be94b002658f4bef8e0740a21086d22236ad77" # devnet and testnet
