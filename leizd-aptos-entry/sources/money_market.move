@@ -2383,6 +2383,23 @@ module leizd_aptos_entry::money_market {
         assert!(coin::balance<USDT>(account_addr) == 40000, 0);
         assert!(coin::balance<USDZ>(account_addr) == 50000, 0);
         assert!(coin::balance<UNI>(account_addr) == 10000, 0);
+
+        //// for pool
+        let liquidity_from_lp = 500000;
+        ////// AssetToShadow
+        assert!(asset_pool::total_normal_deposited_amount<WETH>() - liquidity_from_lp == 100000, 0);
+        assert!(asset_pool::total_conly_deposited_amount<WETH>() == 0, 0);
+        assert!(shadow_pool::borrowed_amount<WETH>() == 40740, 0);
+        assert!(asset_pool::total_normal_deposited_amount<USDC>() - liquidity_from_lp == 50000, 0);
+        assert!(asset_pool::total_conly_deposited_amount<USDC>() == 0, 0);
+        assert!(shadow_pool::borrowed_amount<USDC>() == 20370, 0);
+        ////// ShadowToAsset
+        assert!(shadow_pool::normal_deposited_amount<USDT>() - liquidity_from_lp == 48888, 0);
+        assert!(shadow_pool::conly_deposited_amount<USDT>() == 0, 0);
+        assert!(asset_pool::total_borrowed_amount<USDT>() == 40000, 0);
+        assert!(shadow_pool::normal_deposited_amount<UNI>() - liquidity_from_lp == 12222, 0);
+        assert!(shadow_pool::conly_deposited_amount<UNI>() == 0, 0);
+        assert!(asset_pool::total_borrowed_amount<UNI>() == 10000, 0);
     }
     #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
     fun test_borrow_asset_with_rebalance__borrow_and_deposit_6(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
