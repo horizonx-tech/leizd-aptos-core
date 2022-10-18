@@ -217,7 +217,18 @@ module leizd_aptos_entry::money_market {
         // re: update interests for pools that may be used
         shadow_pool::exec_accrue_interest_for_selected(account_position::deposited_coins<Asset>(account_addr), shadow_pool_key); // for borrow, repay shadow for rebalance
 
-        let required_shadow = (sum_insufficient - sum_extra) * risk_factor::precision() / risk_factor::ltv_of_shadow(); // TODO: check (is this really okay?)
+        // calculate required_shadow
+        // NOTE: count only shadow needed for borrowing specified asset
+        let key_for_specified_asset = coin_key::key<C>();
+        let (extra_for_borrowing_asset, insufficient_for_borrowing_asset, _, _) = extra_and_insufficient_shadow(
+            coin_key::key<USDZ>(),
+            *simple_map::borrow(&deposited_amounts, &key_for_specified_asset),
+            key_for_specified_asset,
+            *simple_map::borrow(&borrowed_amounts, &key_for_specified_asset),
+        );
+        // NOTE: use ltv because AssetToShadow position is controlled by borrow/repay (not deposit/withdraw)
+        let required_shadow = (insufficient_for_borrowing_asset - extra_for_borrowing_asset) * risk_factor::precision() / risk_factor::ltv_of_shadow();
+
         let (coins_in_atos, _, balances_in_atos) = account_position::position<Asset>(account_addr);
         let unprotected_in_atos = unprotected_coins(account_addr, coins_in_atos);
         let (deposited_amounts_atos, borrowed_amounts_atos, _) = shares_to_amounts_for_asset_to_shadow_pos(unprotected_in_atos, balances_in_atos);
@@ -235,10 +246,10 @@ module leizd_aptos_entry::money_market {
                 &mut borrowed_amounts_atos,
                 &mut borrowed_volumes_in_atos,
             );
-
             let required_shadow_volume = price_oracle::volume(&coin_key::key<USDZ>(), (required_shadow as u128));
             total_borrowed_volume_in_atos = total_borrowed_volume_in_atos + required_shadow_volume;
             total_borrowed_volume_in_atos;
+
             //// borrow from shadow_pool for required_shadow & update account_position
             let i = 0;
             while (i < simple_map::length(&borrowings)) {
@@ -401,29 +412,26 @@ module leizd_aptos_entry::money_market {
     ) {
         let deposited_volume = price_oracle::volume(&deposited_key, (deposited_amount as u128));
         let borrowed_volume = price_oracle::volume(&borrowed_key, (borrowed_amount as u128));
-        let borrowable_volume = deposited_volume * (risk_factor::ltv_of(borrowed_key) as u128) / (risk_factor::precision() as u128);
+        // NOTE: use ltv because AssetToShadow position is controlled by borrow/repay (not deposit/withdraw)
+        let borrowable_volume = deposited_volume * (risk_factor::ltv_of(deposited_key) as u128) / (risk_factor::precision() as u128);
+        let extra_amount: u64;
+        let insufficient_amount: u64;
         if (borrowable_volume > borrowed_volume) {
-            (
-                (price_oracle::to_amount(&deposited_key, borrowable_volume - borrowed_volume) as u64), // TODO: temp cast (maybe use u128 as return value)
-                0,
-                deposited_volume,
-                borrowed_volume
-            )
+            extra_amount = (price_oracle::to_amount(&deposited_key, borrowable_volume - borrowed_volume) as u64); // TODO: temp cast (maybe use u128 as return value)
+            insufficient_amount = 0;
         } else if (borrowable_volume < borrowed_volume) {
-            (
-                0,
-                (price_oracle::to_amount(&deposited_key, borrowed_volume - borrowable_volume) as u64), // TODO: temp cast (maybe use u128 as return value)
-                deposited_volume,
-                borrowed_volume
-            )
+            extra_amount = 0;
+            insufficient_amount = (price_oracle::to_amount(&deposited_key, borrowed_volume - borrowable_volume) as u64); // TODO: temp cast (maybe use u128 as return value)
         } else {
-            (
-                0,
-                0,
-                deposited_volume,
-                borrowed_volume
-            )
-        }
+            extra_amount = 0;
+            insufficient_amount = 0;
+        };
+        (
+            extra_amount,
+            insufficient_amount,
+            deposited_volume,
+            borrowed_volume
+        )
     }
     fun calc_to_optimize_shadow_by_rebalance_without_borrow(
         coins: vector<String>,
@@ -450,7 +458,7 @@ module leizd_aptos_entry::money_market {
             // deposited + delta = borrowed_volume / (LTV * (1 - optimized_hf))
             let precision_u128 = (risk_factor::precision() as u128);
             let opt_deposit_volume = (*borrowed_volume * precision_u128 / (precision_u128 - (optimized_hf as u128))) // borrowed volume / (1 - optimized_hf)
-                * precision_u128 / (risk_factor::lt_of_shadow() as u128); // * (1 / LTV)
+                * precision_u128 / (risk_factor::lt_of_shadow() as u128); // * (1 / LT)
             if (current_hf > optimized_hf) {
                 simple_map::add(
                     &mut amount_to_withdraw,
@@ -675,6 +683,21 @@ module leizd_aptos_entry::money_market {
         let i: u64;
         let length = vector::length(&coins);
 
+        // prepare: check that whether existed deposited is conly or not
+        let is_conly_vec = simple_map::create<String, bool>();
+        i = 0;
+        while (i < length) {
+            let key = vector::borrow(&coins, i);
+            let conly_deposited = account_position::conly_deposited_shadow_share_with(*key, account_addr);
+            if (conly_deposited > 0) {
+                simple_map::add(&mut is_conly_vec, *key, true);
+            } else {
+                // NOTE: default is also `normal_deposit`
+                simple_map::add(&mut is_conly_vec, *key, false);
+            };
+            i = i + 1;
+        };
+
         // borrow shadow
         if (simple_map::length(&borrows) > 0) {
             i = 0;
@@ -696,8 +719,9 @@ module leizd_aptos_entry::money_market {
                 let key = vector::borrow(&coins, i);
                 if (simple_map::contains_key(&withdraws, key)) {
                     let amount = simple_map::borrow(&withdraws, key);
-                    let (_ ,share) = shadow_pool::withdraw_for_with(*key, account_addr, account_addr, *amount, false, 0, shadow_pool_key); // TODO: set correct is_collateral_only
-                    account_position::withdraw_unsafe_with<Shadow>(*key, account_addr, share, false, account_position_key); // TODO: set correct is_collateral_only
+                    let is_conly = simple_map::borrow(&is_conly_vec, key);
+                    let (_ ,share) = shadow_pool::withdraw_for_with(*key, account_addr, account_addr, *amount, *is_conly, 0, shadow_pool_key);
+                    account_position::withdraw_unsafe_with<Shadow>(*key, account_addr, share, *is_conly, account_position_key);
                 };
                 i = i + 1;
             };
@@ -728,8 +752,9 @@ module leizd_aptos_entry::money_market {
                     let balance = coin::balance<USDZ>(account_addr);
                     let amount_as_input = if (*amount > balance) balance else *amount; // TODO: check - short 1 amount because of rounded down somewhere
 
-                    let (_ ,share) = shadow_pool::deposit_for_with(*key, account, account_addr, amount_as_input, false, shadow_pool_key); // TODO: set correct is_collateral_only
-                    account_position::deposit_with<Shadow>(*key, account, account_addr, share, false, account_position_key); // TODO: set correct is_collateral_only
+                    let is_conly = simple_map::borrow(&is_conly_vec, key);
+                    let (_ ,share) = shadow_pool::deposit_for_with(*key, account, account_addr, amount_as_input, *is_conly, shadow_pool_key);
+                    account_position::deposit_with<Shadow>(*key, account, account_addr, share, *is_conly, account_position_key);
                 };
                 i = i + 1;
             };
@@ -930,6 +955,21 @@ module leizd_aptos_entry::money_market {
     use leizd_aptos_core::pool_manager;
     #[test_only]
     use leizd_aptos_core::initializer;
+    #[test_only]
+    public entry fun borrow_unsafe_for_test<C,P>(account: &signer, amount: u64) acquires LendingPoolModKeys {
+        pool_type::assert_pool_type<P>();
+        let (_, asset_pool_key, shadow_pool_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
+
+        let borrower_addr = signer::address_of(account);
+        let receiver_addr = signer::address_of(account);
+        let user_share: u64;
+        if (pool_type::is_type_asset<P>()) {
+            (_, user_share) = asset_pool::borrow_for<C>(borrower_addr, receiver_addr, amount, asset_pool_key);
+        } else {
+            (_, user_share) = shadow_pool::borrow_for<C>(borrower_addr, receiver_addr, amount, shadow_pool_key);
+        };
+        account_position::borrow_unsafe_for_test<C,P>(borrower_addr, user_share);
+    }
     #[test(owner=@leizd)]
     fun test_initialize(owner: &signer) {
         let owner_addr = signer::address_of(owner);
@@ -1911,6 +1951,195 @@ module leizd_aptos_entry::money_market {
         assert!(coin::balance<UNI>(account_addr) == 10000, 0);
     }
     #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
+    fun test_borrow_asset_with_rebalance__optimize_shadow_5__adjust_three_with_normal_only(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
+        prepare_to_exec_borrow_asset_with_rebalance(owner, lp, account, aptos_framework);
+
+        // prerequisite
+        risk_factor::update_protocol_fees_unsafe(
+            0,
+            0,
+            risk_factor::default_liquidation_fee(),
+        ); // NOTE: remove entry fee / share fee to make it easy to calcurate borrowed amount/share
+
+        let account_addr = signer::address_of(account);
+        usdz::mint_for_test(account_addr, 300000);
+        deposit<WETH, Shadow>(account, 100000, false);
+        borrow<WETH, Asset>(account, 20000);
+        deposit<USDC, Shadow>(account, 100000, false);
+        borrow<USDC, Asset>(account, 45000);
+        deposit<USDT, Shadow>(account, 100000, false);
+        borrow<USDT, Asset>(account, 70000);
+        assert!(account_position::deposited_shadow_share<WETH>(account_addr) == 100000, 0);
+        assert!(account_position::deposited_shadow_share<USDC>(account_addr) == 100000, 0);
+        assert!(account_position::deposited_shadow_share<USDT>(account_addr) == 100000, 0);
+        assert!(coin::balance<WETH>(account_addr) == 20000, 0);
+        assert!(coin::balance<USDC>(account_addr) == 45000, 0);
+        assert!(coin::balance<USDT>(account_addr) == 70000, 0);
+        assert!(coin::balance<USDZ>(account_addr) == 0, 0);
+
+        // execute
+        borrow_asset_with_rebalance<UNI>(account, 15000);
+
+        // check
+        // NOTE: `share` value is equal to `amount` value in this situation
+        assert!(account_position::deposited_shadow_share<WETH>(account_addr) == 40000, 0);
+        assert!(account_position::deposited_shadow_share<USDC>(account_addr) == 90000, 0);
+        assert!(account_position::deposited_shadow_share<USDT>(account_addr) == 140000, 0);
+        assert!(account_position::deposited_shadow_share<UNI>(account_addr) == 30000, 0);
+        assert!(account_position::borrowed_asset_share<UNI>(account_addr) == 15000, 0);
+        assert!(coin::balance<UNI>(account_addr) == 15000, 0);
+        assert!(coin::balance<USDZ>(account_addr) == 0, 0);
+    }
+    #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
+    fun test_borrow_asset_with_rebalance__optimize_shadow_5__adjust_three_with_conly_only(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
+        prepare_to_exec_borrow_asset_with_rebalance(owner, lp, account, aptos_framework);
+
+        // prerequisite
+        risk_factor::update_protocol_fees_unsafe(
+            0,
+            0,
+            risk_factor::default_liquidation_fee(),
+        ); // NOTE: remove entry fee / share fee to make it easy to calcurate borrowed amount/share
+
+        let account_addr = signer::address_of(account);
+        usdz::mint_for_test(account_addr, 300000);
+        deposit<WETH, Shadow>(account, 100000, true);
+        borrow<WETH, Asset>(account, 20000);
+        deposit<USDC, Shadow>(account, 100000, true);
+        borrow<USDC, Asset>(account, 45000);
+        deposit<USDT, Shadow>(account, 100000, true);
+        borrow<USDT, Asset>(account, 70000);
+        assert!(account_position::conly_deposited_shadow_share<WETH>(account_addr) == 100000, 0);
+        assert!(account_position::conly_deposited_shadow_share<USDC>(account_addr) == 100000, 0);
+        assert!(account_position::conly_deposited_shadow_share<USDT>(account_addr) == 100000, 0);
+        assert!(coin::balance<WETH>(account_addr) == 20000, 0);
+        assert!(coin::balance<USDC>(account_addr) == 45000, 0);
+        assert!(coin::balance<USDT>(account_addr) == 70000, 0);
+        assert!(coin::balance<USDZ>(account_addr) == 0, 0);
+
+        // execute
+        borrow_asset_with_rebalance<UNI>(account, 15000);
+
+        // check
+        // NOTE: `share` value is equal to `amount` value in this situation
+        assert!(account_position::conly_deposited_shadow_share<WETH>(account_addr) == 40000, 0);
+        assert!(account_position::conly_deposited_shadow_share<USDC>(account_addr) == 90000, 0);
+        assert!(account_position::conly_deposited_shadow_share<USDT>(account_addr) == 140000, 0);
+        assert!(account_position::deposited_shadow_share<UNI>(account_addr) == 30000, 0);
+        assert!(account_position::borrowed_asset_share<UNI>(account_addr) == 15000, 0);
+        assert!(coin::balance<UNI>(account_addr) == 15000, 0);
+        assert!(coin::balance<USDZ>(account_addr) == 0, 0);
+    }
+    #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
+    fun test_borrow_asset_with_rebalance__optimize_shadow_5__adjust_three_with_normal_and_conly(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
+        prepare_to_exec_borrow_asset_with_rebalance(owner, lp, account, aptos_framework);
+
+        // prerequisite
+        risk_factor::update_protocol_fees_unsafe(
+            0,
+            0,
+            risk_factor::default_liquidation_fee(),
+        ); // NOTE: remove entry fee / share fee to make it easy to calcurate borrowed amount/share
+
+        let account_addr = signer::address_of(account);
+        usdz::mint_for_test(account_addr, 300000);
+        deposit<WETH, Shadow>(account, 100000, true);
+        borrow<WETH, Asset>(account, 20000);
+        deposit<USDC, Shadow>(account, 100000, false);
+        borrow<USDC, Asset>(account, 45000);
+        deposit<USDT, Shadow>(account, 100000, true);
+        borrow<USDT, Asset>(account, 70000);
+        assert!(account_position::deposited_shadow_share<WETH>(account_addr) == 0, 0);
+        assert!(account_position::conly_deposited_shadow_share<WETH>(account_addr) == 100000, 0);
+        assert!(account_position::deposited_shadow_share<USDC>(account_addr) == 100000, 0);
+        assert!(account_position::conly_deposited_shadow_share<USDC>(account_addr) == 0, 0);
+        assert!(account_position::deposited_shadow_share<USDT>(account_addr) == 0, 0);
+        assert!(account_position::conly_deposited_shadow_share<USDT>(account_addr) == 100000, 0);
+
+        // execute
+        borrow_asset_with_rebalance<UNI>(account, 15000);
+
+        // check
+        // NOTE: `share` value is equal to `amount` value in this situation
+        assert!(account_position::deposited_shadow_share<WETH>(account_addr) == 0, 0);
+        assert!(account_position::conly_deposited_shadow_share<WETH>(account_addr) == 40000, 0);
+        assert!(account_position::deposited_shadow_share<USDC>(account_addr) == 90000, 0);
+        assert!(account_position::conly_deposited_shadow_share<USDC>(account_addr) == 0, 0);
+        assert!(account_position::deposited_shadow_share<USDT>(account_addr) == 0, 0);
+        assert!(account_position::conly_deposited_shadow_share<USDT>(account_addr) == 140000, 0);
+
+        assert!(account_position::deposited_shadow_share<UNI>(account_addr) == 30000, 0);
+        assert!(account_position::borrowed_asset_share<UNI>(account_addr) == 15000, 0);
+        assert!(coin::balance<UNI>(account_addr) == 15000, 0);
+        assert!(coin::balance<USDZ>(account_addr) == 0, 0);
+    }
+    #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
+    fun test_borrow_asset_with_rebalance__optimize_shadow_6(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
+        prepare_to_exec_borrow_asset_with_rebalance(owner, lp, account, aptos_framework);
+
+        // prerequisite
+        risk_factor::update_protocol_fees_unsafe(
+            0,
+            0,
+            risk_factor::default_liquidation_fee(),
+        ); // NOTE: remove entry fee / share fee to make it easy to calcurate borrowed amount/share
+
+        let account_addr = signer::address_of(account);
+        usdz::mint_for_test(account_addr, 300000);
+        deposit<WETH, Shadow>(account, 150000, true);
+        borrow<WETH, Asset>(account, 20000);
+        deposit<USDC, Shadow>(account, 95000, false);
+        borrow<USDC, Asset>(account, 45000);
+        deposit<USDT, Shadow>(account, 45000, true);
+        borrow_unsafe_for_test<USDT, Asset>(account, 70000);
+        deposit<UNI, Shadow>(account, 10000, false);
+        assert!(account_position::deposited_shadow_share<WETH>(account_addr) == 0, 0);
+        assert!(account_position::conly_deposited_shadow_share<WETH>(account_addr) == 150000, 0);
+        assert!(account_position::borrowed_asset_share<WETH>(account_addr) == 20000, 0);
+        assert!(account_position::deposited_shadow_share<USDC>(account_addr) == 95000, 0);
+        assert!(account_position::conly_deposited_shadow_share<USDC>(account_addr) == 0, 0);
+        assert!(account_position::borrowed_asset_share<USDC>(account_addr) == 45000, 0);
+        assert!(account_position::deposited_shadow_share<USDT>(account_addr) == 0, 0);
+        assert!(account_position::conly_deposited_shadow_share<USDT>(account_addr) == 45000, 0);
+        assert!(account_position::borrowed_asset_share<USDT>(account_addr) == 70000, 0);
+        assert!(account_position::deposited_shadow_share<UNI>(account_addr) == 10000, 0);
+        assert!(account_position::conly_deposited_shadow_share<UNI>(account_addr) == 0, 0);
+        assert!(account_position::borrowed_asset_share<UNI>(account_addr) == 0, 0);
+
+        // execute
+        borrow_asset_with_rebalance<UNI>(account, 15000);
+
+        // check
+        // NOTE: `share` value is equal to `amount` value in this situation
+        assert!(account_position::deposited_shadow_share<WETH>(account_addr) == 0, 0);
+        assert!(account_position::conly_deposited_shadow_share<WETH>(account_addr) == 40000, 0);
+        assert!(account_position::deposited_shadow_share<USDC>(account_addr) == 90000, 0);
+        assert!(account_position::conly_deposited_shadow_share<USDC>(account_addr) == 0, 0);
+        assert!(account_position::deposited_shadow_share<USDT>(account_addr) == 0, 0);
+        assert!(account_position::conly_deposited_shadow_share<USDT>(account_addr) == 140000, 0);
+        assert!(account_position::deposited_shadow_share<UNI>(account_addr) == 30000, 0);
+        assert!(account_position::conly_deposited_shadow_share<UNI>(account_addr) == 0, 0);
+
+        assert!(account_position::borrowed_asset_share<UNI>(account_addr) == 15000, 0);
+        assert!(coin::balance<UNI>(account_addr) == 15000, 0);
+        assert!(coin::balance<USDZ>(account_addr) == 0, 0);
+
+        //// for pool
+        let liquidity_from_lp = 500000;
+        assert!(shadow_pool::normal_deposited_amount<WETH>() - liquidity_from_lp == 0, 0);
+        assert!(shadow_pool::conly_deposited_amount<WETH>() == 40000, 0);
+        assert!(asset_pool::total_borrowed_amount<WETH>() == 20000, 0);
+        assert!(shadow_pool::normal_deposited_amount<USDC>() - liquidity_from_lp == 90000, 0);
+        assert!(shadow_pool::conly_deposited_amount<USDC>() == 0, 0);
+        assert!(asset_pool::total_borrowed_amount<USDC>() == 45000, 0);
+        assert!(shadow_pool::normal_deposited_amount<USDT>() - liquidity_from_lp == 0, 0);
+        assert!(shadow_pool::conly_deposited_amount<USDT>() == 140000, 0);
+        assert!(asset_pool::total_borrowed_amount<USDT>() == 70000, 0);
+        assert!(shadow_pool::normal_deposited_amount<UNI>() - liquidity_from_lp == 30000, 0);
+        assert!(shadow_pool::conly_deposited_amount<UNI>() == 0, 0);
+        assert!(asset_pool::total_borrowed_amount<UNI>() == 15000, 0);
+    }
+    #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
     fun test_borrow_asset_with_rebalance__borrow_and_deposit_1(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
         prepare_to_exec_borrow_asset_with_rebalance(owner, lp, account, aptos_framework);
 
@@ -2076,34 +2305,150 @@ module leizd_aptos_entry::money_market {
         borrow<WETH, Shadow>(account, 50000);
         deposit<USDC, Asset>(account, 50000, false);
         deposit<USDT, Shadow>(account, 50000, false);
-        // borrow<USDT, Asset>(account, 45000); // TODO: check after this
-        // assert!(account_position::deposited_asset_share<WETH>(account_addr) == 100000, 0);
-        // assert!(account_position::borrowed_shadow_share<WETH>(account_addr) == 50000, 0);
-        // assert!(account_position::deposited_asset_share<USDC>(account_addr) == 50000, 0);
-        // assert!(account_position::deposited_shadow_share<USDT>(account_addr) == 50000, 0);
-        // assert!(account_position::borrowed_asset_share<USDT>(account_addr) == 45000, 0);
-        // assert!(coin::balance<WETH>(account_addr) == 0, 0);
-        // assert!(coin::balance<USDC>(account_addr) == 0, 0);
-        // assert!(coin::balance<USDT>(account_addr) == 45000, 0);
-        // assert!(coin::balance<USDZ>(account_addr) == 50000, 0);
+        borrow_unsafe_for_test<USDT, Asset>(account, 45000);
+        assert!(account_position::deposited_asset_share<WETH>(account_addr) == 100000, 0);
+        assert!(account_position::borrowed_shadow_share<WETH>(account_addr) == 50000, 0);
+        assert!(account_position::deposited_asset_share<USDC>(account_addr) == 50000, 0);
+        assert!(account_position::deposited_shadow_share<USDT>(account_addr) == 50000, 0);
+        assert!(account_position::borrowed_asset_share<USDT>(account_addr) == 45000, 0);
+        assert!(coin::balance<WETH>(account_addr) == 0, 0);
+        assert!(coin::balance<USDC>(account_addr) == 0, 0);
+        assert!(coin::balance<USDT>(account_addr) == 45000, 0);
+        assert!(coin::balance<USDZ>(account_addr) == 50000, 0);
 
-        // // execute
-        // borrow_asset_with_rebalance<UNI>(account, 10000);
+        // execute
+        borrow_asset_with_rebalance<UNI>(account, 10000);
 
-        // // check
-        // // NOTE: `share` value is equal to `amount` value in this situation
-        // aptos_std::debug::print(&account_position::deposited_asset_share<WETH>(account_addr));
-        // aptos_std::debug::print(&account_position::borrowed_shadow_share<WETH>(account_addr));
-        // aptos_std::debug::print(&account_position::deposited_asset_share<USDC>(account_addr));
-        // aptos_std::debug::print(&account_position::borrowed_shadow_share<USDC>(account_addr));
-        // aptos_std::debug::print(&account_position::deposited_shadow_share<USDT>(account_addr));
-        // aptos_std::debug::print(&account_position::borrowed_asset_share<USDT>(account_addr));
-        // aptos_std::debug::print(&account_position::deposited_shadow_share<UNI>(account_addr));
-        // aptos_std::debug::print(&account_position::borrowed_asset_share<UNI>(account_addr));
-        // aptos_std::debug::print(&coin::balance<WETH>(account_addr));
-        // aptos_std::debug::print(&coin::balance<USDC>(account_addr));
-        // aptos_std::debug::print(&coin::balance<USDT>(account_addr));
-        // aptos_std::debug::print(&coin::balance<USDZ>(account_addr));
-        // aptos_std::debug::print(&coin::balance<UNI>(account_addr));
+        // check
+        // NOTE: `share` value is equal to `amount` value in this situation
+        assert!(account_position::deposited_asset_share<WETH>(account_addr) == 100000, 0);
+        assert!(account_position::borrowed_shadow_share<WETH>(account_addr) == 40740, 0); // -> 40741
+        assert!(account_position::deposited_asset_share<USDC>(account_addr) == 50000, 0);
+        assert!(account_position::borrowed_shadow_share<USDC>(account_addr) == 20370, 0);
+        assert!(account_position::deposited_shadow_share<USDT>(account_addr) == 49998, 0); // -> 50000
+        assert!(account_position::borrowed_asset_share<USDT>(account_addr) == 45000, 0);
+        assert!(account_position::deposited_shadow_share<UNI>(account_addr) == 11110, 0); // -> 11111
+        assert!(account_position::borrowed_asset_share<UNI>(account_addr) == 10000, 0);
+        assert!(coin::balance<WETH>(account_addr) == 0, 0);
+        assert!(coin::balance<USDC>(account_addr) == 0, 0);
+        assert!(coin::balance<USDT>(account_addr) == 45000, 0);
+        assert!(coin::balance<USDZ>(account_addr) == 50002, 0); // -> 50000
+        assert!(coin::balance<UNI>(account_addr) == 10000, 0);
+    }
+    #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
+    fun test_borrow_asset_with_rebalance__borrow_and_deposit_5(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
+        prepare_to_exec_borrow_asset_with_rebalance(owner, lp, account, aptos_framework);
+
+        // prerequisite
+        risk_factor::update_protocol_fees_unsafe(
+            0,
+            0,
+            risk_factor::default_liquidation_fee(),
+        ); // NOTE: remove entry fee / share fee to make it easy to calcurate borrowed amount/share
+
+        let account_addr = signer::address_of(account);
+        managed_coin::mint<WETH>(owner, account_addr, 100000);
+        managed_coin::mint<USDC>(owner, account_addr, 50000);
+        usdz::mint_for_test(account_addr, 50000);
+        deposit<WETH, Asset>(account, 100000, false);
+        borrow<WETH, Shadow>(account, 50000);
+        deposit<USDC, Asset>(account, 50000, false);
+        deposit<USDT, Shadow>(account, 50000, false);
+        borrow<USDT, Asset>(account, 40000);
+        assert!(account_position::deposited_asset_share<WETH>(account_addr) == 100000, 0);
+        assert!(account_position::borrowed_shadow_share<WETH>(account_addr) == 50000, 0);
+        assert!(account_position::deposited_asset_share<USDC>(account_addr) == 50000, 0);
+        assert!(account_position::deposited_shadow_share<USDT>(account_addr) == 50000, 0);
+        assert!(account_position::borrowed_asset_share<USDT>(account_addr) == 40000, 0);
+        assert!(coin::balance<WETH>(account_addr) == 0, 0);
+        assert!(coin::balance<USDC>(account_addr) == 0, 0);
+        assert!(coin::balance<USDT>(account_addr) == 40000, 0);
+        assert!(coin::balance<USDZ>(account_addr) == 50000, 0);
+
+        // execute
+        borrow_asset_with_rebalance<UNI>(account, 10000);
+
+        // check
+        // NOTE: `share` value is equal to `amount` value in this situation
+        assert!(account_position::deposited_asset_share<WETH>(account_addr) == 100000, 0);
+        assert!(account_position::borrowed_shadow_share<WETH>(account_addr) == 40740, 0); // -> 40741
+        assert!(account_position::deposited_asset_share<USDC>(account_addr) == 50000, 0);
+        assert!(account_position::borrowed_shadow_share<USDC>(account_addr) == 20370, 0);
+        assert!(account_position::deposited_shadow_share<USDT>(account_addr) == 48888, 0); // -> 48889
+        assert!(account_position::borrowed_asset_share<USDT>(account_addr) == 40000, 0);
+        assert!(account_position::deposited_shadow_share<UNI>(account_addr) == 12222, 0);
+        assert!(account_position::borrowed_asset_share<UNI>(account_addr) == 10000, 0);
+        assert!(coin::balance<WETH>(account_addr) == 0, 0);
+        assert!(coin::balance<USDC>(account_addr) == 0, 0);
+        assert!(coin::balance<USDT>(account_addr) == 40000, 0);
+        assert!(coin::balance<USDZ>(account_addr) == 50000, 0);
+        assert!(coin::balance<UNI>(account_addr) == 10000, 0);
+
+        //// for pool
+        let liquidity_from_lp = 500000;
+        ////// AssetToShadow
+        assert!(asset_pool::total_normal_deposited_amount<WETH>() - liquidity_from_lp == 100000, 0);
+        assert!(asset_pool::total_conly_deposited_amount<WETH>() == 0, 0);
+        assert!(shadow_pool::borrowed_amount<WETH>() == 40740, 0);
+        assert!(asset_pool::total_normal_deposited_amount<USDC>() - liquidity_from_lp == 50000, 0);
+        assert!(asset_pool::total_conly_deposited_amount<USDC>() == 0, 0);
+        assert!(shadow_pool::borrowed_amount<USDC>() == 20370, 0);
+        ////// ShadowToAsset
+        assert!(shadow_pool::normal_deposited_amount<USDT>() - liquidity_from_lp == 48888, 0);
+        assert!(shadow_pool::conly_deposited_amount<USDT>() == 0, 0);
+        assert!(asset_pool::total_borrowed_amount<USDT>() == 40000, 0);
+        assert!(shadow_pool::normal_deposited_amount<UNI>() - liquidity_from_lp == 12222, 0);
+        assert!(shadow_pool::conly_deposited_amount<UNI>() == 0, 0);
+        assert!(asset_pool::total_borrowed_amount<UNI>() == 10000, 0);
+    }
+    #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
+    fun test_borrow_asset_with_rebalance__borrow_and_deposit_6(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
+        prepare_to_exec_borrow_asset_with_rebalance(owner, lp, account, aptos_framework);
+
+        // prerequisite
+        risk_factor::update_protocol_fees_unsafe(
+            0,
+            0,
+            risk_factor::default_liquidation_fee(),
+        ); // NOTE: remove entry fee / share fee to make it easy to calcurate borrowed amount/share
+
+        let account_addr = signer::address_of(account);
+        managed_coin::mint<WETH>(owner, account_addr, 100000);
+        managed_coin::mint<USDC>(owner, account_addr, 50000);
+        usdz::mint_for_test(account_addr, 50000);
+        deposit<WETH, Asset>(account, 100000, false);
+        borrow<WETH, Shadow>(account, 50000);
+        deposit<USDC, Asset>(account, 50000, false);
+        deposit<USDT, Shadow>(account, 50000, false);
+        borrow<USDT, Asset>(account, 40000);
+        disable_to_rebalance<WETH>(account);
+        assert!(account_position::deposited_asset_share<WETH>(account_addr) == 100000, 0);
+        assert!(account_position::borrowed_shadow_share<WETH>(account_addr) == 50000, 0);
+        assert!(account_position::deposited_asset_share<USDC>(account_addr) == 50000, 0);
+        assert!(account_position::deposited_shadow_share<USDT>(account_addr) == 50000, 0);
+        assert!(account_position::borrowed_asset_share<USDT>(account_addr) == 40000, 0);
+        assert!(coin::balance<WETH>(account_addr) == 0, 0);
+        assert!(coin::balance<USDC>(account_addr) == 0, 0);
+        assert!(coin::balance<USDT>(account_addr) == 40000, 0);
+        assert!(coin::balance<USDZ>(account_addr) == 50000, 0);
+
+        // execute
+        borrow_asset_with_rebalance<UNI>(account, 10000);
+
+        // check
+        // NOTE: `share` value is equal to `amount` value in this situation
+        assert!(account_position::deposited_asset_share<WETH>(account_addr) == 100000, 0);
+        assert!(account_position::borrowed_shadow_share<WETH>(account_addr) == 50000, 0);
+        assert!(account_position::deposited_asset_share<USDC>(account_addr) == 50000, 0);
+        assert!(account_position::borrowed_shadow_share<USDC>(account_addr) == 11111, 0);
+        assert!(account_position::deposited_shadow_share<USDT>(account_addr) == 48888, 0); // -> 48889
+        assert!(account_position::borrowed_asset_share<USDT>(account_addr) == 40000, 0);
+        assert!(account_position::deposited_shadow_share<UNI>(account_addr) == 12222, 0);
+        assert!(account_position::borrowed_asset_share<UNI>(account_addr) == 10000, 0);
+        assert!(coin::balance<WETH>(account_addr) == 0, 0);
+        assert!(coin::balance<USDC>(account_addr) == 0, 0);
+        assert!(coin::balance<USDT>(account_addr) == 40000, 0);
+        assert!(coin::balance<USDZ>(account_addr) == 50001, 0); // -> 50000
+        assert!(coin::balance<UNI>(account_addr) == 10000, 0);
     }
 }
