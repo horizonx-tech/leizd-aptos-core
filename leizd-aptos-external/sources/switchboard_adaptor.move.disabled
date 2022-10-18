@@ -91,6 +91,8 @@ module leizd_aptos_external::switchboard_adaptor {
     #[test_only]
     use std::unit_test;
     #[test_only]
+    use leizd_aptos_lib::math128;
+    #[test_only]
     use leizd_aptos_common::test_coin::{WETH, USDC};
     #[test(owner = @leizd_aptos_external)]
     fun test_initialize(owner: &signer) {
@@ -152,19 +154,19 @@ module leizd_aptos_external::switchboard_adaptor {
         add_aggregator<WETH>(owner, signer::address_of(weth_aggr));
 
         let (usdc_value, usdc_dec) = price_from_aggregator(signer::address_of(usdc_aggr));
-        assert!(usdc_value == 2 * math::pow_10(9), 0);
+        assert!(usdc_value == 2 * math128::pow(10, 9), 0);
         assert!(usdc_dec == 9, 0);
         let (weth_value, weth_dec) = price_from_aggregator(signer::address_of(weth_aggr));
-        assert!(weth_value == 3 * math::pow_10(9), 0);
+        assert!(weth_value == 3 * math128::pow(10, 9), 0);
         assert!(weth_dec == 9, 0);
         let (usdc_value, usdc_dec) = price<USDC>();
-        assert!(usdc_value / math::pow_10(usdc_dec) == 2, 0);
+        assert!(usdc_value / math128::pow(10, (usdc_dec as u128)) == 2, 0);
         let (weth_value, weth_dec) = price<WETH>();
-        assert!(weth_value / math::pow_10(weth_dec) == 3, 0);
+        assert!(weth_value / math128::pow(10, (weth_dec as u128)) == 3, 0);
         let (usdc_value, usdc_dec) = price_of(&key<USDC>());
-        assert!(usdc_value / math::pow_10(usdc_dec) == 2, 0);
+        assert!(usdc_value / math128::pow(10, (usdc_dec as u128)) == 2, 0);
         let (weth_value, weth_dec) = price_of(&key<WETH>());
-        assert!(weth_value / math::pow_10(weth_dec) == 3, 0);
+        assert!(weth_value / math128::pow(10, (weth_dec as u128)) == 3, 0);
     }
     #[test]
     fun test_aggregator() {
@@ -173,7 +175,7 @@ module leizd_aptos_external::switchboard_adaptor {
         let acc1 = vector::borrow(&signers, 0);
         aggregator::new_test(acc1, 100, 0, false);
         let (val, dec, is_neg) = math::unpack(aggregator::latest_value(signer::address_of(acc1)));
-        assert!(val == 100 * math::pow_10(dec), 0);
+        assert!(val == 100 * math128::pow(10, (dec as u128)), 0);
         assert!(dec == 9, 0);
         assert!(is_neg == false, 0);
     }
