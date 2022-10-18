@@ -187,7 +187,7 @@ module leizd_aptos_entry::money_market {
         );
         if (sum_extra >= sum_insufficient) {
             //////////////////////////////////////
-            /// execute rebalance without borrow
+            // execute rebalance without borrow
             //////////////////////////////////////
             let optimized_hf = risk_factor::health_factor_of(
                 coin_key::key<USDZ>(),
@@ -215,7 +215,7 @@ module leizd_aptos_entry::money_market {
         };
 
         ///////////////////////////////////
-        /// execute rebalance with borrow
+        // execute rebalance with borrow
         ///////////////////////////////////
         // re: update interests for pools that may be used
         shadow_pool::exec_accrue_interest_for_selected(account_position::deposited_coins<Asset>(account_addr), shadow_pool_key); // for borrow, repay shadow for rebalance
