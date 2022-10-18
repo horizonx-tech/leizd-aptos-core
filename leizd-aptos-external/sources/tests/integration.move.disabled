@@ -2,6 +2,8 @@
 module leizd_aptos_external::integration {
     use std::signer;
     use aptos_framework::account;
+    use aptos_framework::block;
+    use aptos_framework::timestamp;
     use switchboard::aggregator;
     use leizd_aptos_lib::math128;
     use leizd_aptos_common::test_coin::{WETH};
@@ -12,8 +14,12 @@ module leizd_aptos_external::integration {
         price_oracle::initialize(owner);
         switchboard_adaptor::initialize(owner);
     }
-    #[test(owner = @leizd_aptos_external, weth_aggr = @0x111AAA)]
-    fun test_use_switchboard_from_price_oracle_mod(owner: &signer, weth_aggr: &signer) {
+    #[test(owner = @leizd_aptos_external, weth_aggr = @0x111AAA, aptos_framework = @aptos_framework)]
+    fun test_use_switchboard_from_price_oracle_mod(owner: &signer, weth_aggr: &signer, aptos_framework: &signer) {
+        account::create_account_for_test(signer::address_of(aptos_framework));
+        block::initialize_for_test(aptos_framework, 1);
+        timestamp::set_time_has_started_for_testing(aptos_framework);
+
         account::create_account_for_test(signer::address_of(owner));
         initialize_all(owner);
         price_oracle::register_oracle_without_fixed_price<WETH>(owner);
