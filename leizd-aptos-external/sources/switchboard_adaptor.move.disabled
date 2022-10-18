@@ -185,9 +185,9 @@ module leizd_aptos_external::switchboard_adaptor {
         let acc1 = vector::borrow(&signers, 0);
 
         aggregator::new_test(acc1, 100, 0, false);
-        // let (val, dec, is_neg) = math::unpack(aggregator::latest_value(signer::address_of(acc1)));
-        // assert!(val == 100 * math128::pow(10, (dec as u128)), 0);
-        // assert!(dec == 9, 0);
-        // assert!(is_neg == false, 0);
+        let (val, dec, is_neg) = math::unpack(aggregator::latest_value(signer::address_of(acc1)));
+        assert!(val == 100 * math128::pow(10, (dec as u128)), 0);
+        assert!(dec == 9, 0);
+        assert!(is_neg == false, 0);
     }
 }
