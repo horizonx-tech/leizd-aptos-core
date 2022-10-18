@@ -2095,12 +2095,16 @@ module leizd_aptos_entry::money_market {
         deposit<UNI, Shadow>(account, 10000, false);
         assert!(account_position::deposited_shadow_share<WETH>(account_addr) == 0, 0);
         assert!(account_position::conly_deposited_shadow_share<WETH>(account_addr) == 150000, 0);
+        assert!(account_position::borrowed_asset_share<WETH>(account_addr) == 20000, 0);
         assert!(account_position::deposited_shadow_share<USDC>(account_addr) == 95000, 0);
         assert!(account_position::conly_deposited_shadow_share<USDC>(account_addr) == 0, 0);
+        assert!(account_position::borrowed_asset_share<USDC>(account_addr) == 45000, 0);
         assert!(account_position::deposited_shadow_share<USDT>(account_addr) == 0, 0);
         assert!(account_position::conly_deposited_shadow_share<USDT>(account_addr) == 45000, 0);
+        assert!(account_position::borrowed_asset_share<USDT>(account_addr) == 70000, 0);
         assert!(account_position::deposited_shadow_share<UNI>(account_addr) == 10000, 0);
         assert!(account_position::conly_deposited_shadow_share<UNI>(account_addr) == 0, 0);
+        assert!(account_position::borrowed_asset_share<UNI>(account_addr) == 0, 0);
 
         // execute
         borrow_asset_with_rebalance<UNI>(account, 15000);
@@ -2119,6 +2123,21 @@ module leizd_aptos_entry::money_market {
         assert!(account_position::borrowed_asset_share<UNI>(account_addr) == 15000, 0);
         assert!(coin::balance<UNI>(account_addr) == 15000, 0);
         assert!(coin::balance<USDZ>(account_addr) == 0, 0);
+
+        //// for pool
+        let liquidity_from_lp = 500000;
+        assert!(shadow_pool::normal_deposited_amount<WETH>() - liquidity_from_lp == 0, 0);
+        assert!(shadow_pool::conly_deposited_amount<WETH>() == 40000, 0);
+        assert!(asset_pool::total_borrowed_amount<WETH>() == 20000, 0);
+        assert!(shadow_pool::normal_deposited_amount<USDC>() - liquidity_from_lp == 90000, 0);
+        assert!(shadow_pool::conly_deposited_amount<USDC>() == 0, 0);
+        assert!(asset_pool::total_borrowed_amount<USDC>() == 45000, 0);
+        assert!(shadow_pool::normal_deposited_amount<USDT>() - liquidity_from_lp == 0, 0);
+        assert!(shadow_pool::conly_deposited_amount<USDT>() == 140000, 0);
+        assert!(asset_pool::total_borrowed_amount<USDT>() == 70000, 0);
+        assert!(shadow_pool::normal_deposited_amount<UNI>() - liquidity_from_lp == 30000, 0);
+        assert!(shadow_pool::conly_deposited_amount<UNI>() == 0, 0);
+        assert!(asset_pool::total_borrowed_amount<UNI>() == 15000, 0);
     }
     #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
     fun test_borrow_asset_with_rebalance__borrow_and_deposit_1(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
