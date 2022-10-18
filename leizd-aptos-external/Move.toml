@@ -24,3 +24,4 @@ leizd_aptos_external="0x0123456789ABCDEF"
 leizd_aptos_lib="0x0123456789ABCDEF"
 leizd_aptos_common="0x0123456789ABCDEF"
 #switchboard = "0x34e2eead0aefbc3d0af13c0522be94b002658f4bef8e0740a21086d22236ad77" # devnet and testnet
+#aptos_framework = "0x1"
