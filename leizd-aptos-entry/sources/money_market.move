@@ -158,7 +158,6 @@ module leizd_aptos_entry::money_market {
     /// Borrow the coin C with the shadow that is collected from the best pool.
     /// If there is enough shadow on the pool a user want to borrow, it would be
     /// the same action as the `borrow` function above.
-
     public entry fun borrow_asset_with_rebalance<C>(account: &signer, amount: u64) acquires LendingPoolModKeys {
         assert!(asset_pool::is_pool_initialized<C>() , 0);
         assert!(shadow_pool::is_initialized_asset<C>() , 0);
@@ -187,7 +186,9 @@ module leizd_aptos_entry::money_market {
             borrowed_amounts,
         );
         if (sum_extra >= sum_insufficient) {
-            // execute rebalance with borrow
+            //////////////////////////////////////
+            /// execute rebalance without borrow
+            //////////////////////////////////////
             let optimized_hf = risk_factor::health_factor_of(
                 coin_key::key<USDZ>(),
                 total_deposited_volume_in_stoa,
@@ -213,7 +214,9 @@ module leizd_aptos_entry::money_market {
             return ()
         };
 
-        // execute rebalance with borrow
+        ///////////////////////////////////
+        /// execute rebalance with borrow
+        ///////////////////////////////////
         // re: update interests for pools that may be used
         shadow_pool::exec_accrue_interest_for_selected(account_position::deposited_coins<Asset>(account_addr), shadow_pool_key); // for borrow, repay shadow for rebalance
 
@@ -249,7 +252,6 @@ module leizd_aptos_entry::money_market {
             let required_shadow_volume = price_oracle::volume(&coin_key::key<USDZ>(), (required_shadow as u128));
             total_borrowed_volume_in_atos = total_borrowed_volume_in_atos + required_shadow_volume;
             total_borrowed_volume_in_atos;
-
             //// borrow from shadow_pool for required_shadow & update account_position
             let i = 0;
             while (i < simple_map::length(&borrowings)) {
@@ -276,6 +278,7 @@ module leizd_aptos_entry::money_market {
             );
 
             // optimize ShadowToAsset position
+            // NOTE: exec if all position in ShadowToAsset can be healthy, otherwise only deposit for borrowing specified asset
             let amounts_to_deposit = simple_map::create<String, u64>();
             let amounts_to_withdraw = simple_map::create<String, u64>();
             if ((sum_extra as u128) + required_shadow_volume > (sum_insufficient as u128)) {
@@ -292,7 +295,7 @@ module leizd_aptos_entry::money_market {
                     borrowed_volumes_in_stoa
                 );
             } else {
-                // only deposit for bowworing specified asset
+                // only deposit for borrowing specified asset
                 simple_map::add(
                     &mut amounts_to_deposit,
                     key_for_specified_asset,
