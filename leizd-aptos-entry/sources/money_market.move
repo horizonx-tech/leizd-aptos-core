@@ -991,11 +991,8 @@ module leizd_aptos_entry::money_market {
             borrowed_volumes
         );
 
-        debug::print(&optimized_hf);
-
         // ax^2+bx-c=0
-        let a = (risk_factor::lt_of_shadow() as u128) * sum_asset_deposited_mul_lt / (risk_factor::precision() as u128);
-        // let b = (risk_factor::lt_of_shadow() as u128) * (sum_shadow_deposited + sum_shadow_borrowed);
+        let a = i128::from((risk_factor::lt_of_shadow() as u128) * sum_asset_deposited_mul_lt / (risk_factor::precision() as u128));
         let b = i128::mul(
             &i128::from((risk_factor::lt_of_shadow() as u128)),
             &i128::sub(
@@ -1003,13 +1000,12 @@ module leizd_aptos_entry::money_market {
                 &i128::from(sum_shadow_borrowed)
             ),
         );
-        let c = (risk_factor::precision() as u128) * sum_asset_borrowed;
+        let c = i128::neg_from((risk_factor::precision() as u128) * sum_asset_borrowed);
 
-        debug::print(&true);
-        debug::print(&a);
-        debug::print(&i128::as_u128(&i128::abs(&b)));
-        debug::print(&c);
-        debug::print(&true);
+        if (vector::length(&unprotected_coins_in_atos) != 0 && vector::length(&unprotected_coins_in_stoa) != 0) {
+            optimized_hf = (risk_factor::health_factor_with_quadratic_formula(a, b, c) as u64);
+        };
+        debug::print(&optimized_hf);
 
         if (optimized_hf == 0) {
             // skip to flatten
@@ -2104,12 +2100,11 @@ module leizd_aptos_entry::money_market {
         // liquidate
         liquidate<WETH, Asset>(liquidator, borrower_addr);
         assert!(account_position::deposited_volume<AssetToShadow>(borrower_addr, key<WETH>()) == 50000, 0);
-        assert!(account_position::borrowed_volume<AssetToShadow>(borrower_addr, key<WETH>()) == 12380, 0);
-        // TODO: calculation result
-        debug::print(&account_position::deposited_volume<ShadowToAsset>(borrower_addr, key<USDC>()));
-        // assert!(account_position::borrowed_volume<AssetToShadow>(borrower_addr, key<WETH>()) == 20099, 0); // CHECK: 20100?
-        // assert!(account_position::deposited_volume<AssetToShadow>(borrower_addr, key<USDC>()) == 200000, 0);
-        // assert!(account_position::borrowed_volume<AssetToShadow>(borrower_addr, key<USDC>()) == 80550, 0);
+        assert!(account_position::borrowed_volume<AssetToShadow>(borrower_addr, key<WETH>()) == 9783, 0); // CHECK: 9784?
+        assert!(account_position::deposited_volume<ShadowToAsset>(borrower_addr, key<USDC>()) == 229766, 0); // CHECK: 229767?
+        assert!(account_position::borrowed_volume<ShadowToAsset>(borrower_addr, key<USDC>()) == 50250, 0);
+        assert!(account_position::deposited_volume<ShadowToAsset>(borrower_addr, key<USDT>()) == 229766, 0); // CHECK: 229767?
+        assert!(account_position::borrowed_volume<ShadowToAsset>(borrower_addr, key<USDT>()) == 50250, 0); 
     }
     #[test(owner=@leizd_aptos_entry,lp=@0x111,borrower=@0x222,liquidator=@0x333,target=@0x444,aptos_framework=@aptos_framework)]
     fun test_liquidate_with_rebalance_7(owner: &signer, lp: &signer, borrower: &signer, liquidator: &signer, target: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
@@ -2158,13 +2153,14 @@ module leizd_aptos_entry::money_market {
 
         // liquidate
         liquidate<UNI, Shadow>(liquidator, borrower_addr);
-        // assert!(account_position::deposited_volume<AssetToShadow>(borrower_addr, key<WETH>()) == 50000, 0);
-        // assert!(account_position::borrowed_volume<AssetToShadow>(borrower_addr, key<WETH>()) == 12380, 0);
-        // TODO: calculation result
-        debug::print(&account_position::deposited_volume<ShadowToAsset>(borrower_addr, key<USDC>()));
-        // assert!(account_position::borrowed_volume<AssetToShadow>(borrower_addr, key<WETH>()) == 20099, 0); // CHECK: 20100?
-        // assert!(account_position::deposited_volume<AssetToShadow>(borrower_addr, key<USDC>()) == 200000, 0);
-        // assert!(account_position::borrowed_volume<AssetToShadow>(borrower_addr, key<USDC>()) == 80550, 0);
+        assert!(account_position::deposited_volume<AssetToShadow>(borrower_addr, key<WETH>()) == 100000, 0);
+        assert!(account_position::borrowed_volume<AssetToShadow>(borrower_addr, key<WETH>()) == 46106, 0); // CHECK: 46107?
+        assert!(account_position::deposited_volume<AssetToShadow>(borrower_addr, key<USDC>()) == 200000, 0);
+        assert!(account_position::borrowed_volume<AssetToShadow>(borrower_addr, key<USDC>()) == 92213, 0);
+        assert!(account_position::deposited_volume<ShadowToAsset>(borrower_addr, key<USDT>()) == 97513, 0); // CHECK: 97514?
+        assert!(account_position::borrowed_volume<ShadowToAsset>(borrower_addr, key<USDT>()) == 50250, 0);
+        assert!(account_position::deposited_volume<ShadowToAsset>(borrower_addr, key<UNI>()) == 390055, 0); // CHECK: 390056
+        assert!(account_position::borrowed_volume<ShadowToAsset>(borrower_addr, key<UNI>()) == 201000, 0);
     }
     use std::debug;
 

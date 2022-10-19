@@ -176,6 +176,11 @@ module leizd_aptos_lib::prb_math {
         let expected = 11188200775;
         let result = sqrt(x*SCALE);
         assert!(result == expected, 0);
+
+        let x = 353544195156250000000; // 353,544,195,156
+        let expected = 594595825041052; // 594,595.825041052
+        let result = sqrt(x*SCALE);
+        assert!(result == expected, 0);
     }
 
     #[test]
