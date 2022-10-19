@@ -1745,7 +1745,6 @@ module leizd_aptos_entry::money_market {
 
     // scenario
     #[test(owner=@leizd_aptos_entry,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
-    #[expected_failure] // TODO: because of overflow in risk_factor::calculate_fee_with_round_up
     fun test_scenario__deposit_and_borrow_with_larger_numbers(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
         initialize_lending_pool_for_test(owner, aptos_framework);
         setup_account_for_test(depositor);
