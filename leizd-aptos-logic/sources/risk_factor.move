@@ -19,6 +19,7 @@ module leizd_aptos_logic::risk_factor {
     const EINVALID_ENTRY_FEE: u64 = 4;
     const EINVALID_SHARE_FEE: u64 = 5;
     const EINVALID_LIQUIDATION_FEE: u64 = 6;
+    const EINVALID_FEE: u64 = 7;
 
     const PRECISION: u64 = 1000000;
     const DEFAULT_ENTRY_FEE: u64 = 1000000 / 1000 * 5; // 0.5%
@@ -226,13 +227,14 @@ module leizd_aptos_logic::risk_factor {
         if (deposited == 0) {
             0
         } else {
-            let scaled_numerator = borrowed * (precision() * precision() as u128);
+            let precision = precision_u128();
+            let scaled_numerator = borrowed * precision * precision;
             let denominator = deposited * (lt_of(key) as u128);
             let u = scaled_numerator / denominator;
-            if ((precision() as u128) < u) {
+            if (precision < u) {
                 0
             } else {
-                ((precision() as u128) - u as u64)
+                (precision - u as u64)
             }
         }
     }
@@ -253,15 +255,15 @@ module leizd_aptos_logic::risk_factor {
             i = i - 1;
         };
 
-        let precision_u128 = (precision() as u128);
+        let precision = precision_u128();
         if (collateral_sum == 0) {
             0
         } else {
-            let u = borrowed_sum * precision_u128 / (collateral_sum / precision_u128);
-            if (precision_u128 < u) {
+            let u = borrowed_sum * precision / (collateral_sum / precision);
+            if (precision < u) {
                 0
             } else {
-                (precision_u128 - u as u64)
+                (precision - u as u64)
             }
         }
     }
@@ -299,14 +301,17 @@ module leizd_aptos_logic::risk_factor {
     }
     //// for round up
     fun calculate_fee_with_round_up(value: u64, fee: u64): u64 {
+        assert!(fee <= precision(), error::invalid_argument(EINVALID_FEE));
         let value_mul_by_fee = (value as u128) * (fee as u128); // NOTE: as not to overflow
-        let precision_u128 = (precision() as u128);
-        let result = value_mul_by_fee / precision_u128;
-        if (value_mul_by_fee % precision_u128 != 0) (result + 1 as u64) else (result as u64)
+        let result = value_mul_by_fee / precision_u128();
+        if (value_mul_by_fee % precision_u128() != 0) (result + 1 as u64) else (result as u64)
     }
 
-    public entry fun precision(): u64 {
+    public fun precision(): u64 {
         PRECISION
+    }
+    public fun precision_u128(): u128 {
+        (PRECISION as u128)
     }
 
     #[test_only]
@@ -572,7 +577,7 @@ module leizd_aptos_logic::risk_factor {
         assert!(calculate_share_fee(1) == 1, 0);
         assert!(calculate_share_fee(0) == 0, 0);
     }
-        #[test(owner = @leizd_aptos_logic)]
+    #[test(owner = @leizd_aptos_logic)]
     fun test_calculate_liquidation_fee(owner: &signer) acquires ProtocolFees, RepositoryEventHandle {
         account::create_account_for_test(signer::address_of(owner));
         initialize(owner);
@@ -588,5 +593,20 @@ module leizd_aptos_logic::risk_factor {
         assert!(calculate_liquidation_fee(199) == 1, 0);
         assert!(calculate_liquidation_fee(1) == 1, 0);
         assert!(calculate_liquidation_fee(0) == 0, 0);
+    }
+    #[test(owner = @leizd_aptos_logic)]
+    fun test_calculate_fee_with_round_up__check_overflow(owner: &signer) acquires ProtocolFees, RepositoryEventHandle {
+        account::create_account_for_test(signer::address_of(owner));
+        initialize(owner);
+
+        let u64_max: u64 = 18446744073709551615;
+        calculate_fee_with_round_up(u64_max, entry_fee());
+        calculate_fee_with_round_up(u64_max, precision());
+    }
+    #[test]
+    #[expected_failure(abort_code = 65543)]
+    fun test_calculate_fee_with_round_up_when_fee_is_greater_than_precision() {
+        let u64_max: u64 = 18446744073709551615;
+        calculate_fee_with_round_up(u64_max, precision() + 1);
     }
 }

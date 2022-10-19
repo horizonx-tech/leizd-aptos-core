@@ -616,7 +616,7 @@ module leizd::asset_pool {
     }
     fun save_calculated_values_by_rcomp(asset_storage_ref: &mut AssetStorage, rcomp: u128, share_fee: u64) {
         let accrued_interest = asset_storage_ref.total_borrowed_amount * rcomp / interest_rate::precision();
-        let protocol_share = accrued_interest * (share_fee as u128) / (risk_factor::precision() as u128);
+        let protocol_share = accrued_interest * (share_fee as u128) / risk_factor::precision_u128();
         let new_protocol_fees = asset_storage_ref.protocol_fees + (protocol_share as u64);
 
         let depositors_share = accrued_interest - protocol_share;
