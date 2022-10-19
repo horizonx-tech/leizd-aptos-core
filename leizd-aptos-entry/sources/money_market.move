@@ -16,7 +16,7 @@ module leizd_aptos_entry::money_market {
     use aptos_framework::coin;
     use leizd_aptos_common::pool_type;
     use leizd_aptos_common::permission;
-    use leizd_aptos_common::coin_key;
+    use leizd_aptos_common::coin_key::{key};
     use leizd_aptos_common::pool_type::{Asset, Shadow};
     use leizd_aptos_logic::risk_factor;
     use leizd_aptos_trove::usdz::{USDZ};
@@ -193,7 +193,7 @@ module leizd_aptos_entry::money_market {
             // execute rebalance without borrow
             //////////////////////////////////////
             let optimized_hf = risk_factor::health_factor_of(
-                coin_key::key<USDZ>(),
+                key<USDZ>(),
                 total_deposited_volume_in_stoa,
                 total_borrowed_volume_in_stoa
             );
@@ -225,9 +225,9 @@ module leizd_aptos_entry::money_market {
 
         // calculate required_shadow
         // NOTE: count only shadow needed for borrowing specified asset
-        let key_for_specified_asset = coin_key::key<C>();
+        let key_for_specified_asset = key<C>();
         let (extra_for_borrowing_asset, insufficient_for_borrowing_asset, _, _) = extra_and_insufficient_shadow(
-            coin_key::key<USDZ>(),
+            key<USDZ>(),
             *simple_map::borrow(&deposited_amounts, &key_for_specified_asset),
             key_for_specified_asset,
             *simple_map::borrow(&borrowed_amounts, &key_for_specified_asset),
@@ -253,7 +253,7 @@ module leizd_aptos_entry::money_market {
                 &mut borrowed_amounts_atos,
                 &mut borrowed_volumes_in_atos,
             );
-            let required_shadow_volume = price_oracle::volume(&coin_key::key<USDZ>(), (required_shadow as u128));
+            let required_shadow_volume = price_oracle::volume(&key<USDZ>(), (required_shadow as u128));
             total_borrowed_volume_in_atos = total_borrowed_volume_in_atos + required_shadow_volume;
             total_borrowed_volume_in_atos;
             //// borrow from shadow_pool for required_shadow & update account_position
@@ -288,7 +288,7 @@ module leizd_aptos_entry::money_market {
             if ((sum_extra as u128) + required_shadow_volume > (sum_insufficient as u128)) {
                 // rebalance all positions in ShadowToAsset
                 let optimized_hf_for_stoa = risk_factor::health_factor_of(
-                    coin_key::key<USDZ>(),
+                    key<USDZ>(),
                     total_deposited_volume_in_stoa + (required_shadow_volume as u128),
                     total_borrowed_volume_in_stoa
                 );
@@ -400,7 +400,7 @@ module leizd_aptos_entry::money_market {
         while (i < vector::length(&keys)) {
             let key = vector::borrow(&keys, i);
             let (extra, insufficient, deposited_volume, borrowed_volume) = extra_and_insufficient_shadow(
-                coin_key::key<USDZ>(),
+                key<USDZ>(),
                 *simple_map::borrow(&deposited_amounts, key),
                 *key,
                 *simple_map::borrow(&borrowed_amounts, key),
@@ -459,7 +459,7 @@ module leizd_aptos_entry::money_market {
         SimpleMap<String, u64>, // amounts to withdraw
     ) {
         let i = 0;
-        let usdz_key = coin_key::key<USDZ>();
+        let usdz_key = key<USDZ>();
         let amounts_to_deposit = simple_map::create<String, u64>();
         let amounts_to_withdraw = simple_map::create<String, u64>();
         while (i < vector::length<String>(&coins)) {
@@ -553,7 +553,7 @@ module leizd_aptos_entry::money_market {
             let (capacity, overdebt, deposited_volume, borrowed_volume) = capacity_and_overdebt_shadow(
                 *key,
                 *simple_map::borrow(&deposited_amounts, key),
-                coin_key::key<USDZ>(),
+                key<USDZ>(),
                 *simple_map::borrow(&borrowed_amounts, key),
             );
             sum_capacity = sum_capacity + capacity;
@@ -624,14 +624,14 @@ module leizd_aptos_entry::money_market {
                 if (*capacity >= required_remains) {
                     *borrowed_amount = *borrowed_amount + required_remains;
                     simple_map::add(&mut borrowings, *key, required_remains);
-                    let volume = price_oracle::volume(&coin_key::key<USDZ>(), (required_remains as u128));
+                    let volume = price_oracle::volume(&key<USDZ>(), (required_remains as u128));
                     *borrowed_volume = *borrowed_volume + volume;
                     break
                 } else {
                     *borrowed_amount = *borrowed_amount + *capacity;
                     simple_map::add(&mut borrowings, *key, *capacity);
                     required_remains = required_remains - *capacity;
-                    let volume = price_oracle::volume(&coin_key::key<USDZ>(), (*capacity as u128));
+                    let volume = price_oracle::volume(&key<USDZ>(), (*capacity as u128));
                     *borrowed_volume = *borrowed_volume + volume;
                 };
             };
@@ -649,7 +649,7 @@ module leizd_aptos_entry::money_market {
         SimpleMap<String, u64>, // amounts to repay
     ) {
         let i = 0;
-        let usdz_key = coin_key::key<USDZ>();
+        let usdz_key = key<USDZ>();
         let amount_to_borrow = simple_map::create<String, u64>();
         let amount_to_repay = simple_map::create<String, u64>();
         while (i < vector::length<String>(&coins)) {
@@ -1103,7 +1103,7 @@ module leizd_aptos_entry::money_market {
     public entry fun switch_collateral<C,P>(account: &signer, to_collateral_only: bool) acquires LendingPoolModKeys {
         pool_type::assert_pool_type<P>();
         let account_addr = signer::address_of(account);
-        let key = coin_key::key<C>();
+        let key = key<C>();
         let (account_position_key, asset_pool_key, shadow_pool_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
         let to_share: u64;
         if (pool_type::is_type_asset<P>()) {
@@ -1174,8 +1174,6 @@ module leizd_aptos_entry::money_market {
     }
     #[test_only]
     use leizd_aptos_common::position_type::{AssetToShadow,ShadowToAsset};
-    #[test_only]
-    use leizd_aptos_common::coin_key::{key};
     #[test(owner=@leizd)]
     fun test_initialize(owner: &signer) {
         let owner_addr = signer::address_of(owner);
@@ -2376,20 +2374,20 @@ module leizd_aptos_entry::money_market {
         // check
         // NOTE: `share` value is equal to `amount` value in this situation
         assert!(asset_pool::normal_deposited_share_to_amount(
-            coin_key::key<WETH>(),
+            key<WETH>(),
             account_position::deposited_asset_share<WETH>(account_addr)
         ) == 100000, 0);
         assert!(shadow_pool::normal_deposited_share_to_amount(
-            coin_key::key<USDC>(),
+            key<USDC>(),
             account_position::deposited_shadow_share<USDC>(account_addr)
         ) == 0, 0);
         assert!(shadow_pool::normal_deposited_share_to_amount(
-            coin_key::key<UNI>(),
+            key<UNI>(),
             account_position::deposited_shadow_share<UNI>(account_addr)
         ) == 100000, 0);
 
         assert!(asset_pool::borrowed_share_to_amount(
-            coin_key::key<UNI>(),
+            key<UNI>(),
             account_position::borrowed_asset_share<UNI>(account_addr)
         ) == 10050, 0);
         assert!(coin::balance<WETH>(account_addr) == 0, 0);
