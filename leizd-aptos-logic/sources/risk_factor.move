@@ -227,13 +227,14 @@ module leizd_aptos_logic::risk_factor {
         if (deposited == 0) {
             0
         } else {
-            let scaled_numerator = borrowed * (precision() * precision() as u128);
+            let precision = precision_u128();
+            let scaled_numerator = borrowed * precision * precision;
             let denominator = deposited * (lt_of(key) as u128);
             let u = scaled_numerator / denominator;
-            if ((precision() as u128) < u) {
+            if (precision < u) {
                 0
             } else {
-                ((precision() as u128) - u as u64)
+                (precision - u as u64)
             }
         }
     }
@@ -254,15 +255,15 @@ module leizd_aptos_logic::risk_factor {
             i = i - 1;
         };
 
-        let precision_u128 = (precision() as u128);
+        let precision = precision_u128();
         if (collateral_sum == 0) {
             0
         } else {
-            let u = borrowed_sum * precision_u128 / (collateral_sum / precision_u128);
-            if (precision_u128 < u) {
+            let u = borrowed_sum * precision / (collateral_sum / precision);
+            if (precision < u) {
                 0
             } else {
-                (precision_u128 - u as u64)
+                (precision - u as u64)
             }
         }
     }
@@ -302,13 +303,15 @@ module leizd_aptos_logic::risk_factor {
     fun calculate_fee_with_round_up(value: u64, fee: u64): u64 {
         assert!(fee <= precision(), error::invalid_argument(EINVALID_FEE));
         let value_mul_by_fee = (value as u128) * (fee as u128); // NOTE: as not to overflow
-        let precision_u128 = (precision() as u128);
-        let result = value_mul_by_fee / precision_u128;
-        if (value_mul_by_fee % precision_u128 != 0) (result + 1 as u64) else (result as u64)
+        let result = value_mul_by_fee / precision_u128();
+        if (value_mul_by_fee % precision_u128() != 0) (result + 1 as u64) else (result as u64)
     }
 
-    public entry fun precision(): u64 {
+    public fun precision(): u64 {
         PRECISION
+    }
+    public fun precision_u128(): u128 {
+        (PRECISION as u128)
     }
 
     #[test_only]
