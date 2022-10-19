@@ -921,7 +921,7 @@ module leizd_aptos_entry::money_market {
                 let (deposited_amount, is_collateral_only) = account_position::deposited_shadow_amount<C>(target_addr);
                 let user_share_all = account_position::repay_all_for_liquidation<C,P>(target_addr, account_position_key);
                 asset_pool::repay_by_share<C>(account, user_share_all, asset_pool_key);
-                let (_, withdrawed_user_share) = shadow_pool::withdraw_for_liquidation<C>(liquidator_addr, target_addr, deposited_amount, is_collateral_only, shadow_pool_key);
+                let (_, withdrawed_user_share) = shadow_pool::withdraw_for_liquidation<C>(target_addr, liquidator_addr, deposited_amount, is_collateral_only, shadow_pool_key);
                 account_position::withdraw<C,P>(target_addr, withdrawed_user_share, is_collateral_only, account_position_key);
             };
         };
@@ -1004,7 +1004,6 @@ module leizd_aptos_entry::money_market {
         if (vector::length(&unprotected_coins_in_atos) != 0 && vector::length(&unprotected_coins_in_stoa) != 0) {
             optimized_hf = (risk_factor::health_factor_with_quadratic_formula(a, b, c) as u64);
         };
-        debug::print(&optimized_hf);
 
         if (optimized_hf == 0) {
             // skip to flatten
@@ -1799,7 +1798,7 @@ module leizd_aptos_entry::money_market {
         assert!(account_position::deposited_shadow_share<WETH>(borrower_addr) == 0, 0);
         assert!(account_position::borrowed_asset_share<WETH>(borrower_addr) == 0, 0);
         assert!(coin::balance<WETH>(borrower_addr) == 1000, 0);
-        assert!(coin::balance<USDZ>(liquidator_addr) == 0, 0);
+        assert!(coin::balance<USDZ>(liquidator_addr) == 1990, 0);
         assert!(treasury::balance<WETH>() == 5, 0);
     }
     #[test(owner=@leizd_aptos_entry,lp=@0x111,borrower=@0x222,liquidator=@0x333,target=@0x444,aptos_framework=@aptos_framework)]
@@ -1901,6 +1900,8 @@ module leizd_aptos_entry::money_market {
         assert!(account_position::borrowed_volume<ShadowToAsset>(borrower_addr, key<WETH>()) == 100500, 0);
         assert!(account_position::deposited_volume<ShadowToAsset>(borrower_addr, key<USDC>()) == 55000, 0);
         assert!(account_position::borrowed_volume<ShadowToAsset>(borrower_addr, key<USDC>()) == 50250, 0);
+        assert!(coin::balance<USDZ>(liquidator_addr) == 0, 0);
+        assert!(coin::balance<WETH>(liquidator_addr) == 100000, 0);
 
         // liquidate
         liquidate<WETH, Shadow>(liquidator, borrower_addr);
@@ -1908,6 +1909,8 @@ module leizd_aptos_entry::money_market {
         assert!(account_position::borrowed_volume<ShadowToAsset>(borrower_addr, key<WETH>()) == 0, 0);
         assert!(account_position::deposited_volume<ShadowToAsset>(borrower_addr, key<USDC>()) == 55000, 0);
         assert!(account_position::borrowed_volume<ShadowToAsset>(borrower_addr, key<USDC>()) == 50250, 0);
+        assert!(coin::balance<USDZ>(liquidator_addr) == 99500, 0); // 0.5% liquidation fee
+        assert!(coin::balance<WETH>(liquidator_addr) == 49750, 0);
     }
     #[test(owner=@leizd_aptos_entry,lp=@0x111,borrower=@0x222,liquidator=@0x333,target=@0x444,aptos_framework=@aptos_framework,borrower2=@0x555)]
     fun test_liquidate_with_rebalance_3(owner: &signer, lp: &signer, borrower: &signer, borrower2: &signer, liquidator: &signer, target: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
@@ -2169,7 +2172,6 @@ module leizd_aptos_entry::money_market {
         assert!(account_position::deposited_volume<ShadowToAsset>(borrower_addr, key<UNI>()) == 390055, 0); // CHECK: 390056
         assert!(account_position::borrowed_volume<ShadowToAsset>(borrower_addr, key<UNI>()) == 201000, 0);
     }
-    use std::debug;
 
     #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
     fun test_switch_collateral_to_collateral_only(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
