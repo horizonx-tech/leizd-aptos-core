@@ -493,9 +493,6 @@ module leizd::shadow_pool {
                 let extracted = coin::extract_all(&mut pool_ref.shadow);
                 borrowing_value_from_central = amount_with_entry_fee - coin::value(&extracted);
                 let borrowed_from_central = borrow_from_central_liquidity_pool(key, receiver_addr, borrowing_value_from_central);
-                //// add borrowed from central-liquidity-pool to deposited
-                // storage_ref.total_clp_deposited_amount = storage_ref.total_clp_deposited_amount + (borrowing_value_from_central as u128);
-                // asset_storage_ref.clp_deposited_amount = asset_storage_ref.clp_deposited_amount + (borrowing_value_from_central as u128);
 
                 // merge coins extracted & distribute calculated values to receiver & shadow_pool
                 coin::merge(&mut extracted, borrowed_from_central);
@@ -505,9 +502,6 @@ module leizd::shadow_pool {
             } else {
                 // when no liquidity in pool, borrow all from central-liquidity-pool
                 let borrowed_from_central = borrow_from_central_liquidity_pool(key, receiver_addr, amount_with_entry_fee);
-                //// add borrowed from central-liquidity-pool to deposited
-                // storage_ref.total_clp_deposited_amount = storage_ref.total_clp_deposited_amount + (amount_with_entry_fee as u128);
-                // asset_storage_ref.clp_deposited_amount = asset_storage_ref.clp_deposited_amount + (amount_with_entry_fee as u128);
 
                 let for_entry_fee = coin::extract(&mut borrowed_from_central, entry_fee);
                 coin::deposit<USDZ>(receiver_addr, borrowed_from_central); // to receiver
