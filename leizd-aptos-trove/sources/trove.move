@@ -86,7 +86,7 @@ module leizd_aptos_trove::trove {
 
 //    fun requireMaxFeePercentage(_input: RedeemInput){}
     fun requireAfterBootstrapPeriod(){}
-    fun rquireTCRoverMCR(_price: u64) {}
+    fun requireTCRoverMCR(_price: u64) {}
     fun requireAmountGreaterThanZero(_amount:u64){}
     fun requireUSDZBalanceCoversRedemption(){}
 

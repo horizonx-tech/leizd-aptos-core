@@ -98,7 +98,7 @@ module leizd_aptos_entry::scenario {
             0,
             0,
             risk_factor::default_liquidation_fee(),
-        ); // NOTE: remove entry fee / share fee to make it easy to calcurate borrowed amount/share
+        ); // NOTE: remove entry fee / share fee to make it easy to calculate borrowed amount/share
 
         // deposit & borrow
         money_market::deposit<WETH, Asset>(account1, 300000, false);
@@ -149,7 +149,7 @@ module leizd_aptos_entry::scenario {
             0,
             0,
             risk_factor::default_liquidation_fee(),
-        ); // NOTE: remove entry fee / share fee to make it easy to calcurate borrowed amount/share
+        ); // NOTE: remove entry fee / share fee to make it easy to calculate borrowed amount/share
 
         // deposit & borrow
         money_market::deposit<WETH, Shadow>(account1, 300000, false);

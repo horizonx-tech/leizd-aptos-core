@@ -576,7 +576,7 @@ module leizd_aptos_entry::money_market {
         borrowed_key: String,
         borrowed_amount: u64
     ): (
-        u64, // amount as capacity (borrowale additionally)
+        u64, // amount as capacity (borrowable additionally)
         u64, // amount as overdebt (should repay)
         u128, // deposited_volume
         u128, // borrowed_volume
@@ -1693,7 +1693,7 @@ module leizd_aptos_entry::money_market {
             0,
             0,
             risk_factor::default_liquidation_fee(),
-        ); // NOTE: remove entry fee / share fee to make it easy to calcurate borrowed amount/share
+        ); // NOTE: remove entry fee / share fee to make it easy to calculate borrowed amount/share
 
         deposit<WETH, Asset>(lp, 150000, false);
         deposit<WETH, Shadow>(lp, 150000, false);
@@ -1974,7 +1974,7 @@ module leizd_aptos_entry::money_market {
             0,
             0,
             risk_factor::default_liquidation_fee(),
-        ); // NOTE: remove entry fee / share fee to make it easy to calcurate borrowed amount/share
+        ); // NOTE: remove entry fee / share fee to make it easy to calculate borrowed amount/share
 
         let account_addr = signer::address_of(account);
         usdz::mint_for_test(account_addr, 300000);
@@ -2014,7 +2014,7 @@ module leizd_aptos_entry::money_market {
             0,
             0,
             risk_factor::default_liquidation_fee(),
-        ); // NOTE: remove entry fee / share fee to make it easy to calcurate borrowed amount/share
+        ); // NOTE: remove entry fee / share fee to make it easy to calculate borrowed amount/share
 
         let account_addr = signer::address_of(account);
         usdz::mint_for_test(account_addr, 300000);
@@ -2054,7 +2054,7 @@ module leizd_aptos_entry::money_market {
             0,
             0,
             risk_factor::default_liquidation_fee(),
-        ); // NOTE: remove entry fee / share fee to make it easy to calcurate borrowed amount/share
+        ); // NOTE: remove entry fee / share fee to make it easy to calculate borrowed amount/share
 
         let account_addr = signer::address_of(account);
         usdz::mint_for_test(account_addr, 300000);
@@ -2097,7 +2097,7 @@ module leizd_aptos_entry::money_market {
             0,
             0,
             risk_factor::default_liquidation_fee(),
-        ); // NOTE: remove entry fee / share fee to make it easy to calcurate borrowed amount/share
+        ); // NOTE: remove entry fee / share fee to make it easy to calculate borrowed amount/share
 
         let account_addr = signer::address_of(account);
         usdz::mint_for_test(account_addr, 300000);
@@ -2169,7 +2169,7 @@ module leizd_aptos_entry::money_market {
             0,
             0,
             risk_factor::default_liquidation_fee(),
-        ); // NOTE: remove entry fee / share fee to make it easy to calcurate borrowed amount/share
+        ); // NOTE: remove entry fee / share fee to make it easy to calculate borrowed amount/share
 
         // execute
         borrow_asset_with_rebalance<UNI>(account, 10000);
@@ -2203,7 +2203,7 @@ module leizd_aptos_entry::money_market {
             0,
             0,
             risk_factor::default_liquidation_fee(),
-        ); // NOTE: remove entry fee / share fee to make it easy to calcurate borrowed amount/share
+        ); // NOTE: remove entry fee / share fee to make it easy to calculate borrowed amount/share
 
         // execute
         borrow_asset_with_rebalance<UNI>(account, 10000);
@@ -2261,7 +2261,7 @@ module leizd_aptos_entry::money_market {
             0,
             0,
             risk_factor::default_liquidation_fee(),
-        ); // NOTE: remove entry fee / share fee to make it easy to calcurate borrowed amount/share
+        ); // NOTE: remove entry fee / share fee to make it easy to calculate borrowed amount/share
 
         let account_addr = signer::address_of(account);
         managed_coin::mint<WETH>(owner, account_addr, 100000);
@@ -2310,7 +2310,7 @@ module leizd_aptos_entry::money_market {
             0,
             0,
             risk_factor::default_liquidation_fee(),
-        ); // NOTE: remove entry fee / share fee to make it easy to calcurate borrowed amount/share
+        ); // NOTE: remove entry fee / share fee to make it easy to calculate borrowed amount/share
 
         let account_addr = signer::address_of(account);
         managed_coin::mint<WETH>(owner, account_addr, 100000);
@@ -2359,7 +2359,7 @@ module leizd_aptos_entry::money_market {
             0,
             0,
             risk_factor::default_liquidation_fee(),
-        ); // NOTE: remove entry fee / share fee to make it easy to calcurate borrowed amount/share
+        ); // NOTE: remove entry fee / share fee to make it easy to calculate borrowed amount/share
 
         let account_addr = signer::address_of(account);
         managed_coin::mint<WETH>(owner, account_addr, 100000);
@@ -2425,7 +2425,7 @@ module leizd_aptos_entry::money_market {
             0,
             0,
             risk_factor::default_liquidation_fee(),
-        ); // NOTE: remove entry fee / share fee to make it easy to calcurate borrowed amount/share
+        ); // NOTE: remove entry fee / share fee to make it easy to calculate borrowed amount/share
 
         let account_addr = signer::address_of(account);
         managed_coin::mint<WETH>(owner, account_addr, 100000);
@@ -2475,7 +2475,7 @@ module leizd_aptos_entry::money_market {
             0,
             0,
             risk_factor::default_liquidation_fee(),
-        ); // NOTE: remove entry fee / share fee to make it easy to calcurate borrowed amount/share
+        ); // NOTE: remove entry fee / share fee to make it easy to calculate borrowed amount/share
 
         let account_addr = signer::address_of(account);
         managed_coin::mint<WETH>(owner, account_addr, 100000);

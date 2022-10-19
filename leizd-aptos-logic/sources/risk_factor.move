@@ -253,15 +253,15 @@ module leizd_aptos_logic::risk_factor {
             i = i - 1;
         };
 
-        let precion_u128 = (precision() as u128);
+        let precision_u128 = (precision() as u128);
         if (collateral_sum == 0) {
             0
         } else {
-            let u = borrowed_sum *precion_u128 / (collateral_sum / precion_u128);
-            if (precion_u128 < u) {
+            let u = borrowed_sum * precision_u128 / (collateral_sum / precision_u128);
+            if (precision_u128 < u) {
                 0
             } else {
-                (precion_u128 - u as u64)
+                (precision_u128 - u as u64)
             }
         }
     }

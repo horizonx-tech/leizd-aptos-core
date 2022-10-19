@@ -96,7 +96,7 @@ module leizd_aptos_entry::edge {
             0,
             0,
             risk_factor::default_liquidation_fee(),
-        ); // NOTE: remove entry fee / share fee to make it easy to calcurate borrowed amount/share
+        ); // NOTE: remove entry fee / share fee to make it easy to calculate borrowed amount/share
         risk_factor::update_config<USDZ>(owner, risk_factor::precision(), risk_factor::precision()); // NOTE: to allow borrowing to the maximum
 
         // execute
@@ -122,7 +122,7 @@ module leizd_aptos_entry::edge {
             0,
             0,
             risk_factor::default_liquidation_fee(),
-        ); // NOTE: remove entry fee / share fee to make it easy to calcurate borrowed amount/share
+        ); // NOTE: remove entry fee / share fee to make it easy to calculate borrowed amount/share
         risk_factor::update_config<USDC>(owner, risk_factor::precision(), risk_factor::precision()); // NOTE: to allow borrowing to the maximum
 
         // execute
@@ -148,7 +148,7 @@ module leizd_aptos_entry::edge {
             0,
             0,
             risk_factor::default_liquidation_fee(),
-        ); // NOTE: remove entry fee / share fee to make it easy to calcurate borrowed amount/share
+        ); // NOTE: remove entry fee / share fee to make it easy to calculate borrowed amount/share
         risk_factor::update_config<USDZ>(owner, risk_factor::precision(), risk_factor::precision()); // NOTE: to allow borrowing to the maximum
 
         // execute
@@ -175,7 +175,7 @@ module leizd_aptos_entry::edge {
             0,
             0,
             risk_factor::default_liquidation_fee(),
-        ); // NOTE: remove entry fee / share fee to make it easy to calcurate borrowed amount/share
+        ); // NOTE: remove entry fee / share fee to make it easy to calculate borrowed amount/share
         risk_factor::update_config<USDC>(owner, risk_factor::precision(), risk_factor::precision()); // NOTE: to allow borrowing to the maximum
 
         // execute
@@ -244,7 +244,7 @@ module leizd_aptos_entry::edge {
             0,
             0,
             risk_factor::default_liquidation_fee(),
-        ); // NOTE: remove entry fee / share fee to make it easy to calcurate borrowed amount/share
+        ); // NOTE: remove entry fee / share fee to make it easy to calculate borrowed amount/share
         risk_factor::update_config<USDC>(owner, risk_factor::precision(), risk_factor::precision()); // NOTE: to allow borrowing to the maximum
         //// add liquidity
         let max = constant::u64_max();

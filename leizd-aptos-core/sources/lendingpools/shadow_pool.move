@@ -896,7 +896,7 @@ module leizd::shadow_pool {
         };
 
         let protocol_share_fee = risk_factor::share_fee();
-        // Deposited amount from CLP must be included to calculate the interest rate pricisely
+        // Deposited amount from CLP must be included to calculate the interest rate precisely
         let deposited_amount_included_clp = asset_storage_ref.normal_deposited_amount + asset_storage_ref.clp_deposited_amount;
         let rcomp = interest_rate::update_interest_rate(
             key,
@@ -1862,7 +1862,7 @@ module leizd::shadow_pool {
             0,
             0,
             risk_factor::default_liquidation_fee(),
-        ); // NOTE: remove entry fee / share fee to make it easy to calcurate borrowed amount/share
+        ); // NOTE: remove entry fee / share fee to make it easy to calculate borrowed amount/share
         //// add liquidity
         deposit_for_internal(key<UNI>(), depositor, depositor_addr, max, false);
 
@@ -2129,7 +2129,7 @@ module leizd::shadow_pool {
             0,
             0,
             risk_factor::default_liquidation_fee(),
-        ); // NOTE: remove entry fee / share fee to make it easy to calcurate borrowed amount/share
+        ); // NOTE: remove entry fee / share fee to make it easy to calculate borrowed amount/share
         assert!(risk_factor::entry_fee() == 0, 0);
         //// add liquidity
         let max = constant::u64_max();
@@ -2164,7 +2164,7 @@ module leizd::shadow_pool {
             0,
             0,
             risk_factor::default_liquidation_fee(),
-        ); // NOTE: remove entry fee / share fee to make it easy to calcurate borrowed amount/share
+        ); // NOTE: remove entry fee / share fee to make it easy to calculate borrowed amount/share
         assert!(risk_factor::entry_fee() == 0, 0);
         //// add liquidity
         let max = constant::u64_max();
@@ -3314,7 +3314,7 @@ module leizd::shadow_pool {
             0,
             0,
             risk_factor::default_liquidation_fee(),
-        ); // NOTE: remove entry fee / share fee to make it easy to calcurate borrowed amount/share
+        ); // NOTE: remove entry fee / share fee to make it easy to calculate borrowed amount/share
         //// add liquidity
         deposit_for_internal(key<UNI>(), depositor, depositor_addr, max, false);
 
@@ -3340,7 +3340,7 @@ module leizd::shadow_pool {
             0,
             0,
             risk_factor::default_liquidation_fee(),
-        ); // NOTE: remove entry fee / share fee to make it easy to calcurate borrowed amount/share
+        ); // NOTE: remove entry fee / share fee to make it easy to calculate borrowed amount/share
         assert!(risk_factor::entry_fee() == 0, 0);
         //// add liquidity
         usdz::mint_for_test(depositor_addr, 1);

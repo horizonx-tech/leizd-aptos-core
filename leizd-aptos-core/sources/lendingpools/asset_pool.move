@@ -1510,7 +1510,7 @@ module leizd::asset_pool {
             0,
             0,
             risk_factor::default_liquidation_fee(),
-        ); // NOTE: remove entry fee / share fee to make it easy to calcurate borrowed amount/share
+        ); // NOTE: remove entry fee / share fee to make it easy to calculate borrowed amount/share
 
         // deposit UNI
         deposit_for_internal<UNI>(depositor, depositor_addr, max, false);
@@ -1747,7 +1747,7 @@ module leizd::asset_pool {
             0,
             0,
             risk_factor::default_liquidation_fee(),
-        ); // NOTE: remove entry fee / share fee to make it easy to calcurate borrowed amount/share
+        ); // NOTE: remove entry fee / share fee to make it easy to calculate borrowed amount/share
         assert!(risk_factor::entry_fee() == 0, 0);
         //// add liquidity
         let max = constant::u64_max();
@@ -1783,7 +1783,7 @@ module leizd::asset_pool {
             0,
             0,
             risk_factor::default_liquidation_fee(),
-        ); // NOTE: remove entry fee / share fee to make it easy to calcurate borrowed amount/share
+        ); // NOTE: remove entry fee / share fee to make it easy to calculate borrowed amount/share
         assert!(risk_factor::entry_fee() == 0, 0);
         //// add liquidity
         let max = constant::u64_max();
@@ -2256,7 +2256,7 @@ module leizd::asset_pool {
             0,
             0,
             risk_factor::default_liquidation_fee(),
-        ); // NOTE: remove entry fee / share fee to make it easy to calcurate borrowed amount/share
+        ); // NOTE: remove entry fee / share fee to make it easy to calculate borrowed amount/share
         //// add liquidity
         deposit_for_internal<UNI>(depositor, depositor_addr, max, false);
 
@@ -2282,7 +2282,7 @@ module leizd::asset_pool {
             0,
             0,
             risk_factor::default_liquidation_fee(),
-        ); // NOTE: remove entry fee / share fee to make it easy to calcurate borrowed amount/share
+        ); // NOTE: remove entry fee / share fee to make it easy to calculate borrowed amount/share
         assert!(risk_factor::entry_fee() == 0, 0);
         //// add liquidity
         managed_coin::mint<UNI>(owner, depositor_addr, 1);
