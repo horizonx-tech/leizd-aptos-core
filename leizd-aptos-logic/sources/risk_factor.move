@@ -241,7 +241,7 @@ module leizd_aptos_logic::risk_factor {
         }
     }
 
-    // a, b, c: precision 6
+    /// a, b, c: precision 6
     public fun health_factor_with_quadratic_formula(a: i128::I128, b: i128::I128, c: i128::I128): u128 {
         let a_mul_2 = i128::mul(&a, &i128::from(2));
         let b_pow_2 = i128::mul(&b, &b);

@@ -932,12 +932,13 @@ module leizd_aptos_entry::money_market {
         let deposited_volumes = vector::empty<u128>();
         let borrowed_volumes = vector::empty<u128>();
 
-        // sum amount of shadow the user currently has (deposit + borrow)
-        let shadow_volume_sum = 0;
-        // sum amount of shadow after rebalance
-        let shadow_volume_sum_after_rebalance = 0;
+        // updated shadow volume
+        let sum_rebalanced_deposited = 0;
+        let sum_rebalanced_withdrawed = 0;
+        let sum_rebalanced_borrowed = 0;
+        let sum_rebalanced_repaid = 0;
 
-        // Quadratic Formula
+        // for Quadratic Formula
         let sum_asset_deposited_mul_lt: u128 = 0;
         let sum_asset_borrowed: u128 = 0;
         let sum_shadow_deposited: u128 = 0;
@@ -960,7 +961,6 @@ module leizd_aptos_entry::money_market {
 
             sum_asset_deposited_mul_lt = sum_asset_deposited_mul_lt + ((deposited_volume as u128) * (risk_factor::lt_of(*key) as u128));
             sum_shadow_borrowed = sum_shadow_borrowed + (borrowed_volume as u128);
-            shadow_volume_sum = shadow_volume_sum + borrowed_volume;
             i = i - 1;
         };
 
@@ -981,7 +981,6 @@ module leizd_aptos_entry::money_market {
             
             sum_shadow_deposited = sum_shadow_deposited + (deposited_volume as u128);
             sum_asset_borrowed = sum_asset_borrowed + (borrowed_volume as u128);
-            shadow_volume_sum = shadow_volume_sum + deposited_volume;
             i = i - 1;
         };
    
@@ -1033,7 +1032,7 @@ module leizd_aptos_entry::money_market {
                     shadow_pool_key
                 );
                 account_position::repay_with<Shadow>(*key, target_addr, share, account_position_key);
-                shadow_volume_sum_after_rebalance = shadow_volume_sum_after_rebalance + opt_borrow_volume;
+                sum_rebalanced_repaid = sum_rebalanced_repaid + updated_volume;
             } else if (optimized_hf < current_hf) {
                 // borrow shadow
                 let updated_volume = ((opt_borrow_volume as u64) - borrowed_volume);
@@ -1044,7 +1043,7 @@ module leizd_aptos_entry::money_market {
                     shadow_pool_key
                 );
                 account_position::borrow_unsafe_with<Shadow>(*key, target_addr, share, account_position_key);
-                shadow_volume_sum_after_rebalance = shadow_volume_sum_after_rebalance + opt_borrow_volume;
+                sum_rebalanced_borrowed = sum_rebalanced_borrowed + updated_volume;
             };
             i = i - 1;
         };
@@ -1062,16 +1061,18 @@ module leizd_aptos_entry::money_market {
             let opt_deposit_volume = ((borrowed_volume as u128) * precision_u128 / (precision_u128 - (optimized_hf as u128))) * precision_u128 / (risk_factor::lt_of_shadow() as u128);
             if (current_hf > optimized_hf) {
                 // withdraw shadow
+                let updated_volume = (deposited_volume - (opt_deposit_volume as u64));
                 let (_,share) = shadow_pool::rebalance_for_withdraw(
                     *key,
                     target_addr,
-                    price_oracle::to_amount(&key<USDZ>(), (deposited_volume - (opt_deposit_volume as u64))),
+                    price_oracle::to_amount(&key<USDZ>(), updated_volume),
                     shadow_pool_key
                 );
                 account_position::withdraw_by_rebalance(*key, target_addr, share, account_position_key);
-                shadow_volume_sum_after_rebalance = shadow_volume_sum_after_rebalance + opt_deposit_volume;
+                sum_rebalanced_withdrawed = sum_rebalanced_withdrawed + updated_volume;
             } else if (current_hf < optimized_hf) {
                 // deposit shadow
+                let updated_volume = ((opt_deposit_volume as u64) - deposited_volume);
                 let share = shadow_pool::rebalance_for_deposit(
                     *key,
                     target_addr,
@@ -1079,14 +1080,18 @@ module leizd_aptos_entry::money_market {
                     shadow_pool_key
                 );
                 account_position::deposit_by_rebalance(*key, target_addr, share, account_position_key);
-                shadow_volume_sum_after_rebalance = shadow_volume_sum_after_rebalance + opt_deposit_volume;
+                sum_rebalanced_deposited = sum_rebalanced_deposited + updated_volume;
             };
             i = i - 1;
         };
 
-        // check the diff
-        debug::print(&shadow_volume_sum);
-        debug::print(&shadow_volume_sum_after_rebalance);
+        // TODO: check the diff - if there is any diff ...
+        // debug::print(&sum_rebalanced_deposited);
+        // debug::print(&sum_rebalanced_withdrawed);
+        // debug::print(&sum_rebalanced_borrowed);
+        // debug::print(&sum_rebalanced_repaid);
+        debug::print(&(sum_rebalanced_deposited + sum_rebalanced_repaid));
+        debug::print(&(sum_rebalanced_borrowed + sum_rebalanced_withdrawed));
     }
 
     /// Switch the deposited position.
