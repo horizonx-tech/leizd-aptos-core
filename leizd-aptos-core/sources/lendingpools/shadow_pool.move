@@ -494,8 +494,8 @@ module leizd::shadow_pool {
                 borrowing_value_from_central = amount_with_entry_fee - coin::value(&extracted);
                 let borrowed_from_central = borrow_from_central_liquidity_pool(key, receiver_addr, borrowing_value_from_central);
                 //// add borrowed from central-liquidity-pool to deposited
-                storage_ref.total_clp_deposited_amount = storage_ref.total_clp_deposited_amount + (borrowing_value_from_central as u128);
-                asset_storage_ref.clp_deposited_amount = asset_storage_ref.clp_deposited_amount + (borrowing_value_from_central as u128);
+                // storage_ref.total_clp_deposited_amount = storage_ref.total_clp_deposited_amount + (borrowing_value_from_central as u128);
+                // asset_storage_ref.clp_deposited_amount = asset_storage_ref.clp_deposited_amount + (borrowing_value_from_central as u128);
 
                 // merge coins extracted & distribute calculated values to receiver & shadow_pool
                 coin::merge(&mut extracted, borrowed_from_central);
@@ -506,8 +506,8 @@ module leizd::shadow_pool {
                 // when no liquidity in pool, borrow all from central-liquidity-pool
                 let borrowed_from_central = borrow_from_central_liquidity_pool(key, receiver_addr, amount_with_entry_fee);
                 //// add borrowed from central-liquidity-pool to deposited
-                storage_ref.total_clp_deposited_amount = storage_ref.total_clp_deposited_amount + (amount_with_entry_fee as u128);
-                asset_storage_ref.clp_deposited_amount = asset_storage_ref.clp_deposited_amount + (amount_with_entry_fee as u128);
+                // storage_ref.total_clp_deposited_amount = storage_ref.total_clp_deposited_amount + (amount_with_entry_fee as u128);
+                // asset_storage_ref.clp_deposited_amount = asset_storage_ref.clp_deposited_amount + (amount_with_entry_fee as u128);
 
                 let for_entry_fee = coin::extract(&mut borrowed_from_central, entry_fee);
                 coin::deposit<USDZ>(receiver_addr, borrowed_from_central); // to receiver
@@ -546,13 +546,13 @@ module leizd::shadow_pool {
             // use central-liquidity-pool
             if (liquidity > 0) {
                 //// add borrowed from central-liquidity-pool to deposited
-                storage_ref.total_normal_deposited_amount = storage_ref.total_normal_deposited_amount + (borrowing_value_from_central as u128);
-                asset_storage_ref.normal_deposited_amount = asset_storage_ref.normal_deposited_amount + (borrowing_value_from_central as u128);
+                storage_ref.total_clp_deposited_amount = storage_ref.total_clp_deposited_amount + (borrowing_value_from_central as u128);
+                asset_storage_ref.clp_deposited_amount = asset_storage_ref.clp_deposited_amount + (borrowing_value_from_central as u128);
 
             } else {
                 //// add borrowed from central-liquidity-pool to deposited
-                storage_ref.total_normal_deposited_amount = storage_ref.total_normal_deposited_amount + (amount_with_entry_fee as u128);
-                asset_storage_ref.normal_deposited_amount = asset_storage_ref.normal_deposited_amount + (amount_with_entry_fee as u128);
+                storage_ref.total_clp_deposited_amount = storage_ref.total_clp_deposited_amount + (amount_with_entry_fee as u128);
+                asset_storage_ref.clp_deposited_amount = asset_storage_ref.clp_deposited_amount + (amount_with_entry_fee as u128);
 
             }
         };
@@ -624,11 +624,23 @@ module leizd::shadow_pool {
         accrue_interest(key, storage_ref);
 
         let account_addr = signer::address_of(account);
-        let (amount_u128, share_u128) = save_to_storage_for_repay(key, account_addr, account_addr, value, is_share, storage_ref);
 
         // at first, repay to central_liquidity_pool and pay support fees
+        let (amount_u128, share_u128) = save_to_storage_for_repay(key, account_addr, account_addr, value, is_share, storage_ref);
+        let remaining_amount_u128 = amount_u128;
         let repaid_to_central_liquidity_pool = repay_to_central_liquidity_pool(key, account, (amount_u128 as u64));
-        let to_shadow_pool = (amount_u128 as u64) - repaid_to_central_liquidity_pool;
+        let asset_storage_ref = simple_map::borrow_mut<String, AssetStorage>(&mut storage_ref.asset_storages, &key);
+        if (repaid_to_central_liquidity_pool > 0) {
+            storage_ref.total_clp_deposited_amount = storage_ref.total_clp_deposited_amount - (repaid_to_central_liquidity_pool as u128);
+            asset_storage_ref.clp_deposited_amount = asset_storage_ref.clp_deposited_amount - (repaid_to_central_liquidity_pool as u128);
+            remaining_amount_u128 = remaining_amount_u128 - (repaid_to_central_liquidity_pool as u128);
+        };
+
+        if (remaining_amount_u128 > 0) {
+            let paid_supported_fees = pay_supported_fees(key, account, (remaining_amount_u128 as u64));
+            remaining_amount_u128 = remaining_amount_u128 - (paid_supported_fees as u128);
+        };
+        let to_shadow_pool = (remaining_amount_u128 as u64);
         if (to_shadow_pool > 0) {
             let withdrawn = coin::withdraw<USDZ>(account, to_shadow_pool);
             coin::merge(&mut pool_ref.shadow, withdrawn);
@@ -653,24 +665,6 @@ module leizd::shadow_pool {
         } else {
             amount_u128 = (value as u128);
             share_u128 = math128::to_share_roundup(amount_u128, asset_storage_ref.borrowed_amount, asset_storage_ref.borrowed_share);
-        };
-
-        // at first, repay to central_liquidity_pool and pay support fees
-        let remaining_amount_u128 = amount_u128;
-        let repaid_to_central_liquidity_pool = repay_to_central_liquidity_pool(key, account, (amount_u128 as u64));
-        if (repaid_to_central_liquidity_pool > 0) {
-            storage_ref.total_clp_deposited_amount = storage_ref.total_clp_deposited_amount - (repaid_to_central_liquidity_pool as u128);
-            asset_storage_ref.clp_deposited_amount = asset_storage_ref.clp_deposited_amount - (repaid_to_central_liquidity_pool as u128);
-            remaining_amount_u128 = remaining_amount_u128 - (repaid_to_central_liquidity_pool as u128);
-        };
-        if (remaining_amount_u128 > 0) {
-            let paid_supported_fees = pay_supported_fees(key, account, (remaining_amount_u128 as u64));
-            remaining_amount_u128 = remaining_amount_u128 - (paid_supported_fees as u128);
-        };
-        let to_shadow_pool = (remaining_amount_u128 as u64);
-        if (to_shadow_pool > 0) {
-            let withdrawn = coin::withdraw<USDZ>(account, to_shadow_pool);
-            coin::merge(&mut pool_ref.shadow, withdrawn);
         };
 
         storage_ref.total_borrowed_amount = storage_ref.total_borrowed_amount - amount_u128;
