@@ -1782,12 +1782,24 @@ module leizd_aptos_entry::money_market {
         deposit<USDT, Shadow>(depositor, 200000 * math64::pow(10, 6), false);
         deposit<USDT, Asset>(depositor, 500000 * math64::pow(10, 6), false);
 
+        risk_factor::update_protocol_fees_unsafe(
+            0,
+            0,
+            risk_factor::default_liquidation_fee(),
+        ); // NOTE: remove entry fee / share fee to make it easy to calculate borrowed amount/share
+
         deposit<USDC, Asset>(borrower, 500000 * math64::pow(10, 6), false);
-        borrow_asset_with_rebalance<USDT>(borrower, 100000 * math64::pow(10, 6));
+        assert!(account_position::borrowed_shadow_share<USDC>(borrower_addr) == 0, 0);
+        assert!(account_position::deposited_shadow_share<USDT>(borrower_addr) == 0, 0);
+        assert!(account_position::borrowed_asset_share<USDT>(borrower_addr) == 0, 0);
+        borrow_asset_with_rebalance<USDT>(borrower, 180000 * math64::pow(10, 6));
 
         assert!(coin::balance<USDC>(borrower_addr) == 0, 0);
         assert!(asset_pool::total_normal_deposited_amount<USDC>() == 500000 * math128::pow(10, 6), 0);
         assert!(account_position::deposited_asset_share<USDC>(borrower_addr) == 500000 * math64::pow(10, 6), 0);
+        assert!(account_position::borrowed_shadow_share<USDC>(borrower_addr) == 200000 * math64::pow(10, 6), 0);
+        assert!(account_position::deposited_shadow_share<USDT>(borrower_addr) == 200000 * math64::pow(10, 6), 0);
+        assert!(account_position::borrowed_asset_share<USDT>(borrower_addr) == 180000 * math64::pow(10, 6), 0);
     }
 
     // borrow_asset_with_rebalance
