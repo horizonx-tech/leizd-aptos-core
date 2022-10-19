@@ -4,6 +4,52 @@ module leizd_aptos_lib::prb_math {
 
     const SCALE: u128 = 1000000000;
 
+    /// - This function does not work with fixed-point numbers.
+    public fun sqrt(x: u128): u128 {
+        if (x == 0) {
+            return 0
+        };
+        let x_aux = x;
+        let result = 1;
+        if (x_aux >= 0x10000000000000000) {
+            x_aux = x_aux >> 64;
+            result = result << 32;
+        };
+        if (x_aux >= 0x100000000) {
+            x_aux = x_aux >> 32;
+            result = result << 16;
+        };
+        if (x_aux >= 0x10000) {
+            x_aux = x_aux >> 16;
+            result = result << 8;
+        };
+        if (x_aux >= 0x100) {
+            x_aux = x_aux >> 8;
+            result = result << 4;
+        };
+        if (x_aux >= 0x10) {
+            x_aux = x_aux >> 4;
+            result = result << 2;
+        };
+        if (x_aux >= 0x4) {
+            result = result << 1;
+        };
+        
+        result = (result + x / result) >> 1;
+        result = (result + x / result) >> 1;
+        result = (result + x / result) >> 1;
+        result = (result + x / result) >> 1;
+        result = (result + x / result) >> 1;
+        result = (result + x / result) >> 1;
+        result = (result + x / result) >> 1;
+        let rounded_down_result = x / result;
+        if (result >= rounded_down_result) {
+            rounded_down_result
+        } else {
+            result
+        }
+    }
+
     /// @dev Uses 64.64-bit fixed-point numbers - it is the most efficient way.
     /// `x` should be under 34.100000000 because of the overflow.
     /// @return The result as an unsigned 30.9-decimal fixed-point number.
@@ -86,6 +132,55 @@ module leizd_aptos_lib::prb_math {
             fixed_point64::create_from_raw_value(18446744073709551616)
         );
         result
+    }
+
+    #[test]
+    public entry fun test_sqrt() {
+
+        let x = 1000000000; // 1.0
+        let expected = 1000000000;
+        let result = sqrt(x*SCALE);
+        assert!(result == expected, 0);
+
+        let x = 2000000000; // 2.0
+        let expected = 1414213562;
+        let result = sqrt(x*SCALE);
+        assert!(result == expected, 0);
+
+        let x = 3000000000; // 3.0
+        let expected = 1732050807;
+        let result = sqrt(x*SCALE);
+        assert!(result == expected, 0);
+
+        let x = 4000000000; // 4.0
+        let expected = 2000000000;
+        let result = sqrt(x*SCALE);
+        assert!(result == expected, 0);
+
+        let x = 500000000; // 0.5
+        let expected = 707106781;
+        let result = sqrt(x*SCALE);
+        assert!(result == expected, 0);
+
+        let x = 15250000000; // 15.25
+        let expected = 3905124837;
+        let result = sqrt(x*SCALE);
+        assert!(result == expected, 0);
+
+        let x = 25175830000; // 25.17583
+        let expected = 5017552192;
+        let result = sqrt(x*SCALE);
+        assert!(result == expected, 0);
+
+        let x = 125175836587; // 125.175836587
+        let expected = 11188200775;
+        let result = sqrt(x*SCALE);
+        assert!(result == expected, 0);
+
+        let x = 353544195156250000000; // 353,544,195,156
+        let expected = 594595825041052; // 594,595.825041052
+        let result = sqrt(x*SCALE);
+        assert!(result == expected, 0);
     }
 
     #[test]
