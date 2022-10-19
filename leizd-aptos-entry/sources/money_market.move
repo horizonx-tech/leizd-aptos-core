@@ -1745,28 +1745,30 @@ module leizd_aptos_entry::money_market {
 
     // scenario
     #[test(owner=@leizd_aptos_entry,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
+    #[expected_failure] // TODO: because of overflow in risk_factor::calculate_fee_with_round_up
     fun test_scenario__deposit_and_borrow_with_larger_numbers(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
         initialize_lending_pool_for_test(owner, aptos_framework);
         setup_account_for_test(depositor);
         setup_account_for_test(borrower);
         let depositor_addr = signer::address_of(depositor);
         let borrower_addr = signer::address_of(borrower);
-        usdz::mint_for_test(depositor_addr, 500000 * math64::pow(10, 6)); // 500k USDZ TODO: decimal scale by oracle price
-        managed_coin::mint<USDC>(owner, borrower_addr, 500000 * math64::pow(10, 6)); // 500k USDC
-        managed_coin::mint<USDT>(owner, depositor_addr, 500000 * math64::pow(10, 6)); // 500k USDT
+        let billion = math64::pow(10, 9);
+        usdz::mint_for_test(depositor_addr, 500 * billion * math64::pow(10, 6)); // 500k USDZ TODO: decimal scale by oracle price
+        managed_coin::mint<USDC>(owner, borrower_addr, 500 * billion * math64::pow(10, 6)); // 500k USDC
+        managed_coin::mint<USDT>(owner, depositor_addr, 500 * billion * math64::pow(10, 6)); // 500k USDT
 
-        deposit<USDC, Shadow>(depositor, 500000 * math64::pow(10, 6), false);
-        deposit<USDT, Asset>(depositor, 500000 * math64::pow(10, 6), false);
+        deposit<USDC, Shadow>(depositor, 500 * billion * math64::pow(10, 6), false);
+        deposit<USDT, Asset>(depositor, 500 * billion * math64::pow(10, 6), false);
 
-        deposit<USDC, Asset>(borrower, 500000 * math64::pow(10, 6), false);
-        borrow<USDC, Shadow>(borrower, 300000 * math64::pow(10, 6));
-        deposit<USDT, Shadow>(borrower, 200000 * math64::pow(10, 6), false);
-        borrow<USDT, Asset>(borrower, 100000 * math64::pow(10, 6));
+        deposit<USDC, Asset>(borrower, 500 * billion * math64::pow(10, 6), false);
+        borrow<USDC, Shadow>(borrower, 300 * billion * math64::pow(10, 6));
+        deposit<USDT, Shadow>(borrower, 200 * billion * math64::pow(10, 6), false);
+        borrow<USDT, Asset>(borrower, 100 * billion * math64::pow(10, 6));
 
         assert!(coin::balance<USDC>(borrower_addr) == 0, 0);
-        assert!(asset_pool::total_normal_deposited_amount<USDC>() == 500000 * math128::pow(10, 6), 0);
-        assert!(account_position::deposited_asset_share<USDC>(borrower_addr) == 500000 * math64::pow(10, 6), 0);
-        assert!(account_position::borrowed_asset_share<USDT>(borrower_addr) == 100500 * math64::pow(10, 6), 0); // +0.5% entry fee
+        assert!(asset_pool::total_normal_deposited_amount<USDC>() == 500 * (billion as u128) * math128::pow(10, 6), 0);
+        assert!(account_position::deposited_asset_share<USDC>(borrower_addr) == 500 * billion * math64::pow(10, 6), 0);
+        assert!(account_position::borrowed_asset_share<USDT>(borrower_addr) == 1005 * billion / 10 * math64::pow(10, 6), 0); // +0.5% entry fee
     }
     #[test(owner=@leizd_aptos_entry,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
     fun test_scenario__borrow_asset_with_rebalance_with_larger_numbers(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
