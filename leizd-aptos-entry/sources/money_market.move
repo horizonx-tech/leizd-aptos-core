@@ -1090,8 +1090,10 @@ module leizd_aptos_entry::money_market {
         // debug::print(&sum_rebalanced_withdrawed);
         // debug::print(&sum_rebalanced_borrowed);
         // debug::print(&sum_rebalanced_repaid);
-        debug::print(&(sum_rebalanced_deposited + sum_rebalanced_repaid));
-        debug::print(&(sum_rebalanced_borrowed + sum_rebalanced_withdrawed));
+
+        // should be equal
+        // debug::print(&(sum_rebalanced_deposited + sum_rebalanced_repaid));
+        // debug::print(&(sum_rebalanced_borrowed + sum_rebalanced_withdrawed));
     }
 
     /// Switch the deposited position.
