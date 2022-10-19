@@ -230,7 +230,7 @@ module leizd_aptos_entry::money_market {
             *simple_map::borrow(&borrowed_amounts, &key_for_specified_asset),
         );
         // NOTE: use ltv because AssetToShadow position is controlled by borrow/repay (not deposit/withdraw)
-        let numerator_of_required_shadow = ((insufficient_for_borrowing_asset - extra_for_borrowing_asset) as u128) * (risk_factor::precision() as u128);
+        let numerator_of_required_shadow = ((insufficient_for_borrowing_asset - extra_for_borrowing_asset) as u128) * risk_factor::precision_u128();
         let required_shadow = ((numerator_of_required_shadow / (risk_factor::ltv_of_shadow() as u128)) as u64);
 
         let (coins_in_atos, _, balances_in_atos) = account_position::position<Asset>(account_addr);
@@ -429,7 +429,7 @@ module leizd_aptos_entry::money_market {
         let deposited_volume = price_oracle::volume(&deposited_key, (deposited_amount as u128));
         let borrowed_volume = price_oracle::volume(&borrowed_key, (borrowed_amount as u128));
         // NOTE: use ltv because AssetToShadow position is controlled by borrow/repay (not deposit/withdraw)
-        let borrowable_volume = deposited_volume * (risk_factor::ltv_of(deposited_key) as u128) / (risk_factor::precision() as u128);
+        let borrowable_volume = deposited_volume * (risk_factor::ltv_of(deposited_key) as u128) / risk_factor::precision_u128();
         let extra_amount: u64;
         let insufficient_amount: u64;
         if (borrowable_volume > borrowed_volume) {
@@ -472,7 +472,7 @@ module leizd_aptos_entry::money_market {
                 *borrowed_volume,
             ); // for ShadowToAsset position
             // deposited + delta = borrowed_volume / (LTV * (1 - optimized_hf))
-            let precision_u128 = (risk_factor::precision() as u128);
+            let precision_u128 = risk_factor::precision_u128();
             let opt_deposit_volume = (*borrowed_volume * precision_u128 / (precision_u128 - (optimized_hf as u128))) // borrowed volume / (1 - optimized_hf)
                 * precision_u128 / (risk_factor::lt_of_shadow() as u128); // * (1 / LT)
             if (current_hf > optimized_hf) {
@@ -584,7 +584,7 @@ module leizd_aptos_entry::money_market {
     ) {
         let deposited_volume = price_oracle::volume(&deposited_key, (deposited_amount as u128));
         let borrowed_volume = price_oracle::volume(&borrowed_key, (borrowed_amount as u128));
-        let borrowable_volume = deposited_volume * (risk_factor::ltv_of_shadow() as u128) / (risk_factor::precision() as u128);
+        let borrowable_volume = deposited_volume * (risk_factor::ltv_of_shadow() as u128) / risk_factor::precision_u128();
         if (borrowable_volume > borrowed_volume) {
             (
                 (price_oracle::to_amount(&borrowed_key, borrowable_volume - borrowed_volume) as u64), // TODO: temp cast (maybe use u128 as return value)
@@ -665,7 +665,7 @@ module leizd_aptos_entry::money_market {
                 *borrowed_volume,
             ); // for AssetToShadow position
             // borrowed_volume + delta = (1 - optimized_hf) * (deposited_volume * LTV)
-            let precision_u128 = (risk_factor::precision() as u128);
+            let precision_u128 = risk_factor::precision_u128();
             let opt_borrow_volume = (precision_u128 - (optimized_hf as u128)) * (*deposited_volume) * (risk_factor::lt_of(*key) as u128) / precision_u128 / precision_u128;
             if (current_hf > optimized_hf) {
                 simple_map::add(

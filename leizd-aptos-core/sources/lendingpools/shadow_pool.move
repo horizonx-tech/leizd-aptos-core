@@ -933,7 +933,7 @@ module leizd::shadow_pool {
             };
         };
 
-        let protocol_share = accrued_interest * (share_fee as u128) / (risk_factor::precision() as u128);
+        let protocol_share = accrued_interest * (share_fee as u128) / risk_factor::precision_u128();
         let new_protocol_fees = storage_ref.protocol_fees + (protocol_share as u64);
         let depositors_share = accrued_interest - protocol_share;
 
