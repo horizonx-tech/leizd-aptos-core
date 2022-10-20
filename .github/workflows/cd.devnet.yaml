@@ -65,7 +65,7 @@ jobs:
           repository: horizonx-tech/leizd-aptos-test
           token: ${{ secrets.PERSONAL_TOKEN }}
           path: leizd-aptos-test
-          branch: dev
+          ref: dev
 
       - name: push key file to test
         run: sh push_new_key_to_test.sh ${{ github.sha }}
