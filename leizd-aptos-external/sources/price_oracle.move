@@ -325,4 +325,69 @@ module leizd_aptos_external::price_oracle {
         assert!(val == 50000, 0);
         assert!(dec == 1, 0);
     }
+
+    #[test_only]
+    struct DummyCoin {}
+    #[test(owner = @leizd_aptos_external)]
+    fun test_volume(owner: &signer) acquires Storage, OracleEventHandle {
+        account::create_account_for_test(signer::address_of(owner));
+        initialize(owner);
+        register_oracle_with_fixed_price<DummyCoin>(owner, math128::pow(10, 8) * 5 / 100, 8, false); // 0.05
+        change_mode<DummyCoin>(owner, fixed_price_mode());
+        assert!(mode<DummyCoin>() == FIXED_PRICE, 0);
+
+        let (val, dec) = price<DummyCoin>();
+        assert!(val == math128::pow(10, 8) * 5 / 100, 0);
+        assert!(dec == 8, 0);
+
+        assert!(volume(&key<DummyCoin>(), 100) == 5, 0);
+        assert!(volume(&key<DummyCoin>(), 2000) == 100, 0);
+    }
+    #[test(owner = @leizd_aptos_external)]
+    #[expected_failure] // TODO: not fail
+    fun test_volume__check_overflow(owner: &signer) acquires Storage, OracleEventHandle {
+        account::create_account_for_test(signer::address_of(owner));
+        initialize(owner);
+        register_oracle_with_fixed_price<DummyCoin>(owner, math128::pow(10, 8) * 50000, 8, false); // 50000
+        change_mode<DummyCoin>(owner, fixed_price_mode());
+        assert!(mode<DummyCoin>() == FIXED_PRICE, 0);
+
+        let (val, dec) = price<DummyCoin>();
+        assert!(val == math128::pow(10, 8) * 50000, 0);
+        assert!(dec == 8, 0);
+
+        let u128_max: u128 = 340282366920938463463374607431768211455;
+        volume(&key<DummyCoin>(), u128_max);
+    }
+    #[test(owner = @leizd_aptos_external)]
+    fun test_to_amount(owner: &signer) acquires Storage, OracleEventHandle {
+        account::create_account_for_test(signer::address_of(owner));
+        initialize(owner);
+        register_oracle_with_fixed_price<DummyCoin>(owner, math128::pow(10, 8) * 5 / 100, 8, false); // 0.05
+        change_mode<DummyCoin>(owner, fixed_price_mode());
+        assert!(mode<DummyCoin>() == FIXED_PRICE, 0);
+
+        let (val, dec) = price<DummyCoin>();
+        assert!(val == math128::pow(10, 8) * 5 / 100, 0);
+        assert!(dec == 8, 0);
+
+        assert!(to_amount(&key<DummyCoin>(), 5) == 100, 0);
+        assert!(to_amount(&key<DummyCoin>(), 100) == 2000, 0);
+    }
+    #[test(owner = @leizd_aptos_external)]
+    #[expected_failure] // TODO: not fail
+    fun test_to_amount__check_overflow(owner: &signer) acquires Storage, OracleEventHandle {
+        account::create_account_for_test(signer::address_of(owner));
+        initialize(owner);
+        register_oracle_with_fixed_price<DummyCoin>(owner, math128::pow(10, 8) * 5 / 10000, 8, false); // 0.0005
+        change_mode<DummyCoin>(owner, fixed_price_mode());
+        assert!(mode<DummyCoin>() == FIXED_PRICE, 0);
+
+        let (val, dec) = price<DummyCoin>();
+        assert!(val == math128::pow(10, 8) * 5 / 10000, 0);
+        assert!(dec == 8, 0);
+
+        let u128_max: u128 = 340282366920938463463374607431768211455;
+        to_amount(&key<DummyCoin>(), u128_max);
+    }
 }
