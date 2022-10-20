@@ -235,6 +235,30 @@ module leizd_aptos_trove::trove {
     fun test_initialize_with_not_owner(account: &signer) {
         initialize_internal(account);
     }
+    #[test(owner=@leizd_aptos_trove)]
+    fun test_add_supported_coin(owner: &signer) {
+        let owner_addr = signer::address_of(owner);
+        account::create_account_for_test(owner_addr);
+        initialize_internal(owner);
+        add_supported_coin_internal<USDC>(owner);
+        assert!(exists<SupportedCoin<USDC>>(owner_addr), 0);
+        assert!(exists<TroveEventHandle<USDC>>(owner_addr), 0);
+    }
+    #[test(owner=@leizd_aptos_trove)]
+    #[expected_failure(abort_code = 65538)]
+    fun test_add_supported_coin_twice(owner: &signer) {
+        account::create_account_for_test(signer::address_of(owner));
+        initialize_internal(owner);
+        add_supported_coin_internal<USDC>(owner);
+        add_supported_coin_internal<USDC>(owner);
+    }
+    #[test(owner=@leizd_aptos_trove, account = @0x111)]
+    #[expected_failure(abort_code = 65537)]
+    fun test_add_supported_coin_with_not_owner(owner: &signer, account: &signer) {
+        account::create_account_for_test(signer::address_of(owner));
+        initialize_internal(owner);
+        add_supported_coin_internal<USDC>(account);
+    }
 
     #[test(owner=@leizd_aptos_trove,account1=@0x111,aptos_framework=@aptos_framework)]
     fun test_open_trove(owner: signer, account1: signer) acquires Trove, TroveEventHandle {
