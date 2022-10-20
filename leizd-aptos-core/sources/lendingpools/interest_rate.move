@@ -159,10 +159,10 @@ module leizd::interest_rate {
         let exp_minus_two = if (time > 2) { time - 2 } else 0;
         let rate_per_sec = r * PRECISION / SECONDS_PER_YEAR;
         let base_power_two = rate_per_sec * rate_per_sec / PRECISION;
-        let base_power_three = base_power_two * rate_per_sec / PRECISION / PRECISION;
+        let base_power_three = base_power_two * rate_per_sec / PRECISION;
     
-        let second_term = time * exp_minus_one * base_power_two / 2 / PRECISION;
-        let third_term = time * exp_minus_one * exp_minus_two * base_power_three / 6 / PRECISION;
+        let second_term = base_power_two / 2 * time * exp_minus_one / PRECISION;
+        let third_term = base_power_three / 6 * time * exp_minus_one * exp_minus_two / PRECISION / PRECISION;
         let rcomp =  (PRECISION + (rate_per_sec * time)) + (second_term) + third_term;
         rcomp = rcomp / PRECISION;
         rcomp
@@ -187,8 +187,6 @@ module leizd::interest_rate {
     #[test_only]
     use leizd_aptos_common::test_coin::{WETH};
 
-    use std::debug;
-
     #[test(owner = @leizd_aptos_logic)]
     public fun test_compound_interest_rate(owner: &signer) acquires ConfigKey, InterestRateEventHandle {
         let owner_addr = signer::address_of(owner);
@@ -204,20 +202,21 @@ module leizd::interest_rate {
         let total_deposits = 100000 * 100000000;
         let total_borrows = 10000 * 100000000;
         let rcomp = compound_interest_rate(key, total_deposits, total_borrows, last_updated, now);
-        assert!(rcomp == 21672687, 0); 
-        debug::print(&rcomp);
+        assert!(rcomp == 21674330, 0); 
 
         // u = 50%
         let total_deposits = 100000 * 100000000;
         let total_borrows = 50000 * 100000000;
         let rcomp = compound_interest_rate(key, total_deposits, total_borrows, last_updated, now);
-        assert!(rcomp == 69491623, 0); 
+        assert!(rcomp == 69495034, 0); 
 
         // u = 90%
         let total_deposits = 100000 * 100000000;
         let total_borrows = 90000 * 100000000;
         let rcomp = compound_interest_rate(key, total_deposits, total_borrows, last_updated, now);
-        assert!(rcomp == 1901827863, 0); 
+        assert!(rcomp == 1901829990, 0);
+
+        // TOOD: more tests
     }
 
     #[test(owner = @leizd_aptos_logic)]
@@ -254,7 +253,6 @@ module leizd::interest_rate {
         let total_borrows = 70000 * 100000000;
         let u = math128::utilization(PRECISION, total_deposits, total_borrows);
         let r = calc_interest_rate(key, u);
-        // debug::print(&r);
         assert!(r == 90000000, 0); // 9%
 
         // u = 90%
