@@ -1183,7 +1183,7 @@ module leizd::shadow_pool {
 
     // utils
     #[test_only]
-    fun setup_for_test_to_initialize_coins_and_pools(owner: &signer, aptos_framework: &signer) {
+    fun setup_for_test_to_initialize_coins_and_pools(owner: &signer, aptos_framework: &signer) acquires Storage {
         timestamp::set_time_has_started_for_testing(aptos_framework);
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
@@ -1195,6 +1195,8 @@ module leizd::shadow_pool {
 
         asset_pool::init_pool<WETH>(owner);
         asset_pool::init_pool<UNI>(owner);
+        init_pool<WETH>();
+        init_pool<UNI>();
     }
     //// for checking share
     #[test_only]

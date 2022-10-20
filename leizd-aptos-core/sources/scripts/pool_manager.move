@@ -117,6 +117,7 @@ module leizd::pool_manager {
         interest_rate::initialize(owner);
         pool_status::initialize(owner);
         asset_pool::initialize(owner);
+        shadow_pool::initialize(owner);
     }
     
     #[test_only]
