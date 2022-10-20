@@ -22,7 +22,7 @@ module leizd::shadow_pool {
     friend leizd::pool_manager;
 
     //// error_code (ref: asset_pool)
-    // const ENOT_INITIALIZED: u64 = 1;
+    const ENOT_INITIALIZED: u64 = 1;
     const EIS_ALREADY_EXISTED: u64 = 2;
     // const EIS_NOT_EXISTED: u64 = 3;
     const ENOT_AVAILABLE_STATUS: u64 = 4;
@@ -185,7 +185,9 @@ module leizd::shadow_pool {
     }
     //// for assets
     public(friend) fun init_pool<C>() acquires Storage {
-        let storage_ref = borrow_global_mut<Storage>(permission::owner_address());
+        let owner_addr = permission::owner_address();
+        assert!(exists<Storage>(owner_addr), error::invalid_argument(ENOT_INITIALIZED));
+        let storage_ref = borrow_global_mut<Storage>(owner_addr);
         init_pool_internal(key<C>(), storage_ref);
     }
     fun init_pool_internal(key: String, storage_ref: &mut Storage) {
@@ -1181,6 +1183,34 @@ module leizd::shadow_pool {
 
         initialize(owner);
         initialize(owner);
+    }
+    #[test(owner=@leizd)]
+    public entry fun test_init_pool(owner: &signer) acquires Storage {
+        let owner_addr = signer::address_of(owner);
+        account::create_account_for_test(owner_addr);
+
+        initialize(owner);
+        init_pool<WETH>();
+        let asset_storages = &borrow_global<Storage>(owner_addr).asset_storages;
+        assert!(simple_map::length<String,AssetStorage>(asset_storages) == 1, 0);
+    }
+    #[test(owner=@leizd)]
+    #[expected_failure(abort_code = 65537)]
+    public entry fun test_init_pool_twice_before_initialize(owner: &signer) acquires Storage {
+        let owner_addr = signer::address_of(owner);
+        account::create_account_for_test(owner_addr);
+
+        init_pool<WETH>();
+    }
+    #[test(owner=@leizd)]
+    #[expected_failure(abort_code = 65542)]
+    public entry fun test_init_pool_twice(owner: &signer) acquires Storage {
+        let owner_addr = signer::address_of(owner);
+        account::create_account_for_test(owner_addr);
+
+        initialize(owner);
+        init_pool<WETH>();
+        init_pool<WETH>();
     }
 
     // utils
