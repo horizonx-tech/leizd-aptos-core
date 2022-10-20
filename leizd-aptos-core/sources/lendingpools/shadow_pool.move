@@ -25,6 +25,7 @@ module leizd::shadow_pool {
     // const EIS_NOT_EXISTED: u64 = 3;
     const ENOT_AVAILABLE_STATUS: u64 = 4;
     const ENOT_INITIALIZED_COIN: u64 = 5;
+    const EALREADY_INITIALIZED_COIN: u64 = 6;
     const EAMOUNT_ARG_IS_ZERO: u64 = 11;
     const EEXCEED_BORROWABLE_AMOUNT: u64 = 12;
     const EINSUFFICIENT_LIQUIDITY: u64 = 13;
@@ -181,19 +182,22 @@ module leizd::shadow_pool {
         OperatorKey {}
     }
     //// for assets
-    fun init_pool_if_necessary(key: String, storage_ref: &mut Storage) {
-        if (!is_initialized_asset_with_internal(&key, storage_ref)) {
-            simple_map::add<String,AssetStorage>(&mut storage_ref.asset_storages, key, AssetStorage {
-                normal_deposited_amount: 0,
-                normal_deposited_share: 0,
-                conly_deposited_amount: 0,
-                conly_deposited_share: 0,
-                clp_deposited_amount: 0,
-                borrowed_amount: 0,
-                borrowed_share: 0,
-                last_updated: 0,
-            });
-        }
+    public fun init_pool<C>() acquires Storage {
+        let storage_ref = borrow_global_mut<Storage>(permission::owner_address());
+        init_pool_internal(key<C>(), storage_ref);
+    }
+    fun init_pool_internal(key: String, storage_ref: &mut Storage) {
+        assert!(!is_initialized_asset_with_internal(&key, storage_ref), error::invalid_argument(EALREADY_INITIALIZED_COIN));
+        simple_map::add<String,AssetStorage>(&mut storage_ref.asset_storages, key, AssetStorage {
+            normal_deposited_amount: 0,
+            normal_deposited_share: 0,
+            conly_deposited_amount: 0,
+            conly_deposited_share: 0,
+            clp_deposited_amount: 0,
+            borrowed_amount: 0,
+            borrowed_share: 0,
+            last_updated: 0,
+        });
     }
 
     ////////////////////////////////////////////////////
@@ -235,7 +239,6 @@ module leizd::shadow_pool {
         let storage_ref = borrow_global_mut<Storage>(owner_address);
         let pool_ref = borrow_global_mut<Pool>(owner_address);
 
-        init_pool_if_necessary(key, storage_ref);
         accrue_interest(key, storage_ref);
 
         coin::merge(&mut pool_ref.shadow, coin::withdraw<USDZ>(account, amount));
@@ -531,7 +534,6 @@ module leizd::shadow_pool {
         let pool_ref = borrow_global_mut<Pool>(owner_address);
         let storage_ref = borrow_global_mut<Storage>(owner_address);
 
-        init_pool_if_necessary(key, storage_ref); // NOTE: because enable to borrow from central_liquidity_pool if no deposited
         accrue_interest(key, storage_ref);
 
         let entry_fee = risk_factor::calculate_entry_fee(amount);
@@ -1150,8 +1152,6 @@ module leizd::shadow_pool {
     #[test_only]
     use leizd::asset_pool;
     #[test_only]
-    use leizd::pool_manager;
-    #[test_only]
     use leizd::test_initializer;
 
     #[test(owner=@leizd)]
@@ -1188,14 +1188,13 @@ module leizd::shadow_pool {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
         test_initializer::initialize(owner);
-        pool_manager::initialize(owner);
         test_coin::init_weth(owner);
         test_coin::init_uni(owner);
         initialize(owner);
         asset_pool::initialize(owner);
 
-        pool_manager::add_pool<WETH>(owner);
-        pool_manager::add_pool<UNI>(owner);
+        asset_pool::init_pool<WETH>(owner);
+        asset_pool::init_pool<UNI>(owner);
     }
     //// for checking share
     #[test_only]
@@ -2869,12 +2868,11 @@ module leizd::shadow_pool {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
         test_initializer::initialize(owner);
-        pool_manager::initialize(owner);
         test_coin::init_weth(owner);
         test_coin::init_uni(owner);
         initialize(owner);
         asset_pool::initialize(owner);
-        pool_manager::add_pool<WETH>(owner);
+        asset_pool::init_pool<WETH>(owner);
 
         rebalance_shadow_internal(key<UNI>(), key<WETH>(), 5000, true, true);
     }
@@ -2885,12 +2883,11 @@ module leizd::shadow_pool {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
         test_initializer::initialize(owner);
-        pool_manager::initialize(owner);
         test_coin::init_weth(owner);
         test_coin::init_uni(owner);
         initialize(owner);
         asset_pool::initialize(owner);
-        pool_manager::add_pool<WETH>(owner);
+        asset_pool::init_pool<WETH>(owner);
 
         rebalance_shadow_internal(key<UNI>(), key<WETH>(), 5000, true, true);
     }

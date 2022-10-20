@@ -11,6 +11,7 @@ module leizd::pool_manager {
     use leizd_aptos_common::coin_key;
     use leizd_aptos_common::permission;
     use leizd::asset_pool;
+    use leizd::shadow_pool;
 
     const ENOT_INITIALIZED: u64 = 1;
     const EALREADY_ADDED_COIN: u64 = 2;
@@ -60,6 +61,7 @@ module leizd::pool_manager {
         assert!(coin::is_coin_initialized<C>(), error::invalid_argument(ENOT_INITIALIZED_COIN));
         let pool_list = borrow_global_mut<PoolList>(permission::owner_address());
         asset_pool::init_pool<C>(holder);
+        shadow_pool::init_pool<C>();
         
         simple_map::add<String, PoolInfo>(&mut pool_list.infos, coin_key::key<C>(), PoolInfo {
         type_info: type_info::type_of<C>(),
