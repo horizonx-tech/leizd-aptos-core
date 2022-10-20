@@ -4,7 +4,7 @@ module leizd_aptos_trove::trove {
     use aptos_std::event;
     use aptos_framework::account;
     use aptos_framework::coin;
-    use leizd_aptos_lib::math64;
+    use leizd_aptos_lib::math128;
     use leizd_aptos_common::permission;
     use leizd_aptos_trove::usdz;
 
@@ -123,12 +123,15 @@ module leizd_aptos_trove::trove {
         repay_internal<C>(account, collateral_amount);
     }
 
-    public entry fun borrowable_usdz<C>(amount:u64):u64 {
+    fun borrowable_usdz<C>(amount: u64): u64 {
         //let price = price_oracle::price<C>();
-        let price = 1;
-        let decimals = (coin::decimals<C>() as u64);
-        let decimals_usdz = (coin::decimals<usdz::USDZ>() as u64);
-        (price * amount) * (math64::pow(10, decimals_usdz) / (math64::pow(10, decimals)))
+        let price = 1; // TODO: use price from price_oracle
+        let decimals = (coin::decimals<C>() as u128);
+        let decimals_usdz = (coin::decimals<usdz::USDZ>() as u128);
+
+        let numerator = price * (amount as u128) * math128::pow(10, decimals_usdz);
+        let dominator = (math128::pow(10, decimals));
+        (numerator / dominator as u64)
     }
 
     fun open_trove_internal<C>(account: &signer, collateral_amount: u64, amount: u64) acquires Trove, TroveEventHandle {
@@ -189,6 +192,8 @@ module leizd_aptos_trove::trove {
 
     #[test_only]
     use aptos_framework::managed_coin;
+    #[test_only]
+    use leizd_aptos_lib::math64;
     #[test_only]
     use leizd_aptos_common::test_coin::{Self,USDC,USDT,WETH};
     #[test_only]
@@ -330,17 +335,57 @@ module leizd_aptos_trove::trove {
     }
 
     #[test(owner=@leizd_aptos_trove,aptos_framework=@aptos_framework)]
-    fun test_usdz_amount(owner: signer)  {
-        let owner_addr = signer::address_of(&owner);
-        account::create_account_for_test(owner_addr);
+    fun test_borrowable_usdz(owner: &signer) {
+        account::create_account_for_test(signer::address_of(owner));
+        test_coin::init_usdc(owner);
+        initialize(owner);
+
         let usdc_amt = 12345678;
         let usdc_want = usdc_amt * math64::pow(10, 8 - 6);
-        test_coin::init_usdc(&owner);
-        initialize(&owner);
         assert!(comparator::is_equal(&comparator::compare(
             &borrowable_usdz<USDC>(usdc_amt),
             &usdc_want
         )), 0);
     }
+    #[test_only]
+    struct DummyCoin {}
+    #[test(owner=@leizd_aptos_trove,aptos_framework=@aptos_framework)]
+    fun test_borrowable_usdz__check_when_decimal_is_less_than_usdz(owner: &signer) {
+        account::create_account_for_test(signer::address_of(owner));
+        initialize(owner);
+        let decimals: u8 = 3;
+        test_coin::init_coin<DummyCoin>(owner, b"DUMMY", decimals);
 
+        let expected = 100000 * math64::pow(10, (coin::decimals<usdz::USDZ>() - decimals as u64));
+        assert!(borrowable_usdz<DummyCoin>(100000) == expected, 0);
+    }
+    #[test(owner=@leizd_aptos_trove,aptos_framework=@aptos_framework)]
+    fun test_borrowable_usdz__check_when_decimal_is_greater_than_usdz(owner: &signer) {
+        account::create_account_for_test(signer::address_of(owner));
+        initialize(owner);
+        let decimals: u8 = 12;
+        test_coin::init_coin<DummyCoin>(owner, b"DUMMY", decimals);
+
+        let expected = 100000 / math64::pow(10, (decimals - coin::decimals<usdz::USDZ>() as u64));
+        assert!(borrowable_usdz<DummyCoin>(100000) == expected, 0);
+    }
+    #[test(owner=@leizd_aptos_trove,aptos_framework=@aptos_framework)]
+    fun test_borrowable_usdz__check_overflow__maximum_allowable_value(owner: &signer) {
+        account::create_account_for_test(signer::address_of(owner));
+        test_coin::init_coin<DummyCoin>(owner, b"DUMMY", 8);
+        initialize(owner);
+
+        let u64_max: u64 = 18446744073709551615;
+        assert!(borrowable_usdz<DummyCoin>(u64_max) == u64_max, 0);
+    }
+    #[test(owner=@leizd_aptos_trove,aptos_framework=@aptos_framework)]
+    #[expected_failure]
+    fun test_borrowable_usdz__check_overflow(owner: &signer) {
+        account::create_account_for_test(signer::address_of(owner));
+        test_coin::init_coin<DummyCoin>(owner, b"DUMMY", 0);
+        initialize(owner);
+
+        let u64_max: u64 = 18446744073709551615;
+        borrowable_usdz<DummyCoin>(u64_max);
+    }
 }
