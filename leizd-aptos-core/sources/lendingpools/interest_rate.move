@@ -157,13 +157,14 @@ module leizd::interest_rate {
         if (time == 0) return PRECISION;
         let exp_minus_one = time - 1;
         let exp_minus_two = if (time > 2) { time - 2 } else 0;
-        let rate_per_sec = r / SECONDS_PER_YEAR;
-        let base_power_two = rate_per_sec * rate_per_sec;
-        let base_power_three = base_power_two * rate_per_sec;
-
-        let second_term = time * exp_minus_one * base_power_two / 2;
-        let third_term = time * exp_minus_one * exp_minus_two * base_power_three / 6;
-        let rcomp =  (PRECISION + (rate_per_sec * time)) + second_term + third_term;
+        let rate_per_sec = r * PRECISION / SECONDS_PER_YEAR;
+        let base_power_two = rate_per_sec * rate_per_sec / PRECISION;
+        let base_power_three = base_power_two * rate_per_sec / PRECISION / PRECISION;
+    
+        let second_term = time * exp_minus_one * base_power_two / 2 / PRECISION;
+        let third_term = time * exp_minus_one * exp_minus_two * base_power_three / 6 / PRECISION;
+        let rcomp =  (PRECISION + (rate_per_sec * time)) + (second_term) + third_term;
+        rcomp = rcomp / PRECISION;
         rcomp
     }
 
@@ -173,13 +174,108 @@ module leizd::interest_rate {
     ): u128 acquires ConfigKey {
         let owner_address = permission::owner_address();
         let cref = simple_map::borrow<String,Config>(&borrow_global_mut<ConfigKey>(owner_address).config, &key);
-        let current_borrow_rate = 0;
         if (u > cref.uopt) {
-            let excess_u_ratio = (u - cref.uopt) / cref.ucrit;
-            current_borrow_rate = (cref.rb + cref.rslope1) + (cref.rslope2 * excess_u_ratio);
+            let excess_u_ratio = (u - cref.uopt) * PRECISION / (PRECISION - cref.uopt);
+            let current_borrow_rate = cref.rb + cref.rslope1 + (cref.rslope2 * excess_u_ratio / PRECISION);
+            current_borrow_rate
         } else {
-            current_borrow_rate = cref.rb + (u * cref.rslope1 / cref.uopt);
-        };
-        current_borrow_rate
+            let current_borrow_rate = cref.rb + (u * cref.rslope1 / cref.uopt);
+            current_borrow_rate
+        }
+    }
+
+    #[test_only]
+    use leizd_aptos_common::test_coin::{WETH};
+
+    use std::debug;
+
+    #[test(owner = @leizd_aptos_logic)]
+    public fun test_compound_interest_rate(owner: &signer) acquires ConfigKey, InterestRateEventHandle {
+        let owner_addr = signer::address_of(owner);
+        account::create_account_for_test(owner_addr);
+        initialize_internal(owner);
+        initialize_for_asset_internal<WETH>(owner);
+        let key = key<WETH>();
+
+        let last_updated = 1648738800 * 1000000;
+        let now = (1648738800 + 31556926) * 1000000; // 1 Year
+
+        // u = 10%
+        let total_deposits = 100000 * 100000000;
+        let total_borrows = 10000 * 100000000;
+        let rcomp = compound_interest_rate(key, total_deposits, total_borrows, last_updated, now);
+        assert!(rcomp == 21672687, 0); 
+        debug::print(&rcomp);
+
+        // u = 50%
+        let total_deposits = 100000 * 100000000;
+        let total_borrows = 50000 * 100000000;
+        let rcomp = compound_interest_rate(key, total_deposits, total_borrows, last_updated, now);
+        assert!(rcomp == 69491623, 0); 
+
+        // u = 90%
+        let total_deposits = 100000 * 100000000;
+        let total_borrows = 90000 * 100000000;
+        let rcomp = compound_interest_rate(key, total_deposits, total_borrows, last_updated, now);
+        assert!(rcomp == 1901827863, 0); 
+    }
+
+    #[test(owner = @leizd_aptos_logic)]
+    public fun test_calc_interest_rate(owner: &signer) acquires ConfigKey, InterestRateEventHandle {
+        let owner_addr = signer::address_of(owner);
+        account::create_account_for_test(owner_addr);
+        initialize_internal(owner);
+        initialize_for_asset_internal<WETH>(owner);
+        let key = key<WETH>();
+
+        // u = 0%
+        let total_deposits = 100000 * 100000000;
+        let total_borrows = 0 * 100000000;
+        let u = math128::utilization(PRECISION, total_deposits, total_borrows);
+        let r = calc_interest_rate(key, u);
+        assert!(r == 10000000, 0); // 1%
+
+        // u = 10%
+        let total_deposits = 100000 * 100000000;
+        let total_borrows = 10000 * 100000000;
+        let u = math128::utilization(PRECISION, total_deposits, total_borrows);
+        let r = calc_interest_rate(key, u);
+        assert!(r == 21428571, 0);
+
+        // u = 50%
+        let total_deposits = 100000 * 100000000;
+        let total_borrows = 50000 * 100000000;
+        let u = math128::utilization(PRECISION, total_deposits, total_borrows);
+        let r = calc_interest_rate(key, u);
+        assert!(r == 67142857, 0);
+
+        // u = 70% (optimal)
+        let total_deposits = 100000 * 100000000;
+        let total_borrows = 70000 * 100000000;
+        let u = math128::utilization(PRECISION, total_deposits, total_borrows);
+        let r = calc_interest_rate(key, u);
+        // debug::print(&r);
+        assert!(r == 90000000, 0); // 9%
+
+        // u = 90%
+        let total_deposits = 100000 * 100000000;
+        let total_borrows = 90000 * 100000000;
+        let u = math128::utilization(PRECISION, total_deposits, total_borrows);
+        let r = calc_interest_rate(key, u);
+        assert!(r == 1089999999, 0); // 108.99%
+
+        // u = 98%
+        let total_deposits = 100000 * 100000000;
+        let total_borrows = 98000 * 100000000;
+        let u = math128::utilization(PRECISION, total_deposits, total_borrows);
+        let r = calc_interest_rate(key, u);
+        assert!(r == 1489999999, 0); // 148.99%
+
+        // u = 100%
+        let total_deposits = 100000 * 100000000;
+        let total_borrows = 100000 * 100000000;
+        let u = math128::utilization(PRECISION, total_deposits, total_borrows);
+        let r = calc_interest_rate(key, u);
+        assert!(r == 1590000000, 0); // 159% -> base: 1% + slope1: 8% + slope2: 150%
     }
 }
