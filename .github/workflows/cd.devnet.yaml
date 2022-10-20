@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - main
+      - dev
 
 jobs:
   deploy:
@@ -26,7 +27,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: aptos init
-        run: aptos init --rest-url https://fullnode.devnet.aptoslabs.com/v1 --faucet-url https://faucet.devnet.aptoslabs.com/ --assume-yes
+        run: aptos init --rest-url https://aptos-testnet.ml/v1 --faucet-url https://faucet.aptos-testnet.ml/ --assume-yes
 
       - name: Set up release
         run: sh prerelease.sh
