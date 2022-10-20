@@ -603,7 +603,7 @@ module leizd::asset_pool {
         };
 
         let protocol_share_fee = risk_factor::share_fee();
-        let rcomp = interest_rate::update_interest_rate(
+        let rcomp = interest_rate::compound_interest_rate(
             key,
             asset_storage_ref.total_normal_deposited_amount,
             asset_storage_ref.total_borrowed_amount,

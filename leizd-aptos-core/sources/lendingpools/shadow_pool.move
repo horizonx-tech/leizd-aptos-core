@@ -928,7 +928,7 @@ module leizd::shadow_pool {
         let protocol_share_fee = risk_factor::share_fee();
         // Deposited amount from CLP must be included to calculate the interest rate precisely
         let deposited_amount_included_clp = asset_storage_ref.normal_deposited_amount + asset_storage_ref.clp_deposited_amount;
-        let rcomp = interest_rate::update_interest_rate(
+        let rcomp = interest_rate::compound_interest_rate(
             key,
             deposited_amount_included_clp,
             asset_storage_ref.borrowed_amount,
