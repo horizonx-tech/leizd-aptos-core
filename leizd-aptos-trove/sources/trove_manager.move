@@ -88,7 +88,7 @@ module leizd_aptos_trove::trove_manager {
     #[test_only]
     fun users(owner: &signer):(signer, signer, signer) { (alice(owner), bob(owner), carol(owner)) }
     #[test_only]
-    const INITIAL_BALANCE:u64 = 100000000000000000;
+    const INITIAL_BALANCE: u64 = 100000000000000000;
 
     #[test_only]
     fun set_up(owner: &signer) {

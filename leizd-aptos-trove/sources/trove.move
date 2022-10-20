@@ -81,7 +81,7 @@ module leizd_aptos_trove::trove {
         redeem_internal<C>(account, target_account, amount)
     }
 
-    fun redeem_internal<C>(account: &signer, target_account:address, amount: u64) acquires Trove {
+    fun redeem_internal<C>(account: &signer, target_account: address, amount: u64) acquires Trove {
         let target = borrow_global_mut<Trove<C>>(target_account);
         assert!(coin::value(&target.coin) >= amount, 0);
         usdz::burn(account, borrowable_usdz<C>(amount));
@@ -90,10 +90,10 @@ module leizd_aptos_trove::trove {
     }
 
 //    fun requireMaxFeePercentage(_input: RedeemInput){}
-    fun requireAfterBootstrapPeriod(){}
+    fun requireAfterBootstrapPeriod() {}
     fun requireTCRoverMCR(_price: u64) {}
-    fun requireAmountGreaterThanZero(_amount:u64){}
-    fun requireUSDZBalanceCoversRedemption(){}
+    fun requireAmountGreaterThanZero(_amount: u64) {}
+    fun requireUSDZBalanceCoversRedemption() {}
 
     fun validate_open_trove<C>() {
         validate_internal<C>()
@@ -140,7 +140,7 @@ module leizd_aptos_trove::trove {
         let initialized = exists<Trove<C>>(account_addr);
         if (!initialized) {
             move_to(account, Trove<C> {
-                    coin: coin::zero<C>(),
+                coin: coin::zero<C>(),
             });
         };
         let trove = borrow_global_mut<Trove<C>>(account_addr);
@@ -186,16 +186,11 @@ module leizd_aptos_trove::trove {
     }
 
     #[test_only]
-    fun open_trove_for_test<C>(account: &signer, amount: u64) acquires Trove, TroveEventHandle {
-        open_trove_internal<C>(account, amount, amount);
-    }
-
-    #[test_only]
     use aptos_framework::managed_coin;
     #[test_only]
     use leizd_aptos_lib::math64;
     #[test_only]
-    use leizd_aptos_common::test_coin::{Self,USDC,USDT,WETH};
+    use leizd_aptos_common::test_coin::{Self,USDC,USDT};
     #[test_only]
     use aptos_std::comparator;
 
@@ -203,19 +198,16 @@ module leizd_aptos_trove::trove {
     fun set_up(owner: &signer, account1: &signer) {
         let owner_addr = signer::address_of(owner);
         let account1_addr = signer::address_of(account1);
-        let usdc_amt = 10000;
+        let amount = 10000;
         account::create_account_for_test(owner_addr);
         account::create_account_for_test(account1_addr);
         test_coin::init_usdc(owner);
         test_coin::init_usdt(owner);
-        test_coin::init_weth(owner);
         managed_coin::register<USDC>(account1);
         managed_coin::register<USDT>(account1);
-        managed_coin::register<WETH>(account1);
         managed_coin::register<usdz::USDZ>(account1);
-        managed_coin::mint<USDC>(owner, account1_addr, usdc_amt);
-        managed_coin::mint<USDT>(owner, account1_addr, usdc_amt);
-        managed_coin::mint<WETH>(owner, account1_addr, usdc_amt);
+        managed_coin::mint<USDC>(owner, account1_addr, amount);
+        managed_coin::mint<USDT>(owner, account1_addr, amount);
         initialize_internal(owner);
         add_supported_coin_internal<USDC>(owner);
         add_supported_coin_internal<USDT>(owner);
