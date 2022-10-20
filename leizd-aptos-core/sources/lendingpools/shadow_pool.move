@@ -19,6 +19,8 @@ module leizd::shadow_pool {
     use leizd_aptos_logic::risk_factor;
     use leizd::interest_rate;
 
+    friend leizd::pool_manager;
+
     //// error_code (ref: asset_pool)
     // const ENOT_INITIALIZED: u64 = 1;
     const EIS_ALREADY_EXISTED: u64 = 2;
@@ -182,7 +184,7 @@ module leizd::shadow_pool {
         OperatorKey {}
     }
     //// for assets
-    public fun init_pool<C>() acquires Storage {
+    public(friend) fun init_pool<C>() acquires Storage {
         let storage_ref = borrow_global_mut<Storage>(permission::owner_address());
         init_pool_internal(key<C>(), storage_ref);
     }
