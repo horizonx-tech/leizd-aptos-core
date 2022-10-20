@@ -491,6 +491,11 @@ module leizd::interest_rate {
         let (rcomp,_,_,_) = calc_compound_interest_rate(key, total_deposits, total_borrows, last_updated, now);
         assert!(rcomp == 30475046, 0);
 
+        // u: 1000000000
+        // TODO: rcomp = 290000000
+        let (rcomp,_,_,_) = calc_compound_interest_rate(key, total_deposits, total_deposits, last_updated, now);
+        assert!(rcomp == 51305974, 0);
+
         let now = (1648738800 + 2629743) * 1000000; // about 1 month later
         let (rcomp,_,_,_) = calc_compound_interest_rate(key, total_deposits, total_borrows, last_updated, now);
         assert!(rcomp == 2504790, 0);
