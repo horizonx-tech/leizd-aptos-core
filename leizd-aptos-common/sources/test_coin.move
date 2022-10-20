@@ -25,7 +25,7 @@ module leizd_aptos_common::test_coin {
         init_coin<UNI>(account, b"UNI", 18);
     }
 
-    fun init_coin<T>(account: &signer, name: vector<u8>, decimals: u8) {
+    public fun init_coin<T>(account: &signer, name: vector<u8>, decimals: u8) {
         managed_coin::initialize<T>(
             account,
             name,
