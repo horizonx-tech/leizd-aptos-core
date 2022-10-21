@@ -36,7 +36,7 @@ module leizd_aptos_logic::rebalance {
         borrows: SimpleMap<String, u64>,
         repays: SimpleMap<String, u64>,
     }
-    struct RebalanceHandle has key, store {
+    struct RebalanceEventHandle has key, store {
         rebalance_event: event::EventHandle<RebalanceEvent>,
     }
 
@@ -45,13 +45,20 @@ module leizd_aptos_logic::rebalance {
     ): OperatorKey {
         let owner_addr = signer::address_of(owner);
         permission::assert_owner(owner_addr);
-        move_to(owner, RebalanceHandle {
+        move_to(owner, RebalanceEventHandle {
             rebalance_event: account::new_event_handle<RebalanceEvent>(owner)
         });
         OperatorKey {}
     }
 
-    public entry fun borrow_asset_with_rebalance<C>(account: &signer, amount: u64, account_position_key: &AccountPositionKey, asset_pool_key: &AssetPoolKey, shadow_pool_key: &ShadowPoolKey, _key: &OperatorKey) {
+    public entry fun borrow_asset_with_rebalance<C>(
+        account: &signer,
+        amount: u64,
+        account_position_key: &AccountPositionKey,
+        asset_pool_key: &AssetPoolKey,
+        shadow_pool_key: &ShadowPoolKey,
+        _key: &OperatorKey
+    ) acquires RebalanceEventHandle {
         assert!(asset_pool::is_pool_initialized<C>() , 0);
         assert!(shadow_pool::is_initialized_asset<C>() , 0);
 
@@ -92,17 +99,28 @@ module leizd_aptos_logic::rebalance {
                 deposited_volumes_in_stoa,
                 borrowed_volumes_in_stoa
             );
+            let empty_map = simple_map::create<String, u64>();
             execute_rebalance(
                 account,
                 unprotected_in_stoa,
                 amounts_to_deposit,
                 amounts_to_withdraw,
-                simple_map::create<String, u64>(),
-                simple_map::create<String, u64>(),
+                empty_map,
+                empty_map,
                 account_position_key,
                 shadow_pool_key
             );
-
+            event::emit_event<RebalanceEvent>(
+                &mut borrow_global_mut<RebalanceEventHandle>(permission::owner_address()).rebalance_event,
+                RebalanceEvent {
+                    caller: account_addr,
+                    coins: unprotected_in_stoa,
+                    deposits: amounts_to_deposit,
+                    withdraws: amounts_to_withdraw,
+                    borrows: empty_map,
+                    repays: empty_map,
+                },
+            );
             return ()
         };
 
