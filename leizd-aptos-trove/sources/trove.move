@@ -7,6 +7,7 @@ module leizd_aptos_trove::trove {
     use leizd_aptos_lib::math128;
     use leizd_aptos_common::permission;
     use leizd_aptos_trove::usdz;
+    use leizd_aptos_external::price_oracle;
 
     friend leizd_aptos_trove::trove_manager;
 
@@ -124,9 +125,8 @@ module leizd_aptos_trove::trove {
     }
 
     fun borrowable_usdz<C>(amount: u64): u64 {
-        //let price = price_oracle::price<C>();
-        let price = 1; // TODO: use price from price_oracle
-        let decimals = (coin::decimals<C>() as u128);
+        let (price, _decimals) = price_oracle::price<C>();
+        let decimals = (_decimals as u128);
         let decimals_usdz = (coin::decimals<usdz::USDZ>() as u128);
 
         let numerator = price * (amount as u128) * math128::pow(10, decimals_usdz);
@@ -205,12 +205,22 @@ module leizd_aptos_trove::trove {
         test_coin::init_usdt(owner);
         managed_coin::register<USDC>(account1);
         managed_coin::register<USDT>(account1);
+        initialize_oracle(owner);
         managed_coin::register<usdz::USDZ>(account1);
         managed_coin::mint<USDC>(owner, account1_addr, amount);
         managed_coin::mint<USDT>(owner, account1_addr, amount);
         initialize_internal(owner);
         add_supported_coin_internal<USDC>(owner);
         add_supported_coin_internal<USDT>(owner);
+    }
+
+    #[test_only]
+    fun initialize_oracle(owner: &signer) {
+        price_oracle::initialize(owner);
+        price_oracle::register_oracle_with_fixed_price<USDC>(owner, 1000000, 6, false);
+        price_oracle::register_oracle_with_fixed_price<USDT>(owner, 1000000, 6, false);
+        price_oracle::change_mode<USDC>(owner, 1);
+        price_oracle::change_mode<USDT>(owner, 1);
     }
 
     #[test(owner=@leizd_aptos_trove)]
@@ -296,6 +306,9 @@ module leizd_aptos_trove::trove {
         managed_coin::mint<USDC>(owner, account_addr, 10000);
 
         initialize_internal(owner);
+        price_oracle::initialize(owner);
+        price_oracle::register_oracle_with_fixed_price<USDC>(owner, 1000000, 6, false);
+        price_oracle::change_mode<USDC>(owner, 1);
         open_trove<USDC>(account, 10000);
     }
 
@@ -345,6 +358,7 @@ module leizd_aptos_trove::trove {
     fun test_borrowable_usdz__check_when_decimal_is_less_than_usdz(owner: &signer) {
         account::create_account_for_test(signer::address_of(owner));
         initialize(owner);
+        initialize_oracle(owner);
         let decimals: u8 = 3;
         test_coin::init_coin<DummyCoin>(owner, b"DUMMY", decimals);
 
@@ -355,9 +369,11 @@ module leizd_aptos_trove::trove {
     fun test_borrowable_usdz__check_when_decimal_is_greater_than_usdz(owner: &signer) {
         account::create_account_for_test(signer::address_of(owner));
         initialize(owner);
+        initialize_oracle(owner);
         let decimals: u8 = 12;
         test_coin::init_coin<DummyCoin>(owner, b"DUMMY", decimals);
-
+        price_oracle::register_oracle_with_fixed_price<DummyCoin>(owner, 1000000000000, decimals, false);
+        price_oracle::change_mode<DummyCoin>(owner, 1);
         let expected = 100000 / math64::pow(10, (decimals - coin::decimals<usdz::USDZ>() as u64));
         assert!(borrowable_usdz<DummyCoin>(100000) == expected, 0);
     }
@@ -366,6 +382,9 @@ module leizd_aptos_trove::trove {
         account::create_account_for_test(signer::address_of(owner));
         test_coin::init_coin<DummyCoin>(owner, b"DUMMY", 8);
         initialize(owner);
+        initialize_oracle(owner);
+        price_oracle::register_oracle_with_fixed_price<DummyCoin>(owner, 100000000, 8, false);
+        price_oracle::change_mode<DummyCoin>(owner, 1);
 
         let u64_max: u64 = 18446744073709551615;
         assert!(borrowable_usdz<DummyCoin>(u64_max) == u64_max, 0);
@@ -376,6 +395,7 @@ module leizd_aptos_trove::trove {
         account::create_account_for_test(signer::address_of(owner));
         test_coin::init_coin<DummyCoin>(owner, b"DUMMY", 0);
         initialize(owner);
+        initialize_oracle(owner);
 
         let u64_max: u64 = 18446744073709551615;
         borrowable_usdz<DummyCoin>(u64_max);

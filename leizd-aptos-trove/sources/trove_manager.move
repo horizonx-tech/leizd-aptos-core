@@ -70,6 +70,8 @@ module leizd_aptos_trove::trove_manager {
     #[test_only]
     use leizd_aptos_common::test_coin::{Self,USDC};
     #[test_only]
+    use leizd_aptos_external::price_oracle;
+    #[test_only]
     fun trove_size(): u64 { sorted_trove::size<USDC>() }
     #[test_only]
     fun trove_head(): address { sorted_trove::head<USDC>() }
@@ -88,7 +90,7 @@ module leizd_aptos_trove::trove_manager {
     #[test_only]
     fun users(owner: &signer):(signer, signer, signer) { (alice(owner), bob(owner), carol(owner)) }
     #[test_only]
-    const INITIAL_BALANCE: u64 = 100000000000000000;
+    const INITIAL_BALANCE: u64 = 100000000000000000;    
 
     #[test_only]
     fun set_up(owner: &signer) {
@@ -97,6 +99,9 @@ module leizd_aptos_trove::trove_manager {
         initialize(owner);
         test_coin::init_usdc(owner);
         initialize_token<USDC>(owner);
+        price_oracle::initialize(owner);
+        price_oracle::register_oracle_with_fixed_price<USDC>(owner, 1000000, 6, false);
+        price_oracle::change_mode<USDC>(owner, 1);
     }
 
     #[test_only]

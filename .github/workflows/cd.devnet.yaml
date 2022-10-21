@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - main
+      - dev
 
 jobs:
   deploy:
@@ -24,9 +25,13 @@ jobs:
         with:
           version: latest
           token: ${{ secrets.GITHUB_TOKEN }}
+          prerelease: true
+
+      - name: Install expect
+        run: sudo apt-get install expect
 
       - name: aptos init
-        run: aptos init --rest-url https://fullnode.devnet.aptoslabs.com/v1 --faucet-url https://faucet.devnet.aptoslabs.com/ --assume-yes
+        run: expect -c "spawn ${aptos init --rest-url https://aptos-testnet.ml/v1 --faucet-url https://faucet.aptos-testnet.ml/ --assume-yes} expect \"network\" send \"custom\n\     expect \"$\"exit 0"
 
       - name: Set up release
         run: sh prerelease.sh
@@ -64,6 +69,7 @@ jobs:
           repository: horizonx-tech/leizd-aptos-test
           token: ${{ secrets.PERSONAL_TOKEN }}
           path: leizd-aptos-test
+          ref: dev
 
       - name: push key file to test
         run: sh push_new_key_to_test.sh ${{ github.sha }}
