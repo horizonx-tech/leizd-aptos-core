@@ -30,6 +30,7 @@ module leizd_aptos_entry::money_market {
     const EALREADY_INITIALIZED: u64 = 1;
     const ENO_SAFE_POSITION: u64 = 2;
     const ENO_DEPOSITED: u64 = 3;
+    const ECANNOT_BORROW_ASSET_WITH_REBALANCE: u64 = 11;
 
     struct LendingPoolModKeys has key {
         account_position: AccountPositionKey,
@@ -331,7 +332,7 @@ module leizd_aptos_entry::money_market {
             return ()
         };
 
-        abort 0 // TODO error code
+        abort error::invalid_argument(ECANNOT_BORROW_ASSET_WITH_REBALANCE)
     }
     fun unprotected_coins(addr: address, coins: vector<String>): vector<String> {
         let unprotected = vector::empty<String>();
