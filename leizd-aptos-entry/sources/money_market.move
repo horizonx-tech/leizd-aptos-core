@@ -30,6 +30,7 @@ module leizd_aptos_entry::money_market {
     const EALREADY_INITIALIZED: u64 = 1;
     const ENO_SAFE_POSITION: u64 = 2;
     const ENO_DEPOSITED: u64 = 3;
+    const ECANNOT_BORROW_ASSET_WITH_REBALANCE: u64 = 11;
 
     struct LendingPoolModKeys has key {
         account_position: AccountPositionKey,
@@ -331,7 +332,7 @@ module leizd_aptos_entry::money_market {
             return ()
         };
 
-        abort 0 // TODO error code
+        abort error::invalid_argument(ECANNOT_BORROW_ASSET_WITH_REBALANCE)
     }
     fun unprotected_coins(addr: address, coins: vector<String>): vector<String> {
         let unprotected = vector::empty<String>();
@@ -2426,6 +2427,18 @@ module leizd_aptos_entry::money_market {
         deposit<UNI, Shadow>(lp, 500000, false);
     }
     #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
+    #[expected_failure(abort_code = 65547)]
+    fun test_borrow_asset_with_rebalance_when_insufficient_collateral(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
+        prepare_to_exec_borrow_asset_with_rebalance(owner, lp, account, aptos_framework);
+        let account_addr = signer::address_of(account);
+
+        // execute
+        managed_coin::mint<WETH>(owner, account_addr, 1);
+        deposit<WETH, Asset>(account, 1, false);
+
+        borrow_asset_with_rebalance<WETH>(account, 1);
+    }
+    #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
     fun test_borrow_asset_with_rebalance__optimize_shadow_1(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
         prepare_to_exec_borrow_asset_with_rebalance(owner, lp, account, aptos_framework);
 
@@ -2773,6 +2786,35 @@ module leizd_aptos_entry::money_market {
         assert!(shadow_pool::normal_deposited_amount<UNI>() - liquidity_from_lp == 30000, 0);
         assert!(shadow_pool::conly_deposited_amount<UNI>() == 0, 0);
         assert!(asset_pool::total_borrowed_amount<UNI>() == 15000, 0);
+    }
+    #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
+    fun test_borrow_asset_with_rebalance__borrow_and_deposit_0(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
+        prepare_to_exec_borrow_asset_with_rebalance(owner, lp, account, aptos_framework);
+        risk_factor::update_protocol_fees_unsafe(
+            0,
+            0,
+            risk_factor::default_liquidation_fee(),
+        ); // NOTE: remove entry fee / share fee to make it easy to calculate borrowed amount/share
+        let account_addr = signer::address_of(account);
+
+        // execute
+        managed_coin::mint<WETH>(owner, account_addr, 20000);
+        deposit<WETH, Asset>(account, 20000, false);
+        assert!(account_position::deposited_asset_share<WETH>(account_addr) == 20000, 0);
+        assert!(coin::balance<WETH>(account_addr) == 0, 0);
+
+        borrow_asset_with_rebalance<USDC>(account, 12600);
+
+        // check
+        //// ltv is...
+        assert!(risk_factor::ltv<WETH>() == risk_factor::precision() / 100 * 70, 0); // 70%
+        assert!(risk_factor::ltv_of_shadow() == risk_factor::precision() / 100 * 90, 0); // 90%
+        //// 20000 * 70% = 14000 <- borrowing Shadow
+        assert!(account_position::deposited_asset_share<WETH>(account_addr) == 20000, 0);
+        assert!(account_position::borrowed_shadow_share<WETH>(account_addr) == 14000, 0);
+        assert!(account_position::deposited_shadow_share<USDC>(account_addr) == 14000, 0);
+        //// 14000 * 90% = 12600 <- borrowable Asset from borrowing Shadow
+        assert!(account_position::borrowed_asset_share<USDC>(account_addr) == 12600, 0);
     }
     #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
     fun test_borrow_asset_with_rebalance__borrow_and_deposit_1(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
