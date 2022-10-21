@@ -251,10 +251,9 @@ module leizd_aptos_logic::rebalance {
         abort error::invalid_argument(ECANNOT_BORROW_ASSET_WITH_REBALANCE)
     }
 
-    /// repay_shadow_with_rebalance
-    public entry fun repay_shadow_with_rebalance(account: &signer, amount: u64, account_position_key: &AccountPositionKey, shadow_pool_key: &ShadowPoolKey, _key: &OperatorKey) {
+    /// repay_shadow_evenly
+    public entry fun repay_shadow_evenly(account: &signer, amount: u64, account_position_key: &AccountPositionKey, shadow_pool_key: &ShadowPoolKey, _key: &OperatorKey) {
         let account_addr = signer::address_of(account);
-        // let (account_position_key, _, shadow_pool_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
 
         let (target_keys, target_borrowed_shares) = account_position::borrowed_shadow_share_all(account_addr); // get all shadow borrowed_share
         let length = vector::length(&target_keys);
