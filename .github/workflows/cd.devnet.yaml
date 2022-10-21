@@ -26,12 +26,6 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           prerelease: true
 
-      - name: Get Aptos
-        uses: pontem-network/get-aptos@main
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          prerelease: true
-
       - name: get expect
         run: sudo apt-get install -y expect
 
