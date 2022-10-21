@@ -130,7 +130,7 @@ module leizd_aptos_trove::trove {
         let decimals_usdz = (coin::decimals<usdz::USDZ>() as u128);
 
         let numerator = price * (amount as u128) * math128::pow(10, decimals_usdz);
-        let dominator = (math128::pow(10, decimals));
+        let dominator = (math128::pow(10, decimals * 2));
         (numerator / dominator as u64)
     }
 
@@ -221,6 +221,12 @@ module leizd_aptos_trove::trove {
         price_oracle::register_oracle_with_fixed_price<USDT>(owner, 1000000, 6, false);
         price_oracle::change_mode<USDC>(owner, 1);
         price_oracle::change_mode<USDT>(owner, 1);
+    }
+
+    #[test_only]
+    fun initialize_oracle_coin<C>(owner: &signer, price: u128, decimals: u8) {
+        price_oracle::register_oracle_with_fixed_price<C>(owner, price, decimals, false);
+        price_oracle::change_mode<C>(owner, 1);
     }
 
     #[test(owner=@leizd_aptos_trove)]
@@ -344,6 +350,7 @@ module leizd_aptos_trove::trove {
         account::create_account_for_test(signer::address_of(owner));
         test_coin::init_usdc(owner);
         initialize(owner);
+        initialize_oracle(owner);
 
         let usdc_amt = 12345678;
         let usdc_want = usdc_amt * math64::pow(10, 8 - 6);
@@ -361,6 +368,7 @@ module leizd_aptos_trove::trove {
         initialize_oracle(owner);
         let decimals: u8 = 3;
         test_coin::init_coin<DummyCoin>(owner, b"DUMMY", decimals);
+        initialize_oracle_coin<DummyCoin>(owner, 1000, decimals);
 
         let expected = 100000 * math64::pow(10, (coin::decimals<usdz::USDZ>() - decimals as u64));
         assert!(borrowable_usdz<DummyCoin>(100000) == expected, 0);
