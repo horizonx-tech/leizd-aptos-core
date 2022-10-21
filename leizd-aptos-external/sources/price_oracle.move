@@ -151,14 +151,14 @@ module leizd_aptos_external::price_oracle {
 
     public fun volume(name: &String, amount: u128): u128 acquires Storage {
         let (value, dec) = price_of(name);
-        let numerator = u256::mul(u256::from_u128(amount), u256::from_u128(value)); // TODO: check overflow
+        let numerator = u256::mul(u256::from_u128(amount), u256::from_u128(value));
         let denominator = u256::from_u128(math128::pow(10, (dec as u128)));
-        u256::as_u128(u256::div(numerator, denominator)) // use u256?
+        u256::as_u128(u256::div(numerator, denominator)) // FIXME: need to use u256 by right
     }
 
     public fun to_amount(name: &String, volume: u128): u128 acquires Storage {
         let (value, dec) = price_of(name);
-        let numerator = u256::mul(u256::from_u128(volume), u256::from_u128(math128::pow(10, (dec as u128)))); // TODO: check overflow
+        let numerator = u256::mul(u256::from_u128(volume), u256::from_u128(math128::pow(10, (dec as u128))));
         let denominator = u256::from_u128(value);
         u256::as_u128(u256::div(numerator, denominator))
     }
