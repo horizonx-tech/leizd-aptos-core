@@ -31,27 +31,45 @@ module leizd_aptos_logic::rebalance {
     struct RebalanceEvent has store, drop {
         caller: address,
         coins: vector<String>,
-        deposits: SimpleMap<String, u64>,
-        withdraws: SimpleMap<String, u64>,
-        borrows: SimpleMap<String, u64>,
-        repays: SimpleMap<String, u64>,
+        deposited_amounts: SimpleMap<String, u64>,
+        withdrawn_amounts: SimpleMap<String, u64>,
+        borrowed_amounts: SimpleMap<String, u64>,
+        repaid_amounts: SimpleMap<String, u64>,
+    }
+    struct RepayEvenlyEvent has store, drop {
+        caller: address,
+        coins: vector<String>,
+        repaid_shares: vector<u64>
+    }
+    struct FlattenPositionsEvent has store, drop {
+        caller: address,
+        target: address,
+        health_factor: u64,
+        sum_rebalanced_deposited: u128,
+        sum_rebalanced_withdrawn: u128,
+        sum_rebalanced_borrowed: u128,
+        sum_rebalanced_repaid: u128,
     }
     struct RebalanceEventHandle has key, store {
         rebalance_event: event::EventHandle<RebalanceEvent>,
+        repay_evenly_event: event::EventHandle<RepayEvenlyEvent>,
+        flatten_positions_event: event::EventHandle<FlattenPositionsEvent>,
     }
-
-    public entry fun initialize(
+    
+    public fun initialize(
         owner: &signer,
     ): OperatorKey {
         let owner_addr = signer::address_of(owner);
         permission::assert_owner(owner_addr);
         move_to(owner, RebalanceEventHandle {
-            rebalance_event: account::new_event_handle<RebalanceEvent>(owner)
+            rebalance_event: account::new_event_handle<RebalanceEvent>(owner),
+            repay_evenly_event: account::new_event_handle<RepayEvenlyEvent>(owner),
+            flatten_positions_event: account::new_event_handle<FlattenPositionsEvent>(owner),
         });
         OperatorKey {}
     }
 
-    public entry fun borrow_asset_with_rebalance<C>(
+    public fun borrow_asset_with_rebalance<C>(
         account: &signer,
         amount: u64,
         account_position_key: &AccountPositionKey,
@@ -115,10 +133,10 @@ module leizd_aptos_logic::rebalance {
                 RebalanceEvent {
                     caller: account_addr,
                     coins: unprotected_in_stoa,
-                    deposits: amounts_to_deposit,
-                    withdraws: amounts_to_withdraw,
-                    borrows: empty_map,
-                    repays: empty_map,
+                    deposited_amounts: amounts_to_deposit,
+                    withdrawn_amounts: amounts_to_withdraw,
+                    borrowed_amounts: empty_map,
+                    repaid_amounts: empty_map,
                 },
             );
             return ()
@@ -239,10 +257,10 @@ module leizd_aptos_logic::rebalance {
                 RebalanceEvent {
                     caller: account_addr,
                     coins: unprotected_in_stoa,
-                    deposits: amounts_to_deposit,
-                    withdraws: amounts_to_withdraw,
-                    borrows: amounts_to_borrow,
-                    repays: amounts_to_repay,
+                    deposited_amounts: amounts_to_deposit,
+                    withdrawn_amounts: amounts_to_withdraw,
+                    borrowed_amounts: amounts_to_borrow,
+                    repaid_amounts: amounts_to_repay,
                 },
             );
             return ()
@@ -252,7 +270,13 @@ module leizd_aptos_logic::rebalance {
     }
 
     /// repay_shadow_evenly
-    public entry fun repay_shadow_evenly(account: &signer, amount: u64, account_position_key: &AccountPositionKey, shadow_pool_key: &ShadowPoolKey, _key: &OperatorKey) {
+    public fun repay_shadow_evenly(
+        account: &signer,
+        amount: u64,
+        account_position_key: &AccountPositionKey, 
+        shadow_pool_key: &ShadowPoolKey, 
+        _key: &OperatorKey
+    ) acquires RebalanceEventHandle {
         let account_addr = signer::address_of(account);
 
         let (target_keys, target_borrowed_shares) = account_position::borrowed_shadow_share_all(account_addr); // get all shadow borrowed_share
@@ -309,10 +333,26 @@ module leizd_aptos_logic::rebalance {
             );
             j = j + 1;
         };
+
+        event::emit_event<RepayEvenlyEvent>(
+            &mut borrow_global_mut<RebalanceEventHandle>(permission::owner_address()).repay_evenly_event,
+            RepayEvenlyEvent {
+                caller: account_addr,
+                coins: target_keys,
+                repaid_shares: repaid_shares,
+            },
+        );
     }
 
     //// Liquidation
-    public entry fun liquidate<C,P>(account: &signer, target_addr: address, account_position_key: &AccountPositionKey, asset_pool_key: &AssetPoolKey, shadow_pool_key: &ShadowPoolKey, _key: &OperatorKey) {
+    public fun liquidate<C,P>(
+        account: &signer,
+        target_addr: address,
+        account_position_key: &AccountPositionKey,
+        asset_pool_key: &AssetPoolKey,
+        shadow_pool_key: &ShadowPoolKey, 
+        _key: &OperatorKey
+    ) acquires RebalanceEventHandle {
         pool_type::assert_pool_type<P>();
         let liquidator_addr = signer::address_of(account);
 
@@ -321,7 +361,7 @@ module leizd_aptos_logic::rebalance {
             assert!(!account_position::is_safe_asset_to_shadow<C>(target_addr), error::invalid_state(ENO_SAFE_POSITION));
     
             if (!account_position::is_protected<C>(target_addr)) {
-                flatten_positions(target_addr, account_position_key, shadow_pool_key);
+                flatten_positions(liquidator_addr, target_addr, account_position_key, shadow_pool_key);
             };
             
             if (!account_position::is_safe_asset_to_shadow<C>(target_addr)) {
@@ -337,7 +377,7 @@ module leizd_aptos_logic::rebalance {
             assert!(!account_position::is_safe_shadow_to_asset<C>(target_addr), error::invalid_state(ENO_SAFE_POSITION));
             
             if (!account_position::is_protected<C>(target_addr)) {
-                flatten_positions(target_addr, account_position_key, shadow_pool_key);
+                flatten_positions(liquidator_addr, target_addr, account_position_key, shadow_pool_key);
             };
 
             if (!account_position::is_safe_shadow_to_asset<C>(target_addr)) {
@@ -812,14 +852,19 @@ module leizd_aptos_logic::rebalance {
         (amounts, total_amount)
     }
 
-    fun flatten_positions(target_addr: address, account_position_key: &AccountPositionKey, shadow_pool_key: &ShadowPoolKey) {
+    fun flatten_positions(
+        liquidator_addr: address,
+        target_addr: address, 
+        account_position_key: &AccountPositionKey, 
+        shadow_pool_key: &ShadowPoolKey
+    ) acquires RebalanceEventHandle {
         let coins = vector::empty<String>();
         let deposited_volumes = vector::empty<u128>();
         let borrowed_volumes = vector::empty<u128>();
 
         // updated shadow volume
         let sum_rebalanced_deposited = 0;
-        let sum_rebalanced_withdrawed = 0;
+        let sum_rebalanced_withdrawn = 0;
         let sum_rebalanced_borrowed = 0;
         let sum_rebalanced_repaid = 0;
 
@@ -953,7 +998,7 @@ module leizd_aptos_logic::rebalance {
                     shadow_pool_key
                 );
                 account_position::withdraw_by_rebalance(*key, target_addr, share, account_position_key);
-                sum_rebalanced_withdrawed = sum_rebalanced_withdrawed + updated_volume;
+                sum_rebalanced_withdrawn = sum_rebalanced_withdrawn + updated_volume;
             } else if (current_hf < optimized_hf) {
                 // deposit shadow
                 let updated_volume = opt_deposit_volume - deposited_volume;
@@ -968,6 +1013,18 @@ module leizd_aptos_logic::rebalance {
             };
             i = i - 1;
         };
+
+        event::emit_event<FlattenPositionsEvent>(
+            &mut borrow_global_mut<RebalanceEventHandle>(permission::owner_address()).flatten_positions_event,
+            FlattenPositionsEvent {
+                caller: liquidator_addr,
+                target: target_addr,
+                health_factor: optimized_hf,
+                sum_rebalanced_deposited,
+                sum_rebalanced_withdrawn,
+                sum_rebalanced_borrowed,
+                sum_rebalanced_repaid,          },
+        );
 
         // TODO: check the diff - if there is any diff ...
         // debug::print(&sum_rebalanced_deposited);
