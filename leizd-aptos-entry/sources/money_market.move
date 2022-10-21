@@ -10,14 +10,9 @@ module leizd_aptos_entry::money_market {
 
     use std::error;
     use std::signer;
-    use aptos_framework::coin;
     use leizd_aptos_common::pool_type;
     use leizd_aptos_common::permission;
     use leizd_aptos_common::coin_key::{key};
-    use leizd_aptos_common::pool_type::{Asset, Shadow};
-    use leizd_aptos_logic::risk_factor;
-    use leizd_aptos_trove::usdz::{USDZ};
-    use leizd_aptos_external::price_oracle;
     use leizd_aptos_central_liquidity_pool::central_liquidity_pool;
     use leizd_aptos_core::asset_pool::{Self, OperatorKey as AssetPoolKey};
     use leizd_aptos_core::shadow_pool::{Self, OperatorKey as ShadowPoolKey};
@@ -253,6 +248,8 @@ module leizd_aptos_entry::money_market {
     }
 
     #[test_only]
+    use aptos_framework::coin;
+    #[test_only]
     use aptos_framework::account;
     #[test_only]
     use aptos_framework::managed_coin;
@@ -263,9 +260,15 @@ module leizd_aptos_entry::money_market {
     #[test_only]
     use leizd_aptos_lib::math128;
     #[test_only]
+    use leizd_aptos_common::pool_type::{Asset, Shadow};
+    #[test_only]
     use leizd_aptos_common::test_coin::{Self, USDC, USDT, WETH, UNI};
     #[test_only]
-    use leizd_aptos_trove::usdz;
+    use leizd_aptos_logic::risk_factor;
+    #[test_only]
+    use leizd_aptos_trove::usdz::{Self, USDZ};
+    #[test_only]
+    use leizd_aptos_external::price_oracle;
     #[test_only]
     use leizd_aptos_treasury::treasury;
     #[test_only]
