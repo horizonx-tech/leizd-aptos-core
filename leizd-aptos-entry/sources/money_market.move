@@ -10,14 +10,9 @@ module leizd_aptos_entry::money_market {
 
     use std::error;
     use std::signer;
-    use aptos_framework::coin;
     use leizd_aptos_common::pool_type;
     use leizd_aptos_common::permission;
     use leizd_aptos_common::coin_key::{key};
-    use leizd_aptos_common::pool_type::{Asset, Shadow};
-    use leizd_aptos_logic::risk_factor;
-    use leizd_aptos_trove::usdz::{USDZ};
-    use leizd_aptos_external::price_oracle;
     use leizd_aptos_central_liquidity_pool::central_liquidity_pool;
     use leizd_aptos_core::asset_pool::{Self, OperatorKey as AssetPoolKey};
     use leizd_aptos_core::shadow_pool::{Self, OperatorKey as ShadowPoolKey};
@@ -165,7 +160,6 @@ module leizd_aptos_entry::money_market {
         let (account_position_key, asset_pool_key, shadow_pool_key, rebalance_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
         rebalance::borrow_asset_with_rebalance<C>(account, amount, account_position_key, asset_pool_key, shadow_pool_key, rebalance_key);
     }
-    
     /// Repay an asset or a shadow from the pool.
     public entry fun repay<C,P>(account: &signer, amount: u64) acquires LendingPoolModKeys {
         pool_type::assert_pool_type<P>();
@@ -254,6 +248,8 @@ module leizd_aptos_entry::money_market {
     }
 
     #[test_only]
+    use aptos_framework::coin;
+    #[test_only]
     use aptos_framework::account;
     #[test_only]
     use aptos_framework::managed_coin;
@@ -264,9 +260,15 @@ module leizd_aptos_entry::money_market {
     #[test_only]
     use leizd_aptos_lib::math128;
     #[test_only]
+    use leizd_aptos_common::pool_type::{Asset, Shadow};
+    #[test_only]
     use leizd_aptos_common::test_coin::{Self, USDC, USDT, WETH, UNI};
     #[test_only]
-    use leizd_aptos_trove::usdz;
+    use leizd_aptos_logic::risk_factor;
+    #[test_only]
+    use leizd_aptos_trove::usdz::{Self, USDZ};
+    #[test_only]
+    use leizd_aptos_external::price_oracle;
     #[test_only]
     use leizd_aptos_treasury::treasury;
     #[test_only]
@@ -2062,6 +2064,24 @@ module leizd_aptos_entry::money_market {
         assert!(account_position::deposited_shadow_share<USDC>(account_addr) == 14000, 0);
         //// 14000 * 90% = 12600 <- borrowable Asset from borrowing Shadow
         assert!(account_position::borrowed_asset_share<USDC>(account_addr) == 12600, 0);
+    }
+    #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
+    #[expected_failure(abort_code = 65547)]
+    fun test_borrow_asset_with_rebalance__borrow_and_deposit_0_when_over_borrowable_amount(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
+        prepare_to_exec_borrow_asset_with_rebalance(owner, lp, account, aptos_framework);
+        risk_factor::update_protocol_fees_unsafe(
+            0,
+            0,
+            risk_factor::default_liquidation_fee(),
+        ); // NOTE: remove entry fee / share fee to make it easy to calculate borrowed amount/share
+        let account_addr = signer::address_of(account);
+
+        // execute
+        managed_coin::mint<WETH>(owner, account_addr, 20000);
+        deposit<WETH, Asset>(account, 20000, false);
+        assert!(risk_factor::ltv<WETH>() == risk_factor::precision() / 100 * 70, 0); // 70%
+        assert!(risk_factor::ltv_of_shadow() == risk_factor::precision() / 100 * 90, 0); // 90%
+        borrow_asset_with_rebalance<USDC>(account, 20000 * 70 / 100 * 90 / 100 + 1);
     }
     #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
     fun test_borrow_asset_with_rebalance__borrow_and_deposit_1(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {

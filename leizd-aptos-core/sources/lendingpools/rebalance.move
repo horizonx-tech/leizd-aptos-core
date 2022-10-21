@@ -641,7 +641,7 @@ module leizd_aptos_logic::rebalance {
     ) {
         let deposited_volume = price_oracle::volume(&deposited_key, (deposited_amount as u128));
         let borrowed_volume = price_oracle::volume(&borrowed_key, (borrowed_amount as u128));
-        let borrowable_volume = deposited_volume * (risk_factor::ltv_of_shadow() as u128) / risk_factor::precision_u128();
+        let borrowable_volume = deposited_volume * (risk_factor::ltv_of(deposited_key) as u128) / risk_factor::precision_u128();
         if (borrowable_volume > borrowed_volume) {
             (
                 (price_oracle::to_amount(&borrowed_key, borrowable_volume - borrowed_volume) as u64), // TODO: temp cast (maybe use u128 as return value)
