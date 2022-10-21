@@ -35,7 +35,7 @@ module leizd::shadow_pool {
 
     //// resources
     /// access control
-    struct OperatorKey has store, drop {}
+    struct OperatorKey has store, copy, drop {}
     struct Keys has key {
         central_liquidity_pool: CentralLiquidityPoolKey
     }
