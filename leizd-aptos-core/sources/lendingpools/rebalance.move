@@ -4,6 +4,8 @@ module leizd_aptos_logic::rebalance {
     use std::vector;
     use std::string::{String};
     use aptos_std::simple_map::{Self,SimpleMap};
+    use aptos_std::event;
+    use aptos_framework::account;
     use aptos_framework::coin;
     use leizd_aptos_common::pool_type;
     use leizd_aptos_common::permission;
@@ -25,38 +27,34 @@ module leizd_aptos_logic::rebalance {
     /// access control
     struct OperatorKey has store, drop {}
 
-    struct LendingPoolModKeys has key {
-        account_position: AccountPositionKey,
-        asset_pool: AssetPoolKey,
-        shadow_pool: ShadowPoolKey,
+    // Events
+    struct RebalanceEvent has store, drop {
+        caller: address,
+        coins: vector<String>,
+        deposits: SimpleMap<String, u64>,
+        withdraws: SimpleMap<String, u64>,
+        borrows: SimpleMap<String, u64>,
+        repays: SimpleMap<String, u64>,
     }
-
-    fun keys(keys: &LendingPoolModKeys): (&AccountPositionKey, &AssetPoolKey, &ShadowPoolKey) {
-        (&keys.account_position, &keys.asset_pool, &keys.shadow_pool)
+    struct RebalanceHandle has key, store {
+        rebalance_event: event::EventHandle<RebalanceEvent>,
     }
 
     public entry fun initialize(
         owner: &signer,
-        account_position_key: AccountPositionKey,
-        asset_pool_key: AssetPoolKey,
-        shadow_pool_key: ShadowPoolKey
     ): OperatorKey {
         let owner_addr = signer::address_of(owner);
         permission::assert_owner(owner_addr);
-        assert!(!exists<LendingPoolModKeys>(owner_addr), error::invalid_argument(EALREADY_INITIALIZED));
-        move_to(owner, LendingPoolModKeys {
-            account_position: account_position_key,
-            asset_pool: asset_pool_key,
-            shadow_pool: shadow_pool_key,
+        move_to(owner, RebalanceHandle {
+            rebalance_event: account::new_event_handle<RebalanceEvent>(owner)
         });
         OperatorKey {}
     }
 
-    public entry fun borrow_asset_with_rebalance<C>(account: &signer, amount: u64, _key: &OperatorKey) acquires LendingPoolModKeys {
+    public entry fun borrow_asset_with_rebalance<C>(account: &signer, amount: u64, account_position_key: &AccountPositionKey, asset_pool_key: &AssetPoolKey, shadow_pool_key: &ShadowPoolKey, _key: &OperatorKey) {
         assert!(asset_pool::is_pool_initialized<C>() , 0);
         assert!(shadow_pool::is_initialized_asset<C>() , 0);
 
-        let (account_position_key, asset_pool_key, shadow_pool_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
         let account_addr = signer::address_of(account);
 
         // update interests for pools that may be used
@@ -226,9 +224,9 @@ module leizd_aptos_logic::rebalance {
     }
 
     /// repay_shadow_with_rebalance
-    public entry fun repay_shadow_with_rebalance(account: &signer, amount: u64, _key: &OperatorKey) acquires LendingPoolModKeys {
+    public entry fun repay_shadow_with_rebalance(account: &signer, amount: u64, account_position_key: &AccountPositionKey, shadow_pool_key: &ShadowPoolKey, _key: &OperatorKey) {
         let account_addr = signer::address_of(account);
-        let (account_position_key, _, shadow_pool_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
+        // let (account_position_key, _, shadow_pool_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
 
         let (target_keys, target_borrowed_shares) = account_position::borrowed_shadow_share_all(account_addr); // get all shadow borrowed_share
         let length = vector::length(&target_keys);
@@ -287,10 +285,9 @@ module leizd_aptos_logic::rebalance {
     }
 
     //// Liquidation
-    public entry fun liquidate<C,P>(account: &signer, target_addr: address, _key: &OperatorKey) acquires LendingPoolModKeys {
+    public entry fun liquidate<C,P>(account: &signer, target_addr: address, account_position_key: &AccountPositionKey, asset_pool_key: &AssetPoolKey, shadow_pool_key: &ShadowPoolKey, _key: &OperatorKey) {
         pool_type::assert_pool_type<P>();
         let liquidator_addr = signer::address_of(account);
-        let (account_position_key, asset_pool_key, shadow_pool_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
 
         if (pool_type::is_type_asset<P>()) {
             // judge if the coin should be liquidated

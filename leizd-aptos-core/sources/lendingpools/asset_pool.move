@@ -32,7 +32,7 @@ module leizd::asset_pool {
 
     //// resources
     /// access control
-    struct OperatorKey has store, copy, drop {}
+    struct OperatorKey has store, drop {}
     struct AssetManagerKeys has key {
         treasury: TreasuryKey,
         risk_factor: RiskFactorKey,

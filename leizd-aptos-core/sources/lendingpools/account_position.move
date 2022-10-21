@@ -35,7 +35,7 @@ module leizd::account_position {
 
     //// resources
     /// access control
-    struct OperatorKey has store, copy, drop {}
+    struct OperatorKey has store, drop {}
 
     /// P: The position type - AssetToShadow or ShadowToAsset.
     struct Position<phantom P> has key {

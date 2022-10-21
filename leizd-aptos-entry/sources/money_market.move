@@ -42,7 +42,7 @@ module leizd_aptos_entry::money_market {
         let account_position_key = account_position::initialize(owner);
         let asset_pool_key = asset_pool::initialize(owner);
         let shadow_pool_key = shadow_pool::initialize(owner);
-        let rebalance_key = rebalance::initialize(owner, account_position_key, asset_pool_key, shadow_pool_key);
+        let rebalance_key = rebalance::initialize(owner);
         move_to(owner, LendingPoolModKeys {
             account_position: account_position_key,
             asset_pool: asset_pool_key,
@@ -162,8 +162,8 @@ module leizd_aptos_entry::money_market {
     /// If there is enough shadow on the pool a user want to borrow, it would be
     /// the same action as the `borrow` function above.
     public entry fun borrow_asset_with_rebalance<C>(account: &signer, amount: u64) acquires LendingPoolModKeys {
-        let (_, _, _, rebalance_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
-        rebalance::borrow_asset_with_rebalance<C>(account, amount, rebalance_key);
+        let (account_position_key, asset_pool_key, shadow_pool_key, rebalance_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
+        rebalance::borrow_asset_with_rebalance<C>(account, amount, account_position_key, asset_pool_key, shadow_pool_key, rebalance_key);
     }
     
     /// Repay an asset or a shadow from the pool.
@@ -196,10 +196,9 @@ module leizd_aptos_entry::money_market {
 
     /// repay_shadow_with_rebalance
     public entry fun repay_shadow_with_rebalance(account: &signer, amount: u64) acquires LendingPoolModKeys {
-        let (_, _, _, rebalance_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
-        rebalance::repay_shadow_with_rebalance(account, amount, rebalance_key);
+        let (account_position_key, _, shadow_pool_key, rebalance_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
+        rebalance::repay_shadow_with_rebalance(account, amount, account_position_key, shadow_pool_key, rebalance_key);
     }
-
 
     /// Control available coin to rebalance
     public entry fun enable_to_rebalance<C>(account: &signer) {
@@ -212,8 +211,8 @@ module leizd_aptos_entry::money_market {
 
     //// Liquidation
     public entry fun liquidate<C,P>(account: &signer, target_addr: address) acquires LendingPoolModKeys {
-        let (_, _, _, rebalance_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
-        rebalance::liquidate<C,P>(account, target_addr, rebalance_key);
+        let (account_position_key, asset_pool_key, shadow_pool_key, rebalance_key) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
+        rebalance::liquidate<C,P>(account, target_addr, account_position_key, asset_pool_key, shadow_pool_key, rebalance_key);
     }
 
     /// Switch the deposited position.
