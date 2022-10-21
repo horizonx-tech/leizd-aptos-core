@@ -25,6 +25,7 @@ jobs:
         with:
           version: latest
           token: ${{ secrets.GITHUB_TOKEN }}
+          prerelease: true
 
       - name: aptos init
         run: aptos init --rest-url https://aptos-testnet.ml/v1 --faucet-url https://faucet.aptos-testnet.ml/ --assume-yes
