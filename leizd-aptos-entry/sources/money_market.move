@@ -2427,6 +2427,18 @@ module leizd_aptos_entry::money_market {
         deposit<UNI, Shadow>(lp, 500000, false);
     }
     #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
+    #[expected_failure(abort_code = 65547)]
+    fun test_borrow_asset_with_rebalance_when_insufficient_collateral(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
+        prepare_to_exec_borrow_asset_with_rebalance(owner, lp, account, aptos_framework);
+        let account_addr = signer::address_of(account);
+
+        // execute
+        managed_coin::mint<WETH>(owner, account_addr, 1);
+        deposit<WETH, Asset>(account, 1, false);
+
+        borrow_asset_with_rebalance<WETH>(account, 1);
+    }
+    #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
     fun test_borrow_asset_with_rebalance__optimize_shadow_1(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
         prepare_to_exec_borrow_asset_with_rebalance(owner, lp, account, aptos_framework);
 
