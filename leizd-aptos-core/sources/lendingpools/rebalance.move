@@ -234,7 +234,17 @@ module leizd_aptos_logic::rebalance {
                 account_position_key,
                 shadow_pool_key
             );
-
+            event::emit_event<RebalanceEvent>(
+                &mut borrow_global_mut<RebalanceEventHandle>(permission::owner_address()).rebalance_event,
+                RebalanceEvent {
+                    caller: account_addr,
+                    coins: unprotected_in_stoa,
+                    deposits: amounts_to_deposit,
+                    withdraws: amounts_to_withdraw,
+                    borrows: amounts_to_borrow,
+                    repays: amounts_to_repay,
+                },
+            );
             return ()
         };
 
