@@ -460,7 +460,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         borrow_global<CentralLiquidityPool>(permission::owner_address()).protocol_fees
     }
 
-    public fun harvested_protocol_fees<C>(): u64 acquires CentralLiquidityPool {
+    public fun harvested_protocol_fees(): u64 acquires CentralLiquidityPool {
         borrow_global<CentralLiquidityPool>(permission::owner_address()).harvested_protocol_fees
     }
 

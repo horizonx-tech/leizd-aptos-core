@@ -603,7 +603,7 @@ module leizd::asset_pool {
         };
 
         let protocol_share_fee = risk_factor::share_fee();
-        let rcomp = interest_rate::update_interest_rate(
+        let rcomp = interest_rate::compound_interest_rate(
             key,
             asset_storage_ref.total_normal_deposited_amount,
             asset_storage_ref.total_borrowed_amount,
@@ -616,7 +616,7 @@ module leizd::asset_pool {
     }
     fun save_calculated_values_by_rcomp(asset_storage_ref: &mut AssetStorage, rcomp: u128, share_fee: u64) {
         let accrued_interest = asset_storage_ref.total_borrowed_amount * rcomp / interest_rate::precision();
-        let protocol_share = accrued_interest * (share_fee as u128) / (risk_factor::precision() as u128);
+        let protocol_share = accrued_interest * (share_fee as u128) / risk_factor::precision_u128();
         let new_protocol_fees = asset_storage_ref.protocol_fees + (protocol_share as u64);
 
         let depositors_share = accrued_interest - protocol_share;
@@ -762,6 +762,8 @@ module leizd::asset_pool {
         asset_storage_ref.last_updated
     }
 
+    #[test_only]
+    friend leizd::shadow_pool;
     #[test_only]
     use aptos_framework::managed_coin;
     #[test_only]
@@ -1510,7 +1512,7 @@ module leizd::asset_pool {
             0,
             0,
             risk_factor::default_liquidation_fee(),
-        ); // NOTE: remove entry fee / share fee to make it easy to calcurate borrowed amount/share
+        ); // NOTE: remove entry fee / share fee to make it easy to calculate borrowed amount/share
 
         // deposit UNI
         deposit_for_internal<UNI>(depositor, depositor_addr, max, false);
@@ -1747,7 +1749,7 @@ module leizd::asset_pool {
             0,
             0,
             risk_factor::default_liquidation_fee(),
-        ); // NOTE: remove entry fee / share fee to make it easy to calcurate borrowed amount/share
+        ); // NOTE: remove entry fee / share fee to make it easy to calculate borrowed amount/share
         assert!(risk_factor::entry_fee() == 0, 0);
         //// add liquidity
         let max = constant::u64_max();
@@ -1783,7 +1785,7 @@ module leizd::asset_pool {
             0,
             0,
             risk_factor::default_liquidation_fee(),
-        ); // NOTE: remove entry fee / share fee to make it easy to calcurate borrowed amount/share
+        ); // NOTE: remove entry fee / share fee to make it easy to calculate borrowed amount/share
         assert!(risk_factor::entry_fee() == 0, 0);
         //// add liquidity
         let max = constant::u64_max();
@@ -2256,7 +2258,7 @@ module leizd::asset_pool {
             0,
             0,
             risk_factor::default_liquidation_fee(),
-        ); // NOTE: remove entry fee / share fee to make it easy to calcurate borrowed amount/share
+        ); // NOTE: remove entry fee / share fee to make it easy to calculate borrowed amount/share
         //// add liquidity
         deposit_for_internal<UNI>(depositor, depositor_addr, max, false);
 
@@ -2282,7 +2284,7 @@ module leizd::asset_pool {
             0,
             0,
             risk_factor::default_liquidation_fee(),
-        ); // NOTE: remove entry fee / share fee to make it easy to calcurate borrowed amount/share
+        ); // NOTE: remove entry fee / share fee to make it easy to calculate borrowed amount/share
         assert!(risk_factor::entry_fee() == 0, 0);
         //// add liquidity
         managed_coin::mint<UNI>(owner, depositor_addr, 1);

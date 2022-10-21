@@ -6,6 +6,7 @@ module leizd_aptos_external::price_oracle {
     use aptos_std::simple_map;
     use aptos_framework::account;
     use leizd_aptos_lib::math128;
+    use leizd_aptos_lib::u256;
     use leizd_aptos_common::permission;
     use leizd_aptos_common::coin_key::{key};
 
@@ -150,14 +151,16 @@ module leizd_aptos_external::price_oracle {
 
     public fun volume(name: &String, amount: u128): u128 acquires Storage {
         let (value, dec) = price_of(name);
-        let numerator = amount * value; // TODO: check overflow
-        numerator / math128::pow(10, (dec as u128))
+        let numerator = u256::mul(u256::from_u128(amount), u256::from_u128(value));
+        let denominator = u256::from_u128(math128::pow(10, (dec as u128)));
+        u256::as_u128(u256::div(numerator, denominator)) // FIXME: need to use u256 by right
     }
 
     public fun to_amount(name: &String, volume: u128): u128 acquires Storage {
         let (value, dec) = price_of(name);
-        let numerator = volume * math128::pow(10, (dec as u128)); // TODO: check overflow
-        numerator / value
+        let numerator = u256::mul(u256::from_u128(volume), u256::from_u128(math128::pow(10, (dec as u128))));
+        let denominator = u256::from_u128(value);
+        u256::as_u128(u256::div(numerator, denominator))
     }
 
     #[test_only]
@@ -324,5 +327,70 @@ module leizd_aptos_external::price_oracle {
         let (val, dec) = price_of(&key<WETH>());
         assert!(val == 50000, 0);
         assert!(dec == 1, 0);
+    }
+
+    #[test_only]
+    struct DummyCoin {}
+    #[test(owner = @leizd_aptos_external)]
+    fun test_volume(owner: &signer) acquires Storage, OracleEventHandle {
+        account::create_account_for_test(signer::address_of(owner));
+        initialize(owner);
+        register_oracle_with_fixed_price<DummyCoin>(owner, math128::pow(10, 8) * 5 / 100, 8, false); // 0.05
+        change_mode<DummyCoin>(owner, fixed_price_mode());
+        assert!(mode<DummyCoin>() == FIXED_PRICE, 0);
+
+        let (val, dec) = price<DummyCoin>();
+        assert!(val == math128::pow(10, 8) * 5 / 100, 0);
+        assert!(dec == 8, 0);
+
+        assert!(volume(&key<DummyCoin>(), 100) == 5, 0);
+        assert!(volume(&key<DummyCoin>(), 2000) == 100, 0);
+    }
+    #[test(owner = @leizd_aptos_external)]
+    fun test_volume__check_overflow(owner: &signer) acquires Storage, OracleEventHandle {
+        account::create_account_for_test(signer::address_of(owner));
+        initialize(owner);
+        // register_oracle_with_fixed_price<DummyCoin>(owner, math128::pow(10, 8) * 50000, 8, false); // 50000
+        register_oracle_with_fixed_price<DummyCoin>(owner, math128::pow(10, 8) * 5 / 100, 8, false); // 0.05
+        change_mode<DummyCoin>(owner, fixed_price_mode());
+        assert!(mode<DummyCoin>() == FIXED_PRICE, 0);
+
+        let (val, dec) = price<DummyCoin>();
+        assert!(val == math128::pow(10, 8) * 5 / 100, 0);
+        assert!(dec == 8, 0);
+
+        let u128_max: u128 = 340282366920938463463374607431768211455;
+        volume(&key<DummyCoin>(), u128_max);
+    }
+    #[test(owner = @leizd_aptos_external)]
+    fun test_to_amount(owner: &signer) acquires Storage, OracleEventHandle {
+        account::create_account_for_test(signer::address_of(owner));
+        initialize(owner);
+        register_oracle_with_fixed_price<DummyCoin>(owner, math128::pow(10, 8) * 5 / 100, 8, false); // 0.05
+        change_mode<DummyCoin>(owner, fixed_price_mode());
+        assert!(mode<DummyCoin>() == FIXED_PRICE, 0);
+
+        let (val, dec) = price<DummyCoin>();
+        assert!(val == math128::pow(10, 8) * 5 / 100, 0);
+        assert!(dec == 8, 0);
+
+        assert!(to_amount(&key<DummyCoin>(), 5) == 100, 0);
+        assert!(to_amount(&key<DummyCoin>(), 100) == 2000, 0);
+    }
+    #[test(owner = @leizd_aptos_external)]
+    fun test_to_amount__check_overflow(owner: &signer) acquires Storage, OracleEventHandle {
+        account::create_account_for_test(signer::address_of(owner));
+        initialize(owner);
+        // register_oracle_with_fixed_price<DummyCoin>(owner, math128::pow(10, 8) * 5 / 10000, 8, false); // 0.0005
+        register_oracle_with_fixed_price<DummyCoin>(owner, math128::pow(10, 8) * 50, 8, false); // 50
+        change_mode<DummyCoin>(owner, fixed_price_mode());
+        assert!(mode<DummyCoin>() == FIXED_PRICE, 0);
+
+        let (val, dec) = price<DummyCoin>();
+        assert!(val == math128::pow(10, 8) * 50, 0);
+        assert!(dec == 8, 0);
+
+        let u128_max: u128 = 340282366920938463463374607431768211455;
+        to_amount(&key<DummyCoin>(), u128_max);
     }
 }

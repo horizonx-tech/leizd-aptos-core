@@ -11,6 +11,8 @@ module leizd_aptos_logic::risk_factor {
     use leizd_aptos_common::coin_key::{key};
     use leizd_aptos_common::permission;
     use leizd_aptos_trove::usdz::{USDZ};
+    use leizd_aptos_lib::i128;
+    use leizd_aptos_lib::prb_math;
 
     //// error_codes
     const EALREADY_ADDED_ASSET: u64 = 1;
@@ -19,6 +21,7 @@ module leizd_aptos_logic::risk_factor {
     const EINVALID_ENTRY_FEE: u64 = 4;
     const EINVALID_SHARE_FEE: u64 = 5;
     const EINVALID_LIQUIDATION_FEE: u64 = 6;
+    const EINVALID_FEE: u64 = 7;
 
     const PRECISION: u64 = 1000000;
     const DEFAULT_ENTRY_FEE: u64 = 1000000 / 1000 * 5; // 0.5%
@@ -226,18 +229,55 @@ module leizd_aptos_logic::risk_factor {
         if (deposited == 0) {
             0
         } else {
-            let scaled_numerator = borrowed * (precision() * precision() as u128);
+            let precision = precision_u128();
+            let scaled_numerator = borrowed * precision * precision;
             let denominator = deposited * (lt_of(key) as u128);
             let u = scaled_numerator / denominator;
-            if ((precision() as u128) < u) {
+            if (precision < u) {
                 0
             } else {
-                ((precision() as u128) - u as u64)
+                (precision - u as u64)
             }
         }
     }
 
-    fun health_factor_weighted_average(keys: vector<String>, deposits: vector<u128>, borrows: vector<u128>): u64 acquires Config {
+    /// a, b, c: precision 6
+    public fun health_factor_with_quadratic_formula(a: i128::I128, b: i128::I128, c: i128::I128): u128 {
+        let a_mul_2 = i128::mul(&a, &i128::from(2));
+        let b_pow_2 = i128::mul(&b, &b);
+        let minus_ac_mul_4 = i128::neg(&i128::mul(&i128::mul(&a, &c), &i128::from(4)));
+        let b_pow_2_sub_4ac = i128::add(&b_pow_2, &minus_ac_mul_4);
+        b_pow_2_sub_4ac = i128::div(&b_pow_2_sub_4ac, &i128::from(1000)); // arrange precision
+        let square = prb_math::sqrt(i128::as_u128(&b_pow_2_sub_4ac)*1000000000);
+        square = square / 1000; // arrange precision
+        let x1 = i128::div(
+            &i128::mul(
+                &i128::add(
+                    &i128::neg(&b),
+                    &i128::from(square)
+                ),
+                &i128::from(1000000)
+            ),
+            &a_mul_2
+        );
+        let x2 = i128::div(
+            &i128::mul(
+                &i128::sub(
+                    &i128::neg(&b),
+                    &i128::from(square)
+                ),
+                &i128::from(1000000)
+            ),
+            &a_mul_2
+        );
+        if (!i128::is_neg(&x1) && i128::as_u128(&x1) < 1000000) {
+            1000000 - i128::as_u128(&x1)
+        } else {
+            1000000 - i128::as_u128(&x2)
+        }
+    }
+
+    public fun health_factor_weighted_average(keys: vector<String>, deposits: vector<u128>, borrows: vector<u128>): u64 acquires Config {
         assert!(vector::length(&keys) == vector::length(&deposits), 0);
         assert!(vector::length(&keys) == vector::length(&borrows), 0);
 
@@ -253,15 +293,15 @@ module leizd_aptos_logic::risk_factor {
             i = i - 1;
         };
 
-        let precion_u128 = (precision() as u128);
+        let precision = precision_u128();
         if (collateral_sum == 0) {
             0
         } else {
-            let u = borrowed_sum *precion_u128 / (collateral_sum / precion_u128);
-            if (precion_u128 < u) {
+            let u = borrowed_sum * precision / (collateral_sum / precision);
+            if (precision < u) {
                 0
             } else {
-                (precion_u128 - u as u64)
+                (precision - u as u64)
             }
         }
     }
@@ -299,14 +339,17 @@ module leizd_aptos_logic::risk_factor {
     }
     //// for round up
     fun calculate_fee_with_round_up(value: u64, fee: u64): u64 {
-        let value_mul_by_fee = (value * fee as u128); // NOTE: as not to overflow
-        let precision_u128 = (precision() as u128);
-        let result = value_mul_by_fee / precision_u128;
-        if (value_mul_by_fee % precision_u128 != 0) (result + 1 as u64) else (result as u64)
+        assert!(fee <= precision(), error::invalid_argument(EINVALID_FEE));
+        let value_mul_by_fee = (value as u128) * (fee as u128); // NOTE: as not to overflow
+        let result = value_mul_by_fee / precision_u128();
+        if (value_mul_by_fee % precision_u128() != 0) (result + 1 as u64) else (result as u64)
     }
 
-    public entry fun precision(): u64 {
+    public fun precision(): u64 {
         PRECISION
+    }
+    public fun precision_u128(): u128 {
+        (PRECISION as u128)
     }
 
     #[test_only]
@@ -572,7 +615,7 @@ module leizd_aptos_logic::risk_factor {
         assert!(calculate_share_fee(1) == 1, 0);
         assert!(calculate_share_fee(0) == 0, 0);
     }
-        #[test(owner = @leizd_aptos_logic)]
+    #[test(owner = @leizd_aptos_logic)]
     fun test_calculate_liquidation_fee(owner: &signer) acquires ProtocolFees, RepositoryEventHandle {
         account::create_account_for_test(signer::address_of(owner));
         initialize(owner);
@@ -588,5 +631,20 @@ module leizd_aptos_logic::risk_factor {
         assert!(calculate_liquidation_fee(199) == 1, 0);
         assert!(calculate_liquidation_fee(1) == 1, 0);
         assert!(calculate_liquidation_fee(0) == 0, 0);
+    }
+    #[test(owner = @leizd_aptos_logic)]
+    fun test_calculate_fee_with_round_up__check_overflow(owner: &signer) acquires ProtocolFees, RepositoryEventHandle {
+        account::create_account_for_test(signer::address_of(owner));
+        initialize(owner);
+
+        let u64_max: u64 = 18446744073709551615;
+        calculate_fee_with_round_up(u64_max, entry_fee());
+        calculate_fee_with_round_up(u64_max, precision());
+    }
+    #[test]
+    #[expected_failure(abort_code = 65543)]
+    fun test_calculate_fee_with_round_up_when_fee_is_greater_than_precision() {
+        let u64_max: u64 = 18446744073709551615;
+        calculate_fee_with_round_up(u64_max, precision() + 1);
     }
 }

@@ -246,13 +246,13 @@ module leizd_aptos_trove::sorted_trove {
     }
 
     #[test_only]
-    public fun node_next<C>(account:address): address acquires Data {
+    public fun node_next<C>(account: address): address acquires Data {
         let node = node<C>(account);
         option::borrow_with_default<Node>(&node, &Node{next_id: @0x0, prev_id: @0x0}).next_id
     }
 
     #[test_only]
-    public fun node_prev<C>(account:address): address acquires Data {
+    public fun node_prev<C>(account: address): address acquires Data {
         let node = node<C>(account);
         option::borrow_with_default<Node>(&node, &Node{next_id: @0x0, prev_id: @0x0}).prev_id
     }
