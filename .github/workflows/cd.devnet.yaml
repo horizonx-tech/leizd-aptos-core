@@ -23,7 +23,6 @@ jobs:
       - name: Get Aptos
         uses: pontem-network/get-aptos@main
         with:
-          version: latest
           token: ${{ secrets.GITHUB_TOKEN }}
           prerelease: true
 
