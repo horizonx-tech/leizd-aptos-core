@@ -49,7 +49,7 @@ module leizd_aptos_common::position_type {
     }
     #[test]
     #[expected_failure(abort_code = 65537)]
-    fun test_assert_pool_type_withnot_pool_type() {
+    fun test_assert_pool_type_with_not_pool_type() {
         assert_position_type<DummyType>();
     }
 }

@@ -216,7 +216,7 @@ module leizd::interest_rate {
         let rcomp = compound_interest_rate(key, total_deposits, total_borrows, last_updated, now);
         assert!(rcomp == 1901829990, 0);
 
-        // TOOD: more tests
+        // TODO: more tests
     }
 
     #[test(owner = @leizd_aptos_logic)]

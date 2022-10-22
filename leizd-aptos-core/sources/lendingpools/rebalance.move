@@ -487,7 +487,7 @@ module leizd_aptos_logic::rebalance {
         borrowed_amount: u64
     ): (
         u64, // extra amount
-        u64, // insufiicient amount
+        u64, // insufficient amount
         u128, // deposited_volume
         u128, // borrowed_volume
     ) {
