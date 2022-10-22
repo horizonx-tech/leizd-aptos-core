@@ -59,11 +59,11 @@ module leizd_aptos_lib::math64 {
         result
     }
 
-    public fun utilization(total_deposts: u64, total_borrows: u64): u64 {
-        if (total_deposts == 0 || total_borrows == 0) {
+    public fun utilization(total_deposits: u64, total_borrows: u64): u64 {
+        if (total_deposits == 0 || total_borrows == 0) {
             0
         } else {
-            (total_borrows * constant::e18_u64() / total_deposts)
+            (total_borrows * constant::e18_u64() / total_deposits)
         }
     }
 

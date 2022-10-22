@@ -7,18 +7,17 @@ module leizd_aptos_logic::rebalance {
     use aptos_std::event;
     use aptos_framework::account;
     use aptos_framework::coin;
-    use leizd_aptos_common::pool_type;
-    use leizd_aptos_common::permission;
+    use leizd_aptos_lib::i128;
     use leizd_aptos_common::coin_key::{key};
+    use leizd_aptos_common::permission;
     use leizd_aptos_common::pool_status;
-    use leizd_aptos_common::pool_type::{Asset, Shadow};
+    use leizd_aptos_common::pool_type::{Self, Asset, Shadow};
     use leizd_aptos_logic::risk_factor;
     use leizd_aptos_trove::usdz::{USDZ};
     use leizd_aptos_external::price_oracle;
     use leizd::asset_pool::{Self, OperatorKey as AssetPoolKey};
     use leizd::shadow_pool::{Self, OperatorKey as ShadowPoolKey};
     use leizd::account_position::{Self, OperatorKey as AccountPositionKey};
-    use leizd_aptos_lib::i128;
 
     const EALREADY_INITIALIZED: u64 = 1;
     const ENOT_INITIALIZED_COIN: u64 = 2;
@@ -488,7 +487,7 @@ module leizd_aptos_logic::rebalance {
         borrowed_amount: u64
     ): (
         u64, // extra amount
-        u64, // insufiicient amount
+        u64, // insufficient amount
         u128, // deposited_volume
         u128, // borrowed_volume
     ) {
@@ -784,7 +783,7 @@ module leizd_aptos_logic::rebalance {
                 let key = vector::borrow(&coins, i);
                 if (simple_map::contains_key(&borrows, key)) {
                     let amount = simple_map::borrow(&borrows, key);
-                    let (_ ,share) = shadow_pool::borrow_for_with(*key, account_addr, account_addr, *amount, shadow_pool_key);
+                    let (_, share) = shadow_pool::borrow_for_with(*key, account_addr, account_addr, *amount, shadow_pool_key);
                     account_position::borrow_unsafe_with<Shadow>(*key, account_addr, share, account_position_key);
                 };
                 i = i + 1;
@@ -799,7 +798,7 @@ module leizd_aptos_logic::rebalance {
                 if (simple_map::contains_key(&withdraws, key)) {
                     let amount = simple_map::borrow(&withdraws, key);
                     let is_conly = simple_map::borrow(&is_conly_vec, key);
-                    let (_ ,share) = shadow_pool::withdraw_for_with(*key, account_addr, account_addr, *amount, *is_conly, 0, shadow_pool_key);
+                    let (_, share) = shadow_pool::withdraw_for_with(*key, account_addr, account_addr, *amount, *is_conly, 0, shadow_pool_key);
                     account_position::withdraw_unsafe_with<Shadow>(*key, account_addr, share, *is_conly, account_position_key);
                 };
                 i = i + 1;
@@ -813,7 +812,7 @@ module leizd_aptos_logic::rebalance {
                 let key = vector::borrow(&coins, i);
                 if (simple_map::contains_key(&repays, key)) {
                     let amount = simple_map::borrow(&repays, key);
-                    let (_ ,share) = shadow_pool::repay_with(*key, account, *amount, shadow_pool_key);
+                    let (_, share) = shadow_pool::repay_with(*key, account, *amount, shadow_pool_key);
                     account_position::repay_with<Shadow>(*key, account_addr, share, account_position_key);
                 };
                 i = i + 1;
@@ -832,7 +831,7 @@ module leizd_aptos_logic::rebalance {
                     let amount_as_input = if (*amount > balance) balance else *amount; // TODO: check - short 1 amount because of rounded down somewhere
 
                     let is_conly = simple_map::borrow(&is_conly_vec, key);
-                    let (_ ,share) = shadow_pool::deposit_for_with(*key, account, account_addr, amount_as_input, *is_conly, shadow_pool_key);
+                    let (_, share) = shadow_pool::deposit_for_with(*key, account, account_addr, amount_as_input, *is_conly, shadow_pool_key);
                     account_position::deposit_with<Shadow>(*key, account, account_addr, share, *is_conly, account_position_key);
                 };
                 i = i + 1;
