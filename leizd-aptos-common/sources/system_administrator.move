@@ -35,6 +35,33 @@ module leizd_aptos_common::system_administrator {
         pool_status::update_borrow_status<C>(true);
     }
 
+    public entry fun enable_borrow_asset_with_rebalance<C>(owner: &signer) {
+        permission::assert_owner(signer::address_of(owner));
+        pool_status::update_borrow_asset_with_rebalance_status<C>(true);
+    }
+    public entry fun disable_borrow_asset_with_rebalance<C>(owner: &signer) {
+        permission::assert_owner(signer::address_of(owner));
+        pool_status::update_borrow_asset_with_rebalance_status<C>(false);
+    }
+
+    public entry fun enable_repay_shadow_evenly<C>(owner: &signer) {
+        permission::assert_owner(signer::address_of(owner));
+        pool_status::update_repay_shadow_evenly_status<C>(true);
+    }
+    public entry fun disable_repay_shadow_evenly<C>(owner: &signer) {
+        permission::assert_owner(signer::address_of(owner));
+        pool_status::update_repay_shadow_evenly_status<C>(false);
+    }
+
+    public entry fun enable_liquidate<C>(owner: &signer) {
+        permission::assert_owner(signer::address_of(owner));
+        pool_status::update_liquidate_status<C>(true);
+    }
+    public entry fun disable_liquidate<C>(owner: &signer) {
+        permission::assert_owner(signer::address_of(owner));
+        pool_status::update_liquidate_status<C>(false);
+    }
+
     public entry fun pause_protocol(owner: &signer) {
         permission::assert_owner(signer::address_of(owner));
         system_status::update_status(false);
@@ -118,6 +145,30 @@ module leizd_aptos_common::system_administrator {
         assert!(pool_status::can_repay<WETH>(), 0);
         assert!(pool_status::can_switch_collateral<WETH>(), 0);
     }
+    #[test(owner = @leizd_aptos_common)]
+    fun test_control_status_to_borrow_asset_with_rebalance(owner: &signer) {
+        prepare_for_test(owner);
+        disable_borrow_asset_with_rebalance<WETH>(owner);
+        assert!(!pool_status::can_borrow_asset_with_rebalance<WETH>(), 0);
+        enable_borrow_asset_with_rebalance<WETH>(owner);
+        assert!(pool_status::can_borrow_asset_with_rebalance<WETH>(), 0);
+    }
+    #[test(owner = @leizd_aptos_common)]
+    fun test_control_status_to_repay_shadow_evenly(owner: &signer) {
+        prepare_for_test(owner);
+        disable_repay_shadow_evenly<WETH>(owner);
+        assert!(!pool_status::can_repay_shadow_evenly<WETH>(), 0);
+        enable_repay_shadow_evenly<WETH>(owner);
+        assert!(pool_status::can_repay_shadow_evenly<WETH>(), 0);
+    }
+    #[test(owner = @leizd_aptos_common)]
+    fun test_control_status_to_liquidate(owner: &signer) {
+        prepare_for_test(owner);
+        disable_liquidate<WETH>(owner);
+        assert!(!pool_status::can_liquidate<WETH>(), 0);
+        enable_liquidate<WETH>(owner);
+        assert!(pool_status::can_liquidate<WETH>(), 0);
+    }
     #[test(account = @0x111)]
     #[expected_failure(abort_code = 65537)]
     fun test_operate_pool_to_activate_without_owner(account: &signer) {
@@ -137,6 +188,36 @@ module leizd_aptos_common::system_administrator {
     #[expected_failure(abort_code = 65537)]
     fun test_operate_pool_to_unfreeze_without_owner(account: &signer) {
         unfreeze_pool<WETH>(account);
+    }
+    #[test(account = @0x111)]
+    #[expected_failure(abort_code = 65537)]
+    fun test_disable_borrow_asset_with_rebalance_without_owner(account: &signer) {
+        disable_borrow_asset_with_rebalance<WETH>(account);
+    }
+    #[test(account = @0x111)]
+    #[expected_failure(abort_code = 65537)]
+    fun test_enable_borrow_asset_with_rebalance_without_owner(account: &signer) {
+        enable_borrow_asset_with_rebalance<WETH>(account);
+    }
+    #[test(account = @0x111)]
+    #[expected_failure(abort_code = 65537)]
+    fun test_disable_repay_shadow_evenly_without_owner(account: &signer) {
+        disable_repay_shadow_evenly<WETH>(account);
+    }
+    #[test(account = @0x111)]
+    #[expected_failure(abort_code = 65537)]
+    fun test_enable_repay_shadow_evenly_without_owner(account: &signer) {
+        enable_repay_shadow_evenly<WETH>(account);
+    }
+    #[test(account = @0x111)]
+    #[expected_failure(abort_code = 65537)]
+    fun test_disable_liquidate_without_owner(account: &signer) {
+        disable_liquidate<WETH>(account);
+    }
+    #[test(account = @0x111)]
+    #[expected_failure(abort_code = 65537)]
+    fun test_enable_liquidate_without_owner(account: &signer) {
+        enable_liquidate<WETH>(account);
     }
     #[test(owner = @leizd_aptos_common)]
     fun test_operate_system_status(owner: &signer) {
