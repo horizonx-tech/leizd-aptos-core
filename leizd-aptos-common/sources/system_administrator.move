@@ -44,13 +44,13 @@ module leizd_aptos_common::system_administrator {
         pool_status::update_borrow_asset_with_rebalance_status<C>(false);
     }
 
-    public entry fun enable_repay_shadow_evenly<C>(owner: &signer) {
+    public entry fun enable_repay_shadow_evenly(owner: &signer) {
         permission::assert_owner(signer::address_of(owner));
-        pool_status::update_repay_shadow_evenly_status<C>(true);
+        pool_status::update_repay_shadow_evenly_status(true);
     }
-    public entry fun disable_repay_shadow_evenly<C>(owner: &signer) {
+    public entry fun disable_repay_shadow_evenly(owner: &signer) {
         permission::assert_owner(signer::address_of(owner));
-        pool_status::update_repay_shadow_evenly_status<C>(false);
+        pool_status::update_repay_shadow_evenly_status(false);
     }
 
     public entry fun enable_liquidate<C>(owner: &signer) {
@@ -156,10 +156,10 @@ module leizd_aptos_common::system_administrator {
     #[test(owner = @leizd_aptos_common)]
     fun test_control_status_to_repay_shadow_evenly(owner: &signer) {
         prepare_for_test(owner);
-        disable_repay_shadow_evenly<WETH>(owner);
-        assert!(!pool_status::can_repay_shadow_evenly<WETH>(), 0);
-        enable_repay_shadow_evenly<WETH>(owner);
-        assert!(pool_status::can_repay_shadow_evenly<WETH>(), 0);
+        disable_repay_shadow_evenly(owner);
+        assert!(!pool_status::can_repay_shadow_evenly(), 0);
+        enable_repay_shadow_evenly(owner);
+        assert!(pool_status::can_repay_shadow_evenly(), 0);
     }
     #[test(owner = @leizd_aptos_common)]
     fun test_control_status_to_liquidate(owner: &signer) {
@@ -202,12 +202,12 @@ module leizd_aptos_common::system_administrator {
     #[test(account = @0x111)]
     #[expected_failure(abort_code = 65537)]
     fun test_disable_repay_shadow_evenly_without_owner(account: &signer) {
-        disable_repay_shadow_evenly<WETH>(account);
+        disable_repay_shadow_evenly(account);
     }
     #[test(account = @0x111)]
     #[expected_failure(abort_code = 65537)]
     fun test_enable_repay_shadow_evenly_without_owner(account: &signer) {
-        enable_repay_shadow_evenly<WETH>(account);
+        enable_repay_shadow_evenly(account);
     }
     #[test(account = @0x111)]
     #[expected_failure(abort_code = 65537)]

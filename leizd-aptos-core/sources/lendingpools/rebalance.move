@@ -280,6 +280,7 @@ module leizd_aptos_logic::rebalance {
         shadow_pool_key: &ShadowPoolKey, 
         _key: &OperatorKey
     ) acquires RebalanceEventHandle {
+        assert!(pool_status::can_repay_shadow_evenly(), error::invalid_state(ENOT_AVAILABLE_STATUS));
         let account_addr = signer::address_of(account);
 
         let (target_keys, target_borrowed_shares) = account_position::borrowed_shadow_share_all(account_addr); // get all shadow borrowed_share
@@ -1075,6 +1076,15 @@ module leizd_aptos_logic::rebalance {
 
         system_administrator::disable_borrow_asset_with_rebalance<USDC>(owner);
         borrow_asset_with_rebalance<USDC>(account, 0, &account_position_key, &asset_pool_key, &shadow_pool_key, &rebalance_key);
+    }
+    #[test(owner = @leizd, account = @0x111)]
+    #[expected_failure(abort_code = 196611)]
+    fun test_repay_shadow_evenly_when_not_available_status(owner: &signer, account: &signer) acquires RebalanceEventHandle {
+        let (account_position_key, _, shadow_pool_key, rebalance_key) = initialize_for_test(owner);
+        pool_manager::initialize(owner);
+
+        system_administrator::disable_repay_shadow_evenly(owner);
+        repay_shadow_evenly(account, 0, &account_position_key, &shadow_pool_key, &rebalance_key);
     }
     #[test(owner = @leizd, account = @0x111)]
     #[expected_failure(abort_code = 196611)]

@@ -24,7 +24,7 @@ module leizd_aptos_common::pool_status {
         can_repay: simple_map::SimpleMap<String,bool>,
         can_switch_collateral: simple_map::SimpleMap<String,bool>,
         can_borrow_asset_with_rebalance: simple_map::SimpleMap<String,bool>,
-        can_repay_shadow_evenly: simple_map::SimpleMap<String,bool>,
+        can_repay_shadow_evenly: bool,
         can_liquidate: simple_map::SimpleMap<String,bool>,
     }
 
@@ -36,7 +36,6 @@ module leizd_aptos_common::pool_status {
         can_repay: bool,
         can_switch_collateral: bool,
         can_borrow_asset_with_rebalance: bool,
-        can_repay_shadow_evenly: bool,
         can_liquidate: bool,
     }
 
@@ -57,7 +56,7 @@ module leizd_aptos_common::pool_status {
             // advanced function
             can_switch_collateral: simple_map::create<String,bool>(),
             can_borrow_asset_with_rebalance: simple_map::create<String,bool>(),
-            can_repay_shadow_evenly: simple_map::create<String,bool>(),
+            can_repay_shadow_evenly: true,
             can_liquidate: simple_map::create<String,bool>(),
         });
         move_to(owner, PoolStatusEventHandle {
@@ -90,7 +89,6 @@ module leizd_aptos_common::pool_status {
         simple_map::add<String,bool>(&mut status.can_repay, key, true);
         simple_map::add<String,bool>(&mut status.can_switch_collateral, key, true);
         simple_map::add<String,bool>(&mut status.can_borrow_asset_with_rebalance, key, true);
-        simple_map::add<String,bool>(&mut status.can_repay_shadow_evenly, key, true);
         simple_map::add<String,bool>(&mut status.can_liquidate, key, true);
     }
 
@@ -107,7 +105,6 @@ module leizd_aptos_common::pool_status {
                     can_repay: *simple_map::borrow<String,bool>(&pool_status_ref.can_repay, &key),
                     can_switch_collateral: *simple_map::borrow<String,bool>(&pool_status_ref.can_switch_collateral, &key),
                     can_borrow_asset_with_rebalance: *simple_map::borrow<String,bool>(&pool_status_ref.can_borrow_asset_with_rebalance, &key),
-                    can_repay_shadow_evenly: *simple_map::borrow<String,bool>(&pool_status_ref.can_repay_shadow_evenly, &key),
                     can_liquidate: *simple_map::borrow<String,bool>(&pool_status_ref.can_liquidate, &key),
             },
         );
@@ -206,17 +203,11 @@ module leizd_aptos_common::pool_status {
         system_status::status() && *can_borrow_asset_with_rebalance
     }
 
-    public fun can_repay_shadow_evenly<C>(): bool acquires Status {
-        can_repay_shadow_evenly_with(key<C>())
-    }
-
-    public fun can_repay_shadow_evenly_with(key: String): bool acquires Status {
+    public fun can_repay_shadow_evenly(): bool acquires Status {
         let owner_address = permission::owner_address();
-        assert_pool_status_initialized(owner_address, key);
+        // assert_pool_status_initialized(owner_address, key); // TODO: check Status only
         let pool_status_ref = borrow_global<Status>(owner_address);
-        if (!simple_map::contains_key<String,bool>(&pool_status_ref.can_repay_shadow_evenly, &key)) return false;
-        let can_repay_shadow_evenly = simple_map::borrow<String,bool>(&pool_status_ref.can_repay_shadow_evenly, &key);
-        system_status::status() && *can_repay_shadow_evenly
+        system_status::status() && pool_status_ref.can_repay_shadow_evenly
     }
 
     public fun can_liquidate<C>(): bool acquires Status {
@@ -317,18 +308,12 @@ module leizd_aptos_common::pool_status {
         emit_current_pool_status(key);
     }
 
-    public(friend) fun update_repay_shadow_evenly_status<C>(active: bool) acquires Status, PoolStatusEventHandle {
-        update_repay_shadow_evenly_status_with(key<C>(), active);
-    }
-
-    public(friend) fun update_repay_shadow_evenly_status_with(key: String, active: bool) acquires Status , PoolStatusEventHandle{
+    public(friend) fun update_repay_shadow_evenly_status(active: bool) acquires Status {
         let owner_address = permission::owner_address();
-        assert_pool_status_initialized(owner_address, key);
+        // assert_pool_status_initialized(owner_address, key); // TODO: check Status only
         let pool_status_ref = borrow_global_mut<Status>(owner_address);
-        assert!(simple_map::contains_key<String,bool>(&pool_status_ref.can_repay_shadow_evenly, &key), 0);
-        let can_repay_shadow_evenly = simple_map::borrow_mut<String,bool>(&mut pool_status_ref.can_repay_shadow_evenly, &key);
-        *can_repay_shadow_evenly = active;
-        emit_current_pool_status(key);
+        pool_status_ref.can_repay_shadow_evenly = active;
+        // emit_current_pool_status(key); //TODO: event?
     }
 
     public(friend) fun update_liquidate_status<C>(active: bool) acquires Status, PoolStatusEventHandle {
@@ -370,18 +355,6 @@ module leizd_aptos_common::pool_status {
         update_switch_collateral_status<C>(active);
     }
     #[test_only]
-    public fun update_borrow_asset_with_rebalance_status_for_test<C>(active: bool) acquires Status, PoolStatusEventHandle {
-        update_borrow_asset_with_rebalance_status<C>(active);
-    }
-    #[test_only]
-    public fun update_repay_shadow_evenly_status_for_test<C>(active: bool) acquires Status, PoolStatusEventHandle {
-        update_repay_shadow_evenly_status<C>(active);
-    }
-    #[test_only]
-    public fun update_liquidate_status_for_test<C>(active: bool) acquires Status, PoolStatusEventHandle {
-        update_liquidate_status<C>(active);
-    }
-    #[test_only]
     struct DummyStruct {}
     #[test(owner = @leizd_aptos_common)]
     fun test_end_to_end(owner: &signer) acquires Status, PoolStatusEventHandle {
@@ -395,7 +368,7 @@ module leizd_aptos_common::pool_status {
         assert!(can_repay<DummyStruct>(), 0);
         assert!(can_switch_collateral<DummyStruct>(), 0);
         assert!(can_borrow_asset_with_rebalance<DummyStruct>(), 0);
-        assert!(can_repay_shadow_evenly<DummyStruct>(), 0);
+        assert!(can_repay_shadow_evenly(), 0);
         assert!(can_liquidate<DummyStruct>(), 0);
         update_deposit_status<DummyStruct>(false);
         update_withdraw_status<DummyStruct>(false);
@@ -403,7 +376,7 @@ module leizd_aptos_common::pool_status {
         update_repay_status<DummyStruct>(false);
         update_switch_collateral_status<DummyStruct>(false);
         update_borrow_asset_with_rebalance_status<DummyStruct>(false);
-        update_repay_shadow_evenly_status<DummyStruct>(false);
+        update_repay_shadow_evenly_status(false);
         update_liquidate_status<DummyStruct>(false);
         assert!(!can_deposit<DummyStruct>(), 0);
         assert!(!can_withdraw<DummyStruct>(), 0);
@@ -411,7 +384,7 @@ module leizd_aptos_common::pool_status {
         assert!(!can_repay<DummyStruct>(), 0);
         assert!(!can_switch_collateral<DummyStruct>(), 0);
         assert!(!can_borrow_asset_with_rebalance<DummyStruct>(), 0);
-        assert!(!can_repay_shadow_evenly<DummyStruct>(), 0);
+        assert!(!can_repay_shadow_evenly(), 0);
         assert!(!can_liquidate<DummyStruct>(), 0);
     }
 }
