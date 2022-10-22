@@ -10,6 +10,7 @@ module leizd_aptos_logic::rebalance {
     use leizd_aptos_common::pool_type;
     use leizd_aptos_common::permission;
     use leizd_aptos_common::coin_key::{key};
+    use leizd_aptos_common::pool_status;
     use leizd_aptos_common::pool_type::{Asset, Shadow};
     use leizd_aptos_logic::risk_factor;
     use leizd_aptos_trove::usdz::{USDZ};
@@ -20,7 +21,9 @@ module leizd_aptos_logic::rebalance {
     use leizd_aptos_lib::i128;
 
     const EALREADY_INITIALIZED: u64 = 1;
-    const ENO_SAFE_POSITION: u64 = 2;
+    const ENOT_INITIALIZED_COIN: u64 = 2;
+    const ENOT_AVAILABLE_STATUS: u64 = 3;
+    const ENO_SAFE_POSITION: u64 = 4;
     const ECANNOT_BORROW_ASSET_WITH_REBALANCE: u64 = 11;
 
     //// resources
@@ -77,8 +80,8 @@ module leizd_aptos_logic::rebalance {
         shadow_pool_key: &ShadowPoolKey,
         _key: &OperatorKey
     ) acquires RebalanceEventHandle {
-        assert!(asset_pool::is_pool_initialized<C>() , 0);
-        assert!(shadow_pool::is_initialized_asset<C>() , 0);
+        assert!(asset_pool::is_pool_initialized<C>() && shadow_pool::is_initialized_asset<C>(), error::invalid_argument(ENOT_INITIALIZED_COIN));
+        assert!(pool_status::can_borrow_asset_with_rebalance<C>(), error::invalid_state(ENOT_AVAILABLE_STATUS));
 
         let account_addr = signer::address_of(account);
 
@@ -277,6 +280,7 @@ module leizd_aptos_logic::rebalance {
         shadow_pool_key: &ShadowPoolKey, 
         _key: &OperatorKey
     ) acquires RebalanceEventHandle {
+        assert!(pool_status::can_repay_shadow_evenly(), error::invalid_state(ENOT_AVAILABLE_STATUS));
         let account_addr = signer::address_of(account);
 
         let (target_keys, target_borrowed_shares) = account_position::borrowed_shadow_share_all(account_addr); // get all shadow borrowed_share
@@ -353,6 +357,8 @@ module leizd_aptos_logic::rebalance {
         shadow_pool_key: &ShadowPoolKey, 
         _key: &OperatorKey
     ) acquires RebalanceEventHandle {
+        assert!(pool_status::can_liquidate<C>(), error::invalid_state(ENOT_AVAILABLE_STATUS));
+
         pool_type::assert_pool_type<P>();
         let liquidator_addr = signer::address_of(account);
 
@@ -1035,5 +1041,60 @@ module leizd_aptos_logic::rebalance {
         // should be equal
         // debug::print(&(sum_rebalanced_deposited + sum_rebalanced_repaid));
         // debug::print(&(sum_rebalanced_borrowed + sum_rebalanced_withdrawed));
+    }
+
+    #[test_only]
+    use leizd_aptos_common::system_administrator;
+    #[test_only]
+    use leizd_aptos_common::test_coin::{Self, USDC};
+    #[test_only]
+    use leizd::pool_manager;
+    #[test_only]
+    use leizd::test_initializer;
+    #[test_only]
+    fun initialize_for_test(owner: &signer): (AccountPositionKey, AssetPoolKey, ShadowPoolKey, OperatorKey) {
+        account::create_account_for_test(signer::address_of(owner));
+        test_initializer::initialize(owner);
+        let account_position_key = account_position::initialize(owner);
+        let asset_pool_key = asset_pool::initialize(owner);
+        let shadow_pool_key = shadow_pool::initialize(owner);
+        let rebalance_key = initialize(owner);
+        (
+            account_position_key,
+            asset_pool_key,
+            shadow_pool_key,
+            rebalance_key,
+        )
+    }
+    #[test(owner = @leizd, account = @0x111)]
+    #[expected_failure(abort_code = 196611)]
+    fun test_borrow_asset_with_rebalance_when_not_available_status(owner: &signer, account: &signer) acquires RebalanceEventHandle {
+        let (account_position_key, asset_pool_key, shadow_pool_key, rebalance_key) = initialize_for_test(owner);
+        pool_manager::initialize(owner);
+        test_coin::init_usdc(owner);
+        pool_manager::add_pool<USDC>(owner);
+
+        system_administrator::disable_borrow_asset_with_rebalance<USDC>(owner);
+        borrow_asset_with_rebalance<USDC>(account, 0, &account_position_key, &asset_pool_key, &shadow_pool_key, &rebalance_key);
+    }
+    #[test(owner = @leizd, account = @0x111)]
+    #[expected_failure(abort_code = 196611)]
+    fun test_repay_shadow_evenly_when_not_available_status(owner: &signer, account: &signer) acquires RebalanceEventHandle {
+        let (account_position_key, _, shadow_pool_key, rebalance_key) = initialize_for_test(owner);
+        pool_manager::initialize(owner);
+
+        system_administrator::disable_repay_shadow_evenly(owner);
+        repay_shadow_evenly(account, 0, &account_position_key, &shadow_pool_key, &rebalance_key);
+    }
+    #[test(owner = @leizd, account = @0x111)]
+    #[expected_failure(abort_code = 196611)]
+    fun test_liquidate_when_not_available_status(owner: &signer, account: &signer) acquires RebalanceEventHandle {
+        let (account_position_key, asset_pool_key, shadow_pool_key, rebalance_key) = initialize_for_test(owner);
+        pool_manager::initialize(owner);
+        test_coin::init_usdc(owner);
+        pool_manager::add_pool<USDC>(owner);
+
+        system_administrator::disable_liquidate<USDC>(owner);
+        liquidate<USDC, Asset>(account, signer::address_of(account), &account_position_key, &asset_pool_key, &shadow_pool_key, &rebalance_key);
     }
 }
