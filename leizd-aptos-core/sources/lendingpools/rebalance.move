@@ -7,18 +7,17 @@ module leizd_aptos_logic::rebalance {
     use aptos_std::event;
     use aptos_framework::account;
     use aptos_framework::coin;
-    use leizd_aptos_common::pool_type;
-    use leizd_aptos_common::permission;
+    use leizd_aptos_lib::i128;
     use leizd_aptos_common::coin_key::{key};
+    use leizd_aptos_common::permission;
     use leizd_aptos_common::pool_status;
-    use leizd_aptos_common::pool_type::{Asset, Shadow};
+    use leizd_aptos_common::pool_type::{Self, Asset, Shadow};
     use leizd_aptos_logic::risk_factor;
     use leizd_aptos_trove::usdz::{USDZ};
     use leizd_aptos_external::price_oracle;
     use leizd::asset_pool::{Self, OperatorKey as AssetPoolKey};
     use leizd::shadow_pool::{Self, OperatorKey as ShadowPoolKey};
     use leizd::account_position::{Self, OperatorKey as AccountPositionKey};
-    use leizd_aptos_lib::i128;
 
     const EALREADY_INITIALIZED: u64 = 1;
     const ENOT_INITIALIZED_COIN: u64 = 2;
