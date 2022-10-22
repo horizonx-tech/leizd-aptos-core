@@ -835,7 +835,7 @@ module leizd_aptos_entry::money_market {
         assert!(account_position::deposited_asset_share<WETH>(borrower_addr) == 2000, 0);
         assert!(account_position::borrowed_shadow_share<WETH>(borrower_addr) == 1005, 0);
         assert!(coin::balance<WETH>(borrower_addr) == 0, 0);
-        assert!(coin::balance<USDZ>(borrower_addr) == 1000 ,0);
+        assert!(coin::balance<USDZ>(borrower_addr) == 1000, 0);
         assert!(coin::balance<WETH>(liquidator_addr) == 0, 0);
         assert!(treasury::balance<WETH>() == 0, 0);
 
@@ -849,7 +849,7 @@ module leizd_aptos_entry::money_market {
         assert!(account_position::deposited_asset_share<WETH>(borrower_addr) == 0, 0);
         assert!(account_position::borrowed_shadow_share<WETH>(borrower_addr) == 0, 0);
         assert!(coin::balance<WETH>(borrower_addr) == 0, 0);
-        assert!(coin::balance<USDZ>(borrower_addr) == 1000 ,0);
+        assert!(coin::balance<USDZ>(borrower_addr) == 1000, 0);
         assert!(coin::balance<WETH>(liquidator_addr) == 1990, 0);
         assert!(treasury::balance<WETH>() == 10, 0);
     }

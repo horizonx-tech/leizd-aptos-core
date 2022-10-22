@@ -270,7 +270,7 @@ module leizd_aptos_common::pool_status {
         update_repay_status_with(key<C>(), active);
     }
 
-    public(friend) fun update_repay_status_with(key: String, active: bool) acquires Status , PoolStatusEventHandle{
+    public(friend) fun update_repay_status_with(key: String, active: bool) acquires Status, PoolStatusEventHandle{
         let owner_address = permission::owner_address();
         assert_pool_status_initialized(owner_address, key);
         let pool_status_ref = borrow_global_mut<Status>(owner_address);
@@ -284,7 +284,7 @@ module leizd_aptos_common::pool_status {
         update_switch_collateral_status_with(key<C>(), active);
     }
 
-    public(friend) fun update_switch_collateral_status_with(key: String, active: bool) acquires Status , PoolStatusEventHandle{
+    public(friend) fun update_switch_collateral_status_with(key: String, active: bool) acquires Status, PoolStatusEventHandle{
         let owner_address = permission::owner_address();
         assert_pool_status_initialized(owner_address, key);
         let pool_status_ref = borrow_global_mut<Status>(owner_address);
@@ -298,7 +298,7 @@ module leizd_aptos_common::pool_status {
         update_borrow_asset_with_rebalance_status_with(key<C>(), active);
     }
 
-    public(friend) fun update_borrow_asset_with_rebalance_status_with(key: String, active: bool) acquires Status , PoolStatusEventHandle{
+    public(friend) fun update_borrow_asset_with_rebalance_status_with(key: String, active: bool) acquires Status, PoolStatusEventHandle{
         let owner_address = permission::owner_address();
         assert_pool_status_initialized(owner_address, key);
         let pool_status_ref = borrow_global_mut<Status>(owner_address);
@@ -320,7 +320,7 @@ module leizd_aptos_common::pool_status {
         update_liquidate_status_with(key<C>(), active);
     }
 
-    public(friend) fun update_liquidate_status_with(key: String, active: bool) acquires Status , PoolStatusEventHandle{
+    public(friend) fun update_liquidate_status_with(key: String, active: bool) acquires Status, PoolStatusEventHandle{
         let owner_address = permission::owner_address();
         assert_pool_status_initialized(owner_address, key);
         let pool_status_ref = borrow_global_mut<Status>(owner_address);

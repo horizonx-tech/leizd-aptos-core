@@ -784,7 +784,7 @@ module leizd_aptos_logic::rebalance {
                 let key = vector::borrow(&coins, i);
                 if (simple_map::contains_key(&borrows, key)) {
                     let amount = simple_map::borrow(&borrows, key);
-                    let (_ ,share) = shadow_pool::borrow_for_with(*key, account_addr, account_addr, *amount, shadow_pool_key);
+                    let (_, share) = shadow_pool::borrow_for_with(*key, account_addr, account_addr, *amount, shadow_pool_key);
                     account_position::borrow_unsafe_with<Shadow>(*key, account_addr, share, account_position_key);
                 };
                 i = i + 1;
@@ -799,7 +799,7 @@ module leizd_aptos_logic::rebalance {
                 if (simple_map::contains_key(&withdraws, key)) {
                     let amount = simple_map::borrow(&withdraws, key);
                     let is_conly = simple_map::borrow(&is_conly_vec, key);
-                    let (_ ,share) = shadow_pool::withdraw_for_with(*key, account_addr, account_addr, *amount, *is_conly, 0, shadow_pool_key);
+                    let (_, share) = shadow_pool::withdraw_for_with(*key, account_addr, account_addr, *amount, *is_conly, 0, shadow_pool_key);
                     account_position::withdraw_unsafe_with<Shadow>(*key, account_addr, share, *is_conly, account_position_key);
                 };
                 i = i + 1;
@@ -813,7 +813,7 @@ module leizd_aptos_logic::rebalance {
                 let key = vector::borrow(&coins, i);
                 if (simple_map::contains_key(&repays, key)) {
                     let amount = simple_map::borrow(&repays, key);
-                    let (_ ,share) = shadow_pool::repay_with(*key, account, *amount, shadow_pool_key);
+                    let (_, share) = shadow_pool::repay_with(*key, account, *amount, shadow_pool_key);
                     account_position::repay_with<Shadow>(*key, account_addr, share, account_position_key);
                 };
                 i = i + 1;
@@ -832,7 +832,7 @@ module leizd_aptos_logic::rebalance {
                     let amount_as_input = if (*amount > balance) balance else *amount; // TODO: check - short 1 amount because of rounded down somewhere
 
                     let is_conly = simple_map::borrow(&is_conly_vec, key);
-                    let (_ ,share) = shadow_pool::deposit_for_with(*key, account, account_addr, amount_as_input, *is_conly, shadow_pool_key);
+                    let (_, share) = shadow_pool::deposit_for_with(*key, account, account_addr, amount_as_input, *is_conly, shadow_pool_key);
                     account_position::deposit_with<Shadow>(*key, account, account_addr, share, *is_conly, account_position_key);
                 };
                 i = i + 1;
