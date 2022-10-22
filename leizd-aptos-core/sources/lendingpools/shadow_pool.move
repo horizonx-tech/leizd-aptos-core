@@ -980,6 +980,9 @@ module leizd::shadow_pool {
         // top up support fees when the pool is supported
         if (central_liquidity_pool::is_supported(key) && accrued_interest > 0) {
             let generated_support_fee = central_liquidity_pool::calculate_support_fee(accrued_interest);
+            // aptos_std::debug::print(&std::string::utf8(b"ccccccccccccc"));
+            // aptos_std::debug::print(&accrued_interest);
+            // aptos_std::debug::print(&generated_support_fee);
             depositors_share = depositors_share - generated_support_fee;
             central_liquidity_pool::top_up_support_fees(key, generated_support_fee, key_for_central);
         };
@@ -1058,6 +1061,10 @@ module leizd::shadow_pool {
 
     public fun total_conly_deposited_amount(): u128 acquires Storage {
         borrow_global<Storage>(permission::owner_address()).total_conly_deposited_amount
+    }
+
+    public fun total_clp_deposited_amount(): u128 acquires Storage {
+        borrow_global<Storage>(permission::owner_address()).total_clp_deposited_amount
     }
 
     public fun total_borrowed_amount(): u128 acquires Storage {
@@ -3443,5 +3450,88 @@ module leizd::shadow_pool {
 
         assert!(coin::balance<USDZ>(depositor1_addr) == 304824, 0);
         assert!(coin::balance<USDZ>(depositor2_addr) == 203216, 0);
+    }
+
+    //// temp
+    fun setup_account_for_test(account: &signer) {
+        account::create_account_for_test(signer::address_of(account));
+        managed_coin::register<USDZ>(account);
+    }
+    #[test(owner=@leizd, aptos_framework=@aptos_framework, lp=@0x111, account=@0x222)]
+    fun test_repay_when_repaying_all_borrowed_with_clp(owner: &signer, aptos_framework: &signer, lp: &signer, account: &signer) acquires Pool, Storage, Keys, PoolEventHandle {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+
+        let dec8 = (math128::pow(10, 8) as u64);
+        let lp_addr = signer::address_of(lp);
+        setup_account_for_test(lp);
+        usdz::mint_for_test(lp_addr, 500000 * dec8);
+        deposit_for_internal(key<WETH>(), lp, lp_addr, 500000 * dec8, false);
+
+        let account_addr = signer::address_of(account);
+        setup_account_for_test(account);
+
+        let initial_sec = 1648738800; // 20220401T00:00:00
+        timestamp::update_global_time_for_test(initial_sec * 1000 * 1000);
+
+        // 1. without clp
+        timestamp::update_global_time_for_test((initial_sec + 5) * 1000 * 1000); // + 5 sec
+        borrow_for_internal(key<WETH>(), account_addr, account_addr, 250 * dec8);
+        timestamp::update_global_time_for_test((initial_sec + 10) * 1000 * 1000); // + 10 sec
+        repay_internal(key<WETH>(), account, 250 * dec8, false);
+        timestamp::update_global_time_for_test((initial_sec + 15) * 1000 * 1000); // + 15 sec
+        borrow_for_internal(key<WETH>(), account_addr, account_addr, 250 * dec8);
+        timestamp::update_global_time_for_test((initial_sec + 20) * 1000 * 1000); // + 20 sec
+        repay_internal(key<WETH>(), account, 10 * dec8, false);
+        repay_internal(key<WETH>(), account, 20 * dec8, false);
+        repay_internal(key<WETH>(), account, 30 * dec8, false);
+        repay_internal(key<WETH>(), account, 40 * dec8, false);
+        repay_internal(key<WETH>(), account, 50 * dec8, false);
+        repay_internal(key<WETH>(), account, 100 * dec8, false);
+
+        // 2. add_supported_pool
+        central_liquidity_pool::add_supported_pool<WETH>(owner);
+
+        timestamp::update_global_time_for_test((initial_sec + 25) * 1000 * 1000); // + 25 sec
+        borrow_for_internal(key<WETH>(), account_addr, account_addr, 250 * dec8);
+        timestamp::update_global_time_for_test((initial_sec + 30) * 1000 * 1000); // + 30 sec
+        repay_internal(key<WETH>(), account, 250 * dec8, false);
+        timestamp::update_global_time_for_test((initial_sec + 35) * 1000 * 1000); // + 35 sec
+        borrow_for_internal(key<WETH>(), account_addr, account_addr, 250 * dec8);
+        timestamp::update_global_time_for_test((initial_sec + 40) * 1000 * 1000); // + 40 sec
+        repay_internal(key<WETH>(), account, 10 * dec8, false);
+        repay_internal(key<WETH>(), account, 20 * dec8, false);
+        repay_internal(key<WETH>(), account, 30 * dec8, false);
+        repay_internal(key<WETH>(), account, 40 * dec8, false);
+        repay_internal(key<WETH>(), account, 50 * dec8, false);
+        repay_internal(key<WETH>(), account, 100 * dec8, false);
+
+        // 3. borrow from clp
+        withdraw_for_internal(key<WETH>(), lp_addr, lp_addr, (total_liquidity() as u64), false, false, 0);
+        usdz::mint_for_test(lp_addr, 500000 * dec8);
+        central_liquidity_pool::deposit(lp, 500000 * dec8);
+
+        timestamp::update_global_time_for_test((initial_sec + 45) * 1000 * 1000); // + 45 sec
+        borrow_for_internal(key<WETH>(), account_addr, account_addr, 250 * dec8);
+        timestamp::update_global_time_for_test((initial_sec + 50) * 1000 * 1000); // + 50 sec
+        repay_internal(key<WETH>(), account, 250 * dec8, false);
+        timestamp::update_global_time_for_test((initial_sec + 55) * 1000 * 1000); // + 55 sec
+        borrow_for_internal(key<WETH>(), account_addr, account_addr, 250 * dec8);
+        timestamp::update_global_time_for_test((initial_sec + 60) * 1000 * 1000); // + 60 sec
+        repay_internal(key<WETH>(), account, 10 * dec8, false);
+        repay_internal(key<WETH>(), account, 20 * dec8, false);
+        repay_internal(key<WETH>(), account, 30 * dec8, false);
+        repay_internal(key<WETH>(), account, 40 * dec8, false);
+        repay_internal(key<WETH>(), account, 50 * dec8, false);
+        repay_internal(key<WETH>(), account, 100 * dec8, false);
+
+        timestamp::update_global_time_for_test((initial_sec + 65) * 1000 * 1000); // + 65 sec
+        aptos_std::debug::print(&borrowed_amount<WETH>());
+        aptos_std::debug::print(&central_liquidity_pool::borrowed(key<WETH>()));
+        aptos_std::debug::print(&total_clp_deposited_amount());
+        // storage_ref.total_clp_deposited_amount = storage_ref.total_clp_deposited_amount - (repaid_to_central_liquidity_pool as u128);
+        // = total_clp_deposited_amount() - central_liquidity_pool::borrowed(key<WETH>()) < 0
+        let amount_remained = (borrowed_amount<WETH>() as u64);
+        usdz::mint_for_test(account_addr, amount_remained);
+        repay_internal(key<WETH>(), account, amount_remained, false);
     }
 }
