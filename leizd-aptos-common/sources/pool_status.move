@@ -131,6 +131,10 @@ module leizd_aptos_common::pool_status {
     }
 
     //// view functions
+    public fun managed_assets(): vector<String> acquires Status {
+        borrow_global<Status>(permission::owner_address()).assets
+    }
+
     public fun can_deposit<C>(): bool acquires Status {
         can_deposit_with(key<C>())
     }
@@ -348,7 +352,11 @@ module leizd_aptos_common::pool_status {
         update_switch_collateral_status<C>(active);
     }
     #[test_only]
-    struct DummyStruct {}
+    struct DummyStruct1 {}
+    #[test_only]
+    struct DummyStruct2 {}
+    #[test_only]
+    struct DummyStruct3 {}
     #[test(owner = @leizd_aptos_common)]
     fun test_initialize(owner: &signer) {
         let owner_addr = signer::address_of(owner);
@@ -366,46 +374,62 @@ module leizd_aptos_common::pool_status {
     fun test_initialize_for_asset(owner: &signer) acquires Status, PoolStatusEventHandle {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
-        let key = key<DummyStruct>();
+        let key = key<DummyStruct1>();
 
         initialize(owner);
         assert!(!is_initialized_asset(owner_addr, key), 0);
-        assert!(!vector::contains(&borrow_global<Status>(owner_addr).assets, &key), 0);
+        assert!(vector::length(&borrow_global<Status>(owner_addr).assets) == 0, 0);
 
-        initialize_for_asset_internal<DummyStruct>(owner);
+        initialize_for_asset_internal<DummyStruct1>(owner);
         assert!(is_initialized_asset(owner_addr, key), 0);
+        assert!(vector::length(&borrow_global<Status>(owner_addr).assets) == 1, 0);
         assert!(vector::contains(&borrow_global<Status>(owner_addr).assets, &key), 0);
         assert!(event::counter<PoolStatusUpdateEvent>(&borrow_global<PoolStatusEventHandle>(owner_addr).pool_status_update_event) == 1, 0);
+    }
+    #[test(owner = @leizd_aptos_common)]
+    fun test_managed_assets(owner: &signer) acquires Status, PoolStatusEventHandle {
+        let owner_addr = signer::address_of(owner);
+        account::create_account_for_test(owner_addr);
+
+        initialize(owner);
+        initialize_for_asset_internal<DummyStruct3>(owner);
+        initialize_for_asset_internal<DummyStruct1>(owner);
+        initialize_for_asset_internal<DummyStruct2>(owner);
+        let assets = managed_assets();
+        assert!(vector::length(&assets) == 3, 0);
+        assert!(vector::borrow(&assets, 0) == &key<DummyStruct3>(), 0);
+        assert!(vector::borrow(&assets, 1) == &key<DummyStruct1>(), 0);
+        assert!(vector::borrow(&assets, 2) == &key<DummyStruct2>(), 0);
     }
     #[test(owner = @leizd_aptos_common)]
     fun test_end_to_end(owner: &signer) acquires Status, PoolStatusEventHandle {
         account::create_account_for_test(signer::address_of(owner));
         system_status::initialize(owner);
         initialize(owner);
-        initialize_for_asset_internal<DummyStruct>(owner);
-        assert!(can_deposit<DummyStruct>(), 0);
-        assert!(can_withdraw<DummyStruct>(), 0);
-        assert!(can_borrow<DummyStruct>(), 0);
-        assert!(can_repay<DummyStruct>(), 0);
-        assert!(can_switch_collateral<DummyStruct>(), 0);
-        assert!(can_borrow_asset_with_rebalance<DummyStruct>(), 0);
+        initialize_for_asset_internal<DummyStruct1>(owner);
+        assert!(can_deposit<DummyStruct1>(), 0);
+        assert!(can_withdraw<DummyStruct1>(), 0);
+        assert!(can_borrow<DummyStruct1>(), 0);
+        assert!(can_repay<DummyStruct1>(), 0);
+        assert!(can_switch_collateral<DummyStruct1>(), 0);
+        assert!(can_borrow_asset_with_rebalance<DummyStruct1>(), 0);
         assert!(can_repay_shadow_evenly(), 0);
-        assert!(can_liquidate<DummyStruct>(), 0);
-        update_deposit_status<DummyStruct>(false);
-        update_withdraw_status<DummyStruct>(false);
-        update_borrow_status<DummyStruct>(false);
-        update_repay_status<DummyStruct>(false);
-        update_switch_collateral_status<DummyStruct>(false);
-        update_borrow_asset_with_rebalance_status<DummyStruct>(false);
+        assert!(can_liquidate<DummyStruct1>(), 0);
+        update_deposit_status<DummyStruct1>(false);
+        update_withdraw_status<DummyStruct1>(false);
+        update_borrow_status<DummyStruct1>(false);
+        update_repay_status<DummyStruct1>(false);
+        update_switch_collateral_status<DummyStruct1>(false);
+        update_borrow_asset_with_rebalance_status<DummyStruct1>(false);
         update_repay_shadow_evenly_status(false);
-        update_liquidate_status<DummyStruct>(false);
-        assert!(!can_deposit<DummyStruct>(), 0);
-        assert!(!can_withdraw<DummyStruct>(), 0);
-        assert!(!can_borrow<DummyStruct>(), 0);
-        assert!(!can_repay<DummyStruct>(), 0);
-        assert!(!can_switch_collateral<DummyStruct>(), 0);
-        assert!(!can_borrow_asset_with_rebalance<DummyStruct>(), 0);
+        update_liquidate_status<DummyStruct1>(false);
+        assert!(!can_deposit<DummyStruct1>(), 0);
+        assert!(!can_withdraw<DummyStruct1>(), 0);
+        assert!(!can_borrow<DummyStruct1>(), 0);
+        assert!(!can_repay<DummyStruct1>(), 0);
+        assert!(!can_switch_collateral<DummyStruct1>(), 0);
+        assert!(!can_borrow_asset_with_rebalance<DummyStruct1>(), 0);
         assert!(!can_repay_shadow_evenly(), 0);
-        assert!(!can_liquidate<DummyStruct>(), 0);
+        assert!(!can_liquidate<DummyStruct1>(), 0);
     }
 }
