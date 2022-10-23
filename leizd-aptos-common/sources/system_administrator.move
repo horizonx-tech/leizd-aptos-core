@@ -2,6 +2,7 @@ module leizd_aptos_common::system_administrator {
 
     use std::signer;
     use std::string::{String};
+    use std::vector;
     use leizd_aptos_common::coin_key::{key};
     use leizd_aptos_common::permission;
     use leizd_aptos_common::pool_status;
@@ -9,6 +10,14 @@ module leizd_aptos_common::system_administrator {
 
     public entry fun activate_pool<C>(owner: &signer) {
         activate_pool_internal(key<C>(), owner);
+    }
+    public entry fun activate_all_pool(owner: &signer) {
+        let assets = pool_status::managed_assets();
+        let i = 0;
+        while (i < vector::length(&assets)) {
+            let key = vector::borrow<String>(&assets, i);
+            activate_pool_internal(*key, owner);    
+        }
     }
     fun activate_pool_internal(key: String, owner: &signer) {
         permission::assert_owner(signer::address_of(owner));
@@ -24,6 +33,14 @@ module leizd_aptos_common::system_administrator {
     public entry fun deactivate_pool<C>(owner: &signer) {
         deactivate_pool_internal(key<C>(), owner);
     }
+    public entry fun deactivate_all_pool(owner: &signer) {
+        let assets = pool_status::managed_assets();
+        let i = 0;
+        while (i < vector::length(&assets)) {
+            let key = vector::borrow<String>(&assets, i);
+            deactivate_pool_internal(*key, owner);    
+        }
+    }
     fun deactivate_pool_internal(key: String, owner: &signer) {
         permission::assert_owner(signer::address_of(owner));
         pool_status::update_deposit_status_with(key, false);
@@ -38,6 +55,14 @@ module leizd_aptos_common::system_administrator {
     public entry fun freeze_pool<C>(owner: &signer) {
         freeze_pool_internal(key<C>(), owner);
     }
+    public entry fun freeze_all_pool(owner: &signer) {
+        let assets = pool_status::managed_assets();
+        let i = 0;
+        while (i < vector::length(&assets)) {
+            let key = vector::borrow<String>(&assets, i);
+            freeze_pool_internal(*key, owner);    
+        }
+    }
     fun freeze_pool_internal(key: String, owner: &signer) {
         permission::assert_owner(signer::address_of(owner));
         pool_status::update_deposit_status_with(key, false);
@@ -48,6 +73,14 @@ module leizd_aptos_common::system_administrator {
 
     public entry fun unfreeze_pool<C>(owner: &signer) {
         unfreeze_pool_internal(key<C>(), owner);
+    }
+    public entry fun unfreeze_all_pool(owner: &signer) {
+        let assets = pool_status::managed_assets();
+        let i = 0;
+        while (i < vector::length(&assets)) {
+            let key = vector::borrow<String>(&assets, i);
+            unfreeze_pool_internal(*key, owner);    
+        }
     }
     public entry fun unfreeze_pool_internal(key: String, owner: &signer) {
         permission::assert_owner(signer::address_of(owner));
@@ -61,9 +94,27 @@ module leizd_aptos_common::system_administrator {
         permission::assert_owner(signer::address_of(owner));
         update_borrow_asset_with_rebalance_status(key<C>(), true);
     }
+    public entry fun enable_borrow_asset_with_rebalance_for_all_pool(owner: &signer) {
+        permission::assert_owner(signer::address_of(owner));
+        let assets = pool_status::managed_assets();
+        let i = 0;
+        while (i < vector::length(&assets)) {
+            let key = vector::borrow<String>(&assets, i);
+            update_borrow_asset_with_rebalance_status(*key, true);
+        }
+    }
     public entry fun disable_borrow_asset_with_rebalance<C>(owner: &signer) {
         permission::assert_owner(signer::address_of(owner));
         update_borrow_asset_with_rebalance_status(key<C>(), false);
+    }
+    public entry fun disable_borrow_asset_with_rebalance_for_all_pool(owner: &signer) {
+        permission::assert_owner(signer::address_of(owner));
+        let assets = pool_status::managed_assets();
+        let i = 0;
+        while (i < vector::length(&assets)) {
+            let key = vector::borrow<String>(&assets, i);
+            update_borrow_asset_with_rebalance_status(*key, true);
+        }
     }
     fun update_borrow_asset_with_rebalance_status(key: String, is_active: bool) {
         pool_status::update_borrow_asset_with_rebalance_status_with(key, is_active);
@@ -82,9 +133,27 @@ module leizd_aptos_common::system_administrator {
         permission::assert_owner(signer::address_of(owner));
         update_liquidate_status(key<C>(), true);
     }
+    public entry fun enable_liquidate_for_all_pool(owner: &signer) {
+        permission::assert_owner(signer::address_of(owner));
+        let assets = pool_status::managed_assets();
+        let i = 0;
+        while (i < vector::length(&assets)) {
+            let key = vector::borrow<String>(&assets, i);
+            update_liquidate_status(*key, true);
+        }
+    }
     public entry fun disable_liquidate<C>(owner: &signer) {
         permission::assert_owner(signer::address_of(owner));
         update_liquidate_status(key<C>(), false);
+    }
+    public entry fun disable_liquidate_for_all_pool(owner: &signer) {
+        permission::assert_owner(signer::address_of(owner));
+        let assets = pool_status::managed_assets();
+        let i = 0;
+        while (i < vector::length(&assets)) {
+            let key = vector::borrow<String>(&assets, i);
+            update_liquidate_status(*key, false);
+        }
     }
     fun update_liquidate_status(key: String, is_active: bool) {
         pool_status::update_liquidate_status_with(key, is_active);
