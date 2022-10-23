@@ -11,7 +11,8 @@ module leizd_aptos_common::pool_status {
 
     friend leizd_aptos_common::system_administrator;
 
-    const EIS_NOT_EXISTED: u64 = 1;
+    const ENOT_INITIALIZED: u64 = 1;
+    const ENOT_INITIALIZED_ASSET: u64 = 2;
 
     //// resources
     /// access control
@@ -106,17 +107,23 @@ module leizd_aptos_common::pool_status {
         );
     }
 
-    fun is_initialized(owner_address: address, key: String): bool acquires Status {
-        if (exists<Status>(owner_address)) {
+    fun is_initialized(owner_address: address): bool {
+        exists<Status>(owner_address)
+    }
+    fun assert_is_initialized(owner_address: address) {
+        assert!(is_initialized(owner_address), error::invalid_argument(ENOT_INITIALIZED));
+    }
+
+    fun is_initialized_asset(owner_address: address, key: String): bool acquires Status {
+        if (is_initialized(owner_address)) {
             let status = borrow_global_mut<Status>(owner_address);
             simple_map::contains_key(&status.assets, &key)
         } else {
             false
         }
     }
-
-    fun assert_pool_status_initialized(owner_address: address, key: String) acquires Status {
-        assert!(is_initialized(owner_address, key), error::invalid_argument(EIS_NOT_EXISTED));
+    fun assert_is_initialized_asset(owner_address: address, key: String) acquires Status {
+        assert!(is_initialized_asset(owner_address, key), error::invalid_argument(ENOT_INITIALIZED_ASSET));
     }
 
     //// view functions
@@ -126,7 +133,7 @@ module leizd_aptos_common::pool_status {
 
     public fun can_deposit_with(key: String): bool acquires Status {
         let owner_address = permission::owner_address();
-        assert_pool_status_initialized(owner_address, key);
+        assert_is_initialized_asset(owner_address, key);
         let pool_status_ref = borrow_global<Status>(owner_address);
         let asset_status = simple_map::borrow(&pool_status_ref.assets, &key);
         system_status::status() && asset_status.can_deposit
@@ -138,7 +145,7 @@ module leizd_aptos_common::pool_status {
 
     public fun can_withdraw_with(key: String): bool acquires Status {
         let owner_address = permission::owner_address();
-        assert_pool_status_initialized(owner_address, key);
+        assert_is_initialized_asset(owner_address, key);
         let pool_status_ref = borrow_global<Status>(owner_address);
         let asset_status = simple_map::borrow(&pool_status_ref.assets, &key);
         system_status::status() && asset_status.can_withdraw
@@ -151,7 +158,7 @@ module leizd_aptos_common::pool_status {
 
     public fun can_borrow_with(key: String): bool acquires Status {
         let owner_address = permission::owner_address();
-        assert_pool_status_initialized(owner_address, key);
+        assert_is_initialized_asset(owner_address, key);
         let pool_status_ref = borrow_global<Status>(owner_address);
         let asset_status = simple_map::borrow(&pool_status_ref.assets, &key);
         system_status::status() && asset_status.can_borrow
@@ -163,7 +170,7 @@ module leizd_aptos_common::pool_status {
 
     public fun can_repay_with(key: String): bool acquires Status {
         let owner_address = permission::owner_address();
-        assert_pool_status_initialized(owner_address, key);
+        assert_is_initialized_asset(owner_address, key);
         let pool_status_ref = borrow_global<Status>(owner_address);
         let asset_status = simple_map::borrow(&pool_status_ref.assets, &key);
         system_status::status() && asset_status.can_repay
@@ -175,7 +182,7 @@ module leizd_aptos_common::pool_status {
 
     public fun can_switch_collateral_with(key: String): bool acquires Status {
         let owner_address = permission::owner_address();
-        assert_pool_status_initialized(owner_address, key);
+        assert_is_initialized_asset(owner_address, key);
         let pool_status_ref = borrow_global<Status>(owner_address);
         let asset_status = simple_map::borrow(&pool_status_ref.assets, &key);
         system_status::status() && asset_status.can_switch_collateral
@@ -187,7 +194,7 @@ module leizd_aptos_common::pool_status {
 
     public fun can_borrow_asset_with_rebalance_with(key: String): bool acquires Status {
         let owner_address = permission::owner_address();
-        assert_pool_status_initialized(owner_address, key);
+        assert_is_initialized_asset(owner_address, key);
         let pool_status_ref = borrow_global<Status>(owner_address);
         let asset_status = simple_map::borrow(&pool_status_ref.assets, &key);
         system_status::status() && asset_status.can_borrow_asset_with_rebalance
@@ -195,7 +202,7 @@ module leizd_aptos_common::pool_status {
 
     public fun can_repay_shadow_evenly(): bool acquires Status {
         let owner_address = permission::owner_address();
-        // assert_pool_status_initialized(owner_address, key); // TODO: check Status only
+        assert_is_initialized(owner_address);
         let pool_status_ref = borrow_global<Status>(owner_address);
         system_status::status() && pool_status_ref.can_repay_shadow_evenly
     }
@@ -206,7 +213,7 @@ module leizd_aptos_common::pool_status {
 
     public fun can_liquidate_with(key: String): bool acquires Status {
         let owner_address = permission::owner_address();
-        assert_pool_status_initialized(owner_address, key);
+        assert_is_initialized_asset(owner_address, key);
         let pool_status_ref = borrow_global<Status>(owner_address);
         let asset_status = simple_map::borrow(&pool_status_ref.assets, &key);
         system_status::status() && asset_status.can_liquidate
@@ -219,7 +226,7 @@ module leizd_aptos_common::pool_status {
 
     public(friend) fun update_deposit_status_with(key: String, active: bool) acquires Status, PoolStatusEventHandle {
         let owner_address = permission::owner_address();
-        assert_pool_status_initialized(owner_address, key);
+        assert_is_initialized_asset(owner_address, key);
         let pool_status_ref = borrow_global_mut<Status>(owner_address);
         let asset_status = simple_map::borrow_mut(&mut pool_status_ref.assets, &key);
         asset_status.can_deposit = active;
@@ -232,7 +239,7 @@ module leizd_aptos_common::pool_status {
 
     public(friend) fun update_withdraw_status_with(key: String, active: bool) acquires Status, PoolStatusEventHandle {
         let owner_address = permission::owner_address();
-        assert_pool_status_initialized(owner_address, key);
+        assert_is_initialized_asset(owner_address, key);
         let pool_status_ref = borrow_global_mut<Status>(owner_address);
         let asset_status = simple_map::borrow_mut(&mut pool_status_ref.assets, &key);
         asset_status.can_withdraw = active;
@@ -245,7 +252,7 @@ module leizd_aptos_common::pool_status {
 
     public(friend) fun update_borrow_status_with(key: String, active: bool) acquires Status, PoolStatusEventHandle {
         let owner_address = permission::owner_address();
-        assert_pool_status_initialized(owner_address, key);
+        assert_is_initialized_asset(owner_address, key);
         let pool_status_ref = borrow_global_mut<Status>(owner_address);
         let asset_status = simple_map::borrow_mut(&mut pool_status_ref.assets, &key);
         asset_status.can_borrow = active;
@@ -258,7 +265,7 @@ module leizd_aptos_common::pool_status {
 
     public(friend) fun update_repay_status_with(key: String, active: bool) acquires Status, PoolStatusEventHandle{
         let owner_address = permission::owner_address();
-        assert_pool_status_initialized(owner_address, key);
+        assert_is_initialized_asset(owner_address, key);
         let pool_status_ref = borrow_global_mut<Status>(owner_address);
         let asset_status = simple_map::borrow_mut(&mut pool_status_ref.assets, &key);
         asset_status.can_repay = active;
@@ -271,7 +278,7 @@ module leizd_aptos_common::pool_status {
 
     public(friend) fun update_switch_collateral_status_with(key: String, active: bool) acquires Status, PoolStatusEventHandle{
         let owner_address = permission::owner_address();
-        assert_pool_status_initialized(owner_address, key);
+        assert_is_initialized_asset(owner_address, key);
         let pool_status_ref = borrow_global_mut<Status>(owner_address);
         let asset_status = simple_map::borrow_mut(&mut pool_status_ref.assets, &key);
         asset_status.can_switch_collateral = active;
@@ -284,7 +291,7 @@ module leizd_aptos_common::pool_status {
 
     public(friend) fun update_borrow_asset_with_rebalance_status_with(key: String, active: bool) acquires Status, PoolStatusEventHandle{
         let owner_address = permission::owner_address();
-        assert_pool_status_initialized(owner_address, key);
+        assert_is_initialized_asset(owner_address, key);
         let pool_status_ref = borrow_global_mut<Status>(owner_address);
         let asset_status = simple_map::borrow_mut(&mut pool_status_ref.assets, &key);
         asset_status.can_borrow_asset_with_rebalance = active;
@@ -305,7 +312,7 @@ module leizd_aptos_common::pool_status {
 
     public(friend) fun update_liquidate_status_with(key: String, active: bool) acquires Status, PoolStatusEventHandle{
         let owner_address = permission::owner_address();
-        assert_pool_status_initialized(owner_address, key);
+        assert_is_initialized_asset(owner_address, key);
         let pool_status_ref = borrow_global_mut<Status>(owner_address);
         let asset_status = simple_map::borrow_mut(&mut pool_status_ref.assets, &key);
         asset_status.can_liquidate = active;
