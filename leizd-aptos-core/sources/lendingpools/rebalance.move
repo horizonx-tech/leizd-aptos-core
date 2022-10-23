@@ -1019,6 +1019,15 @@ module leizd_aptos_logic::rebalance {
             i = i - 1;
         };
 
+        aptos_std::debug::print(&sum_rebalanced_deposited);
+        aptos_std::debug::print(&sum_rebalanced_withdrawn);
+        aptos_std::debug::print(&sum_rebalanced_borrowed);
+        aptos_std::debug::print(&sum_rebalanced_repaid);
+
+        // should be equal
+        aptos_std::debug::print(&(sum_rebalanced_deposited + sum_rebalanced_repaid));
+        aptos_std::debug::print(&(sum_rebalanced_borrowed + sum_rebalanced_withdrawn));
+
         event::emit_event<FlattenPositionsEvent>(
             &mut borrow_global_mut<RebalanceEventHandle>(permission::owner_address()).flatten_positions_event,
             FlattenPositionsEvent {
@@ -1032,14 +1041,7 @@ module leizd_aptos_logic::rebalance {
         );
 
         // TODO: check the diff - if there is any diff ...
-        // debug::print(&sum_rebalanced_deposited);
-        // debug::print(&sum_rebalanced_withdrawed);
-        // debug::print(&sum_rebalanced_borrowed);
-        // debug::print(&sum_rebalanced_repaid);
 
-        // should be equal
-        // debug::print(&(sum_rebalanced_deposited + sum_rebalanced_repaid));
-        // debug::print(&(sum_rebalanced_borrowed + sum_rebalanced_withdrawed));
     }
 
     #[test_only]
