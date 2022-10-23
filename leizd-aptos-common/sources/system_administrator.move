@@ -485,20 +485,44 @@ module leizd_aptos_common::system_administrator {
     fun test_operate_pool_to_activate_without_owner(account: &signer) {
         activate_pool<WETH>(account);
     }
+    #[test(owner = @leizd_aptos_common, account = @0x111)]
+    #[expected_failure(abort_code = 65537)]
+    fun test_activate_all_pool_without_owner(owner: &signer, account: &signer) {
+        prepare_for_test(owner);
+        activate_all_pool(account);
+    }
     #[test(account = @0x111)]
     #[expected_failure(abort_code = 65537)]
     fun test_operate_pool_to_deactivate_without_owner(account: &signer) {
         deactivate_pool<WETH>(account);
+    }
+    #[test(owner = @leizd_aptos_common, account = @0x111)]
+    #[expected_failure(abort_code = 65537)]
+    fun test_deactivate_all_pool_without_owner(owner: &signer, account: &signer) {
+        prepare_for_test(owner);
+        deactivate_all_pool(account);
     }
     #[test(account = @0x111)]
     #[expected_failure(abort_code = 65537)]
     fun test_operate_pool_to_freeze_without_owner(account: &signer) {
         freeze_pool<WETH>(account);
     }
+    #[test(owner = @leizd_aptos_common, account = @0x111)]
+    #[expected_failure(abort_code = 65537)]
+    fun test_freeze_all_pool_without_owner(owner: &signer, account: &signer) {
+        prepare_for_test(owner);
+        freeze_all_pool(account);
+    }
     #[test(account = @0x111)]
     #[expected_failure(abort_code = 65537)]
     fun test_operate_pool_to_unfreeze_without_owner(account: &signer) {
         unfreeze_pool<WETH>(account);
+    }
+    #[test(owner = @leizd_aptos_common, account = @0x111)]
+    #[expected_failure(abort_code = 65537)]
+    fun test_unfreeze_all_pool_without_owner(owner: &signer, account: &signer) {
+        prepare_for_test(owner);
+        unfreeze_all_pool(account);
     }
     #[test(account = @0x111)]
     #[expected_failure(abort_code = 65537)]
@@ -507,8 +531,18 @@ module leizd_aptos_common::system_administrator {
     }
     #[test(account = @0x111)]
     #[expected_failure(abort_code = 65537)]
+    fun test_disable_borrow_asset_with_rebalance_for_all_pool_without_owner(account: &signer) {
+        disable_borrow_asset_with_rebalance_for_all_pool(account);
+    }
+    #[test(account = @0x111)]
+    #[expected_failure(abort_code = 65537)]
     fun test_enable_borrow_asset_with_rebalance_without_owner(account: &signer) {
         enable_borrow_asset_with_rebalance<WETH>(account);
+    }
+    #[test(account = @0x111)]
+    #[expected_failure(abort_code = 65537)]
+    fun test_enable_borrow_asset_with_rebalance_for_all_pool_without_owner(account: &signer) {
+        enable_borrow_asset_with_rebalance_for_all_pool(account);
     }
     #[test(account = @0x111)]
     #[expected_failure(abort_code = 65537)]
@@ -527,8 +561,18 @@ module leizd_aptos_common::system_administrator {
     }
     #[test(account = @0x111)]
     #[expected_failure(abort_code = 65537)]
+    fun test_enable_liquidate_for_all_pool_without_owner(account: &signer) {
+        enable_liquidate_for_all_pool(account);
+    }
+    #[test(account = @0x111)]
+    #[expected_failure(abort_code = 65537)]
     fun test_enable_liquidate_without_owner(account: &signer) {
         enable_liquidate<WETH>(account);
+    }
+    #[test(account = @0x111)]
+    #[expected_failure(abort_code = 65537)]
+    fun test_disable_liquidate_for_all_pool_without_owner(account: &signer) {
+        disable_liquidate_for_all_pool(account);
     }
     #[test(owner = @leizd_aptos_common)]
     fun test_operate_system_status(owner: &signer) {
