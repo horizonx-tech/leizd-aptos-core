@@ -118,7 +118,7 @@ module leizd_aptos_common::system_administrator {
         let i = 0;
         while (i < vector::length(&assets)) {
             let key = vector::borrow<String>(&assets, i);
-            update_borrow_asset_with_rebalance_status(*key, true);
+            update_borrow_asset_with_rebalance_status(*key, false);
             i = i + 1;
         }
     }
@@ -393,6 +393,42 @@ module leizd_aptos_common::system_administrator {
         assert!(pool_status::can_borrow_asset_with_rebalance<WETH>(), 0);
     }
     #[test(owner = @leizd_aptos_common)]
+    fun test_control_borrow_asset_with_rebalance_for_all_pool(owner: &signer) {
+        prepare_for_test(owner);
+        pool_status::initialize_for_asset_for_test<USDC>(owner);
+        pool_status::initialize_for_asset_for_test<USDT>(owner);
+        pool_status::initialize_for_asset_for_test<UNI>(owner);
+
+        // prerequisite
+        let assets = pool_status::managed_assets();
+        assert!(vector::borrow(&assets, 0) == &key<WETH>(), 0);
+        assert!(vector::borrow(&assets, 1) == &key<USDC>(), 0);
+        assert!(vector::borrow(&assets, 2) == &key<USDT>(), 0);
+        assert!(vector::borrow(&assets, 3) == &key<UNI>(), 0);
+
+        // execute
+        disable_borrow_asset_with_rebalance_for_all_pool(owner);
+        let i = 0;
+        while (i < vector::length(&assets)) {
+            let key = vector::borrow<String>(&assets, i);
+            assert!(pool_status::can_deposit_with(*key), 0);
+            assert!(pool_status::can_withdraw_with(*key), 0);
+            assert!(pool_status::can_borrow_with(*key), 0);
+            assert!(pool_status::can_repay_with(*key), 0);
+            assert!(pool_status::can_switch_collateral_with(*key), 0);
+            assert!(!pool_status::can_borrow_asset_with_rebalance_with(*key), 0);
+            assert!(pool_status::can_liquidate_with(*key), 0);
+            i = i + 1;
+        };
+        enable_borrow_asset_with_rebalance_for_all_pool(owner);
+        i = 0;
+        while (i < vector::length(&assets)) {
+            let key = vector::borrow<String>(&assets, i);
+            assert!(pool_status::can_borrow_asset_with_rebalance_with(*key), 0);
+            i = i + 1;
+        };
+    }
+    #[test(owner = @leizd_aptos_common)]
     fun test_control_status_to_repay_shadow_evenly(owner: &signer) {
         prepare_for_test(owner);
         disable_repay_shadow_evenly(owner);
@@ -407,6 +443,42 @@ module leizd_aptos_common::system_administrator {
         assert!(!pool_status::can_liquidate<WETH>(), 0);
         enable_liquidate<WETH>(owner);
         assert!(pool_status::can_liquidate<WETH>(), 0);
+    }
+    #[test(owner = @leizd_aptos_common)]
+    fun test_control_liquidate_for_all_pool(owner: &signer) {
+        prepare_for_test(owner);
+        pool_status::initialize_for_asset_for_test<USDC>(owner);
+        pool_status::initialize_for_asset_for_test<USDT>(owner);
+        pool_status::initialize_for_asset_for_test<UNI>(owner);
+
+        // prerequisite
+        let assets = pool_status::managed_assets();
+        assert!(vector::borrow(&assets, 0) == &key<WETH>(), 0);
+        assert!(vector::borrow(&assets, 1) == &key<USDC>(), 0);
+        assert!(vector::borrow(&assets, 2) == &key<USDT>(), 0);
+        assert!(vector::borrow(&assets, 3) == &key<UNI>(), 0);
+
+        // execute
+        disable_liquidate_for_all_pool(owner);
+        let i = 0;
+        while (i < vector::length(&assets)) {
+            let key = vector::borrow<String>(&assets, i);
+            assert!(pool_status::can_deposit_with(*key), 0);
+            assert!(pool_status::can_withdraw_with(*key), 0);
+            assert!(pool_status::can_borrow_with(*key), 0);
+            assert!(pool_status::can_repay_with(*key), 0);
+            assert!(pool_status::can_switch_collateral_with(*key), 0);
+            assert!(pool_status::can_borrow_asset_with_rebalance_with(*key), 0);
+            assert!(!pool_status::can_liquidate_with(*key), 0);
+            i = i + 1;
+        };
+        enable_liquidate_for_all_pool(owner);
+        i = 0;
+        while (i < vector::length(&assets)) {
+            let key = vector::borrow<String>(&assets, i);
+            assert!(pool_status::can_liquidate_with(*key), 0);
+            i = i + 1;
+        };
     }
     #[test(account = @0x111)]
     #[expected_failure(abort_code = 65537)]
