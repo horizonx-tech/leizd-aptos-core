@@ -346,6 +346,27 @@ module leizd_aptos_common::pool_status {
     #[test_only]
     struct DummyStruct {}
     #[test(owner = @leizd_aptos_common)]
+    fun test_initialize(owner: &signer) {
+        let owner_addr = signer::address_of(owner);
+        account::create_account_for_test(owner_addr);
+        initialize(owner);
+        assert!(exists<Status>(owner_addr), 0);
+        assert!(exists<PoolStatusEventHandle>(owner_addr), 0);
+    }
+    #[test(account = @0x111)]
+    #[expected_failure(abort_code = 65537)]
+    fun test_initialize_with_not_owner(account: &signer) {
+        initialize(account);
+    }
+    #[test(owner = @leizd_aptos_common)]
+    fun test_initialize_for_asset(owner: &signer) acquires Status, PoolStatusEventHandle {
+        let owner_addr = signer::address_of(owner);
+        account::create_account_for_test(owner_addr);
+        initialize(owner);
+        initialize_for_asset_internal<DummyStruct>(owner);
+        assert!(is_initialized_asset(owner_addr, key<DummyStruct>()), 0);
+    }
+    #[test(owner = @leizd_aptos_common)]
     fun test_end_to_end(owner: &signer) acquires Status, PoolStatusEventHandle {
         account::create_account_for_test(signer::address_of(owner));
         system_status::initialize(owner);
