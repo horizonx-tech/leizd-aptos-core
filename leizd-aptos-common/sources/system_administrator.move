@@ -1,55 +1,72 @@
 module leizd_aptos_common::system_administrator {
 
     use std::signer;
+    use std::string::{String};
+    use leizd_aptos_common::coin_key::{key};
     use leizd_aptos_common::permission;
     use leizd_aptos_common::pool_status;
     use leizd_aptos_common::system_status;
 
     public entry fun activate_pool<C>(owner: &signer) {
+        activate_pool_internal(key<C>(), owner);
+    }
+    fun activate_pool_internal(key: String, owner: &signer) {
         permission::assert_owner(signer::address_of(owner));
-        pool_status::update_deposit_status<C>(true);
-        pool_status::update_withdraw_status<C>(true);
-        pool_status::update_borrow_status<C>(true);
-        pool_status::update_repay_status<C>(true);
-        pool_status::update_switch_collateral_status<C>(true);
-        enable_borrow_asset_with_rebalance<C>(owner);
-        enable_liquidate<C>(owner);
+        pool_status::update_deposit_status_with(key, true);
+        pool_status::update_withdraw_status_with(key, true);
+        pool_status::update_borrow_status_with(key, true);
+        pool_status::update_repay_status_with(key, true);
+        pool_status::update_switch_collateral_status_with(key, true);
+        update_borrow_asset_with_rebalance_status(key, true);
+        update_liquidate_status(key, true);
     }
 
     public entry fun deactivate_pool<C>(owner: &signer) {
+        deactivate_pool_internal(key<C>(), owner);
+    }
+    fun deactivate_pool_internal(key: String, owner: &signer) {
         permission::assert_owner(signer::address_of(owner));
-        pool_status::update_deposit_status<C>(false);
-        pool_status::update_withdraw_status<C>(false);
-        pool_status::update_borrow_status<C>(false);
-        pool_status::update_repay_status<C>(false);
-        pool_status::update_switch_collateral_status<C>(false);
-        disable_borrow_asset_with_rebalance<C>(owner);
-        disable_liquidate<C>(owner);
+        pool_status::update_deposit_status_with(key, false);
+        pool_status::update_withdraw_status_with(key, false);
+        pool_status::update_borrow_status_with(key, false);
+        pool_status::update_repay_status_with(key, false);
+        pool_status::update_switch_collateral_status_with(key, false);
+        update_borrow_asset_with_rebalance_status(key, false);
+        update_liquidate_status(key, false);
     }
 
     public entry fun freeze_pool<C>(owner: &signer) {
+        freeze_pool_internal(key<C>(), owner);
+    }
+    fun freeze_pool_internal(key: String, owner: &signer) {
         permission::assert_owner(signer::address_of(owner));
-        pool_status::update_deposit_status<C>(false);
-        pool_status::update_borrow_status<C>(false);
-        disable_borrow_asset_with_rebalance<C>(owner);
-        disable_liquidate<C>(owner);
+        pool_status::update_deposit_status_with(key, false);
+        pool_status::update_borrow_status_with(key, false);
+        update_borrow_asset_with_rebalance_status(key, false);
+        update_liquidate_status(key, false);
     }
 
     public entry fun unfreeze_pool<C>(owner: &signer) {
+        unfreeze_pool_internal(key<C>(), owner);
+    }
+    public entry fun unfreeze_pool_internal(key: String, owner: &signer) {
         permission::assert_owner(signer::address_of(owner));
-        pool_status::update_deposit_status<C>(true);
-        pool_status::update_borrow_status<C>(true);
-        enable_borrow_asset_with_rebalance<C>(owner);
-        enable_liquidate<C>(owner);
+        pool_status::update_deposit_status_with(key, true);
+        pool_status::update_borrow_status_with(key, true);
+        update_borrow_asset_with_rebalance_status(key, true);
+        update_liquidate_status(key, true);
     }
 
     public entry fun enable_borrow_asset_with_rebalance<C>(owner: &signer) {
         permission::assert_owner(signer::address_of(owner));
-        pool_status::update_borrow_asset_with_rebalance_status<C>(true);
+        update_borrow_asset_with_rebalance_status(key<C>(), true);
     }
     public entry fun disable_borrow_asset_with_rebalance<C>(owner: &signer) {
         permission::assert_owner(signer::address_of(owner));
-        pool_status::update_borrow_asset_with_rebalance_status<C>(false);
+        update_borrow_asset_with_rebalance_status(key<C>(), false);
+    }
+    fun update_borrow_asset_with_rebalance_status(key: String, is_active: bool) {
+        pool_status::update_borrow_asset_with_rebalance_status_with(key, is_active);
     }
 
     public entry fun enable_repay_shadow_evenly(owner: &signer) {
@@ -63,11 +80,14 @@ module leizd_aptos_common::system_administrator {
 
     public entry fun enable_liquidate<C>(owner: &signer) {
         permission::assert_owner(signer::address_of(owner));
-        pool_status::update_liquidate_status<C>(true);
+        update_liquidate_status(key<C>(), true);
     }
     public entry fun disable_liquidate<C>(owner: &signer) {
         permission::assert_owner(signer::address_of(owner));
-        pool_status::update_liquidate_status<C>(false);
+        update_liquidate_status(key<C>(), false);
+    }
+    fun update_liquidate_status(key: String, is_active: bool) {
+        pool_status::update_liquidate_status_with(key, is_active);
     }
 
     public entry fun pause_protocol(owner: &signer) {
