@@ -2443,7 +2443,7 @@ module leizd::shadow_pool {
         let from_central = 10050 - from_shadow;
         assert!(pool_value(owner_addr) == 0, 0);
         assert!(central_liquidity_pool::borrowed(key<UNI>()) == (from_shadow as u128), 0); // from_shadow + fee calculated by from_shadow
-        assert!(central_liquidity_pool::left() == (50000 - from_shadow as u128) , 0);
+        assert!(central_liquidity_pool::left() == (50000 - from_shadow as u128), 0);
         assert!(borrowed_amount<UNI>() == 5025 + from_shadow + from_central, 0);
         assert!(usdz::balance_of(borrower_addr) == 15000, 0);
         //// from only central_liquidity_pool
