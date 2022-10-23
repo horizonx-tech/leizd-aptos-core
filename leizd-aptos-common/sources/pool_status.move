@@ -366,9 +366,16 @@ module leizd_aptos_common::pool_status {
     fun test_initialize_for_asset(owner: &signer) acquires Status, PoolStatusEventHandle {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
+        let key = key<DummyStruct>();
+
         initialize(owner);
+        assert!(!is_initialized_asset(owner_addr, key), 0);
+        assert!(!vector::contains(&borrow_global<Status>(owner_addr).assets, &key), 0);
+
         initialize_for_asset_internal<DummyStruct>(owner);
-        assert!(is_initialized_asset(owner_addr, key<DummyStruct>()), 0);
+        assert!(is_initialized_asset(owner_addr, key), 0);
+        assert!(vector::contains(&borrow_global<Status>(owner_addr).assets, &key), 0);
+        assert!(event::counter<PoolStatusUpdateEvent>(&borrow_global<PoolStatusEventHandle>(owner_addr).pool_status_update_event) == 1, 0);
     }
     #[test(owner = @leizd_aptos_common)]
     fun test_end_to_end(owner: &signer) acquires Status, PoolStatusEventHandle {
