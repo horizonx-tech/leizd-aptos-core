@@ -1201,6 +1201,12 @@ module leizd::shadow_pool {
     #[test_only]
     use leizd::test_initializer;
 
+    #[test_only]
+    fun setup_account_for_test(account: &signer) {
+        account::create_account_for_test(signer::address_of(account));
+        managed_coin::register<USDZ>(account);
+    }
+
     #[test(owner=@leizd)]
     public entry fun test_initialize(owner: &signer) acquires Storage {
         let owner_addr = signer::address_of(owner);
@@ -3454,11 +3460,6 @@ module leizd::shadow_pool {
         assert!(coin::balance<USDZ>(depositor2_addr) == 203216, 0);
     }
 
-    //// temp
-    fun setup_account_for_test(account: &signer) {
-        account::create_account_for_test(signer::address_of(account));
-        managed_coin::register<USDZ>(account);
-    }
     #[test(owner=@leizd, aptos_framework=@aptos_framework, lp=@0x111, account=@0x222)]
     fun test_repay_when_repaying_all_borrowed_with_clp(owner: &signer, aptos_framework: &signer, lp: &signer, account: &signer) acquires Pool, Storage, Keys, PoolEventHandle {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
