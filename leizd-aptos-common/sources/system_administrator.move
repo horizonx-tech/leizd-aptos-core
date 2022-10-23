@@ -16,7 +16,8 @@ module leizd_aptos_common::system_administrator {
         let i = 0;
         while (i < vector::length(&assets)) {
             let key = vector::borrow<String>(&assets, i);
-            activate_pool_internal(*key, owner);    
+            activate_pool_internal(*key, owner);
+            i = i + 1;
         }
     }
     fun activate_pool_internal(key: String, owner: &signer) {
@@ -38,7 +39,8 @@ module leizd_aptos_common::system_administrator {
         let i = 0;
         while (i < vector::length(&assets)) {
             let key = vector::borrow<String>(&assets, i);
-            deactivate_pool_internal(*key, owner);    
+            deactivate_pool_internal(*key, owner);
+            i = i + 1;
         }
     }
     fun deactivate_pool_internal(key: String, owner: &signer) {
@@ -60,7 +62,8 @@ module leizd_aptos_common::system_administrator {
         let i = 0;
         while (i < vector::length(&assets)) {
             let key = vector::borrow<String>(&assets, i);
-            freeze_pool_internal(*key, owner);    
+            freeze_pool_internal(*key, owner);
+            i = i + 1;
         }
     }
     fun freeze_pool_internal(key: String, owner: &signer) {
@@ -79,7 +82,8 @@ module leizd_aptos_common::system_administrator {
         let i = 0;
         while (i < vector::length(&assets)) {
             let key = vector::borrow<String>(&assets, i);
-            unfreeze_pool_internal(*key, owner);    
+            unfreeze_pool_internal(*key, owner);
+            i = i + 1;
         }
     }
     public entry fun unfreeze_pool_internal(key: String, owner: &signer) {
@@ -101,6 +105,7 @@ module leizd_aptos_common::system_administrator {
         while (i < vector::length(&assets)) {
             let key = vector::borrow<String>(&assets, i);
             update_borrow_asset_with_rebalance_status(*key, true);
+            i = i + 1;
         }
     }
     public entry fun disable_borrow_asset_with_rebalance<C>(owner: &signer) {
@@ -114,6 +119,7 @@ module leizd_aptos_common::system_administrator {
         while (i < vector::length(&assets)) {
             let key = vector::borrow<String>(&assets, i);
             update_borrow_asset_with_rebalance_status(*key, true);
+            i = i + 1;
         }
     }
     fun update_borrow_asset_with_rebalance_status(key: String, is_active: bool) {
@@ -140,6 +146,7 @@ module leizd_aptos_common::system_administrator {
         while (i < vector::length(&assets)) {
             let key = vector::borrow<String>(&assets, i);
             update_liquidate_status(*key, true);
+            i = i + 1;
         }
     }
     public entry fun disable_liquidate<C>(owner: &signer) {
@@ -153,6 +160,7 @@ module leizd_aptos_common::system_administrator {
         while (i < vector::length(&assets)) {
             let key = vector::borrow<String>(&assets, i);
             update_liquidate_status(*key, false);
+            i = i + 1;
         }
     }
     fun update_liquidate_status(key: String, is_active: bool) {
@@ -172,7 +180,7 @@ module leizd_aptos_common::system_administrator {
     #[test_only]
     use aptos_framework::account;
     #[test_only]
-    use leizd_aptos_common::test_coin::{WETH};
+    use leizd_aptos_common::test_coin::{WETH, USDC, USDT, UNI};
     #[test_only]
     fun prepare_for_test(owner: &signer) {
         account::create_account_for_test(signer::address_of(owner));
@@ -200,6 +208,35 @@ module leizd_aptos_common::system_administrator {
         assert!(!pool_status::can_liquidate<WETH>(), 0);
     }
     #[test(owner = @leizd_aptos_common)]
+    fun test_deactivate_all_pool(owner: &signer) {
+        prepare_for_test(owner);
+        pool_status::initialize_for_asset_for_test<USDC>(owner);
+        pool_status::initialize_for_asset_for_test<USDT>(owner);
+        pool_status::initialize_for_asset_for_test<UNI>(owner);
+
+        // prerequisite
+        let assets = pool_status::managed_assets();
+        assert!(vector::borrow(&assets, 0) == &key<WETH>(), 0);
+        assert!(vector::borrow(&assets, 1) == &key<USDC>(), 0);
+        assert!(vector::borrow(&assets, 2) == &key<USDT>(), 0);
+        assert!(vector::borrow(&assets, 3) == &key<UNI>(), 0);
+
+        // execute
+        deactivate_all_pool(owner);
+        let i = 0;
+        while (i < vector::length(&assets)) {
+            let key = vector::borrow<String>(&assets, i);
+            assert!(!pool_status::can_deposit_with(*key), 0);
+            assert!(!pool_status::can_withdraw_with(*key), 0);
+            assert!(!pool_status::can_borrow_with(*key), 0);
+            assert!(!pool_status::can_repay_with(*key), 0);
+            assert!(!pool_status::can_switch_collateral_with(*key), 0);
+            assert!(!pool_status::can_borrow_asset_with_rebalance_with(*key), 0);
+            assert!(!pool_status::can_liquidate_with(*key), 0);
+            i = i + 1;
+        };
+    }
+    #[test(owner = @leizd_aptos_common)]
     fun test_operate_pool_to_activate(owner: &signer) {
         prepare_for_test(owner);
         deactivate_pool<WETH>(owner);
@@ -218,6 +255,36 @@ module leizd_aptos_common::system_administrator {
         assert!(pool_status::can_switch_collateral<WETH>(), 0);
         assert!(pool_status::can_borrow_asset_with_rebalance<WETH>(), 0);
         assert!(pool_status::can_liquidate<WETH>(), 0);
+    }
+    #[test(owner = @leizd_aptos_common)]
+    fun test_activate_all_pool(owner: &signer) {
+        prepare_for_test(owner);
+        pool_status::initialize_for_asset_for_test<USDC>(owner);
+        pool_status::initialize_for_asset_for_test<USDT>(owner);
+        pool_status::initialize_for_asset_for_test<UNI>(owner);
+
+        // prerequisite
+        let assets = pool_status::managed_assets();
+        assert!(vector::borrow(&assets, 0) == &key<WETH>(), 0);
+        assert!(vector::borrow(&assets, 1) == &key<USDC>(), 0);
+        assert!(vector::borrow(&assets, 2) == &key<USDT>(), 0);
+        assert!(vector::borrow(&assets, 3) == &key<UNI>(), 0);
+        deactivate_all_pool(owner);
+
+        // execute
+        activate_all_pool(owner);
+        let i = 0;
+        while (i < vector::length(&assets)) {
+            let key = vector::borrow<String>(&assets, i);
+            assert!(pool_status::can_deposit_with(*key), 0);
+            assert!(pool_status::can_withdraw_with(*key), 0);
+            assert!(pool_status::can_borrow_with(*key), 0);
+            assert!(pool_status::can_repay_with(*key), 0);
+            assert!(pool_status::can_switch_collateral_with(*key), 0);
+            assert!(pool_status::can_borrow_asset_with_rebalance_with(*key), 0);
+            assert!(pool_status::can_liquidate_with(*key), 0);
+            i = i + 1;
+        };
     }
     #[test(owner = @leizd_aptos_common)]
     fun test_operate_pool_to_freeze(owner: &signer) {
@@ -239,6 +306,35 @@ module leizd_aptos_common::system_administrator {
         assert!(!pool_status::can_liquidate<WETH>(), 0);
     }
     #[test(owner = @leizd_aptos_common)]
+    fun test_freeze_all_pool(owner: &signer) {
+        prepare_for_test(owner);
+        pool_status::initialize_for_asset_for_test<USDC>(owner);
+        pool_status::initialize_for_asset_for_test<USDT>(owner);
+        pool_status::initialize_for_asset_for_test<UNI>(owner);
+
+        // prerequisite
+        let assets = pool_status::managed_assets();
+        assert!(vector::borrow(&assets, 0) == &key<WETH>(), 0);
+        assert!(vector::borrow(&assets, 1) == &key<USDC>(), 0);
+        assert!(vector::borrow(&assets, 2) == &key<USDT>(), 0);
+        assert!(vector::borrow(&assets, 3) == &key<UNI>(), 0);
+
+        // execute
+        freeze_all_pool(owner);
+        let i = 0;
+        while (i < vector::length(&assets)) {
+            let key = vector::borrow<String>(&assets, i);
+            assert!(!pool_status::can_deposit_with(*key), 0);
+            assert!(pool_status::can_withdraw_with(*key), 0);
+            assert!(!pool_status::can_borrow_with(*key), 0);
+            assert!(pool_status::can_repay_with(*key), 0);
+            assert!(pool_status::can_switch_collateral_with(*key), 0);
+            assert!(!pool_status::can_borrow_asset_with_rebalance_with(*key), 0);
+            assert!(!pool_status::can_liquidate_with(*key), 0);
+            i = i + 1;
+        };
+    }
+    #[test(owner = @leizd_aptos_common)]
     fun test_operate_pool_to_unfreeze(owner: &signer) {
         prepare_for_test(owner);
         freeze_pool<WETH>(owner);
@@ -257,6 +353,36 @@ module leizd_aptos_common::system_administrator {
         assert!(pool_status::can_switch_collateral<WETH>(), 0);
         assert!(pool_status::can_borrow_asset_with_rebalance<WETH>(), 0);
         assert!(pool_status::can_liquidate<WETH>(), 0);
+    }
+    #[test(owner = @leizd_aptos_common)]
+    fun test_unfreeze_all_pool(owner: &signer) {
+        prepare_for_test(owner);
+        pool_status::initialize_for_asset_for_test<USDC>(owner);
+        pool_status::initialize_for_asset_for_test<USDT>(owner);
+        pool_status::initialize_for_asset_for_test<UNI>(owner);
+
+        // prerequisite
+        let assets = pool_status::managed_assets();
+        assert!(vector::borrow(&assets, 0) == &key<WETH>(), 0);
+        assert!(vector::borrow(&assets, 1) == &key<USDC>(), 0);
+        assert!(vector::borrow(&assets, 2) == &key<USDT>(), 0);
+        assert!(vector::borrow(&assets, 3) == &key<UNI>(), 0);
+        deactivate_all_pool(owner);
+
+        // execute
+        unfreeze_all_pool(owner);
+        let i = 0;
+        while (i < vector::length(&assets)) {
+            let key = vector::borrow<String>(&assets, i);
+            assert!(pool_status::can_deposit_with(*key), 0);
+            assert!(!pool_status::can_withdraw_with(*key), 0);
+            assert!(pool_status::can_borrow_with(*key), 0);
+            assert!(!pool_status::can_repay_with(*key), 0);
+            assert!(!pool_status::can_switch_collateral_with(*key), 0);
+            assert!(pool_status::can_borrow_asset_with_rebalance_with(*key), 0);
+            assert!(pool_status::can_liquidate_with(*key), 0);
+            i = i + 1;
+        };
     }
     #[test(owner = @leizd_aptos_common)]
     fun test_control_status_to_borrow_asset_with_rebalance(owner: &signer) {
