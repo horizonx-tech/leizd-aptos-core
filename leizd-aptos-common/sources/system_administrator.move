@@ -12,6 +12,8 @@ module leizd_aptos_common::system_administrator {
         pool_status::update_borrow_status<C>(true);
         pool_status::update_repay_status<C>(true);
         pool_status::update_switch_collateral_status<C>(true);
+        enable_borrow_asset_with_rebalance<C>(owner);
+        enable_liquidate<C>(owner);
     }
 
     public entry fun deactivate_pool<C>(owner: &signer) {
@@ -21,18 +23,24 @@ module leizd_aptos_common::system_administrator {
         pool_status::update_borrow_status<C>(false);
         pool_status::update_repay_status<C>(false);
         pool_status::update_switch_collateral_status<C>(false);
+        disable_borrow_asset_with_rebalance<C>(owner);
+        disable_liquidate<C>(owner);
     }
 
     public entry fun freeze_pool<C>(owner: &signer) {
         permission::assert_owner(signer::address_of(owner));
         pool_status::update_deposit_status<C>(false);
         pool_status::update_borrow_status<C>(false);
+        disable_borrow_asset_with_rebalance<C>(owner);
+        disable_liquidate<C>(owner);
     }
 
     public entry fun unfreeze_pool<C>(owner: &signer) {
         permission::assert_owner(signer::address_of(owner));
         pool_status::update_deposit_status<C>(true);
         pool_status::update_borrow_status<C>(true);
+        enable_borrow_asset_with_rebalance<C>(owner);
+        enable_liquidate<C>(owner);
     }
 
     public entry fun enable_borrow_asset_with_rebalance<C>(owner: &signer) {
@@ -91,12 +99,16 @@ module leizd_aptos_common::system_administrator {
         assert!(pool_status::can_borrow<WETH>(), 0);
         assert!(pool_status::can_repay<WETH>(), 0);
         assert!(pool_status::can_switch_collateral<WETH>(), 0);
+        assert!(pool_status::can_borrow_asset_with_rebalance<WETH>(), 0);
+        assert!(pool_status::can_liquidate<WETH>(), 0);
         deactivate_pool<WETH>(owner);
         assert!(!pool_status::can_deposit<WETH>(), 0);
         assert!(!pool_status::can_withdraw<WETH>(), 0);
         assert!(!pool_status::can_borrow<WETH>(), 0);
         assert!(!pool_status::can_repay<WETH>(), 0);
         assert!(!pool_status::can_switch_collateral<WETH>(), 0);
+        assert!(!pool_status::can_borrow_asset_with_rebalance<WETH>(), 0);
+        assert!(!pool_status::can_liquidate<WETH>(), 0);
     }
     #[test(owner = @leizd_aptos_common)]
     fun test_operate_pool_to_activate(owner: &signer) {
@@ -107,12 +119,16 @@ module leizd_aptos_common::system_administrator {
         assert!(!pool_status::can_borrow<WETH>(), 0);
         assert!(!pool_status::can_repay<WETH>(), 0);
         assert!(!pool_status::can_switch_collateral<WETH>(), 0);
+        assert!(!pool_status::can_borrow_asset_with_rebalance<WETH>(), 0);
+        assert!(!pool_status::can_liquidate<WETH>(), 0);
         activate_pool<WETH>(owner);
         assert!(pool_status::can_deposit<WETH>(), 0);
         assert!(pool_status::can_withdraw<WETH>(), 0);
         assert!(pool_status::can_borrow<WETH>(), 0);
         assert!(pool_status::can_repay<WETH>(), 0);
         assert!(pool_status::can_switch_collateral<WETH>(), 0);
+        assert!(pool_status::can_borrow_asset_with_rebalance<WETH>(), 0);
+        assert!(pool_status::can_liquidate<WETH>(), 0);
     }
     #[test(owner = @leizd_aptos_common)]
     fun test_operate_pool_to_freeze(owner: &signer) {
@@ -122,12 +138,16 @@ module leizd_aptos_common::system_administrator {
         assert!(pool_status::can_borrow<WETH>(), 0);
         assert!(pool_status::can_repay<WETH>(), 0);
         assert!(pool_status::can_switch_collateral<WETH>(), 0);
+        assert!(pool_status::can_borrow_asset_with_rebalance<WETH>(), 0);
+        assert!(pool_status::can_liquidate<WETH>(), 0);
         freeze_pool<WETH>(owner);
         assert!(!pool_status::can_deposit<WETH>(), 0);
         assert!(pool_status::can_withdraw<WETH>(), 0);
         assert!(!pool_status::can_borrow<WETH>(), 0);
         assert!(pool_status::can_repay<WETH>(), 0);
         assert!(pool_status::can_switch_collateral<WETH>(), 0);
+        assert!(!pool_status::can_borrow_asset_with_rebalance<WETH>(), 0);
+        assert!(!pool_status::can_liquidate<WETH>(), 0);
     }
     #[test(owner = @leizd_aptos_common)]
     fun test_operate_pool_to_unfreeze(owner: &signer) {
@@ -138,12 +158,16 @@ module leizd_aptos_common::system_administrator {
         assert!(!pool_status::can_borrow<WETH>(), 0);
         assert!(pool_status::can_repay<WETH>(), 0);
         assert!(pool_status::can_switch_collateral<WETH>(), 0);
+        assert!(!pool_status::can_borrow_asset_with_rebalance<WETH>(), 0);
+        assert!(!pool_status::can_liquidate<WETH>(), 0);
         unfreeze_pool<WETH>(owner);
         assert!(pool_status::can_deposit<WETH>(), 0);
         assert!(pool_status::can_withdraw<WETH>(), 0);
         assert!(pool_status::can_borrow<WETH>(), 0);
         assert!(pool_status::can_repay<WETH>(), 0);
         assert!(pool_status::can_switch_collateral<WETH>(), 0);
+        assert!(pool_status::can_borrow_asset_with_rebalance<WETH>(), 0);
+        assert!(pool_status::can_liquidate<WETH>(), 0);
     }
     #[test(owner = @leizd_aptos_common)]
     fun test_control_status_to_borrow_asset_with_rebalance(owner: &signer) {
