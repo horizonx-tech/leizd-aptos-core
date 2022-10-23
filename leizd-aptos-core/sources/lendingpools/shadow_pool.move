@@ -982,9 +982,6 @@ module leizd::shadow_pool {
         // top up support fees when the pool is supported
         if (central_liquidity_pool::is_supported(key) && accrued_interest > 0) {
             let generated_support_fee = central_liquidity_pool::calculate_support_fee(accrued_interest);
-            // aptos_std::debug::print(&std::string::utf8(b"ccccccccccccc"));
-            // aptos_std::debug::print(&accrued_interest);
-            // aptos_std::debug::print(&generated_support_fee);
             depositors_share = depositors_share - generated_support_fee;
             central_liquidity_pool::top_up_support_fees(key, generated_support_fee, key_for_central);
         };
@@ -3528,11 +3525,6 @@ module leizd::shadow_pool {
         repay_internal(key<WETH>(), account, 100 * dec8, false);
 
         timestamp::update_global_time_for_test((initial_sec + 65) * 1000 * 1000); // + 65 sec
-        aptos_std::debug::print(&borrowed_amount<WETH>());
-        aptos_std::debug::print(&central_liquidity_pool::borrowed(key<WETH>()));
-        aptos_std::debug::print(&total_clp_deposited_amount());
-        // storage_ref.total_clp_deposited_amount = storage_ref.total_clp_deposited_amount - (repaid_to_central_liquidity_pool as u128);
-        // = total_clp_deposited_amount() - central_liquidity_pool::borrowed(key<WETH>()) < 0
         let amount_remained = (borrowed_amount<WETH>() as u64);
         usdz::mint_for_test(account_addr, amount_remained);
         repay_internal(key<WETH>(), account, amount_remained, false);
