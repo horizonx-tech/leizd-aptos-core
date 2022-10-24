@@ -243,7 +243,7 @@ module leizd_aptos_entry::money_market {
 
     // harvest protocol share fee
     public entry fun harvest_protocol_fees<C>() {
-        shadow_pool::harvest_protocol_fees<C>();
+        shadow_pool::harvest_protocol_fees();
         asset_pool::harvest_protocol_fees<C>();
     }
 
