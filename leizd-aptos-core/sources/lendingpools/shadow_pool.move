@@ -998,16 +998,16 @@ module leizd::shadow_pool {
         treasury::collect_fee<USDZ>(fee_extracted);
     }
 
-    public fun harvest_protocol_fees<C>() acquires Pool, Storage{
+    public fun harvest_protocol_fees() acquires Pool, Storage {
         let owner_addr = permission::owner_address();
         let storage_ref = borrow_global_mut<Storage>(owner_addr);
         let pool_ref = borrow_global_mut<Pool>(owner_addr);
         let harvested_fee = storage_ref.protocol_fees - storage_ref.harvested_protocol_fees;
-        if(harvested_fee == 0){
+        if (harvested_fee == 0) {
             return
         };
         let liquidity = total_liquidity_internal(pool_ref, storage_ref);
-        if(harvested_fee > liquidity){
+        if (harvested_fee > liquidity) {
             harvested_fee = liquidity;
         };
         storage_ref.harvested_protocol_fees = storage_ref.harvested_protocol_fees + harvested_fee;
@@ -3114,7 +3114,7 @@ module leizd::shadow_pool {
         assert!(pool_value(owner_addr) == 50000 * dec6, 0);
 
         // execute
-        harvest_protocol_fees<USDZ>();
+        harvest_protocol_fees();
         assert!(treasury::balance<USDZ>() == 30000 * dec6, 0);
         assert!(pool_value(owner_addr) == 20000 * dec6, 0);
     }
@@ -3140,7 +3140,7 @@ module leizd::shadow_pool {
         assert!(pool_value(owner_addr) == 30000 * dec6, 0);
 
         // execute
-        harvest_protocol_fees<USDZ>();
+        harvest_protocol_fees();
         assert!(treasury::balance<USDZ>() == 10000 * dec6, 0);
         assert!(pool_value(owner_addr) == 20000 * dec6, 0);
     }
@@ -3165,7 +3165,7 @@ module leizd::shadow_pool {
         assert!(pool_value(owner_addr) == max, 0);
 
         // execute
-        harvest_protocol_fees<USDZ>();
+        harvest_protocol_fees();
         assert!(treasury::balance<USDZ>() == max, 0);
         assert!(pool_value(owner_addr) == 0, 0);
     }
@@ -3511,7 +3511,7 @@ module leizd::shadow_pool {
         assert!(coin::balance<USDZ>(borrower2_addr) == 25000 - 22110, 0);
 
         //// harvest
-        harvest_protocol_fees<WETH>();
+        harvest_protocol_fees();
         assert!(protocol_fees() == 2010, 0);
         assert!(harvested_protocol_fees() == 2010, 0);
         assert!(pool_value(owner_addr) == 510050 - 2010, 0);

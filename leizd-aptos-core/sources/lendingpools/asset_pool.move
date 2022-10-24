@@ -630,16 +630,16 @@ module leizd::asset_pool {
         treasury::collect_fee<C>(fee_extracted);
     }
 
-    public fun harvest_protocol_fees<C>() acquires Pool, Storage{
+    public fun harvest_protocol_fees<C>() acquires Pool, Storage {
         let owner_addr = permission::owner_address();
         let pool_ref = borrow_global_mut<Pool<C>>(owner_addr);
         let asset_storage_ref = borrow_mut_asset_storage<C>(borrow_global_mut<Storage>(owner_addr));
         let harvested_fee = asset_storage_ref.protocol_fees - asset_storage_ref.harvested_protocol_fees;
-        if(harvested_fee == 0){
+        if (harvested_fee == 0) {
             return
         };
         let liquidity = liquidity_internal(pool_ref, asset_storage_ref);
-        if(harvested_fee > liquidity){
+        if (harvested_fee > liquidity) {
             harvested_fee = liquidity;
         };
         asset_storage_ref.harvested_protocol_fees = asset_storage_ref.harvested_protocol_fees + harvested_fee;
