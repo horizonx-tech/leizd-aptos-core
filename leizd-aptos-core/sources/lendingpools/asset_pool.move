@@ -2062,6 +2062,7 @@ module leizd::asset_pool {
         pool_status::update_repay_status_for_test<WETH>(false);
         repay_internal<WETH>(owner, 0, false);
     }
+
     // for harvest_protocol_fees
     #[test(owner=@leizd, aptos_framework=@aptos_framework)]
     fun test_harvest_protocol_fees_when_liquidity_is_greater_than_not_harvested(owner: &signer, aptos_framework: &signer) acquires Pool, Storage, AssetManagerKeys {
@@ -2110,6 +2111,29 @@ module leizd::asset_pool {
         harvest_protocol_fees<USDC>();
         assert!(treasury::balance<USDC>() == 10000 * dec6, 0);
         assert!(pool_value<USDC>(owner_addr) == 20000 * dec6, 0);
+    }
+    #[test(owner=@leizd, aptos_framework=@aptos_framework)]
+    fun test_harvest_protocol_fees_when_not_harvested_is_greater_than_u64_max(owner: &signer, aptos_framework: &signer) acquires Pool, Storage, AssetManagerKeys {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        let owner_addr = signer::address_of(owner);
+        let max = constant::u64_max();
+
+        // prerequisite
+        coin::merge(
+            &mut borrow_global_mut<Pool<USDC>>(owner_addr).asset,
+            test_coin::mint_and_withdraw<USDC>(owner, max)
+        );
+        let storage_ref = borrow_mut_asset_storage<USDC>(borrow_global_mut<Storage>(owner_addr));
+        storage_ref.protocol_fees = (max as u128) * 5;
+        storage_ref.harvested_protocol_fees = (max as u128);
+
+        assert!(treasury::balance<USDZ>() == 0, 0);
+        assert!(pool_value<USDC>(owner_addr) == max, 0);
+
+        // execute
+        harvest_protocol_fees<USDC>();
+        assert!(treasury::balance<USDC>() == max, 0);
+        assert!(pool_value<USDC>(owner_addr) == 0, 0);
     }
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
     public entry fun test_harvest_protocol_fees(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, AssetManagerKeys, PoolEventHandle {
