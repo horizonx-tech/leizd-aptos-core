@@ -50,8 +50,8 @@ module leizd::shadow_pool {
         total_clp_deposited_amount: u128, // from clp
         total_borrowed_amount: u128,
         asset_storages: simple_map::SimpleMap<String, AssetStorage>,
-        protocol_fees: u64,
-        harvested_protocol_fees: u64,
+        protocol_fees: u128,
+        harvested_protocol_fees: u128,
     }
     struct AssetStorage has store {
         normal_deposited_amount: u128, // borrowable
@@ -373,7 +373,7 @@ module leizd::shadow_pool {
         let storage_ref = borrow_global_mut<Storage>(owner_address);
 
         accrue_interest(key, storage_ref);
-        collect_shadow_fee(pool_ref, liquidation_fee);
+        collect_fee(pool_ref, liquidation_fee);
 
         let (amount_u128, share_u128) = save_to_storage_for_withdraw(
             key,
@@ -519,7 +519,7 @@ module leizd::shadow_pool {
             // not use central-liquidity-pool
             let extracted = coin::extract(&mut pool_ref.shadow, amount);
             coin::deposit<USDZ>(receiver_addr, extracted);
-            collect_shadow_fee(pool_ref, entry_fee); // fee to treasury
+            collect_fee(pool_ref, entry_fee); // fee to treasury
         };
 
         // update borrowed stats
@@ -935,7 +935,6 @@ module leizd::shadow_pool {
             return
         };
 
-        let protocol_share_fee = risk_factor::share_fee();
         // Deposited amount from CLP must be included to calculate the interest rate precisely
         let deposited_amount_included_clp = asset_storage_ref.normal_deposited_amount + asset_storage_ref.clp_deposited_amount;
         let rcomp = interest_rate::compound_interest_rate(
@@ -949,7 +948,7 @@ module leizd::shadow_pool {
             key,
             storage_ref,
             rcomp,
-            protocol_share_fee
+            risk_factor::share_fee()
         );
         let last_updated = &mut simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key).last_updated;
         *last_updated = now;
@@ -976,7 +975,7 @@ module leizd::shadow_pool {
         };
 
         let protocol_share = accrued_interest * (share_fee as u128) / risk_factor::precision_u128();
-        let new_protocol_fees = storage_ref.protocol_fees + (protocol_share as u64);
+        let new_protocol_fees = storage_ref.protocol_fees + protocol_share;
         let depositors_share = accrued_interest - protocol_share;
 
         // top up support fees when the pool is supported
@@ -993,8 +992,9 @@ module leizd::shadow_pool {
         storage_ref.protocol_fees = new_protocol_fees;
     }
 
-    fun collect_shadow_fee(pool_ref: &mut Pool, liquidation_fee: u64) {
-        let fee_extracted = coin::extract(&mut pool_ref.shadow, liquidation_fee);
+    fun collect_fee(pool_ref: &mut Pool, fee: u64) {
+        if (fee == 0) return;
+        let fee_extracted = coin::extract(&mut pool_ref.shadow, fee);
         treasury::collect_fee<USDZ>(fee_extracted);
     }
 
@@ -1002,7 +1002,7 @@ module leizd::shadow_pool {
         let owner_addr = permission::owner_address();
         let storage_ref = borrow_global_mut<Storage>(owner_addr);
         let pool_ref = borrow_global_mut<Pool>(owner_addr);
-        let harvested_fee = (storage_ref.protocol_fees - storage_ref.harvested_protocol_fees as u128);
+        let harvested_fee = storage_ref.protocol_fees - storage_ref.harvested_protocol_fees;
         if(harvested_fee == 0){
             return
         };
@@ -1010,8 +1010,8 @@ module leizd::shadow_pool {
         if(harvested_fee > liquidity){
             harvested_fee = liquidity;
         };
-        storage_ref.harvested_protocol_fees = storage_ref.harvested_protocol_fees + (harvested_fee as u64);
-        collect_shadow_fee(pool_ref, (harvested_fee as u64));
+        storage_ref.harvested_protocol_fees = storage_ref.harvested_protocol_fees + harvested_fee;
+        collect_fee(pool_ref, (harvested_fee as u64));
     }
 
     ////// Convert
@@ -1175,11 +1175,11 @@ module leizd::shadow_pool {
         }
     }
 
-    public fun protocol_fees(): u64 acquires Storage {
+    public fun protocol_fees(): u128 acquires Storage {
         borrow_global<Storage>(permission::owner_address()).protocol_fees
     }
 
-    public fun harvested_protocol_fees(): u64 acquires Storage {
+    public fun harvested_protocol_fees(): u128 acquires Storage {
         borrow_global<Storage>(permission::owner_address()).harvested_protocol_fees
     }
 
@@ -1187,6 +1187,8 @@ module leizd::shadow_pool {
     use aptos_framework::managed_coin;
     #[test_only]
     use leizd_aptos_lib::constant;
+    #[test_only]
+    use leizd_aptos_lib::math64;
     #[test_only]
     use leizd_aptos_common::system_administrator;
     #[test_only]
@@ -3087,6 +3089,85 @@ module leizd::shadow_pool {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         system_administrator::deactivate_pool<WETH>(owner);
         repay_internal(key<WETH>(), owner, 0, false);
+    }
+
+    // for harvest_protocol_fees
+    #[test(owner=@leizd, aptos_framework=@aptos_framework)]
+    fun test_harvest_protocol_fees_when_liquidity_is_greater_than_not_harvested(owner: &signer, aptos_framework: &signer) acquires Pool, Storage {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        let owner_addr = signer::address_of(owner);
+        let dec6 = math64::pow(10, 6);
+
+        // prerequisite
+        managed_coin::register<USDZ>(owner);
+        usdz::mint_for_test(owner_addr, 50000 * dec6);
+        coin::merge(
+            &mut borrow_global_mut<Pool>(owner_addr).shadow,
+            coin::withdraw<USDZ>(owner, 50000 * dec6)
+        );
+        let storage_ref = borrow_global_mut<Storage>(owner_addr);
+        storage_ref.total_conly_deposited_amount = 20000 * (dec6 as u128);
+        storage_ref.protocol_fees = 40000 * (dec6 as u128);
+        storage_ref.harvested_protocol_fees = 5000 * (dec6 as u128);
+
+        assert!(treasury::balance<USDZ>() == 0, 0);
+        assert!(pool_value(owner_addr) == 50000 * dec6, 0);
+
+        // execute
+        harvest_protocol_fees<USDZ>();
+        assert!(treasury::balance<USDZ>() == 30000 * dec6, 0);
+        assert!(pool_value(owner_addr) == 20000 * dec6, 0);
+    }
+    #[test(owner=@leizd, aptos_framework=@aptos_framework)]
+    fun test_harvest_protocol_fees_when_liquidity_is_less_than_not_harvested(owner: &signer, aptos_framework: &signer) acquires Pool, Storage {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        let owner_addr = signer::address_of(owner);
+        let dec6 = math64::pow(10, 6);
+
+        // prerequisite
+        managed_coin::register<USDZ>(owner);
+        usdz::mint_for_test(owner_addr, 30000 * dec6);
+        coin::merge(
+            &mut borrow_global_mut<Pool>(owner_addr).shadow,
+            coin::withdraw<USDZ>(owner, 30000 * dec6)
+        );
+        let storage_ref = borrow_global_mut<Storage>(owner_addr);
+        storage_ref.total_conly_deposited_amount = 20000 * (dec6 as u128);
+        storage_ref.protocol_fees = 40000 * (dec6 as u128);
+        storage_ref.harvested_protocol_fees = 5000 * (dec6 as u128);
+
+        assert!(treasury::balance<USDZ>() == 0, 0);
+        assert!(pool_value(owner_addr) == 30000 * dec6, 0);
+
+        // execute
+        harvest_protocol_fees<USDZ>();
+        assert!(treasury::balance<USDZ>() == 10000 * dec6, 0);
+        assert!(pool_value(owner_addr) == 20000 * dec6, 0);
+    }
+    #[test(owner=@leizd, aptos_framework=@aptos_framework)]
+    fun test_harvest_protocol_fees_when_not_harvested_is_greater_than_u64_max(owner: &signer, aptos_framework: &signer) acquires Pool, Storage {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        let owner_addr = signer::address_of(owner);
+        let max = constant::u64_max();
+
+        // prerequisite
+        managed_coin::register<USDZ>(owner);
+        usdz::mint_for_test(owner_addr, max);
+        coin::merge(
+            &mut borrow_global_mut<Pool>(owner_addr).shadow,
+            coin::withdraw<USDZ>(owner, max)
+        );
+        let storage_ref = borrow_global_mut<Storage>(owner_addr);
+        storage_ref.protocol_fees = (max as u128) * 5;
+        storage_ref.harvested_protocol_fees = (max as u128);
+
+        assert!(treasury::balance<USDZ>() == 0, 0);
+        assert!(pool_value(owner_addr) == max, 0);
+
+        // execute
+        harvest_protocol_fees<USDZ>();
+        assert!(treasury::balance<USDZ>() == max, 0);
+        assert!(pool_value(owner_addr) == 0, 0);
     }
     // TODO: fail because of total_borrowed increased by interest_rate (as time passes)
     // #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
