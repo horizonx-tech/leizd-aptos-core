@@ -67,8 +67,8 @@ module leizd::asset_pool {
         total_borrowed_amount: u128,
         total_borrowed_share: u128,
         last_updated: u64,
-        protocol_fees: u64,
-        harvested_protocol_fees: u64,
+        protocol_fees: u128,
+        harvested_protocol_fees: u128,
         rcomp: u128,
     }
 
@@ -617,7 +617,7 @@ module leizd::asset_pool {
     fun save_calculated_values_by_rcomp(asset_storage_ref: &mut AssetStorage, rcomp: u128, share_fee: u64) {
         let accrued_interest = asset_storage_ref.total_borrowed_amount * rcomp / interest_rate::precision();
         let protocol_share = accrued_interest * (share_fee as u128) / risk_factor::precision_u128();
-        let new_protocol_fees = asset_storage_ref.protocol_fees + (protocol_share as u64);
+        let new_protocol_fees = asset_storage_ref.protocol_fees + protocol_share;
 
         let depositors_share = accrued_interest - protocol_share;
         asset_storage_ref.total_borrowed_amount = asset_storage_ref.total_borrowed_amount + accrued_interest;
@@ -636,7 +636,7 @@ module leizd::asset_pool {
         let owner_addr = permission::owner_address();
         let pool_ref = borrow_global_mut<Pool<C>>(owner_addr);
         let asset_storage_ref = borrow_mut_asset_storage<C>(borrow_global_mut<Storage>(owner_addr));
-        let harvested_fee = (asset_storage_ref.protocol_fees - asset_storage_ref.harvested_protocol_fees as u128);
+        let harvested_fee = asset_storage_ref.protocol_fees - asset_storage_ref.harvested_protocol_fees;
         if(harvested_fee == 0){
             return
         };
@@ -644,7 +644,7 @@ module leizd::asset_pool {
         if(harvested_fee > liquidity){
             harvested_fee = liquidity;
         };
-        asset_storage_ref.harvested_protocol_fees = asset_storage_ref.harvested_protocol_fees + (harvested_fee as u64);
+        asset_storage_ref.harvested_protocol_fees = asset_storage_ref.harvested_protocol_fees + harvested_fee;
         collect_asset_fee<C>(pool_ref, (harvested_fee as u64));
     }
 
@@ -747,12 +747,12 @@ module leizd::asset_pool {
         asset_storage_ref.total_borrowed_share
     }
 
-    public fun protocol_fees<C>(): u64 acquires Storage {
+    public fun protocol_fees<C>(): u128 acquires Storage {
         let asset_storage_ref = borrow_mut_asset_storage<C>(borrow_global_mut<Storage>(permission::owner_address()));
         asset_storage_ref.protocol_fees
     }
 
-    public fun harvested_protocol_fees<C>(): u64 acquires Storage {
+    public fun harvested_protocol_fees<C>(): u128 acquires Storage {
         let asset_storage_ref = borrow_mut_asset_storage<C>(borrow_global_mut<Storage>(permission::owner_address()));
         asset_storage_ref.harvested_protocol_fees
     }
@@ -2099,8 +2099,8 @@ module leizd::asset_pool {
         harvest_protocol_fees<UNI>();
         assert!(protocol_fees<UNI>() == total_protocol_fees, 0);
         assert!(harvested_protocol_fees<UNI>() == total_protocol_fees, 0);
-        assert!(treasury::balance<UNI>() == treasury_balance + total_protocol_fees, 0);
-        assert!(pool_value<UNI>(owner_address) == 2995000 - total_protocol_fees, 0);
+        assert!(treasury::balance<UNI>() == treasury_balance + (total_protocol_fees as u64), 0);
+        assert!(pool_value<UNI>(owner_address) == 2995000 - (total_protocol_fees as u64), 0);
 
         let event_handle = borrow_global<PoolEventHandle<UNI>>(signer::address_of(owner));
         assert!(event::counter<RepayEvent>(&event_handle.repay_event) == 1, 0);
@@ -2188,8 +2188,8 @@ module leizd::asset_pool {
         harvest_protocol_fees<UNI>();
         assert!(protocol_fees<UNI>() == total_protocol_fees, 0);
         assert!(harvested_protocol_fees<UNI>() == total_protocol_fees, 0);
-        assert!(treasury::balance<UNI>() == treasury_balance + total_protocol_fees, 0);
-        assert!(pool_value<UNI>(owner_address) == 2995000 - total_protocol_fees, 0);
+        assert!(treasury::balance<UNI>() == treasury_balance + (total_protocol_fees as u64), 0);
+        assert!(pool_value<UNI>(owner_address) == 2995000 - (total_protocol_fees as u64), 0);
         // harvest again
         treasury_balance = treasury::balance<UNI>();
         let pool_balance = pool_value<UNI>(owner_address);
