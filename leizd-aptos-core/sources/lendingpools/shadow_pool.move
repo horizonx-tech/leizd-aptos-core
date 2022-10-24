@@ -373,7 +373,7 @@ module leizd::shadow_pool {
         let storage_ref = borrow_global_mut<Storage>(owner_address);
 
         accrue_interest(key, storage_ref);
-        collect_shadow_fee(pool_ref, liquidation_fee);
+        collect_fee(pool_ref, liquidation_fee);
 
         let (amount_u128, share_u128) = save_to_storage_for_withdraw(
             key,
@@ -519,7 +519,7 @@ module leizd::shadow_pool {
             // not use central-liquidity-pool
             let extracted = coin::extract(&mut pool_ref.shadow, amount);
             coin::deposit<USDZ>(receiver_addr, extracted);
-            collect_shadow_fee(pool_ref, entry_fee); // fee to treasury
+            collect_fee(pool_ref, entry_fee); // fee to treasury
         };
 
         // update borrowed stats
@@ -935,7 +935,6 @@ module leizd::shadow_pool {
             return
         };
 
-        let protocol_share_fee = risk_factor::share_fee();
         // Deposited amount from CLP must be included to calculate the interest rate precisely
         let deposited_amount_included_clp = asset_storage_ref.normal_deposited_amount + asset_storage_ref.clp_deposited_amount;
         let rcomp = interest_rate::compound_interest_rate(
@@ -949,7 +948,7 @@ module leizd::shadow_pool {
             key,
             storage_ref,
             rcomp,
-            protocol_share_fee
+            risk_factor::share_fee()
         );
         let last_updated = &mut simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key).last_updated;
         *last_updated = now;
@@ -993,8 +992,9 @@ module leizd::shadow_pool {
         storage_ref.protocol_fees = new_protocol_fees;
     }
 
-    fun collect_shadow_fee(pool_ref: &mut Pool, liquidation_fee: u64) {
-        let fee_extracted = coin::extract(&mut pool_ref.shadow, liquidation_fee);
+    fun collect_fee(pool_ref: &mut Pool, fee: u64) {
+        if (fee == 0) return;
+        let fee_extracted = coin::extract(&mut pool_ref.shadow, fee);
         treasury::collect_fee<USDZ>(fee_extracted);
     }
 
@@ -1011,7 +1011,7 @@ module leizd::shadow_pool {
             harvested_fee = liquidity;
         };
         storage_ref.harvested_protocol_fees = storage_ref.harvested_protocol_fees + harvested_fee;
-        collect_shadow_fee(pool_ref, (harvested_fee as u64));
+        collect_fee(pool_ref, (harvested_fee as u64));
     }
 
     ////// Convert

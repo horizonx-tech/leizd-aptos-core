@@ -318,7 +318,7 @@ module leizd::asset_pool {
         let asset_storage_ref = borrow_mut_asset_storage<C>(borrow_global_mut<Storage>(owner_address));
 
         accrue_interest(key<C>(), asset_storage_ref);
-        collect_asset_fee<C>(pool_ref, liquidation_fee);
+        collect_fee<C>(pool_ref, liquidation_fee);
 
         let amount_u128: u128;
         let share_u128: u128;
@@ -391,7 +391,7 @@ module leizd::asset_pool {
         let amount_with_fee = amount + fee;
         assert!((amount_with_fee as u128) <= liquidity_internal(pool_ref, asset_storage_ref), error::invalid_argument(EINSUFFICIENT_LIQUIDITY));
 
-        collect_asset_fee<C>(pool_ref, fee);
+        collect_fee<C>(pool_ref, fee);
         let borrowed = coin::extract(&mut pool_ref.asset, amount);
         coin::deposit<C>(receiver_addr, borrowed);
 
@@ -602,7 +602,6 @@ module leizd::asset_pool {
             return
         };
 
-        let protocol_share_fee = risk_factor::share_fee();
         let rcomp = interest_rate::compound_interest_rate(
             key,
             asset_storage_ref.total_normal_deposited_amount,
@@ -610,7 +609,7 @@ module leizd::asset_pool {
             asset_storage_ref.last_updated,
             now,
         );
-        save_calculated_values_by_rcomp(asset_storage_ref, rcomp, protocol_share_fee);
+        save_calculated_values_by_rcomp(asset_storage_ref, rcomp, risk_factor::share_fee());
         asset_storage_ref.last_updated = now;
         asset_storage_ref.rcomp = rcomp;
     }
@@ -625,11 +624,10 @@ module leizd::asset_pool {
         asset_storage_ref.protocol_fees = new_protocol_fees;
     }
 
-    fun collect_asset_fee<C>(pool_ref: &mut Pool<C>, fee: u64) {
-        if (fee > 0) {
-            let fee_extracted = coin::extract(&mut pool_ref.asset, fee);
-            treasury::collect_fee<C>(fee_extracted);
-        };
+    fun collect_fee<C>(pool_ref: &mut Pool<C>, fee: u64) {
+        if (fee == 0) return;
+        let fee_extracted = coin::extract(&mut pool_ref.asset, fee);
+        treasury::collect_fee<C>(fee_extracted);
     }
 
     public fun harvest_protocol_fees<C>() acquires Pool, Storage{
@@ -645,7 +643,7 @@ module leizd::asset_pool {
             harvested_fee = liquidity;
         };
         asset_storage_ref.harvested_protocol_fees = asset_storage_ref.harvested_protocol_fees + harvested_fee;
-        collect_asset_fee<C>(pool_ref, (harvested_fee as u64));
+        collect_fee<C>(pool_ref, (harvested_fee as u64));
     }
 
     //// Convert
