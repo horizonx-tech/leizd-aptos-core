@@ -269,7 +269,7 @@ module leizd_aptos_lib::u256 {
 
         assert!(b_bits != 0, EDIV_BY_ZERO); // DIVIDE BY ZERO.
         if (a_bits < b_bits) {
-            // Immidiatelly return.
+            // Immidiately return.
             return ret
         };
 

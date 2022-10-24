@@ -29,7 +29,6 @@ module leizd::interest_rate {
 
     struct Config has copy, drop, store {
         uopt: u128,
-        ucrit: u128,
         rb: u128,
         rslope1: u128,
         rslope2: u128,
@@ -39,7 +38,6 @@ module leizd::interest_rate {
         caller: address,
         key: String,
         uopt: u128,
-        ucrit: u128,
         rb: u128,
         rslope1: u128,
         rslope2: u128,
@@ -84,7 +82,6 @@ module leizd::interest_rate {
                 caller: signer::address_of(account),
                 key: key<C>(),
                 uopt: config.uopt,
-                ucrit: config.ucrit,
                 rb: config.rb,
                 rslope1: config.rslope1,
                 rslope2: config.rslope2,
@@ -95,7 +92,6 @@ module leizd::interest_rate {
     public fun default_config(): Config {
         Config {
             uopt: 700000000,  // 0.70 -> 70%
-            ucrit: 850000000, // 0.85 -> 85%
             rb: 10000000, // 0.01 -> 1%
             rslope1: 80000000, // 0.08 -> 8%
             rslope2: 1500000000, // 1.5 -> 150%
@@ -113,9 +109,8 @@ module leizd::interest_rate {
 
     fun assert_config(config: Config) {
         assert!(config.uopt > 0 && config.uopt < PRECISION, 0);
-        assert!(config.ucrit > config.uopt && config.ucrit < PRECISION, 0);
         assert!(config.rb <= config.rslope1, 0);
-        assert!(config.rslope1 < config.rslope2, 0);
+        assert!(config.rslope1 <= config.rslope2, 0);
     }
 
     public fun set_config(key: String, owner: &signer, config: Config) acquires ConfigKey, InterestRateEventHandle {
@@ -125,7 +120,6 @@ module leizd::interest_rate {
 
         let config_ref = simple_map::borrow_mut<String,Config>(&mut borrow_global_mut<ConfigKey>(owner_address).config, &key);
         config_ref.uopt = config.uopt;
-        config_ref.ucrit = config.ucrit;
         config_ref.rb = config.rb;
         config_ref.rslope1 = config.rslope1;
         config_ref.rslope2 = config.rslope2;
@@ -135,7 +129,6 @@ module leizd::interest_rate {
                 caller: owner_address,
                 key: key,
                 uopt: config.uopt,
-                ucrit: config.ucrit,
                 rb: config.rb,
                 rslope1: config.rslope1,
                 rslope2: config.rslope2,
@@ -216,7 +209,7 @@ module leizd::interest_rate {
         let rcomp = compound_interest_rate(key, total_deposits, total_borrows, last_updated, now);
         assert!(rcomp == 1901829990, 0);
 
-        // TOOD: more tests
+        // TODO: more tests
     }
 
     #[test(owner = @leizd_aptos_logic)]
