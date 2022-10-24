@@ -767,6 +767,8 @@ module leizd::asset_pool {
     #[test_only]
     use leizd_aptos_lib::constant;
     #[test_only]
+    use leizd_aptos_lib::math64;
+    #[test_only]
     use leizd_aptos_common::test_coin::{Self,USDC,USDT,WETH,UNI};
     #[test_only]
     use leizd_aptos_trove::usdz::{USDZ};
@@ -2059,6 +2061,55 @@ module leizd::asset_pool {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         pool_status::update_repay_status_for_test<WETH>(false);
         repay_internal<WETH>(owner, 0, false);
+    }
+    // for harvest_protocol_fees
+    #[test(owner=@leizd, aptos_framework=@aptos_framework)]
+    fun test_harvest_protocol_fees_when_liquidity_is_greater_than_not_harvested(owner: &signer, aptos_framework: &signer) acquires Pool, Storage, AssetManagerKeys {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        let owner_addr = signer::address_of(owner);
+        let dec6 = math64::pow(10, 6);
+
+        // prerequisite
+        coin::merge(
+            &mut borrow_global_mut<Pool<USDC>>(owner_addr).asset,
+            test_coin::mint_and_withdraw<USDC>(owner, 50000 * dec6)
+        );
+        let storage_ref = borrow_mut_asset_storage<USDC>(borrow_global_mut<Storage>(owner_addr));
+        storage_ref.total_conly_deposited_amount = 20000 * (dec6 as u128);
+        storage_ref.protocol_fees = 40000 * (dec6 as u128);
+        storage_ref.harvested_protocol_fees = 5000 * (dec6 as u128);
+
+        assert!(treasury::balance<USDC>() == 0, 0);
+        assert!(pool_value<USDC>(owner_addr) == 50000 * dec6, 0);
+
+        // execute
+        harvest_protocol_fees<USDC>();
+        assert!(treasury::balance<USDC>() == 30000 * dec6, 0);
+        assert!(pool_value<USDC>(owner_addr) == 20000 * dec6, 0);
+    }
+    #[test(owner=@leizd, aptos_framework=@aptos_framework)]
+    fun test_harvest_protocol_fees_when_liquidity_is_less_than_not_harvested(owner: &signer, aptos_framework: &signer) acquires Pool, Storage, AssetManagerKeys {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        let owner_addr = signer::address_of(owner);
+        let dec6 = math64::pow(10, 6);
+
+        // prerequisite
+        coin::merge(
+            &mut borrow_global_mut<Pool<USDC>>(owner_addr).asset,
+            test_coin::mint_and_withdraw<USDC>(owner, 30000 * dec6)
+        );
+        let storage_ref = borrow_mut_asset_storage<USDC>(borrow_global_mut<Storage>(owner_addr));
+        storage_ref.total_conly_deposited_amount = 20000 * (dec6 as u128);
+        storage_ref.protocol_fees = 40000 * (dec6 as u128);
+        storage_ref.harvested_protocol_fees = 5000 * (dec6 as u128);
+
+        assert!(treasury::balance<USDC>() == 0, 0);
+        assert!(pool_value<USDC>(owner_addr) == 30000 * dec6, 0);
+
+        // execute
+        harvest_protocol_fees<USDC>();
+        assert!(treasury::balance<USDC>() == 10000 * dec6, 0);
+        assert!(pool_value<USDC>(owner_addr) == 20000 * dec6, 0);
     }
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
     public entry fun test_harvest_protocol_fees(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, AssetManagerKeys, PoolEventHandle {

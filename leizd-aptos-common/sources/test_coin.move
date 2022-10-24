@@ -6,6 +6,7 @@ module leizd_aptos_common::test_coin {
     struct WETH {}
     struct UNI {}
 
+    use std::signer;
     use aptos_framework::coin;
     use aptos_framework::managed_coin;
 
@@ -35,5 +36,15 @@ module leizd_aptos_common::test_coin {
         );
         assert!(coin::is_coin_initialized<T>(), 0);
         managed_coin::register<T>(account);
+    }
+
+    // utilities
+    public fun mint_and_withdraw<CoinType>(
+        account: &signer,
+        amount: u64,
+    ): coin::Coin<CoinType> {
+        let account_addr = signer::address_of(account);
+        managed_coin::mint<CoinType>(account, account_addr, amount);
+        coin::withdraw<CoinType>(account, amount)
     }
 }
