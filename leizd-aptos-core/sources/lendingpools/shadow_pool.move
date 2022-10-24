@@ -50,8 +50,8 @@ module leizd::shadow_pool {
         total_clp_deposited_amount: u128, // from clp
         total_borrowed_amount: u128,
         asset_storages: simple_map::SimpleMap<String, AssetStorage>,
-        protocol_fees: u64,
-        harvested_protocol_fees: u64,
+        protocol_fees: u128,
+        harvested_protocol_fees: u128,
     }
     struct AssetStorage has store {
         normal_deposited_amount: u128, // borrowable
@@ -976,7 +976,7 @@ module leizd::shadow_pool {
         };
 
         let protocol_share = accrued_interest * (share_fee as u128) / risk_factor::precision_u128();
-        let new_protocol_fees = storage_ref.protocol_fees + (protocol_share as u64);
+        let new_protocol_fees = storage_ref.protocol_fees + protocol_share;
         let depositors_share = accrued_interest - protocol_share;
 
         // top up support fees when the pool is supported
@@ -1002,7 +1002,7 @@ module leizd::shadow_pool {
         let owner_addr = permission::owner_address();
         let storage_ref = borrow_global_mut<Storage>(owner_addr);
         let pool_ref = borrow_global_mut<Pool>(owner_addr);
-        let harvested_fee = (storage_ref.protocol_fees - storage_ref.harvested_protocol_fees as u128);
+        let harvested_fee = storage_ref.protocol_fees - storage_ref.harvested_protocol_fees;
         if(harvested_fee == 0){
             return
         };
@@ -1010,7 +1010,7 @@ module leizd::shadow_pool {
         if(harvested_fee > liquidity){
             harvested_fee = liquidity;
         };
-        storage_ref.harvested_protocol_fees = storage_ref.harvested_protocol_fees + (harvested_fee as u64);
+        storage_ref.harvested_protocol_fees = storage_ref.harvested_protocol_fees + harvested_fee;
         collect_shadow_fee(pool_ref, (harvested_fee as u64));
     }
 
@@ -1175,11 +1175,11 @@ module leizd::shadow_pool {
         }
     }
 
-    public fun protocol_fees(): u64 acquires Storage {
+    public fun protocol_fees(): u128 acquires Storage {
         borrow_global<Storage>(permission::owner_address()).protocol_fees
     }
 
-    public fun harvested_protocol_fees(): u64 acquires Storage {
+    public fun harvested_protocol_fees(): u128 acquires Storage {
         borrow_global<Storage>(permission::owner_address()).harvested_protocol_fees
     }
 
