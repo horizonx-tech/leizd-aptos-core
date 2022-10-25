@@ -1019,14 +1019,58 @@ module leizd_aptos_logic::rebalance {
             i = i - 1;
         };
 
-        aptos_std::debug::print(&sum_rebalanced_deposited);
-        aptos_std::debug::print(&sum_rebalanced_withdrawn);
-        aptos_std::debug::print(&sum_rebalanced_borrowed);
-        aptos_std::debug::print(&sum_rebalanced_repaid);
-
-        // should be equal
-        aptos_std::debug::print(&(sum_rebalanced_deposited + sum_rebalanced_repaid));
-        aptos_std::debug::print(&(sum_rebalanced_borrowed + sum_rebalanced_withdrawn));
+        // reconcile check
+        if ((sum_rebalanced_deposited + sum_rebalanced_repaid) != (sum_rebalanced_borrowed + sum_rebalanced_withdrawn)) {
+            if ((sum_rebalanced_deposited + sum_rebalanced_repaid) > (sum_rebalanced_borrowed + sum_rebalanced_withdrawn)) {
+                // do borrow or withdraw
+                let updated_volume = (sum_rebalanced_deposited + sum_rebalanced_repaid) - (sum_rebalanced_borrowed + sum_rebalanced_withdrawn);
+                if (vector::length<String>(&unprotected_coins_in_atos) > 0) {
+                    let key = vector::borrow(&unprotected_coins_in_atos, 0);
+                    let (_, share) = shadow_pool::rebalance_for_borrow(
+                        *key,
+                        target_addr,
+                        (price_oracle::to_amount(&key<USDZ>(), updated_volume) as u64),
+                        shadow_pool_key
+                    );
+                    account_position::borrow_unsafe_with<Shadow>(*key, target_addr, share, account_position_key);
+                    sum_rebalanced_borrowed = sum_rebalanced_borrowed + updated_volume;
+                } else if (vector::length<String>(&unprotected_coins_in_stoa) > 0) {
+                    let key = vector::borrow(&unprotected_coins_in_stoa, 0);
+                    let (_,share) = shadow_pool::rebalance_for_withdraw(
+                        *key,
+                        target_addr,
+                        (price_oracle::to_amount(&key<USDZ>(), updated_volume) as u64),
+                        shadow_pool_key
+                    );
+                    account_position::withdraw_by_rebalance(*key, target_addr, share, account_position_key);
+                    sum_rebalanced_withdrawn = sum_rebalanced_withdrawn + updated_volume;
+                };
+            } else {
+                // do deposit or repay
+                let updated_volume = (sum_rebalanced_borrowed + sum_rebalanced_withdrawn) - (sum_rebalanced_deposited + sum_rebalanced_repaid);
+                if (vector::length<String>(&unprotected_coins_in_atos) > 0) {
+                    let key = vector::borrow(&unprotected_coins_in_atos, 0);
+                    let (_, share) = shadow_pool::rebalance_for_repay(
+                        *key,
+                        target_addr,
+                        (price_oracle::to_amount(&key<USDZ>(), (updated_volume)) as u64),
+                        shadow_pool_key
+                    );
+                    account_position::repay_with<Shadow>(*key, target_addr, share, account_position_key);
+                    sum_rebalanced_repaid = sum_rebalanced_repaid + updated_volume;
+                } else {
+                    let key = vector::borrow(&unprotected_coins_in_stoa, 0);
+                    let share = shadow_pool::rebalance_for_deposit(
+                        *key,
+                        target_addr,
+                        (price_oracle::to_amount(&key<USDZ>(), updated_volume) as u64),
+                        shadow_pool_key
+                    );
+                    account_position::deposit_by_rebalance(*key, target_addr, share, account_position_key);
+                    sum_rebalanced_deposited = sum_rebalanced_deposited + updated_volume;
+                }
+            };
+        };
 
         event::emit_event<FlattenPositionsEvent>(
             &mut borrow_global_mut<RebalanceEventHandle>(permission::owner_address()).flatten_positions_event,
@@ -1039,9 +1083,6 @@ module leizd_aptos_logic::rebalance {
                 sum_rebalanced_borrowed,
                 sum_rebalanced_repaid,          },
         );
-
-        // TODO: check the diff - if there is any diff ...
-
     }
 
     #[test_only]

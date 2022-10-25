@@ -259,12 +259,12 @@ module leizd_aptos_entry::scenario_rebalance {
         // liquidate
         liquidate<WETH, Asset>(liquidator, borrower_addr);
         assert!(account_position::deposited_volume<AssetToShadow>(borrower_addr, key<WETH>()) == 50000, 0);
-        assert!(account_position::borrowed_volume<AssetToShadow>(borrower_addr, key<WETH>()) == 20099, 0); // CHECK: 20100?
+        assert!(account_position::borrowed_volume<AssetToShadow>(borrower_addr, key<WETH>()) == 20102, 0); // CHECK: 20100?
         assert!(account_position::deposited_volume<AssetToShadow>(borrower_addr, key<USDC>()) == 200000, 0);
         assert!(account_position::borrowed_volume<AssetToShadow>(borrower_addr, key<USDC>()) == 80550, 0);
         //// for pool
         assert!(asset_pool::total_normal_deposited_amount<WETH>() == 100000, 0);
-        assert!(shadow_pool::borrowed_amount<WETH>() == 20099, 0);
+        assert!(shadow_pool::borrowed_amount<WETH>() == 20102, 0);
         assert!(asset_pool::total_normal_deposited_amount<USDC>() == 200000, 0);
         assert!(shadow_pool::borrowed_amount<USDC>() == 80550, 0);
     }
@@ -312,12 +312,12 @@ module leizd_aptos_entry::scenario_rebalance {
         // liquidate
         liquidate<WETH, Asset>(liquidator, borrower_addr);
         assert!(account_position::deposited_volume<AssetToShadow>(borrower_addr, key<WETH>()) == 50000, 0);
-        assert!(account_position::borrowed_volume<AssetToShadow>(borrower_addr, key<WETH>()) == 19196, 0);
+        assert!(account_position::borrowed_volume<AssetToShadow>(borrower_addr, key<WETH>()) == 19198, 0);
         assert!(account_position::deposited_volume<AssetToShadow>(borrower_addr, key<USDC>()) == 200000, 0);
         assert!(account_position::borrowed_volume<AssetToShadow>(borrower_addr, key<USDC>()) == 81459, 0);
         //// for pool
         assert!(asset_pool::total_normal_deposited_amount<WETH>() == 100000, 0);
-        assert!(shadow_pool::borrowed_amount<WETH>() == 19196, 0);
+        assert!(shadow_pool::borrowed_amount<WETH>() == 19198, 0);
         assert!(asset_pool::total_normal_deposited_amount<USDC>() == 200000, 0);
         assert!(shadow_pool::borrowed_amount<USDC>() == 81459, 0);
     }
@@ -369,14 +369,14 @@ module leizd_aptos_entry::scenario_rebalance {
         // liquidate
         liquidate<WETH, Asset>(liquidator, borrower_addr);
         assert!(account_position::deposited_volume<AssetToShadow>(borrower_addr, key<WETH>()) == 50000, 0);
-        assert!(account_position::borrowed_volume<AssetToShadow>(borrower_addr, key<WETH>()) == 9783, 0); // CHECK: 9784?
+        assert!(account_position::borrowed_volume<AssetToShadow>(borrower_addr, key<WETH>()) == 9782, 0); // CHECK: 9784?
         assert!(account_position::deposited_volume<ShadowToAsset>(borrower_addr, key<USDC>()) == 229766, 0); // CHECK: 229767?
         assert!(account_position::borrowed_volume<ShadowToAsset>(borrower_addr, key<USDC>()) == 50250, 0);
         assert!(account_position::deposited_volume<ShadowToAsset>(borrower_addr, key<USDT>()) == 229766, 0); // CHECK: 229767?
         assert!(account_position::borrowed_volume<ShadowToAsset>(borrower_addr, key<USDT>()) == 50250, 0);
         //// for pool
         assert!(asset_pool::total_normal_deposited_amount<WETH>() == 100000, 0);
-        assert!(shadow_pool::borrowed_amount<WETH>() == 9783, 0);
+        assert!(shadow_pool::borrowed_amount<WETH>() == 9782, 0);
         assert!(shadow_pool::normal_deposited_amount<USDC>() == 229766, 0);
         assert!(asset_pool::total_borrowed_amount<USDC>() == 50250, 0);
         assert!(shadow_pool::normal_deposited_amount<USDT>() == 229766, 0);
@@ -438,7 +438,7 @@ module leizd_aptos_entry::scenario_rebalance {
         // liquidate
         liquidate<UNI, Shadow>(liquidator, borrower_addr);
         assert!(account_position::deposited_volume<AssetToShadow>(borrower_addr, key<WETH>()) == 100000, 0);
-        assert!(account_position::borrowed_volume<AssetToShadow>(borrower_addr, key<WETH>()) == 46106, 0); // CHECK: 46107?
+        assert!(account_position::borrowed_volume<AssetToShadow>(borrower_addr, key<WETH>()) == 46105, 0); // CHECK: 46107?
         assert!(account_position::deposited_volume<AssetToShadow>(borrower_addr, key<USDC>()) == 200000, 0);
         assert!(account_position::borrowed_volume<AssetToShadow>(borrower_addr, key<USDC>()) == 92213, 0);
         assert!(account_position::deposited_volume<ShadowToAsset>(borrower_addr, key<USDT>()) == 97513, 0); // CHECK: 97514?
@@ -447,7 +447,7 @@ module leizd_aptos_entry::scenario_rebalance {
         assert!(account_position::borrowed_volume<ShadowToAsset>(borrower_addr, key<UNI>()) == 201000, 0);
         //// for pool
         assert!(asset_pool::total_normal_deposited_amount<WETH>() == 100000, 0);
-        assert!(shadow_pool::borrowed_amount<WETH>() == 46106, 0);
+        assert!(shadow_pool::borrowed_amount<WETH>() == 46105, 0);
         assert!(asset_pool::total_normal_deposited_amount<USDC>() == 200000, 0);
         assert!(shadow_pool::borrowed_amount<USDC>() == 92213, 0);
         assert!(shadow_pool::normal_deposited_amount<USDT>() == 97513, 0);
@@ -509,7 +509,7 @@ module leizd_aptos_entry::scenario_rebalance {
         assert!(account_position::deposited_volume<AssetToShadow>(borrower_addr, key<WETH>()) == 100000, 0);
         assert!(account_position::borrowed_volume<AssetToShadow>(borrower_addr, key<WETH>()) == 50250, 0);
         assert!(account_position::deposited_volume<AssetToShadow>(borrower_addr, key<USDC>()) == 200000, 0);
-        assert!(account_position::borrowed_volume<AssetToShadow>(borrower_addr, key<USDC>()) == 91558, 0);
+        assert!(account_position::borrowed_volume<AssetToShadow>(borrower_addr, key<USDC>()) == 91557, 0);
         assert!(account_position::deposited_volume<ShadowToAsset>(borrower_addr, key<USDT>()) == 98211, 0); // CHECK: 98212?
         assert!(account_position::borrowed_volume<ShadowToAsset>(borrower_addr, key<USDT>()) == 50250, 0);
         assert!(account_position::deposited_volume<ShadowToAsset>(borrower_addr, key<UNI>()) == 392846, 0); // CHECK: 392847?
