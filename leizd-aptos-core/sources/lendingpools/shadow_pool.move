@@ -489,13 +489,12 @@ module leizd::shadow_pool {
         assert!((amount_with_entry_fee as u128) <= total_left, error::invalid_argument(EEXCEED_BORROWABLE_AMOUNT));
 
         // let asset_storage_ref = simple_map::borrow_mut<String, AssetStorage>(&mut storage_ref.asset_storages, &key);
-        let borrowing_value_from_central = 0;
         if ((amount_with_entry_fee as u128) > liquidity) {
             // use central-liquidity-pool
             if (liquidity > 0) {
                 // extract all from shadow_pool, supply the shortage to borrow from central-liquidity-pool
                 let extracted = coin::extract_all(&mut pool_ref.shadow);
-                borrowing_value_from_central = amount_with_entry_fee - coin::value(&extracted);
+                let borrowing_value_from_central = amount_with_entry_fee - coin::value(&extracted);
                 let borrowed_from_central = borrow_from_central_liquidity_pool(key, receiver_addr, borrowing_value_from_central);
 
                 // merge coins extracted & distribute calculated values to receiver & shadow_pool
@@ -610,7 +609,6 @@ module leizd::shadow_pool {
         let (amount_u128, share_u128) = save_to_storage_for_repay(key, account_addr, account_addr, value, is_share, storage_ref);
         let remaining_amount_u128 = amount_u128;
         let repaid_to_central_liquidity_pool = repay_to_central_liquidity_pool(key, account, (amount_u128 as u64));
-        let asset_storage_ref = simple_map::borrow_mut<String, AssetStorage>(&mut storage_ref.asset_storages, &key);
         if (repaid_to_central_liquidity_pool > 0) {
             remaining_amount_u128 = remaining_amount_u128 - (repaid_to_central_liquidity_pool as u128);
         };
