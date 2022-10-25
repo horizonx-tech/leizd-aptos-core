@@ -363,14 +363,13 @@ module leizd_aptos_logic::rebalance {
 
         // update interests for pools that may be used
         asset_pool::exec_accrue_interest<C>(asset_pool_key);
+        asset_pool::exec_accrue_interest_for_selected(account_position::deposited_coins<Asset>(target_addr), asset_pool_key);
         shadow_pool::exec_accrue_interest<C>(shadow_pool_key);
+        shadow_pool::exec_accrue_interest_for_selected(account_position::deposited_coins<Shadow>(target_addr), shadow_pool_key);
 
         if (pool_type::is_type_asset<P>()) {
             // judge if the coin should be liquidated
             assert!(!account_position::is_safe_asset_to_shadow<C>(target_addr), error::invalid_state(ENO_SAFE_POSITION));
-
-            // update interests for pools that may be used
-            asset_pool::exec_accrue_interest_for_selected(account_position::deposited_coins<Asset>(target_addr), asset_pool_key); // for deposit, withdraw for rebalance
 
             if (!account_position::is_protected<C>(target_addr)) {
                 flatten_positions(liquidator_addr, target_addr, account_position_key, shadow_pool_key);
@@ -388,9 +387,6 @@ module leizd_aptos_logic::rebalance {
             // judge if the coin should be liquidated
             assert!(!account_position::is_safe_shadow_to_asset<C>(target_addr), error::invalid_state(ENO_SAFE_POSITION));
             
-            // update interests for pools that may be used
-            shadow_pool::exec_accrue_interest_for_selected(account_position::deposited_coins<Shadow>(target_addr), shadow_pool_key); // for deposit, withdraw for rebalance
-
             if (!account_position::is_protected<C>(target_addr)) {
                 flatten_positions(liquidator_addr, target_addr, account_position_key, shadow_pool_key);
             };
