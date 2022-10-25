@@ -47,7 +47,6 @@ module leizd::shadow_pool {
     struct Storage has key {
         total_normal_deposited_amount: u128, // borrowable
         total_conly_deposited_amount: u128, // collateral only
-        total_clp_deposited_amount: u128, // from clp
         total_borrowed_amount: u128,
         asset_storages: simple_map::SimpleMap<String, AssetStorage>,
         protocol_fees: u128,
@@ -58,7 +57,6 @@ module leizd::shadow_pool {
         normal_deposited_share: u128, // borrowable
         conly_deposited_amount: u128, // collateral only
         conly_deposited_share: u128, // collateral only
-        clp_deposited_amount: u128, // from clp
         borrowed_amount: u128,
         borrowed_share: u128,
         last_updated: u64,
@@ -162,7 +160,6 @@ module leizd::shadow_pool {
         Storage {
             total_normal_deposited_amount: 0,
             total_conly_deposited_amount: 0,
-            total_clp_deposited_amount: 0,
             total_borrowed_amount: 0,
             asset_storages: simple_map::create<String,AssetStorage>(),
             protocol_fees: 0,
@@ -197,7 +194,6 @@ module leizd::shadow_pool {
             normal_deposited_share: 0,
             conly_deposited_amount: 0,
             conly_deposited_share: 0,
-            clp_deposited_amount: 0,
             borrowed_amount: 0,
             borrowed_share: 0,
             last_updated: 0,
@@ -493,13 +489,12 @@ module leizd::shadow_pool {
         assert!((amount_with_entry_fee as u128) <= total_left, error::invalid_argument(EEXCEED_BORROWABLE_AMOUNT));
 
         // let asset_storage_ref = simple_map::borrow_mut<String, AssetStorage>(&mut storage_ref.asset_storages, &key);
-        let borrowing_value_from_central = 0;
         if ((amount_with_entry_fee as u128) > liquidity) {
             // use central-liquidity-pool
             if (liquidity > 0) {
                 // extract all from shadow_pool, supply the shortage to borrow from central-liquidity-pool
                 let extracted = coin::extract_all(&mut pool_ref.shadow);
-                borrowing_value_from_central = amount_with_entry_fee - coin::value(&extracted);
+                let borrowing_value_from_central = amount_with_entry_fee - coin::value(&extracted);
                 let borrowed_from_central = borrow_from_central_liquidity_pool(key, receiver_addr, borrowing_value_from_central);
 
                 // merge coins extracted & distribute calculated values to receiver & shadow_pool
@@ -523,7 +518,7 @@ module leizd::shadow_pool {
         };
 
         // update borrowed stats
-        let (amount_with_total_fee_u128, user_share_u128) = save_to_storage_for_borrow(key, borrower_addr, receiver_addr, amount, entry_fee, liquidity, borrowing_value_from_central, storage_ref);
+        let (amount_with_total_fee_u128, user_share_u128) = save_to_storage_for_borrow(key, borrower_addr, receiver_addr, amount, entry_fee, storage_ref);
         (
             (amount_with_total_fee_u128 as u64), // TODO: only amount
             (user_share_u128 as u64)
@@ -536,29 +531,11 @@ module leizd::shadow_pool {
         receiver_addr: address,
         amount: u64,
         entry_fee: u64,
-        liquidity: u128,
-        borrowing_value_from_central: u64,
         storage_ref: &mut Storage
     ): (u128,u128) acquires PoolEventHandle {
         let owner_address = permission::owner_address();
         let asset_storage_ref = simple_map::borrow_mut<String, AssetStorage>(&mut storage_ref.asset_storages, &key);
         let amount_with_entry_fee = amount + entry_fee;
-
-        if ((amount_with_entry_fee as u128) > liquidity) {
-            // use central-liquidity-pool
-            if (liquidity > 0) {
-                //// add borrowed from central-liquidity-pool to deposited
-                storage_ref.total_clp_deposited_amount = storage_ref.total_clp_deposited_amount + (borrowing_value_from_central as u128);
-                asset_storage_ref.clp_deposited_amount = asset_storage_ref.clp_deposited_amount + (borrowing_value_from_central as u128);
-
-            } else {
-                //// add borrowed from central-liquidity-pool to deposited
-                storage_ref.total_clp_deposited_amount = storage_ref.total_clp_deposited_amount + (amount_with_entry_fee as u128);
-                asset_storage_ref.clp_deposited_amount = asset_storage_ref.clp_deposited_amount + (amount_with_entry_fee as u128);
-
-            }
-        };
-
         let amount_with_total_fee_u128 = (amount_with_entry_fee as u128);
         storage_ref.total_borrowed_amount = storage_ref.total_borrowed_amount + amount_with_total_fee_u128;
         let user_share_u128 = math128::to_share(amount_with_total_fee_u128, asset_storage_ref.borrowed_amount, asset_storage_ref.borrowed_share);
@@ -632,10 +609,7 @@ module leizd::shadow_pool {
         let (amount_u128, share_u128) = save_to_storage_for_repay(key, account_addr, account_addr, value, is_share, storage_ref);
         let remaining_amount_u128 = amount_u128;
         let repaid_to_central_liquidity_pool = repay_to_central_liquidity_pool(key, account, (amount_u128 as u64));
-        let asset_storage_ref = simple_map::borrow_mut<String, AssetStorage>(&mut storage_ref.asset_storages, &key);
         if (repaid_to_central_liquidity_pool > 0) {
-            storage_ref.total_clp_deposited_amount = storage_ref.total_clp_deposited_amount - (repaid_to_central_liquidity_pool as u128);
-            asset_storage_ref.clp_deposited_amount = asset_storage_ref.clp_deposited_amount - (repaid_to_central_liquidity_pool as u128);
             remaining_amount_u128 = remaining_amount_u128 - (repaid_to_central_liquidity_pool as u128);
         };
 
@@ -723,7 +697,7 @@ module leizd::shadow_pool {
         let liquidity = normal_deposited_amount_internal(key, storage_ref)
             - borrowed_amount_internal(key, storage_ref);
         assert!((amount_with_entry_fee as u128) <= liquidity, error::invalid_argument(EEXCEED_BORROWABLE_AMOUNT)); // do not use clp
-        let (amount, share) = save_to_storage_for_borrow(key, target_addr, target_addr, amount, entry_fee, liquidity, 0, storage_ref);
+        let (amount, share) = save_to_storage_for_borrow(key, target_addr, target_addr, amount, entry_fee, storage_ref);
         ((amount as u64), (share as u64))
     }
 
@@ -936,7 +910,7 @@ module leizd::shadow_pool {
         };
 
         // Deposited amount from CLP must be included to calculate the interest rate precisely
-        let deposited_amount_included_clp = asset_storage_ref.normal_deposited_amount + asset_storage_ref.clp_deposited_amount;
+        let deposited_amount_included_clp = asset_storage_ref.normal_deposited_amount + central_liquidity_pool::borrowed(key);
         let rcomp = interest_rate::compound_interest_rate(
             key,
             deposited_amount_included_clp,
@@ -969,8 +943,6 @@ module leizd::shadow_pool {
             if (accrued_interest_by_central > 0) {
                 accrued_interest = accrued_interest - accrued_interest_by_central;
                 central_liquidity_pool::accrue_interest(key, accrued_interest_by_central, key_for_central);
-                storage_ref.total_clp_deposited_amount = storage_ref.total_clp_deposited_amount + accrued_interest_by_central;
-                asset_storage_ref.clp_deposited_amount = asset_storage_ref.clp_deposited_amount + accrued_interest_by_central;
             };
         };
 
@@ -1060,10 +1032,6 @@ module leizd::shadow_pool {
 
     public fun total_conly_deposited_amount(): u128 acquires Storage {
         borrow_global<Storage>(permission::owner_address()).total_conly_deposited_amount
-    }
-
-    public fun total_clp_deposited_amount(): u128 acquires Storage {
-        borrow_global<Storage>(permission::owner_address()).total_clp_deposited_amount
     }
 
     public fun total_borrowed_amount(): u128 acquires Storage {
