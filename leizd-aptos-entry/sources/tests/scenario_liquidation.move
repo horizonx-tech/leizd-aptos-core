@@ -1,5 +1,5 @@
 #[test_only]
-module leizd_aptos_entry::scenario_rebalance {
+module leizd_aptos_entry::scenario_liquidation {
     #[test_only]
     use std::signer;
     #[test_only]

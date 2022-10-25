@@ -2,6 +2,7 @@ module leizd::asset_pool {
 
     use std::error;
     use std::signer;
+    use std::vector;
     use std::string::{String};
     use aptos_std::event;
     use aptos_std::simple_map;
@@ -586,6 +587,23 @@ module leizd::asset_pool {
         let owner_address = permission::owner_address();
         let storage_ref = borrow_global_mut<Storage>(owner_address);
         accrue_interest(key, borrow_mut_asset_storage_with(storage_ref, key));
+    }
+    public fun exec_accrue_interest_for_selected(
+        keys: vector<String>,
+        _key: &OperatorKey
+    ) acquires Storage {
+        exec_accrue_interest_for_selected_internal(keys);
+    }
+    fun exec_accrue_interest_for_selected_internal(keys: vector<String>) acquires Storage {
+        let owner_address = permission::owner_address();
+        let storage_ref = borrow_global_mut<Storage>(owner_address);
+
+        let i = vector::length<String>(&keys);
+        while (i > 0) {
+            let key = *vector::borrow<String>(&keys, i - 1);
+            accrue_interest(key, borrow_mut_asset_storage_with(storage_ref, key));
+            i = i - 1;
+        };
     }
 
     /// This function is called on every user action.
