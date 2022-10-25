@@ -519,7 +519,7 @@ module leizd::shadow_pool {
         };
 
         // update borrowed stats
-        let (amount_with_total_fee_u128, user_share_u128) = save_to_storage_for_borrow(key, borrower_addr, receiver_addr, amount, entry_fee, liquidity, borrowing_value_from_central, storage_ref);
+        let (amount_with_total_fee_u128, user_share_u128) = save_to_storage_for_borrow(key, borrower_addr, receiver_addr, amount, entry_fee, storage_ref);
         (
             (amount_with_total_fee_u128 as u64), // TODO: only amount
             (user_share_u128 as u64)
@@ -532,8 +532,6 @@ module leizd::shadow_pool {
         receiver_addr: address,
         amount: u64,
         entry_fee: u64,
-        liquidity: u128,
-        borrowing_value_from_central: u64,
         storage_ref: &mut Storage
     ): (u128,u128) acquires PoolEventHandle {
         let owner_address = permission::owner_address();
@@ -701,7 +699,7 @@ module leizd::shadow_pool {
         let liquidity = normal_deposited_amount_internal(key, storage_ref)
             - borrowed_amount_internal(key, storage_ref);
         assert!((amount_with_entry_fee as u128) <= liquidity, error::invalid_argument(EEXCEED_BORROWABLE_AMOUNT)); // do not use clp
-        let (amount, share) = save_to_storage_for_borrow(key, target_addr, target_addr, amount, entry_fee, liquidity, 0, storage_ref);
+        let (amount, share) = save_to_storage_for_borrow(key, target_addr, target_addr, amount, entry_fee, storage_ref);
         ((amount as u64), (share as u64))
     }
 
