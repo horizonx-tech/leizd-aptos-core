@@ -873,20 +873,19 @@ module leizd::shadow_pool {
 
     /// Pay supported fees to the central-liquidity-pool
     /// use when the support fees are charged.
-    /// @return paid_amount
-    fun pay_supported_fees(key: String, generated_fees: u128, liquidity: u128, pool_ref: &mut Pool) acquires Keys {
+    /// @return deficiency_amount
+    fun pay_supported_fees(key: String, generated_fees: u128, liquidity: u128, pool_ref: &mut Pool): u128 acquires Keys {
         let key_for_central = &borrow_global<Keys>(permission::owner_address()).central_liquidity_pool;
-        let uncollected_support_fee = central_liquidity_pool::uncollected_support_fee(key) + generated_fees;
-        if (uncollected_support_fee == 0) {
-            return
-        };
-        let collected_support_fee = uncollected_support_fee;
-        if (collected_support_fee > liquidity) {
-            collected_support_fee = liquidity
-        };
-        let fee_extracted = coin::extract(&mut pool_ref.shadow, (collected_support_fee as u64));
-        uncollected_support_fee = uncollected_support_fee - collected_support_fee;
-        central_liquidity_pool::collect_support_fee(key, fee_extracted, uncollected_support_fee, key_for_central);
+        if (liquidity >= generated_fees) {
+            let fee_extracted = coin::extract(&mut pool_ref.shadow, (generated_fees as u64));
+            central_liquidity_pool::collect_support_fee(key, fee_extracted, 0, key_for_central);
+            return 0
+        } else {
+            let fee_extracted = coin::extract(&mut pool_ref.shadow, (liquidity as u64));
+            let deficiency_amount = generated_fees - (coin::value(&fee_extracted) as u128);
+            central_liquidity_pool::collect_support_fee(key, fee_extracted, deficiency_amount, key_for_central);
+            return deficiency_amount
+        }
     }
 
     /// This function is called on every user action.
@@ -953,7 +952,9 @@ module leizd::shadow_pool {
         if (central_liquidity_pool::is_supported(key) && accrued_interest > 0) {
             let generated_support_fee = central_liquidity_pool::calculate_support_fee(accrued_interest);
             depositors_share = depositors_share - generated_support_fee;
-            pay_supported_fees(key, generated_support_fee, liquidity, pool_ref);
+            let deficiency_amount = pay_supported_fees(key, generated_support_fee, liquidity, pool_ref);
+            asset_storage_ref.borrowed_amount = asset_storage_ref.borrowed_amount + deficiency_amount;
+            storage_ref.total_borrowed_amount = storage_ref.total_borrowed_amount + deficiency_amount;
         };
 
         asset_storage_ref.borrowed_amount = asset_storage_ref.borrowed_amount + total_accrued_interest;
