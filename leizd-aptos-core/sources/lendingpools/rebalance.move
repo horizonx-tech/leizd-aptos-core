@@ -533,6 +533,8 @@ module leizd_aptos_logic::rebalance {
         let usdz_key = key<USDZ>();
         let amounts_to_deposit = simple_map::create<String, u64>();
         let amounts_to_withdraw = simple_map::create<String, u64>();
+        let sum_deposit_volume = 0;
+        let sum_withdraw_volume = 0;
         while (i < vector::length<String>(&coins)) {
             let key = vector::borrow(&coins, i);
             let deposited_volume = simple_map::borrow(&deposited_volumes, key);
@@ -553,6 +555,7 @@ module leizd_aptos_logic::rebalance {
                     *key,
                     (price_oracle::to_amount(&usdz_key, updated) as u64) // TODO: temp cast (maybe use u128 as return value)
                 );
+                sum_withdraw_volume = sum_withdraw_volume + updated;
             } else if (current_hf < optimized_hf) {
                 let updated = opt_deposit_volume - *deposited_volume;
                 simple_map::add(
@@ -560,8 +563,32 @@ module leizd_aptos_logic::rebalance {
                     *key,
                     (price_oracle::to_amount(&usdz_key, updated) as u64) // TODO: temp cast (maybe use u128 as return value)
                 );
+                sum_deposit_volume = sum_deposit_volume + updated;
             };
             i = i + 1;
+        };
+        // reconcile
+        if (sum_deposit_volume != sum_withdraw_volume) {
+            let key = vector::borrow(&coins, 0);
+            if (sum_deposit_volume > sum_withdraw_volume) {
+                let updated = sum_deposit_volume - sum_withdraw_volume;
+                simple_map::add(
+                    &mut amounts_to_withdraw,
+                    *key,
+                    (updated as u64)
+                );
+                sum_withdraw_volume = sum_withdraw_volume + updated;
+            } else {
+                let updated = sum_withdraw_volume - sum_deposit_volume;
+                simple_map::add(
+                    &mut amounts_to_deposit,
+                    *key,
+                    (updated as u64)
+                );
+                sum_deposit_volume = sum_deposit_volume + updated;
+            };
+            std::debug::print(&sum_deposit_volume);
+            std::debug::print(&sum_withdraw_volume);
         };
         (amounts_to_deposit, amounts_to_withdraw)
     }
