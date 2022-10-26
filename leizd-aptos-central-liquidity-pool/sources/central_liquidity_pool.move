@@ -41,15 +41,13 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         left: coin::Coin<USDZ>,
         total_deposited: u128,
         total_borrowed: u128,
-        total_uncollected_fee: u128,
         supported_pools: vector<String>, // e.g. 0x1::module_name::WBTC
         protocol_fees: u64,
         harvested_protocol_fees: u64,
     }
 
     struct Balance has key {
-        borrowed: simple_map::SimpleMap<String,u128>,
-        uncollected_support_fee: simple_map::SimpleMap<String,u128>,
+        borrowed: simple_map::SimpleMap<String,u128>
     }
 
     struct Config has key {
@@ -110,14 +108,12 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
             left: coin::zero<USDZ>(),
             total_deposited: 0,
             total_borrowed: 0,
-            total_uncollected_fee: 0,
             supported_pools: vector::empty<String>(),
             protocol_fees: 0,
             harvested_protocol_fees: 0
         });
         move_to(owner, Balance {
-            borrowed: simple_map::create<String,u128>(),
-            uncollected_support_fee: simple_map::create<String,u128>(),
+            borrowed: simple_map::create<String,u128>()
         });
         move_to(owner, Config {
             protocol_fee: DEFAULT_PROTOCOL_FEE,
@@ -153,7 +149,6 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
     fun initialize_for_asset_internal<C>(_account: &signer) acquires Balance {
         let balance = borrow_global_mut<Balance>(permission::owner_address());
         simple_map::add<String,u128>(&mut balance.borrowed, key<C>(), 0);
-        simple_map::add<String,u128>(&mut balance.uncollected_support_fee, key<C>(), 0);
     }
     //// access control
     public fun publish_operator_key(owner: &signer): OperatorKey {
@@ -396,21 +391,23 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
     public fun collect_support_fee(
         key: String,
         coin: coin::Coin<USDZ>,
-        new_uncollected_fee: u128,
+        deficiency_amount: u128,
         _key: &OperatorKey
     ) acquires CentralLiquidityPool, Balance {
-        collect_support_fee_internal(key, coin, new_uncollected_fee)
+        collect_support_fee_internal(key, coin, deficiency_amount)
     }
-    fun collect_support_fee_internal(key: String, coin: coin::Coin<USDZ>, new_uncollected_fee: u128,) acquires CentralLiquidityPool, Balance {
+    fun collect_support_fee_internal(key: String, coin: coin::Coin<USDZ>, deficiency_amount: u128) acquires CentralLiquidityPool, Balance {
         let owner_address = permission::owner_address();
-        let balance_ref = borrow_global_mut<Balance>(owner_address);
         let pool_ref = borrow_global_mut<CentralLiquidityPool>(owner_address);
-        let uncollected_support_fee = simple_map::borrow_mut<String,u128>(&mut balance_ref.uncollected_support_fee, &key);
-        pool_ref.total_uncollected_fee = pool_ref.total_uncollected_fee - *uncollected_support_fee;
-        *uncollected_support_fee = new_uncollected_fee;
-        pool_ref.total_uncollected_fee = pool_ref.total_uncollected_fee + new_uncollected_fee;
         pool_ref.total_deposited = pool_ref.total_deposited + (coin::value<USDZ>(&coin) as u128);
         coin::merge<USDZ>(&mut pool_ref.left, coin);
+        if (deficiency_amount > 0) {
+            let balance_ref = borrow_global_mut<Balance>(owner_address);
+            let borrowed = simple_map::borrow_mut<String,u128>(&mut balance_ref.borrowed, &key);
+            *borrowed = *borrowed + deficiency_amount;
+            pool_ref.total_borrowed = pool_ref.total_borrowed + deficiency_amount;
+            pool_ref.total_deposited = pool_ref.total_deposited + deficiency_amount;
+        }
     }
 
     public entry fun harvest_protocol_fees() acquires CentralLiquidityPool {
@@ -441,9 +438,6 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         borrow_global<CentralLiquidityPool>(permission::owner_address()).total_borrowed
     }
 
-    public fun total_uncollected_fee(): u128 acquires CentralLiquidityPool {
-        borrow_global<CentralLiquidityPool>(permission::owner_address()).total_uncollected_fee
-    }
     public fun protocol_fees(): u64 acquires CentralLiquidityPool {
         borrow_global<CentralLiquidityPool>(permission::owner_address()).protocol_fees
     }
@@ -455,11 +449,6 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
     public fun borrowed(key: String): u128 acquires Balance {
         let balance_ref = borrow_global<Balance>(permission::owner_address());
         *simple_map::borrow<String,u128>(&balance_ref.borrowed, &key)
-    }
-
-    public fun uncollected_support_fee(key: String): u128 acquires Balance {
-        let balance_ref = borrow_global<Balance>(permission::owner_address());
-        *simple_map::borrow<String,u128>(&balance_ref.uncollected_support_fee, &key)
     }
 
     // #[test_only]
@@ -500,7 +489,6 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         let central_liquidity_pool_ref = borrow_global<CentralLiquidityPool>(owner_addr);
         assert!(central_liquidity_pool_ref.total_deposited == 0, 0);
         assert!(central_liquidity_pool_ref.total_borrowed == 0, 0);
-        assert!(central_liquidity_pool_ref.total_uncollected_fee == 0, 0);
 
         assert!(exists<Config>(owner_addr), 0);
         let config_ref = borrow_global<Config>(owner_addr);
@@ -954,14 +942,12 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         assert!(left() == 9900, 0);
         assert!(total_borrowed() == 100, 0);
         assert!(borrowed(key<WETH>()) == 100, 0);
-        assert!(total_uncollected_fee() == 0, 0);
         assert!(usdz::balance_of(borrower_addr) == 100, 0);
         ////// repay to remained total_borrowed
         repay_internal(key<WETH>(), borrower, 100);
         assert!(left() == 10000, 0);
         assert!(total_borrowed() == 0, 0);
         assert!(borrowed(key<WETH>()) == 0, 0);
-        assert!(total_uncollected_fee() == 0, 0);
         assert!(usdz::balance_of(borrower_addr) == 0, 0);
     }
     #[test(owner=@leizd_aptos_central_liquidity_pool,depositor=@0x111,borrower=@0x222)]
@@ -985,14 +971,12 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         assert!(left() == 0, 0);
         assert!(total_borrowed() == 10000, 0);
         assert!(borrowed(key<WETH>()) == 10000, 0);
-        assert!(total_uncollected_fee() == 0, 0);
         assert!(usdz::balance_of(borrower_addr) == 10000, 0);
         //// repay
         repay_internal(key<WETH>(), borrower, 100);
         assert!(left() == 100, 0);
         assert!(total_borrowed() == 9900, 0);
         assert!(borrowed(key<WETH>()) == 9900, 0);
-        assert!(total_uncollected_fee() == 0, 0);
         assert!(usdz::balance_of(borrower_addr) == 9900, 0);
     }
 
