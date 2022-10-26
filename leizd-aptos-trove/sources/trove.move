@@ -144,7 +144,7 @@ module leizd_aptos_trove::trove {
             });
         };
         let trove = borrow_global_mut<Trove<C>>(account_addr);
-        coin::merge(&mut trove.coin, coin::withdraw<C>(account, collateral_amount));        
+        coin::merge(&mut trove.coin, coin::withdraw<C>(account, collateral_amount));
         usdz::mint(account, amount);
         event::emit_event<OpenTroveEvent>(
             &mut borrow_global_mut<TroveEventHandle<C>>(permission::owner_address()).open_trove_event,
