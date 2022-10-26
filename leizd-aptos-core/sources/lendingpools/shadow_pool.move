@@ -3571,4 +3571,201 @@ module leizd::shadow_pool {
         usdz::mint_for_test(account_addr, amount_remained);
         repay_internal(key<WETH>(), account, amount_remained, false);
     }
+
+    #[test(owner=@leizd,depositor=@0x111,borrower1=@0x222,aptos_framework=@aptos_framework)]
+    public entry fun test_support_fees_when_enough_liquidity(owner: &signer, depositor: &signer, borrower1: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+        central_liquidity_pool::add_supported_pool<WETH>(owner);
+        central_liquidity_pool::update_config(owner, 0, central_liquidity_pool::default_support_fee());
+        risk_factor::update_protocol_fees(owner, 0, 0, 0);
+
+        let dec8 = (math128::pow(10, 8) as u64);
+
+        let depositor_addr = signer::address_of(depositor);
+        let borrower1_addr = signer::address_of(borrower1);
+        account::create_account_for_test(depositor_addr);
+        account::create_account_for_test(borrower1_addr);
+        managed_coin::register<USDZ>(depositor);
+        managed_coin::register<USDZ>(borrower1);
+        usdz::mint_for_test(depositor_addr, 20000 * dec8);
+
+        let initial_sec = 1648738800; // 20220401T00:00:00
+        timestamp::update_global_time_for_test(initial_sec * 1000 * 1000);
+        // deposit usdz
+        central_liquidity_pool::deposit(depositor, 5000 * dec8);
+        deposit_for_internal(key<WETH>(), depositor, depositor_addr, 3000 * dec8, false);
+        assert!(total_liquidity() == (3000 * dec8 as u128), 0);
+        assert!(central_liquidity_pool::left() == (5000 * dec8 as u128), 0);
+        //// borrow
+        timestamp::update_global_time_for_test((initial_sec + 5) * 1000 * 1000); // + 5sec
+        borrow_for_internal(key<WETH>(), borrower1_addr, borrower1_addr, 1000 * dec8);
+        assert!(total_liquidity() == (2000 * dec8 as u128), 0);
+        assert!(borrowed_amount<WETH>() == (1000 * dec8 as u128), 0);
+        assert!(central_liquidity_pool::left() == (5000 * dec8 as u128), 0);
+        assert!(central_liquidity_pool::borrowed(key<WETH>()) == 0, 0);
+
+        // borrow and support fees will be charged
+        timestamp::update_global_time_for_test((initial_sec + 10) * 1000 * 1000); // + 10sec
+        borrow_for_internal(key<WETH>(), borrower1_addr, borrower1_addr, 1000 * dec8);
+        // accured interest: 800
+        // support_fee: 80 (10%)
+        assert!(total_liquidity() == (1000 * dec8 - 80 as u128), 0);
+        assert!(borrowed_amount<WETH>() == (2000 * dec8 + 800 as u128), 0);
+        assert!(central_liquidity_pool::left() == (5000 * dec8 + 80 as u128), 0);
+        assert!(central_liquidity_pool::total_deposited() == (5000 * dec8 + 80 as u128), 0);
+        assert!(central_liquidity_pool::borrowed(key<WETH>()) == 0, 0);
+
+        // withdraw all from clp
+        // balance before withdrawal
+        assert!(coin::balance<USDZ>(depositor_addr) == (12000 * dec8), 0);
+        // execute
+        central_liquidity_pool::withdraw(depositor, constant::u64_max());
+        // after before withdrawal : deposited + support_fees(80)
+        assert!(coin::balance<USDZ>(depositor_addr) == ((12000 + 5000) * dec8 + 80), 0);
+    }
+
+    #[test(owner=@leizd,depositor=@0x111,borrower1=@0x222,aptos_framework=@aptos_framework)]
+    public entry fun test_support_fees_when_not_supported(owner: &signer, depositor: &signer, borrower1: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+        central_liquidity_pool::update_config(owner, 0, central_liquidity_pool::default_support_fee());
+        risk_factor::update_protocol_fees(owner, 0, 0, 0);
+
+        let dec8 = (math128::pow(10, 8) as u64);
+
+        let depositor_addr = signer::address_of(depositor);
+        let borrower1_addr = signer::address_of(borrower1);
+        account::create_account_for_test(depositor_addr);
+        account::create_account_for_test(borrower1_addr);
+        managed_coin::register<USDZ>(depositor);
+        managed_coin::register<USDZ>(borrower1);
+        usdz::mint_for_test(depositor_addr, 20000 * dec8);
+
+        let initial_sec = 1648738800; // 20220401T00:00:00
+        timestamp::update_global_time_for_test(initial_sec * 1000 * 1000);
+        // deposit usdz
+        central_liquidity_pool::deposit(depositor, 5000 * dec8);
+        deposit_for_internal(key<WETH>(), depositor, depositor_addr, 3000 * dec8, false);
+        assert!(total_liquidity() == (3000 * dec8 as u128), 0);
+        assert!(central_liquidity_pool::left() == (5000 * dec8 as u128), 0);
+        //// borrow
+        timestamp::update_global_time_for_test((initial_sec + 5) * 1000 * 1000); // + 5sec
+        borrow_for_internal(key<WETH>(), borrower1_addr, borrower1_addr, 1000 * dec8);
+        assert!(total_liquidity() == (2000 * dec8 as u128), 0);
+        assert!(borrowed_amount<WETH>() == (1000 * dec8 as u128), 0);
+        assert!(central_liquidity_pool::left() == (5000 * dec8 as u128), 0);
+        assert!(central_liquidity_pool::borrowed(key<WETH>()) == 0, 0);
+
+        // borrow and support fees will be charged
+        timestamp::update_global_time_for_test((initial_sec + 10) * 1000 * 1000); // + 10sec
+        borrow_for_internal(key<WETH>(), borrower1_addr, borrower1_addr, 1000 * dec8);
+        // accured interest: 800
+        assert!(total_liquidity() == (1000 * dec8 as u128), 0);
+        assert!(borrowed_amount<WETH>() == (2000 * dec8 + 800 as u128), 0);
+        assert!(central_liquidity_pool::left() == (5000 * dec8 as u128), 0);
+        assert!(central_liquidity_pool::total_deposited() == (5000 * dec8 as u128), 0);
+        assert!(central_liquidity_pool::borrowed(key<WETH>()) == 0, 0);
+
+        // withdraw all from clp
+        // balance before withdrawal
+        assert!(coin::balance<USDZ>(depositor_addr) == (12000 * dec8), 0);
+        // execute
+        central_liquidity_pool::withdraw(depositor, constant::u64_max());
+        // after before withdrawal : deposited
+        assert!(coin::balance<USDZ>(depositor_addr) == ((12000 + 5000) * dec8), 0);
+    }
+
+    #[test(owner=@leizd,depositor=@0x111,borrower1=@0x222,aptos_framework=@aptos_framework)]
+    public entry fun test_support_fees_when_not_enough_liquidity(owner: &signer, depositor: &signer, borrower1: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+        central_liquidity_pool::add_supported_pool<WETH>(owner);
+        central_liquidity_pool::update_config(owner, 0, central_liquidity_pool::default_support_fee());
+        risk_factor::update_protocol_fees(owner, 0, 0, 0);
+
+        let dec8 = (math128::pow(10, 8) as u64);
+
+        let depositor_addr = signer::address_of(depositor);
+        let borrower1_addr = signer::address_of(borrower1);
+        account::create_account_for_test(depositor_addr);
+        account::create_account_for_test(borrower1_addr);
+        managed_coin::register<USDZ>(depositor);
+        managed_coin::register<USDZ>(borrower1);
+        usdz::mint_for_test(depositor_addr, 20000 * dec8);
+
+        let initial_sec = 1648738800; // 20220401T00:00:00
+        timestamp::update_global_time_for_test(initial_sec * 1000 * 1000);
+        // deposit usdz
+        central_liquidity_pool::deposit(depositor, 5000 * dec8);
+        deposit_for_internal(key<WETH>(), depositor, depositor_addr, 3000 * dec8, false);
+        assert!(total_liquidity() == (3000 * dec8 as u128), 0);
+        assert!(central_liquidity_pool::left() == (5000 * dec8 as u128), 0);
+        //// borrow
+        timestamp::update_global_time_for_test((initial_sec + 1) * 1000 * 1000); // + 1sec
+        borrow_for_internal(key<WETH>(), borrower1_addr, borrower1_addr, 2999 * dec8);
+        assert!(total_liquidity() == (1 * dec8 as u128), 0);
+        assert!(borrowed_amount<WETH>() == (2999 * dec8 as u128), 0);
+        assert!(central_liquidity_pool::left() == (5000 * dec8 as u128), 0);
+        assert!(central_liquidity_pool::borrowed(key<WETH>()) == 0, 0);
+
+        // borrow and support fees will be charged
+        timestamp::update_global_time_for_test((initial_sec + 80000) * 1000 * 1000); // + 80000sec
+        deposit_for_internal(key<WETH>(), depositor, depositor_addr, 1 * dec8, false);
+        // accrued interest: 1210797066
+        // support_fee: 121079707 (10%)
+        let deficiency_amount = 121079707 - (1 * dec8);
+
+        assert!(total_liquidity() == (1 * dec8 as u128), 0);
+        assert!(borrowed_amount<WETH>() == ((2999 * dec8) + 1210797066 + deficiency_amount as u128), 0);
+        assert!(central_liquidity_pool::left() == ((5000 + 1) * dec8 as u128), 0);
+        assert!(central_liquidity_pool::total_deposited() == ((5000 + 1) * dec8 + deficiency_amount as u128), 0);
+        assert!(central_liquidity_pool::borrowed(key<WETH>()) == (deficiency_amount as u128), 0);
+    }
+
+    #[test(owner=@leizd,depositor=@0x111,borrower1=@0x222,aptos_framework=@aptos_framework)]
+    public entry fun test_support_fees_when_empty(owner: &signer, depositor: &signer, borrower1: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+        central_liquidity_pool::add_supported_pool<WETH>(owner);
+        central_liquidity_pool::update_config(owner, 0, central_liquidity_pool::default_support_fee());
+        risk_factor::update_protocol_fees(owner, 0, 0, 0);
+
+        let dec8 = (math128::pow(10, 8) as u64);
+
+        let depositor_addr = signer::address_of(depositor);
+        let borrower1_addr = signer::address_of(borrower1);
+        account::create_account_for_test(depositor_addr);
+        account::create_account_for_test(borrower1_addr);
+        managed_coin::register<USDZ>(depositor);
+        managed_coin::register<USDZ>(borrower1);
+        usdz::mint_for_test(depositor_addr, 20000 * dec8);
+
+        let initial_sec = 1648738800; // 20220401T00:00:00
+        timestamp::update_global_time_for_test(initial_sec * 1000 * 1000);
+        // deposit usdz
+        central_liquidity_pool::deposit(depositor, 5000 * dec8);
+        deposit_for_internal(key<WETH>(), depositor, depositor_addr, 3000 * dec8, false);
+        assert!(total_liquidity() == (3000 * dec8 as u128), 0);
+        assert!(central_liquidity_pool::left() == (5000 * dec8 as u128), 0);
+        //// borrow
+        timestamp::update_global_time_for_test((initial_sec + 1) * 1000 * 1000); // + 1sec
+        borrow_for_internal(key<WETH>(), borrower1_addr, borrower1_addr, 3000 * dec8);
+        assert!(total_liquidity() == (0 * dec8 as u128), 0);
+        assert!(borrowed_amount<WETH>() == (3000 * dec8 as u128), 0);
+        assert!(central_liquidity_pool::left() == (5000 * dec8 as u128), 0);
+        assert!(central_liquidity_pool::borrowed(key<WETH>()) == 0, 0);
+
+        // borrow and support fees will be charged
+        timestamp::update_global_time_for_test((initial_sec + 80000) * 1000 * 1000); // + 80000sec
+        deposit_for_internal(key<WETH>(), depositor, depositor_addr, 1 * dec8, false);
+        // accrued interest: 1212474300
+        // support_fee: 121247430 (10%)
+        let deficiency_amount = 121247430;
+        assert!(total_liquidity() == (1 * dec8 as u128), 0);
+        assert!(borrowed_amount<WETH>() == ((3000 * dec8) + 1212474300 + deficiency_amount as u128), 0);
+        assert!(central_liquidity_pool::left() == (5000 * dec8 as u128), 0);
+        assert!(central_liquidity_pool::total_deposited() == (5000 * dec8 + deficiency_amount as u128), 0);
+        assert!(central_liquidity_pool::borrowed(key<WETH>()) == (deficiency_amount as u128), 0);
+    }
 }
