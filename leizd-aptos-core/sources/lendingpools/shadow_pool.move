@@ -371,19 +371,67 @@ module leizd::shadow_pool {
         accrue_interest(key, storage_ref, pool_ref);
         collect_fee(pool_ref, liquidation_fee);
 
-        let (amount_u128, share_u128) = save_to_storage_for_withdraw(
+        // transfer
+        //// check liquidity
+        let asset_storage = simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key);
+        let amount_u128: u128;
+        if (is_share) {
+            let share_u128 = (value as u128);
+            if (is_collateral_only) {
+                amount_u128 = math128::to_amount(share_u128, asset_storage.conly_deposited_amount, asset_storage.conly_deposited_share);
+            } else {
+                amount_u128 = math128::to_amount(share_u128, asset_storage.normal_deposited_amount, asset_storage.normal_deposited_share);
+            };
+        } else {
+            amount_u128 = (value as u128);
+        };
+
+        let liquidity: u128;
+        if (is_collateral_only) {
+            liquidity = conly_deposited_amount_internal(key, storage_ref);
+        } else {
+            if (normal_deposited_amount_internal(key, storage_ref) > borrowed_amount_internal(key, storage_ref)) {
+                liquidity = normal_deposited_amount_internal(key, storage_ref) - borrowed_amount_internal(key, storage_ref);
+            } else {
+                liquidity = 0;
+            };
+        };
+        let total_left = if (central_liquidity_pool::is_supported(key)) liquidity + central_liquidity_pool::left() else liquidity;
+        let amount_to_transfer = (amount_u128 as u64) - liquidation_fee;
+        assert!((amount_to_transfer as u128) <= total_left, error::invalid_argument(EEXCEED_BORROWABLE_AMOUNT));
+        //// calculate & extract from pool & clp
+        let transferring_coin: coin::Coin<USDZ>;
+        let amount_for_pool = (amount_u128 as u64) - liquidation_fee;
+        if ((amount_to_transfer as u128) > liquidity) {
+            // use central-liquidity-pool
+            if (liquidity > 0) {
+                transferring_coin = borrow_from_central_liquidity_pool(key, receiver_addr, amount_to_transfer);
+            } else {
+                let extracted = coin::extract_all(&mut pool_ref.shadow);
+                let borrowing_value_from_central = amount_to_transfer - coin::value(&extracted);
+                let borrowed_from_central = borrow_from_central_liquidity_pool(key, receiver_addr, borrowing_value_from_central);
+                coin::merge(&mut extracted, borrowed_from_central);
+                transferring_coin = extracted;
+                amount_for_pool = amount_for_pool - borrowing_value_from_central;
+            };
+        } else {
+            // not use central-liquidity-pool
+            transferring_coin = coin::extract(&mut pool_ref.shadow, amount_to_transfer);
+        };
+        coin::deposit<USDZ>(receiver_addr, transferring_coin);
+
+        // update state
+        let (amount_u128_2, share_u128) = save_to_storage_for_withdraw(
             key,
             depositor_addr,
             receiver_addr,
-            value,
+            amount_for_pool,
             is_collateral_only,
-            is_share,
+            false,
             storage_ref
         );
-        let amount_to_transfer = (amount_u128 as u64) - liquidation_fee;
-        coin::deposit<USDZ>(receiver_addr, coin::extract(&mut pool_ref.shadow, amount_to_transfer));
 
-        ((amount_u128 as u64), (share_u128 as u64))
+        ((amount_u128_2 as u64), (share_u128 as u64))
     }
 
     fun save_to_storage_for_withdraw(
