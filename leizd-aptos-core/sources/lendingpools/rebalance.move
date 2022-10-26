@@ -547,16 +547,18 @@ module leizd_aptos_logic::rebalance {
             let opt_deposit_volume = (*borrowed_volume * precision_u128 / (precision_u128 - (optimized_hf as u128))) // borrowed volume / (1 - optimized_hf)
                 * precision_u128 / (risk_factor::lt_of_shadow() as u128); // * (1 / LT)
             if (current_hf > optimized_hf) {
+                let updated = *deposited_volume - opt_deposit_volume;
                 simple_map::add(
                     &mut amounts_to_withdraw,
                     *key,
-                    (price_oracle::to_amount(&usdz_key, *deposited_volume - opt_deposit_volume) as u64) // TODO: temp cast (maybe use u128 as return value)
+                    (price_oracle::to_amount(&usdz_key, updated) as u64) // TODO: temp cast (maybe use u128 as return value)
                 );
             } else if (current_hf < optimized_hf) {
+                let updated = opt_deposit_volume - *deposited_volume;
                 simple_map::add(
                     &mut amounts_to_deposit,
                     *key,
-                    (price_oracle::to_amount(&usdz_key, opt_deposit_volume - *deposited_volume) as u64) // TODO: temp cast (maybe use u128 as return value)
+                    (price_oracle::to_amount(&usdz_key, updated) as u64) // TODO: temp cast (maybe use u128 as return value)
                 );
             };
             i = i + 1;
