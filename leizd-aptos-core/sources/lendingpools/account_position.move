@@ -220,7 +220,7 @@ module leizd::account_position {
         share: u64,
         _key: &OperatorKey
     ) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
-        update_on_withdraw<ShadowToAsset>(key, depositor_addr, share, false); // TODO: check is_conly
+        update_on_withdraw<ShadowToAsset>(key, depositor_addr, share, is_conly_shadow(key, depositor_addr));
     }
     fun withdraw_internal<P>(key: String, depositor_addr: address, share: u64, is_collateral_only: bool): u64 acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
         let withdrawn_amount;

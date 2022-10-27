@@ -1,6 +1,5 @@
 /// @title i128
 /// @notice Signed 128-bit integers in Move.
-/// @dev TODO: Pass in params by value instead of by ref to make usage easier?
 module leizd_aptos_lib::i128 {
     use std::error;
 
