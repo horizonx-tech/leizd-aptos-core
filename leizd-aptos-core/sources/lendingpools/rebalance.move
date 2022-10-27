@@ -117,7 +117,9 @@ module leizd_aptos_logic::rebalance {
                 unprotected_in_stoa,
                 optimized_hf,
                 deposited_volumes_in_stoa,
-                borrowed_volumes_in_stoa
+                borrowed_volumes_in_stoa,
+                0,
+                0,
             );
             let empty_map = simple_map::create<String, u64>();
             execute_rebalance(
@@ -173,7 +175,7 @@ module leizd_aptos_logic::rebalance {
         ); // TODO: whether check sum_overdebt or not?
         if (sum_capacity >= required_shadow) {
             // supply shadow deficiency by borrowing
-            let borrowings = make_up_for_required_shadow_by_borrow(
+            let (borrowings, sum_borrowing_volume) = make_up_for_required_shadow_by_borrow(
                 unprotected_in_atos,
                 required_shadow,
                 capacities,
@@ -201,7 +203,7 @@ module leizd_aptos_logic::rebalance {
                 deposited_volumes_in_atos,
                 borrowed_volumes_in_atos
             );
-            let (amounts_to_borrow, amounts_to_repay) = calc_to_optimize_shadow_by_borrow_and_repay_for_asset_to_shadow_pos(
+            let (amounts_to_borrow, amounts_to_repay, sum_borrow_volume, sum_repay_volume) = calc_to_optimize_shadow_by_borrow_and_repay_for_asset_to_shadow_pos(
                 unprotected_in_atos,
                 optimized_hf_for_atos,
                 deposited_volumes_in_atos,
@@ -223,7 +225,9 @@ module leizd_aptos_logic::rebalance {
                     unprotected_in_stoa,
                     optimized_hf_for_stoa,
                     deposited_volumes_in_stoa,
-                    borrowed_volumes_in_stoa
+                    borrowed_volumes_in_stoa,
+                    (sum_borrowing_volume + sum_borrow_volume),
+                    sum_repay_volume
                 );
             } else {
                 // only deposit for borrowing specified asset
@@ -524,7 +528,9 @@ module leizd_aptos_logic::rebalance {
         coins: vector<String>,
         optimized_hf: u64,
         deposited_volumes: SimpleMap<String, u128>,
-        borrowed_volumes: SimpleMap<String, u128>
+        borrowed_volumes: SimpleMap<String, u128>,
+        sum_borrow_volume: u128,
+        sum_repay_volume: u128,
     ): (
         SimpleMap<String, u64>, // amounts to deposit
         SimpleMap<String, u64>, // amounts to withdraw
@@ -568,27 +574,43 @@ module leizd_aptos_logic::rebalance {
             i = i + 1;
         };
         // reconcile
-        if (sum_deposit_volume != sum_withdraw_volume) {
+        std::debug::print(&sum_deposit_volume);
+        std::debug::print(&sum_withdraw_volume);
+        std::debug::print(&sum_borrow_volume);
+        std::debug::print(&sum_repay_volume);
+        if ((sum_deposit_volume + sum_repay_volume) != (sum_withdraw_volume + sum_borrow_volume)) {
             let key = vector::borrow(&coins, 0);
-            if (sum_deposit_volume > sum_withdraw_volume) {
-                let updated = sum_deposit_volume - sum_withdraw_volume;
-                simple_map::add(
-                    &mut amounts_to_withdraw,
-                    *key,
-                    (updated as u64)
-                );
+            if ((sum_deposit_volume + sum_repay_volume) > (sum_withdraw_volume + sum_borrow_volume)) {
+                let updated = (sum_deposit_volume + sum_repay_volume) - (sum_withdraw_volume + sum_borrow_volume);
+                if (simple_map::contains_key<String,u64>(&amounts_to_withdraw, key)) {
+                    let withdrawn = simple_map::borrow_mut<String,u64>(&mut amounts_to_withdraw, key);
+                    *withdrawn = *withdrawn + (updated as u64);
+                } else {
+                    simple_map::add(
+                        &mut amounts_to_withdraw,
+                        *key,
+                        (updated as u64)
+                    );
+                };
                 sum_withdraw_volume = sum_withdraw_volume + updated;
             } else {
-                let updated = sum_withdraw_volume - sum_deposit_volume;
-                simple_map::add(
-                    &mut amounts_to_deposit,
-                    *key,
-                    (updated as u64)
-                );
+                let updated = (sum_withdraw_volume + sum_borrow_volume) - (sum_deposit_volume + sum_repay_volume);
+                if (simple_map::contains_key<String,u64>(&amounts_to_deposit, key)) {
+                    let deposited = simple_map::borrow_mut<String,u64>(&mut amounts_to_deposit, key);
+                    *deposited = *deposited + (updated as u64);
+                } else {
+                    simple_map::add(
+                        &mut amounts_to_deposit,
+                        *key,
+                        (updated as u64)
+                    );
+                };
                 sum_deposit_volume = sum_deposit_volume + updated;
             };
             std::debug::print(&sum_deposit_volume);
             std::debug::print(&sum_withdraw_volume);
+            std::debug::print(&sum_borrow_volume);
+            std::debug::print(&sum_repay_volume);
         };
         (amounts_to_deposit, amounts_to_withdraw)
     }
@@ -711,8 +733,9 @@ module leizd_aptos_logic::rebalance {
         capacities: SimpleMap<String, u64>,
         borrowed_amounts: &mut SimpleMap<String, u64>,
         borrowed_volumes: &mut SimpleMap<String, u128>,
-    ): SimpleMap<String, u64> {
+    ): (SimpleMap<String, u64>, u128) {
         let borrowings = simple_map::create<String, u64>();
+        let sum_borrow_volume = 0;
         let i = 0;
         let required_remains = required;
         while (i < vector::length(&keys)) {
@@ -726,6 +749,7 @@ module leizd_aptos_logic::rebalance {
                     simple_map::add(&mut borrowings, *key, required_remains);
                     let volume = price_oracle::volume(&key<USDZ>(), (required_remains as u128));
                     *borrowed_volume = *borrowed_volume + volume;
+                    sum_borrow_volume = sum_borrow_volume + volume;
                     break
                 } else {
                     *borrowed_amount = *borrowed_amount + *capacity;
@@ -733,11 +757,12 @@ module leizd_aptos_logic::rebalance {
                     required_remains = required_remains - *capacity;
                     let volume = price_oracle::volume(&key<USDZ>(), (*capacity as u128));
                     *borrowed_volume = *borrowed_volume + volume;
+                    sum_borrow_volume = sum_borrow_volume + volume;
                 };
             };
             i = i + 1;
         };
-        borrowings
+        (borrowings, sum_borrow_volume)
     }
     fun calc_to_optimize_shadow_by_borrow_and_repay_for_asset_to_shadow_pos(
         coins: vector<String>,
@@ -747,11 +772,15 @@ module leizd_aptos_logic::rebalance {
     ): (
         SimpleMap<String, u64>, // amounts to borrow
         SimpleMap<String, u64>, // amounts to repay
+        u128,
+        u128,
     ) {
         let i = 0;
         let usdz_key = key<USDZ>();
         let amount_to_borrow = simple_map::create<String, u64>();
         let amount_to_repay = simple_map::create<String, u64>();
+        let sum_borrow_volume = 0;
+        let sum_repay_volume = 0;
         while (i < vector::length<String>(&coins)) {
             let key = vector::borrow(&coins, i);
             let deposited_volume = simple_map::borrow(&deposited_volumes, key);
@@ -765,21 +794,25 @@ module leizd_aptos_logic::rebalance {
             let precision_u128 = risk_factor::precision_u128();
             let opt_borrow_volume = (precision_u128 - (optimized_hf as u128)) * (*deposited_volume) * (risk_factor::lt_of(*key) as u128) / precision_u128 / precision_u128;
             if (current_hf > optimized_hf) {
+                let updated = opt_borrow_volume - *borrowed_volume;
                 simple_map::add(
                     &mut amount_to_borrow,
                     *key,
-                    (price_oracle::to_amount(&usdz_key, opt_borrow_volume - *borrowed_volume) as u64) // TODO: temp cast (maybe use u128 as return value)
+                    (price_oracle::to_amount(&usdz_key, updated) as u64) // TODO: temp cast (maybe use u128 as return value)
                 );
+                sum_borrow_volume = sum_borrow_volume + updated;
             } else if (current_hf < optimized_hf) {
+                let updated = *borrowed_volume - opt_borrow_volume;
                 simple_map::add(
                     &mut amount_to_repay,
                     *key,
-                    (price_oracle::to_amount(&usdz_key, *borrowed_volume - opt_borrow_volume) as u64) // TODO: temp cast (maybe use u128 as return value)
+                    (price_oracle::to_amount(&usdz_key, updated) as u64) // TODO: temp cast (maybe use u128 as return value)
                 );
+                sum_repay_volume = sum_repay_volume + updated;
             };
             i = i + 1;
         };
-        (amount_to_borrow, amount_to_repay)
+        (amount_to_borrow, amount_to_repay, sum_borrow_volume, sum_repay_volume)
     }
 
     fun execute_rebalance(

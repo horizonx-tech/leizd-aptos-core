@@ -381,83 +381,83 @@ module leizd_aptos_entry::scenario_borrow_asset_with_rebalance {
         assert!(asset_pool::total_borrowed_amount<UNI>() == 15000, 0);
     }
 
-    // #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
-    // fun test_borrow_asset_with_rebalance__borrow_and_deposit_0(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) {
-    //     prepare_to_exec_borrow_asset_with_rebalance(owner, lp, account, aptos_framework);
-    //     risk_factor::update_protocol_fees_unsafe(
-    //         0,
-    //         0,
-    //         risk_factor::default_liquidation_fee(),
-    //     ); // NOTE: remove entry fee / share fee to make it easy to calculate borrowed amount/share
-    //     let account_addr = signer::address_of(account);
+    #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
+    fun test_borrow_asset_with_rebalance__borrow_and_deposit_0(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) {
+        prepare_to_exec_borrow_asset_with_rebalance(owner, lp, account, aptos_framework);
+        risk_factor::update_protocol_fees_unsafe(
+            0,
+            0,
+            risk_factor::default_liquidation_fee(),
+        ); // NOTE: remove entry fee / share fee to make it easy to calculate borrowed amount/share
+        let account_addr = signer::address_of(account);
 
-    //     // execute
-    //     managed_coin::mint<WETH>(owner, account_addr, 20000);
-    //     deposit<WETH, Asset>(account, 20000, false);
-    //     assert!(account_position::deposited_asset_share<WETH>(account_addr) == 20000, 0);
-    //     assert!(coin::balance<WETH>(account_addr) == 0, 0);
+        // execute
+        managed_coin::mint<WETH>(owner, account_addr, 20000);
+        deposit<WETH, Asset>(account, 20000, false);
+        assert!(account_position::deposited_asset_share<WETH>(account_addr) == 20000, 0);
+        assert!(coin::balance<WETH>(account_addr) == 0, 0);
 
-    //     borrow_asset_with_rebalance<USDC>(account, 12600);
+        borrow_asset_with_rebalance<USDC>(account, 12600);
 
-    //     // check
-    //     //// ltv is...
-    //     assert!(risk_factor::ltv<WETH>() == risk_factor::precision() / 100 * 70, 0); // 70%
-    //     assert!(risk_factor::ltv_of_shadow() == risk_factor::precision() / 100 * 90, 0); // 90%
-    //     //// 20000 * 70% = 14000 <- borrowing Shadow
-    //     assert!(account_position::deposited_asset_share<WETH>(account_addr) == 20000, 0);
-    //     assert!(account_position::borrowed_shadow_share<WETH>(account_addr) == 14000, 0);
-    //     assert!(account_position::deposited_shadow_share<USDC>(account_addr) == 14000, 0);
-    //     //// 14000 * 90% = 12600 <- borrowable Asset from borrowing Shadow
-    //     assert!(account_position::borrowed_asset_share<USDC>(account_addr) == 12600, 0);
-    // }
-    // #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
-    // #[expected_failure(abort_code = 65547)]
-    // fun test_borrow_asset_with_rebalance__borrow_and_deposit_0_when_over_borrowable_amount(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) {
-    //     prepare_to_exec_borrow_asset_with_rebalance(owner, lp, account, aptos_framework);
-    //     risk_factor::update_protocol_fees_unsafe(
-    //         0,
-    //         0,
-    //         risk_factor::default_liquidation_fee(),
-    //     ); // NOTE: remove entry fee / share fee to make it easy to calculate borrowed amount/share
-    //     let account_addr = signer::address_of(account);
+        // check
+        //// ltv is...
+        assert!(risk_factor::ltv<WETH>() == risk_factor::precision() / 100 * 70, 0); // 70%
+        assert!(risk_factor::ltv_of_shadow() == risk_factor::precision() / 100 * 90, 0); // 90%
+        //// 20000 * 70% = 14000 <- borrowing Shadow
+        assert!(account_position::deposited_asset_share<WETH>(account_addr) == 20000, 0);
+        assert!(account_position::borrowed_shadow_share<WETH>(account_addr) == 14000, 0);
+        assert!(account_position::deposited_shadow_share<USDC>(account_addr) == 14000, 0);
+        //// 14000 * 90% = 12600 <- borrowable Asset from borrowing Shadow
+        assert!(account_position::borrowed_asset_share<USDC>(account_addr) == 12600, 0);
+    }
+    #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
+    #[expected_failure(abort_code = 65547)]
+    fun test_borrow_asset_with_rebalance__borrow_and_deposit_0_when_over_borrowable_amount(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) {
+        prepare_to_exec_borrow_asset_with_rebalance(owner, lp, account, aptos_framework);
+        risk_factor::update_protocol_fees_unsafe(
+            0,
+            0,
+            risk_factor::default_liquidation_fee(),
+        ); // NOTE: remove entry fee / share fee to make it easy to calculate borrowed amount/share
+        let account_addr = signer::address_of(account);
 
-    //     // execute
-    //     managed_coin::mint<WETH>(owner, account_addr, 20000);
-    //     deposit<WETH, Asset>(account, 20000, false);
-    //     assert!(risk_factor::ltv<WETH>() == risk_factor::precision() / 100 * 70, 0); // 70%
-    //     assert!(risk_factor::ltv_of_shadow() == risk_factor::precision() / 100 * 90, 0); // 90%
-    //     borrow_asset_with_rebalance<USDC>(account, 20000 * 70 / 100 * 90 / 100 + 1);
-    // }
-    // #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
-    // fun test_borrow_asset_with_rebalance__borrow_and_deposit_1(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) {
-    //     prepare_to_exec_borrow_asset_with_rebalance(owner, lp, account, aptos_framework);
+        // execute
+        managed_coin::mint<WETH>(owner, account_addr, 20000);
+        deposit<WETH, Asset>(account, 20000, false);
+        assert!(risk_factor::ltv<WETH>() == risk_factor::precision() / 100 * 70, 0); // 70%
+        assert!(risk_factor::ltv_of_shadow() == risk_factor::precision() / 100 * 90, 0); // 90%
+        borrow_asset_with_rebalance<USDC>(account, 20000 * 70 / 100 * 90 / 100 + 1);
+    }
+    #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
+    fun test_borrow_asset_with_rebalance__borrow_and_deposit_1(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) {
+        prepare_to_exec_borrow_asset_with_rebalance(owner, lp, account, aptos_framework);
 
-    //     // prerequisite
-    //     let account_addr = signer::address_of(account);
-    //     managed_coin::mint<WETH>(owner, account_addr, 100000);
-    //     deposit<WETH, Asset>(account, 100000, false);
-    //     assert!(account_position::deposited_asset_share<WETH>(account_addr) == 100000, 0);
-    //     assert!(coin::balance<WETH>(account_addr) == 0, 0);
+        // prerequisite
+        let account_addr = signer::address_of(account);
+        managed_coin::mint<WETH>(owner, account_addr, 100000);
+        deposit<WETH, Asset>(account, 100000, false);
+        assert!(account_position::deposited_asset_share<WETH>(account_addr) == 100000, 0);
+        assert!(coin::balance<WETH>(account_addr) == 0, 0);
 
-    //     risk_factor::update_protocol_fees_unsafe(
-    //         0,
-    //         0,
-    //         risk_factor::default_liquidation_fee(),
-    //     ); // NOTE: remove entry fee / share fee to make it easy to calculate borrowed amount/share
+        risk_factor::update_protocol_fees_unsafe(
+            0,
+            0,
+            risk_factor::default_liquidation_fee(),
+        ); // NOTE: remove entry fee / share fee to make it easy to calculate borrowed amount/share
 
-    //     // execute
-    //     borrow_asset_with_rebalance<UNI>(account, 10000);
+        // execute
+        borrow_asset_with_rebalance<UNI>(account, 10000);
 
-    //     // check
-    //     // NOTE: `share` value is equal to `amount` value in this situation
-    //     assert!(account_position::deposited_asset_share<WETH>(account_addr) == 100000, 0);
-    //     assert!(account_position::borrowed_shadow_share<WETH>(account_addr) == 11111, 0);
-    //     assert!(account_position::deposited_shadow_share<UNI>(account_addr) == 11110, 0); // -> 11111, TODO: check (rounded or truncated somewhere)
-    //     assert!(account_position::borrowed_asset_share<UNI>(account_addr) == 10000, 0);
-    //     assert!(coin::balance<WETH>(account_addr) == 0, 0);
-    //     assert!(coin::balance<USDZ>(account_addr) == 1, 0);
-    //     assert!(coin::balance<UNI>(account_addr) == 10000, 0);
-    // }
+        // check
+        // NOTE: `share` value is equal to `amount` value in this situation
+        assert!(account_position::deposited_asset_share<WETH>(account_addr) == 100000, 0);
+        assert!(account_position::borrowed_shadow_share<WETH>(account_addr) == 11111, 0);
+        assert!(account_position::deposited_shadow_share<UNI>(account_addr) == 11111, 0);
+        assert!(account_position::borrowed_asset_share<UNI>(account_addr) == 10000, 0);
+        assert!(coin::balance<WETH>(account_addr) == 0, 0);
+        assert!(coin::balance<USDZ>(account_addr) == 0, 0);
+        assert!(coin::balance<UNI>(account_addr) == 10000, 0);
+    }
     // #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
     // fun test_borrow_asset_with_rebalance__borrow_and_deposit_2(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) {
     //     prepare_to_exec_borrow_asset_with_rebalance(owner, lp, account, aptos_framework);
