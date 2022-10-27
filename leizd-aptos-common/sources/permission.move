@@ -17,11 +17,11 @@ module leizd_aptos_common::permission {
     configurators: acl::ACL,
   }
 
-  public fun initialize(owner: &signer) {
+  public entry fun initialize(owner: &signer) {
     initialize_internal(owner);
   }
 
-  public fun initialize_internal(owner: &signer) {
+  fun initialize_internal(owner: &signer) {
     let owner_address = signer::address_of(owner);
     assert_owner(owner_address);
 
@@ -51,14 +51,14 @@ module leizd_aptos_common::permission {
     borrow_global<Roles>(owner_address()).configurators
   }
 
-  public fun add_configurators(owner: &signer, new_addr: address) acquires Roles {
+  public entry fun add_configurators(owner: &signer, new_addr: address) acquires Roles {
     let owner_address = signer::address_of(owner);
     assert_owner(owner_address);
     let roles_ref = borrow_global_mut<Roles>(owner_address);
     acl::add(&mut roles_ref.configurators, new_addr);
   }
 
-  public fun remove_configurators(owner: &signer, removed_addr: address) acquires Roles {
+  public entry fun remove_configurators(owner: &signer, removed_addr: address) acquires Roles {
     assert!(!is_owner(removed_addr),error::invalid_argument(ECANNOT_BE_REMOVED_OWNER));
     let owner_address = signer::address_of(owner);
     assert_owner(owner_address);
@@ -79,14 +79,14 @@ module leizd_aptos_common::permission {
     borrow_global<Roles>(owner_address()).operators
   }
 
-  public fun add_operators(owner: &signer, new_addr: address) acquires Roles {
+  public entry fun add_operators(owner: &signer, new_addr: address) acquires Roles {
     let owner_address = signer::address_of(owner);
     assert_owner(owner_address);
     let roles_ref = borrow_global_mut<Roles>(owner_address);
     acl::add(&mut roles_ref.operators, new_addr);
   }
 
-  public fun remove_operators(owner: &signer, removed_addr: address) acquires Roles {
+  public entry fun remove_operators(owner: &signer, removed_addr: address) acquires Roles {
     assert!(!is_owner(removed_addr),error::invalid_argument(ECANNOT_BE_REMOVED_OWNER));
     let owner_address = signer::address_of(owner);
     assert_owner(owner_address);
