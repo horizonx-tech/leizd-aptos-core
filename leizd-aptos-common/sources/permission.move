@@ -101,4 +101,58 @@ module leizd_aptos_common::permission {
   public fun assert_operator(account: address) acquires Roles {
     assert!(contains_operators(account),error::invalid_argument(ENOT_OPERATOR));
   }
+
+  #[test(owner = @leizd_aptos_common, account = @0x111)]
+  fun test_add_configurator(owner: &signer, account: address) acquires Roles {
+    initialize(owner);
+    assert!(!contains_configurators(account), 0);
+    add_configurators(owner, account);
+    assert_configurator(account);
+  }
+
+  #[test(owner = @leizd_aptos_common, account = @0x111)]
+  fun test_remove_configurator(owner: &signer, account: address) acquires Roles {
+    initialize(owner);
+    assert!(!contains_configurators(account), 0);
+    add_configurators(owner, account);
+    assert_configurator(account);
+    remove_configurators(owner, account);
+    assert!(!contains_configurators(account), 0);
+  }
+
+  #[test(owner = @leizd_aptos_common, account = @0x111)]
+  fun test_add_operator(owner: &signer, account: address) acquires Roles {
+    initialize(owner);
+    assert!(!contains_operators(account), 0);
+    add_operators(owner, account);
+    assert_operator(account);
+  }
+
+  #[test(owner = @leizd_aptos_common, account = @0x111)]
+  fun test_remove_operator(owner: &signer, account: address) acquires Roles {
+    initialize(owner);
+    assert!(!contains_operators(account), 0);
+    add_operators(owner, account);
+    assert_operator(account);
+    remove_operators(owner, account);
+    assert!(!contains_operators(account), 0);
+  }
+
+  #[test(owner = @leizd_aptos_common)]
+  #[expected_failure(abort_code = 65538)]
+  fun test_remove_owner_from_configurator(owner: &signer) acquires Roles {
+    let owner_addr = signer::address_of(owner);
+    initialize(owner);
+    assert_configurator(owner_addr);
+    remove_configurators(owner, owner_addr);
+  }
+
+  #[test(owner = @leizd_aptos_common)]
+  #[expected_failure(abort_code = 65538)]
+  fun test_remove_owner_from_operator(owner: &signer) acquires Roles {
+    let owner_addr = signer::address_of(owner);
+    initialize(owner);
+    assert_operator(owner_addr);
+    remove_operators(owner, owner_addr);
+  }
 }
