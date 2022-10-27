@@ -12,7 +12,7 @@ module leizd_aptos_common::permission {
   // signer is neither configurator nor owner
   const ENOT_CONFIGURATOR: u64 = 4;
 
-  struct Roles has key, store {
+  struct Roles has key {
     operators: acl::ACL,
     configurators: acl::ACL,
   }
