@@ -2731,6 +2731,100 @@ module leizd::shadow_pool {
         assert!(central_liquidity_pool::borrowed(key<WETH>()) == 0, 0);
         assert!(central_liquidity_pool::borrowed(key<UNI>()) == 0, 0);
     }
+    #[test(owner=@leizd,lp=@0x111,depositor=@0x222,borrower=@0x333,aptos_framework=@aptos_framework)]
+    public entry fun test_with_central_liquidity_pool_to_borrow_and_repay_by_deposit_1(owner: &signer, lp: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+        central_liquidity_pool::add_supported_pool<WETH>(owner);
+        central_liquidity_pool::update_config(owner, 0, 0);
+        let dec8 = math64::pow(10, 8);
+
+        let lp_addr = signer::address_of(lp);
+        let depositor_addr = signer::address_of(depositor);
+        let borrower_addr = signer::address_of(borrower);
+        account::create_account_for_test(lp_addr);
+        account::create_account_for_test(depositor_addr);
+        account::create_account_for_test(borrower_addr);
+        managed_coin::register<USDZ>(lp);
+        managed_coin::register<USDZ>(depositor);
+        managed_coin::register<USDZ>(borrower);
+        
+        usdz::mint_for_test(lp_addr, 5000 * dec8);
+        central_liquidity_pool::deposit(lp, 4500 * dec8);
+        deposit_for_internal(key<WETH>(), lp, lp_addr, 500 * dec8, false);
+        risk_factor::update_protocol_fees_unsafe(
+            0,
+            0,
+            risk_factor::default_liquidation_fee(),
+        ); // NOTE: remove entry fee / share fee to make it easy to calculate borrowed amount/share
+
+        aptos_std::debug::print(&normal_deposited_amount<WETH>());
+        aptos_std::debug::print(&borrowed_amount<WETH>());
+        aptos_std::debug::print(&central_liquidity_pool::borrowed(key<WETH>()));
+
+        borrow_for_internal(key<WETH>(), borrower_addr, borrower_addr, 1000 * dec8);
+        aptos_std::debug::print(&normal_deposited_amount<WETH>());
+        aptos_std::debug::print(&borrowed_amount<WETH>());
+        aptos_std::debug::print(&central_liquidity_pool::borrowed(key<WETH>()));
+
+        usdz::mint_for_test(depositor_addr, 250 * dec8);
+        deposit_for_internal(key<WETH>(), depositor, depositor_addr, 250 * dec8, false);
+        aptos_std::debug::print(&normal_deposited_amount<WETH>());
+        aptos_std::debug::print(&borrowed_amount<WETH>());
+        aptos_std::debug::print(&central_liquidity_pool::borrowed(key<WETH>()));
+
+        borrow_for_internal(key<WETH>(), borrower_addr, borrower_addr, 500 * dec8);
+        aptos_std::debug::print(&normal_deposited_amount<WETH>());
+        aptos_std::debug::print(&borrowed_amount<WETH>());
+        aptos_std::debug::print(&central_liquidity_pool::borrowed(key<WETH>()));
+    }
+    #[test(owner=@leizd,lp=@0x111,depositor=@0x222,borrower=@0x333,aptos_framework=@aptos_framework)]
+    public entry fun test_with_central_liquidity_pool_to_borrow_and_repay_by_deposit_2(owner: &signer, lp: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+        central_liquidity_pool::add_supported_pool<WETH>(owner);
+        central_liquidity_pool::update_config(owner, 0, 0);
+        let dec8 = math64::pow(10, 8);
+
+        let lp_addr = signer::address_of(lp);
+        let depositor_addr = signer::address_of(depositor);
+        let borrower_addr = signer::address_of(borrower);
+        account::create_account_for_test(lp_addr);
+        account::create_account_for_test(depositor_addr);
+        account::create_account_for_test(borrower_addr);
+        managed_coin::register<USDZ>(lp);
+        managed_coin::register<USDZ>(depositor);
+        managed_coin::register<USDZ>(borrower);
+        
+        usdz::mint_for_test(lp_addr, 5000 * dec8);
+        central_liquidity_pool::deposit(lp, 4500 * dec8);
+        deposit_for_internal(key<WETH>(), lp, lp_addr, 500 * dec8, false);
+        risk_factor::update_protocol_fees_unsafe(
+            0,
+            0,
+            risk_factor::default_liquidation_fee(),
+        ); // NOTE: remove entry fee / share fee to make it easy to calculate borrowed amount/share
+
+        aptos_std::debug::print(&normal_deposited_amount<WETH>());
+        aptos_std::debug::print(&borrowed_amount<WETH>());
+        aptos_std::debug::print(&central_liquidity_pool::borrowed(key<WETH>()));
+
+        borrow_for_internal(key<WETH>(), borrower_addr, borrower_addr, 1000 * dec8);
+        aptos_std::debug::print(&normal_deposited_amount<WETH>());
+        aptos_std::debug::print(&borrowed_amount<WETH>());
+        aptos_std::debug::print(&central_liquidity_pool::borrowed(key<WETH>()));
+
+        usdz::mint_for_test(depositor_addr, 750 * dec8);
+        deposit_for_internal(key<WETH>(), depositor, depositor_addr, 750 * dec8, false);
+        aptos_std::debug::print(&normal_deposited_amount<WETH>());
+        aptos_std::debug::print(&borrowed_amount<WETH>());
+        aptos_std::debug::print(&central_liquidity_pool::borrowed(key<WETH>()));
+
+        borrow_for_internal(key<WETH>(), borrower_addr, borrower_addr, 500 * dec8);
+        aptos_std::debug::print(&normal_deposited_amount<WETH>());
+        aptos_std::debug::print(&borrowed_amount<WETH>());
+        aptos_std::debug::print(&central_liquidity_pool::borrowed(key<WETH>()));
+    }
     // TODO: fail because of total_borrowed increased by interest_rate (as time passes)
     // #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
     // public entry fun test_support_fee(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
@@ -2863,7 +2957,7 @@ module leizd::shadow_pool {
     //     assert!((central_liquidity_pool::collected_fee() as u128) == liquidity, 0);
     //     assert!(central_liquidity_pool::left() == 0, 0);
     //     assert!(usdz::balance_of(borrower_addr) == 4999, 0);
-    // }
+    // }    
 
     // for switch_collateral
     #[test(owner=@leizd, account=@0x111, aptos_framework=@aptos_framework)]
