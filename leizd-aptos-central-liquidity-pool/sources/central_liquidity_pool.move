@@ -164,7 +164,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         assert!(new_protocol_fee < PRECISION, error::invalid_argument(EINVALID_PROTOCOL_FEE));
         assert!(new_support_fee < PRECISION, error::invalid_argument(EINVALID_SUPPORT_FEE));
         let owner_address = signer::address_of(owner);
-        permission::assert_owner(owner_address);
+        permission::assert_configurator(owner_address);
 
         let config = borrow_global_mut<Config>(owner_address);
         if (config.protocol_fee == new_protocol_fee && config.support_fee == new_support_fee) return;
@@ -191,7 +191,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
 
     public entry fun add_supported_pool<C>(owner: &signer) acquires CentralLiquidityPool {
         let owner_addr = signer::address_of(owner);
-        permission::assert_owner(owner_addr);
+        permission::assert_configurator(owner_addr);
         let key = key<C>();
         assert!(coin::is_coin_initialized<C>(), error::invalid_argument(ENOT_INITIALIZED_COIN));
         assert!(!is_supported(key), error::invalid_argument(EALREADY_ADDED_COIN));
@@ -201,7 +201,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
 
     public entry fun remove_supported_pool<C>(owner: &signer) acquires CentralLiquidityPool {
         let owner_addr = signer::address_of(owner);
-        permission::assert_owner(owner_addr);
+        permission::assert_configurator(owner_addr);
         let key = key<C>();
         assert!(is_supported(key), error::invalid_argument(ENOT_ADDED_COIN));
         let supported_pools = &mut borrow_global_mut<CentralLiquidityPool>(owner_addr).supported_pools;
@@ -471,6 +471,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         account::create_account_for_test(owner_addr);
 
         trove_manager::initialize(owner);
+        permission::initialize(owner);
         initialize(owner);
 
         test_coin::init_weth(owner);
@@ -516,6 +517,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
         trove_manager::initialize(owner);
+        permission::initialize(owner);
         initialize(owner);
 
         test_coin::init_weth(owner);
@@ -541,9 +543,10 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         assert!(!is_supported(key<WETH>()), 0);
         assert!(!is_supported(key<USDC>()), 0);
     }
-    #[test(account = @0x111)]
-    #[expected_failure(abort_code = 65537)]
-    fun test_add_supported_pool_with_not_owner(account: &signer) acquires CentralLiquidityPool {
+    #[test(owner = @leizd_aptos_central_liquidity_pool,account = @0x111)]
+    #[expected_failure(abort_code = 65540)]
+    fun test_add_supported_pool_with_not_configurator(owner: &signer, account: &signer) acquires CentralLiquidityPool {
+        permission::initialize(owner);
         add_supported_pool<WETH>(account)
     }
     #[test(owner = @leizd_aptos_central_liquidity_pool)]
@@ -552,6 +555,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
         trove_manager::initialize(owner);
+        permission::initialize(owner);
         initialize(owner);
 
         add_supported_pool<WETH>(owner);
@@ -565,10 +569,11 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         add_supported_pool<WETH>(owner);
         add_supported_pool<WETH>(owner);
     }
-    #[test(account = @0x111)]
-    #[expected_failure(abort_code = 65537)]
-    fun test_remove_supported_pool_with_not_owner(account: &signer) acquires CentralLiquidityPool {
-        remove_supported_pool<WETH>(account)
+    #[test(owner = @leizd_aptos_central_liquidity_pool,account = @0x111)]
+    #[expected_failure(abort_code = 65540)]
+    fun test_remove_supported_pool_with_not_configurator(owner: &signer, account: &signer) acquires CentralLiquidityPool {
+        permission::initialize(owner);
+        remove_supported_pool<WETH>(account);
     }
     #[test(owner = @leizd_aptos_central_liquidity_pool)]
     #[expected_failure(abort_code = 65544)]
@@ -993,8 +998,8 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         assert!(event::counter<UpdateConfigEvent>(&borrow_global<CentralLiquidityPoolEventHandle>(signer::address_of(owner)).update_config_event) == 2, 0);
     }
     #[test(owner = @leizd_aptos_central_liquidity_pool, account = @0x111)]
-    #[expected_failure(abort_code = 65537)]
-    fun test_update_config_with_not_owner(owner: &signer, account: &signer) acquires Balance, Config, CentralLiquidityPoolEventHandle {
+    #[expected_failure(abort_code = 65540)]
+    fun test_update_config_with_not_configurator(owner: &signer, account: &signer) acquires Balance, Config, CentralLiquidityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         update_config(account, PRECISION * 10 / 1000, PRECISION * 10 / 1000);
     }
