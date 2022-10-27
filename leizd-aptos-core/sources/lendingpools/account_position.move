@@ -10,6 +10,7 @@ module leizd::account_position {
     use leizd_aptos_lib::constant;
     use leizd_aptos_lib::math64;
     use leizd_aptos_lib::math128;
+    use leizd_aptos_lib::u256;
     use leizd_aptos_common::coin_key::{key};
     use leizd_aptos_common::permission;
     use leizd_aptos_common::pool_type;
@@ -702,8 +703,9 @@ module leizd::account_position {
                     return 0
                 }
             };
-            let numerator = borrowed * (risk_factor::precision() as u128); // TODO: use u256 or check overflow
-            ((numerator / deposited) as u64)
+            let numerator = u256::mul(u256::from_u128(borrowed), u256::from_u64(risk_factor::precision()));
+            let result = u256::div(numerator, u256::from_u128(deposited));
+            u256::as_u64(result)
         } else {
             0
         }
@@ -720,7 +722,7 @@ module leizd::account_position {
         let conly_deposited = conly_deposited_amount_internal(position_ref, key);
         if (normal_deposited > 0 || conly_deposited > 0) {
             let price_key = if (position_type::is_asset_to_shadow<P>()) key else key<USDZ>();
-            let result = price_oracle::volume(&price_key, normal_deposited + conly_deposited); // TODO: check overflow or use u256 (normal_deposited + conly_deposited)
+            let result = price_oracle::volume(&price_key, normal_deposited + conly_deposited);
             result
         } else {
             0

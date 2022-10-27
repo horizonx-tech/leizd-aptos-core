@@ -100,16 +100,6 @@ module leizd::shadow_pool {
         target: address,
     }
 
-    struct RebalanceEvent has store, drop {
-        // caller: address, // TODO: judge use or not use
-        from: String,
-        to: String,
-        amount: u64,
-        is_collateral_only_from: bool,
-        is_collateral_only_to: bool,
-        with_borrow: bool,
-    }
-
     struct SwitchCollateralEvent has store, drop {
         key: String,
         caller: address,
