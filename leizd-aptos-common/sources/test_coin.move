@@ -5,6 +5,7 @@ module leizd_aptos_common::test_coin {
     struct USDT {}
     struct WETH {}
     struct UNI {}
+    struct CoinDec10 {}
 
     use std::signer;
     use aptos_framework::coin;
@@ -24,6 +25,10 @@ module leizd_aptos_common::test_coin {
 
     public fun init_uni(account: &signer) {
         init_coin<UNI>(account, b"UNI", 8);
+    }
+
+    public fun init_coin_dec_10(account: &signer) {
+        init_coin<CoinDec10>(account, b"DEC10", 10);
     }
 
     public fun init_coin<T>(account: &signer, name: vector<u8>, decimals: u8) {

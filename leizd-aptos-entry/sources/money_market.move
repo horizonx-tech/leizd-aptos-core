@@ -262,7 +262,7 @@ module leizd_aptos_entry::money_market {
     #[test_only]
     use leizd_aptos_common::pool_type::{Asset, Shadow};
     #[test_only]
-    use leizd_aptos_common::test_coin::{Self, USDC, USDT, WETH, UNI};
+    use leizd_aptos_common::test_coin::{Self, USDC, USDT, WETH, UNI, CoinDec10};
     #[test_only]
     use leizd_aptos_logic::risk_factor;
     #[test_only]
@@ -330,10 +330,12 @@ module leizd_aptos_entry::money_market {
         test_coin::init_usdt(owner);
         test_coin::init_weth(owner);
         test_coin::init_uni(owner);
+        test_coin::init_coin_dec_10(owner);
         pool_manager::add_pool<USDC>(owner);
         pool_manager::add_pool<USDT>(owner);
         pool_manager::add_pool<WETH>(owner);
         pool_manager::add_pool<UNI>(owner);
+        pool_manager::add_pool<CoinDec10>(owner);
     }
     #[test_only]
     public fun setup_account_for_test(account: &signer) {
@@ -342,6 +344,7 @@ module leizd_aptos_entry::money_market {
         managed_coin::register<USDT>(account);
         managed_coin::register<WETH>(account);
         managed_coin::register<UNI>(account);
+        managed_coin::register<CoinDec10>(account);
         managed_coin::register<USDZ>(account);
     }
     #[test_only]
@@ -349,11 +352,12 @@ module leizd_aptos_entry::money_market {
         setup_account_for_test(account);
 
         let account_addr = signer::address_of(account);
-        managed_coin::mint<USDC>(owner, account_addr, 999999);
-        managed_coin::mint<USDT>(owner, account_addr, 999999);
-        managed_coin::mint<WETH>(owner, account_addr, 999999);
-        managed_coin::mint<UNI>(owner, account_addr, 999999);
-        usdz::mint_for_test(account_addr, 9999999);
+        managed_coin::mint<USDC>(owner, account_addr, 999999 * math64::pow(10, (coin::decimals<USDC>() as u64)));
+        managed_coin::mint<USDT>(owner, account_addr, 999999 * math64::pow(10, (coin::decimals<USDT>() as u64)));
+        managed_coin::mint<WETH>(owner, account_addr, 999999 * math64::pow(10, (coin::decimals<WETH>() as u64)));
+        managed_coin::mint<UNI>(owner, account_addr, 999999 * math64::pow(10, (coin::decimals<UNI>() as u64)));
+        managed_coin::mint<CoinDec10>(owner, account_addr, 999999 * math64::pow(10, (coin::decimals<CoinDec10>() as u64)));
+        usdz::mint_for_test(account_addr, 9999999 * math64::pow(10, (coin::decimals<USDZ>() as u64)));
     }
     #[test(owner=@leizd_aptos_entry,account=@0x111,aptos_framework=@aptos_framework)]
     fun test_deposit_with_asset(owner: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
