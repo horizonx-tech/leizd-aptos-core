@@ -19,11 +19,11 @@ module leizd_aptos_common::test_coin {
     }
 
     public fun init_weth(account: &signer) {
-        init_coin<WETH>(account, b"WETH", 18);
+        init_coin<WETH>(account, b"WETH", 8);
     }
 
     public fun init_uni(account: &signer) {
-        init_coin<UNI>(account, b"UNI", 18);
+        init_coin<UNI>(account, b"UNI", 8);
     }
 
     public fun init_coin<T>(account: &signer, name: vector<u8>, decimals: u8) {
