@@ -22,6 +22,8 @@ module leizd_aptos_external::price_oracle {
     const FIXED_PRICE: u8 = 1;
     const SWITCHBOARD: u8 = 2;
 
+    const PRECISION: u64 = 100000000; // decimal point: 8 digits
+
     struct Storage has key {
         oracles: simple_map::SimpleMap<String, OracleContainer>
     }
@@ -138,6 +140,13 @@ module leizd_aptos_external::price_oracle {
         let oracle_ref = simple_map::borrow(&borrow_global<Storage>(permission::owner_address()).oracles, &key);
         oracle_ref.mode
     }
+    public fun coin_decimals<C>(): u8 acquires Storage {
+        coin_decimals_internal(key<C>())
+    }
+    fun coin_decimals_internal(key: String): u8 acquires Storage {
+        let oracle_ref = simple_map::borrow(&borrow_global<Storage>(permission::owner_address()).oracles, &key);
+        oracle_ref.coin_decimals
+    }
 
     ////////////////////////////////////////////////////
     /// Feed
@@ -160,14 +169,30 @@ module leizd_aptos_external::price_oracle {
         let (value, dec) = price_of(name);
         let numerator = u256::mul(u256::from_u128(amount), u256::from_u128(value));
         let denominator = u256::from_u128(math128::pow(10, (dec as u128)));
-        u256::as_u128(u256::div(numerator, denominator)) // FIXME: need to use u256 by right
+        let not_normalized_result = u256::div(numerator, denominator); // FIXME: need to use u256 by right
+        let dec_u256 = u256::from_u128(math128::pow(10, (coin_decimals_internal(*name) as u128)));
+        let normalized = u256::div(u256::mul(not_normalized_result, precision_u256()), dec_u256);
+        u256::as_u128(normalized)
     }
 
     public fun to_amount(name: &String, volume: u128): u128 acquires Storage {
         let (value, dec) = price_of(name);
         let numerator = u256::mul(u256::from_u128(volume), u256::from_u128(math128::pow(10, (dec as u128))));
         let denominator = u256::from_u128(value);
-        u256::as_u128(u256::div(numerator, denominator))
+        let not_normalized_result = u256::div(numerator, denominator);
+        let dec_u256 = u256::from_u128(math128::pow(10, (coin_decimals_internal(*name) as u128)));
+        let normalized = u256::div(u256::mul(not_normalized_result, dec_u256), precision_u256());
+        u256::as_u128(normalized)
+    }
+
+    public fun precision(): u64 {
+        PRECISION
+    }
+    public fun precision_u128(): u128 {
+        (PRECISION as u128)
+    }
+    public fun precision_u256(): u256::U256 {
+        u256::from_u64(precision())
     }
 
     #[test_only]
@@ -406,12 +431,36 @@ module leizd_aptos_external::price_oracle {
     #[test_only]
     struct DummyCoin {}
     #[test_only]
+    struct DummyDec10 {}
+    #[test_only]
+    struct DummyDec12 {}
+    #[test_only]
     fun initialize_dummy_coin(account: &signer) {
         managed_coin::initialize<DummyCoin>(
             account,
             b"Dummy",
             b"DUMMY",
             8,
+            true
+        );
+    }
+    #[test_only]
+    fun initialize_dummy_dec_10(account: &signer) {
+        managed_coin::initialize<DummyDec10>(
+            account,
+            b"Dec10",
+            b"DEC10",
+            10,
+            true
+        );
+    }
+    #[test_only]
+    fun initialize_dummy_dec_12(account: &signer) {
+        managed_coin::initialize<DummyDec12>(
+            account,
+            b"Dec12",
+            b"DEC12",
+            12,
             true
         );
     }
@@ -453,6 +502,30 @@ module leizd_aptos_external::price_oracle {
         volume(&key<DummyCoin>(), u128_max);
     }
     #[test(owner = @leizd_aptos_external)]
+    fun test_volume__check_scaling_by_decimals(owner: &signer) acquires Storage, OracleEventHandle {
+        account::create_account_for_test(signer::address_of(owner));
+        permission::initialize(owner);
+        initialize_dummy_coin(owner);
+        initialize_dummy_dec_10(owner);
+        initialize_dummy_dec_12(owner);
+
+        let dec8 = math128::pow(10, 8);
+        let dec10 = math128::pow(10, 10);
+        let dec12 = math128::pow(10, 12);
+
+        initialize(owner);
+        register_oracle_with_fixed_price<DummyCoin>(owner, dec8 * 99 / 100, 8, false); // 0.99
+        register_oracle_with_fixed_price<DummyDec10>(owner, dec8 * 100 / 100, 8, false); // 1.00
+        register_oracle_with_fixed_price<DummyDec12>(owner, dec8 * 101 / 100, 8, false); // 1.01
+        change_mode<DummyCoin>(owner, fixed_price_mode());
+        change_mode<DummyDec10>(owner, fixed_price_mode());
+        change_mode<DummyDec12>(owner, fixed_price_mode());
+
+        assert!(volume(&key<DummyCoin>(), 10000 * dec8) == precision_u128() * 99 / 100 * 10000, 0);
+        assert!(volume(&key<DummyDec10>(), 10000 * dec10) == precision_u128() * 100 / 100 * 10000, 0);
+        assert!(volume(&key<DummyDec12>(), 10000 * dec12) == precision_u128() * 101 / 100 * 10000, 0);
+    }
+    #[test(owner = @leizd_aptos_external)]
     fun test_to_amount(owner: &signer) acquires Storage, OracleEventHandle {
         account::create_account_for_test(signer::address_of(owner));
         permission::initialize(owner);
@@ -488,5 +561,29 @@ module leizd_aptos_external::price_oracle {
 
         let u128_max: u128 = 340282366920938463463374607431768211455;
         to_amount(&key<DummyCoin>(), u128_max);
+    }
+    #[test(owner = @leizd_aptos_external)]
+    fun test_to_amount__check_scaling_by_decimals(owner: &signer) acquires Storage, OracleEventHandle {
+        account::create_account_for_test(signer::address_of(owner));
+        permission::initialize(owner);
+        initialize_dummy_coin(owner);
+        initialize_dummy_dec_10(owner);
+        initialize_dummy_dec_12(owner);
+
+        let dec8 = math128::pow(10, 8);
+        let dec10 = math128::pow(10, 10);
+        let dec12 = math128::pow(10, 12);
+
+        initialize(owner);
+        register_oracle_with_fixed_price<DummyCoin>(owner, dec8 * 99 / 100, 8, false); // 0.99
+        register_oracle_with_fixed_price<DummyDec10>(owner, dec8 * 100 / 100, 8, false); // 1.00
+        register_oracle_with_fixed_price<DummyDec12>(owner, dec8 * 101 / 100, 8, false); // 1.01
+        change_mode<DummyCoin>(owner, fixed_price_mode());
+        change_mode<DummyDec10>(owner, fixed_price_mode());
+        change_mode<DummyDec12>(owner, fixed_price_mode());
+
+        assert!(to_amount(&key<DummyCoin>(), precision_u128() * 99 / 100 * 10000) == 10000 * dec8, 0);
+        assert!(to_amount(&key<DummyDec10>(), precision_u128() * 100 / 100 * 10000) == 10000 * dec10, 0);
+        assert!(to_amount(&key<DummyDec12>(), precision_u128() * 101 / 100 * 10000) == 10000 * dec12, 0);
     }
 }
