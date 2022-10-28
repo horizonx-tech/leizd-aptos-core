@@ -479,10 +479,7 @@ module leizd::shadow_pool {
         let entry_fee = risk_factor::calculate_entry_fee(amount);
         let amount_with_entry_fee = amount + entry_fee;
 
-        let liquidity = 0;
-        if (normal_deposited_amount_internal(key, storage_ref) > borrowed_amount_internal(key, storage_ref)) {
-            liquidity = normal_deposited_amount_internal(key, storage_ref) - borrowed_amount_internal(key, storage_ref);
-        };
+        let liquidity = liquidity_internal(key, storage_ref);
 
         // check liquidity
         let total_left = if (central_liquidity_pool::is_supported(key)) liquidity + central_liquidity_pool::left() else liquidity;
@@ -685,8 +682,7 @@ module leizd::shadow_pool {
         let storage_ref = borrow_global_mut<Storage>(permission::owner_address());
         let entry_fee = risk_factor::calculate_entry_fee(amount);
         let amount_with_entry_fee = amount + entry_fee;
-        let liquidity = normal_deposited_amount_internal(key, storage_ref)
-            - borrowed_amount_internal(key, storage_ref);
+        let liquidity = liquidity_internal(key, storage_ref);
         assert!((amount_with_entry_fee as u128) <= liquidity, error::invalid_argument(EEXCEED_BORROWABLE_AMOUNT)); // do not use clp
         let (amount, share) = save_to_storage_for_borrow(key, target_addr, target_addr, amount, entry_fee, storage_ref);
         ((amount as u64), (share as u64))
@@ -1138,6 +1134,25 @@ module leizd::shadow_pool {
     fun borrowed_share_internal(key: String, storage: &Storage): u128 {
         if (is_initialized_asset_with_internal(&key, storage)) {
             simple_map::borrow<String, AssetStorage>(&storage.asset_storages, &key).borrowed_share
+        } else {
+            0
+        }
+    }
+
+    public fun liquidity<C>(): u128 acquires Storage {
+        liquidity_with(key<C>())
+    }
+    public fun liquidity_with(key: String): u128 acquires Storage {
+        let owner_addr = permission::owner_address();
+        let storage_ref = borrow_global<Storage>(owner_addr);
+        liquidity_internal(key, storage_ref)
+    }
+    fun liquidity_internal(key: String, storage: &Storage): u128 {
+        let normal_deposited = normal_deposited_amount_internal(key, storage);
+        let borrowed = borrowed_amount_internal(key, storage);
+        let borrowed_from_clp = central_liquidity_pool::borrowed(key);
+        if (normal_deposited > (borrowed - borrowed_from_clp)) {
+            normal_deposited - (borrowed - borrowed_from_clp)
         } else {
             0
         }
@@ -2748,7 +2763,7 @@ module leizd::shadow_pool {
         managed_coin::register<USDZ>(lp);
         managed_coin::register<USDZ>(depositor);
         managed_coin::register<USDZ>(borrower);
-        
+
         usdz::mint_for_test(lp_addr, 5000 * dec8);
         central_liquidity_pool::deposit(lp, 4500 * dec8);
         deposit_for_internal(key<WETH>(), lp, lp_addr, 500 * dec8, false);
@@ -2795,7 +2810,7 @@ module leizd::shadow_pool {
         managed_coin::register<USDZ>(lp);
         managed_coin::register<USDZ>(depositor);
         managed_coin::register<USDZ>(borrower);
-        
+
         usdz::mint_for_test(lp_addr, 5000 * dec8);
         central_liquidity_pool::deposit(lp, 4500 * dec8);
         deposit_for_internal(key<WETH>(), lp, lp_addr, 500 * dec8, false);
