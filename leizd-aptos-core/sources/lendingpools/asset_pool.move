@@ -787,7 +787,7 @@ module leizd::asset_pool {
     #[test_only]
     use leizd_aptos_lib::math64;
     #[test_only]
-    use leizd_aptos_common::test_coin::{Self,USDC,USDT,WETH,UNI};
+    use leizd_aptos_common::test_coin::{Self,USDC,USDT,WETH,UNI,CoinDec10};
     #[test_only]
     use leizd_aptos_trove::usdz::{USDZ};
     #[test_only]
@@ -888,12 +888,14 @@ module leizd::asset_pool {
         test_coin::init_usdt(owner);
         test_coin::init_weth(owner);
         test_coin::init_uni(owner);
+        test_coin::init_coin_dec_10(owner);
 
         initialize(owner);
         init_pool<USDC>(owner);
         init_pool<USDT>(owner);
         init_pool<WETH>(owner);
         init_pool<UNI>(owner);
+        init_pool<CoinDec10>(owner);
     }
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
     public entry fun test_deposit_weth(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, AssetManagerKeys, PoolEventHandle {

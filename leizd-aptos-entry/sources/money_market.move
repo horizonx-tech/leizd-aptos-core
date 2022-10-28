@@ -320,17 +320,18 @@ module leizd_aptos_entry::money_market {
 
         account::create_account_for_test(signer::address_of(owner));
 
+        test_coin::init_usdc(owner);
+        test_coin::init_usdt(owner);
+        test_coin::init_weth(owner);
+        test_coin::init_uni(owner);
+        test_coin::init_coin_dec_10(owner);
+
         // initialize
         initializer::initialize(owner);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner); // TODO: clean
         initialize(owner);
 
         // add_pool
-        test_coin::init_usdc(owner);
-        test_coin::init_usdt(owner);
-        test_coin::init_weth(owner);
-        test_coin::init_uni(owner);
-        test_coin::init_coin_dec_10(owner);
         pool_manager::add_pool<USDC>(owner);
         pool_manager::add_pool<USDT>(owner);
         pool_manager::add_pool<WETH>(owner);
