@@ -617,6 +617,54 @@ module leizd_aptos_entry::money_market {
         assert!(account_position::borrowed_asset_share<WETH>(for_addr) == 0, 0);
     }
     #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
+    fun test_borrow__check_borrowable_by_difference_between_decimals_1(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
+        initialize_lending_pool_for_test(owner, aptos_framework);
+        setup_liquidity_provider_for_test(owner, lp);
+        setup_account_for_test(account);
+        let dec8 = math64::pow(10, 8);
+        let dec10 = math64::pow(10, 10);
+
+        // prerequisite
+        deposit<CoinDec10, Asset>(lp, 100000 * dec10, false);
+        risk_factor::update_protocol_fees_unsafe(
+            0,
+            0,
+            risk_factor::default_liquidation_fee(),
+        ); // NOTE: remove entry fee / share fee to make it easy to calculate borrowed amount/share
+        let account_addr = signer::address_of(account);
+        usdz::mint_for_test(account_addr, 100000 * dec8);
+        assert!(coin::decimals<USDZ>() == 8, 0);
+        assert!(coin::decimals<CoinDec10>() == 10, 0);
+
+        // execute
+        deposit<CoinDec10, Shadow>(account, 100000 * dec8, false);
+        borrow<CoinDec10, Asset>(account, 89999 * dec10);
+    }
+    #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
+    fun test_borrow__check_borrowable_by_difference_between_decimals_2(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
+        initialize_lending_pool_for_test(owner, aptos_framework);
+        setup_liquidity_provider_for_test(owner, lp);
+        setup_account_for_test(account);
+        let dec8 = math64::pow(10, 8);
+        let dec10 = math64::pow(10, 10);
+
+        // prerequisite
+        deposit<CoinDec10, Asset>(lp, 100000 * dec10, false);
+        risk_factor::update_protocol_fees_unsafe(
+            0,
+            0,
+            risk_factor::default_liquidation_fee(),
+        ); // NOTE: remove entry fee / share fee to make it easy to calculate borrowed amount/share
+        let account_addr = signer::address_of(account);
+        usdz::mint_for_test(account_addr, 100000 * dec8);
+        assert!(coin::decimals<USDZ>() == 8, 0);
+        assert!(coin::decimals<CoinDec10>() == 10, 0);
+
+        // execute
+        deposit<CoinDec10, Shadow>(account, 100000 * dec8, false);
+        borrow<CoinDec10, Asset>(account, 90000 * dec10);
+    }
+    #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
     fun test_repay_with_shadow(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
         initialize_lending_pool_for_test(owner, aptos_framework);
         setup_liquidity_provider_for_test(owner, lp);
