@@ -34,6 +34,8 @@ module leizd::test_initializer {
         price_oracle::change_mode<test_coin::UNI>(owner, price_oracle::fixed_price_mode());
         price_oracle::register_oracle_with_fixed_price<test_coin::USDT>(owner, 1000000000, 9, false);
         price_oracle::change_mode<test_coin::USDT>(owner, price_oracle::fixed_price_mode());
+        price_oracle::register_oracle_with_fixed_price<test_coin::CoinDec10>(owner, 1000000000, 9, false);
+        price_oracle::change_mode<test_coin::CoinDec10>(owner, price_oracle::fixed_price_mode());
         price_oracle::register_oracle_with_fixed_price<USDZ>(owner, 1000000000, 9, false);
         price_oracle::change_mode<USDZ>(owner, price_oracle::fixed_price_mode());
     }

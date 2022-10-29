@@ -262,7 +262,7 @@ module leizd_aptos_entry::money_market {
     #[test_only]
     use leizd_aptos_common::pool_type::{Asset, Shadow};
     #[test_only]
-    use leizd_aptos_common::test_coin::{Self, USDC, USDT, WETH, UNI};
+    use leizd_aptos_common::test_coin::{Self, USDC, USDT, WETH, UNI, CoinDec10};
     #[test_only]
     use leizd_aptos_logic::risk_factor;
     #[test_only]
@@ -320,20 +320,23 @@ module leizd_aptos_entry::money_market {
 
         account::create_account_for_test(signer::address_of(owner));
 
+        test_coin::init_usdc(owner);
+        test_coin::init_usdt(owner);
+        test_coin::init_weth(owner);
+        test_coin::init_uni(owner);
+        test_coin::init_coin_dec_10(owner);
+
         // initialize
         initializer::initialize(owner);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner); // TODO: clean
         initialize(owner);
 
         // add_pool
-        test_coin::init_usdc(owner);
-        test_coin::init_usdt(owner);
-        test_coin::init_weth(owner);
-        test_coin::init_uni(owner);
         pool_manager::add_pool<USDC>(owner);
         pool_manager::add_pool<USDT>(owner);
         pool_manager::add_pool<WETH>(owner);
         pool_manager::add_pool<UNI>(owner);
+        pool_manager::add_pool<CoinDec10>(owner);
     }
     #[test_only]
     public fun setup_account_for_test(account: &signer) {
@@ -342,6 +345,7 @@ module leizd_aptos_entry::money_market {
         managed_coin::register<USDT>(account);
         managed_coin::register<WETH>(account);
         managed_coin::register<UNI>(account);
+        managed_coin::register<CoinDec10>(account);
         managed_coin::register<USDZ>(account);
     }
     #[test_only]
@@ -349,11 +353,12 @@ module leizd_aptos_entry::money_market {
         setup_account_for_test(account);
 
         let account_addr = signer::address_of(account);
-        managed_coin::mint<USDC>(owner, account_addr, 999999);
-        managed_coin::mint<USDT>(owner, account_addr, 999999);
-        managed_coin::mint<WETH>(owner, account_addr, 999999);
-        managed_coin::mint<UNI>(owner, account_addr, 999999);
-        usdz::mint_for_test(account_addr, 9999999);
+        managed_coin::mint<USDC>(owner, account_addr, 999999 * math64::pow(10, (coin::decimals<USDC>() as u64)));
+        managed_coin::mint<USDT>(owner, account_addr, 999999 * math64::pow(10, (coin::decimals<USDT>() as u64)));
+        managed_coin::mint<WETH>(owner, account_addr, 999999 * math64::pow(10, (coin::decimals<WETH>() as u64)));
+        managed_coin::mint<UNI>(owner, account_addr, 999999 * math64::pow(10, (coin::decimals<UNI>() as u64)));
+        managed_coin::mint<CoinDec10>(owner, account_addr, 999999 * math64::pow(10, (coin::decimals<CoinDec10>() as u64)));
+        usdz::mint_for_test(account_addr, 9999999 * math64::pow(10, (coin::decimals<USDZ>() as u64)));
     }
     #[test(owner=@leizd_aptos_entry,account=@0x111,aptos_framework=@aptos_framework)]
     fun test_deposit_with_asset(owner: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
@@ -611,6 +616,55 @@ module leizd_aptos_entry::money_market {
         assert!(asset_pool::total_borrowed_amount<WETH>() == 89, 0); // NOTE: amount + fee
         assert!(account_position::borrowed_asset_share<WETH>(account_addr) == 89, 0);
         assert!(account_position::borrowed_asset_share<WETH>(for_addr) == 0, 0);
+    }
+    #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
+    fun test_borrow__check_borrowable_by_difference_between_decimals_1(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
+        initialize_lending_pool_for_test(owner, aptos_framework);
+        setup_liquidity_provider_for_test(owner, lp);
+        setup_account_for_test(account);
+        let dec8 = math64::pow(10, 8);
+        let dec10 = math64::pow(10, 10);
+
+        // prerequisite
+        deposit<CoinDec10, Asset>(lp, 100000 * dec10, false);
+        risk_factor::update_protocol_fees_unsafe(
+            0,
+            0,
+            risk_factor::default_liquidation_fee(),
+        ); // NOTE: remove entry fee / share fee to make it easy to calculate borrowed amount/share
+        let account_addr = signer::address_of(account);
+        usdz::mint_for_test(account_addr, 100000 * dec8);
+        assert!(coin::decimals<USDZ>() == 8, 0);
+        assert!(coin::decimals<CoinDec10>() == 10, 0);
+
+        // execute
+        deposit<CoinDec10, Shadow>(account, 100000 * dec8, false);
+        borrow<CoinDec10, Asset>(account, 89999 * dec10);
+    }
+    #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
+    #[expected_failure(abort_code = 196610)]
+    fun test_borrow__check_borrowable_by_difference_between_decimals_2(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
+        initialize_lending_pool_for_test(owner, aptos_framework);
+        setup_liquidity_provider_for_test(owner, lp);
+        setup_account_for_test(account);
+        let dec8 = math64::pow(10, 8);
+        let dec10 = math64::pow(10, 10);
+
+        // prerequisite
+        deposit<CoinDec10, Asset>(lp, 100000 * dec10, false);
+        risk_factor::update_protocol_fees_unsafe(
+            0,
+            0,
+            risk_factor::default_liquidation_fee(),
+        ); // NOTE: remove entry fee / share fee to make it easy to calculate borrowed amount/share
+        let account_addr = signer::address_of(account);
+        usdz::mint_for_test(account_addr, 100000 * dec8);
+        assert!(coin::decimals<USDZ>() == 8, 0);
+        assert!(coin::decimals<CoinDec10>() == 10, 0);
+
+        // execute
+        deposit<CoinDec10, Shadow>(account, 100000 * dec8, false);
+        borrow<CoinDec10, Asset>(account, 90000 * dec10);
     }
     #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
     fun test_repay_with_shadow(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {

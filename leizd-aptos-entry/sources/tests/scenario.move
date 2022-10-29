@@ -54,6 +54,7 @@ module leizd_aptos_entry::scenario {
         test_coin::init_usdt(owner);
         test_coin::init_weth(owner);
         test_coin::init_uni(owner);
+        test_coin::init_coin_dec_10(owner);
 
         initializer::initialize(owner);
         money_market::initialize(owner);

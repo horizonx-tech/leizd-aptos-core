@@ -1260,6 +1260,11 @@ module leizd::shadow_pool {
         asset_pool::init_pool<UNI>(owner);
         init_pool<WETH>();
         init_pool<UNI>();
+
+        // for oracle
+        test_coin::init_usdc(owner);
+        test_coin::init_usdt(owner);
+        test_coin::init_coin_dec_10(owner);
     }
     //// for checking share
     #[test_only]

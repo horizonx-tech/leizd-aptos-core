@@ -58,6 +58,8 @@ module leizd_aptos_trove::trove_manager {
     }
 
     #[test_only]
+    struct USDC {} // temp (because of dec 8 in test_coin module)
+    #[test_only]
     use aptos_framework::account;
     #[test_only]
     use aptos_framework::coin;
@@ -68,7 +70,7 @@ module leizd_aptos_trove::trove_manager {
     #[test_only]
     use leizd_aptos_trove::usdz;
     #[test_only]
-    use leizd_aptos_common::test_coin::{Self,USDC};
+    use leizd_aptos_common::test_coin;
     #[test_only]
     fun trove_size(): u64 { sorted_trove::size<USDC>() }
     #[test_only]
@@ -95,7 +97,7 @@ module leizd_aptos_trove::trove_manager {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
         initialize(owner);
-        test_coin::init_usdc(owner);
+        test_coin::init_coin<USDC>(owner, b"USDC", 6);
         initialize_token<USDC>(owner);
     }
 
