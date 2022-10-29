@@ -642,6 +642,7 @@ module leizd_aptos_entry::money_market {
         borrow<CoinDec10, Asset>(account, 89999 * dec10);
     }
     #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
+    #[expected_failure(abort_code = 196610)]
     fun test_borrow__check_borrowable_by_difference_between_decimals_2(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
         initialize_lending_pool_for_test(owner, aptos_framework);
         setup_liquidity_provider_for_test(owner, lp);
