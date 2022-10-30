@@ -13,10 +13,10 @@ subdir = 'aptos-move/framework/aptos-framework'
 #rev = 'main'
 #subdir = 'move/switchboard/'
 
-[dependencies.Pyth]
-git = 'https://github.com/pyth-network/pyth-crosschain.git'
-rev = 'main'
-subdir = 'aptos/contracts/'
+#[dependencies.Pyth]
+#git = 'https://github.com/pyth-network/pyth-crosschain.git'
+#rev = 'main'
+#subdir = 'aptos/contracts/'
 
 [dependencies.LeizdAptosLib]
 local = "../leizd-aptos-lib"
@@ -28,8 +28,8 @@ local = "../leizd-aptos-common"
 leizd_aptos_external="0x0123456789ABCDEF"
 leizd_aptos_lib="0x0123456789ABCDEF"
 leizd_aptos_common="0x0123456789ABCDEF"
-aptos_framework = "0x1"
+#aptos_framework = "0x1"
 #switchboard = "0x34e2eead0aefbc3d0af13c0522be94b002658f4bef8e0740a21086d22236ad77" # devnet and testnet
-pyth = "0xe2f37b8ac45d29d5ea23eb7d16dd3f7a7ab6426f5a998d6c23ecd3ae8d9d29eb"
-wormhole = "0x251011524cd0f76881f16e7c2d822f0c1c9510bfd2430ba24e1b3d52796df204"
-deployer = "0x277fa055b6a73c42c0662d5236c65c864ccbf2d4abd21f174a30c8b786eab84b"
+#pyth = "0xe2f37b8ac45d29d5ea23eb7d16dd3f7a7ab6426f5a998d6c23ecd3ae8d9d29eb"
+#wormhole = "0x251011524cd0f76881f16e7c2d822f0c1c9510bfd2430ba24e1b3d52796df204"
+#deployer = "0x277fa055b6a73c42c0662d5236c65c864ccbf2d4abd21f174a30c8b786eab84b"
