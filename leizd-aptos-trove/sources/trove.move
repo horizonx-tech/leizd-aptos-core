@@ -13,9 +13,11 @@ module leizd_aptos_trove::trove {
     use leizd_aptos_trove::usdz;
     use leizd_aptos_external::price_oracle;
     use leizd_aptos_common::coin_key;
+    use leizd_aptos_lib::constant;
 
     const ENOT_SUPPORTED: u64 = 1;
     const EALREADY_SUPPORTED: u64 = 2;
+    const ECR_UNDER_MINIMUM_CR: u64 = 3;
     const PRECISION: u64 = 1000000;
     const MINUMUM_COLLATERAL_RATIO: u64 = 110;
 
@@ -136,7 +138,7 @@ module leizd_aptos_trove::trove {
         collateral_ratio_of_with(0, account)
     }
 
-    fun collateral_ratio_of_with(additional_deposited: u64,  account: address): u64 acquires Trove, SupportedCoins {
+    fun collateral_ratio_of_with(additional_deposited: u64, account: address): u64 acquires Trove, SupportedCoins {
         let coins = borrow_global<SupportedCoins>(permission::owner_address()).coins;
         let total_deposited = additional_deposited;
         let i = 0;
@@ -154,6 +156,9 @@ module leizd_aptos_trove::trove {
     }
 
     fun collateral_ratio(deposited: u64, borrowed: u64): u64 {
+        if (borrowed == 0) {
+            return constant::u64_max()
+        };
         (PRECISION * deposited) / borrowed
     }
 
@@ -162,7 +167,10 @@ module leizd_aptos_trove::trove {
             return 0
         };
         let trove = borrow_global<Trove>(account);
-        simple_map::borrow(&trove.amounts, &key).deposited
+        if (simple_map::contains_key(&trove.amounts, &key)){
+            return simple_map::borrow(&trove.amounts, &key).deposited
+        };
+        0
     }
     
 
@@ -226,8 +234,13 @@ module leizd_aptos_trove::trove {
     fun requireAmountGreaterThanZero(_amount: u64) {}
     fun requireUSDZBalanceCoversRedemption() {}
 
-    fun validate_open_trove<C>() acquires SupportedCoins {
-        validate_internal<C>()
+    fun validate_open_trove<C>(amount: u64, account: address) acquires SupportedCoins, Trove {
+        validate_internal<C>();
+        require_cr_above_minimum_cr(key_of<C>(), amount, account)
+    }
+
+    fun require_cr_above_minimum_cr(key: String, amount: u64, account: address) acquires SupportedCoins, Trove {
+        assert!(collateral_ratio_after_open_trove(key, amount, account) > minimum_collateral_ratio(), ECR_UNDER_MINIMUM_CR)
     }
 
     fun validate_close_trove<C>() acquires SupportedCoins {
@@ -275,14 +288,13 @@ module leizd_aptos_trove::trove {
 
     fun open_trove_internal<C>(account: &signer, collateral_amount: u64, amount: u64) acquires Vault, Trove, TroveEventHandle, SupportedCoins {
         let account_addr = signer::address_of(account);
-        validate_open_trove<C>();
-        let initialized = exists<Trove>(account_addr);
-        if (!initialized) {
+        if (!exists<Trove>(account_addr)) {
             move_to(account, Trove {
                 amounts: simple_map::create<String,Position>(),
                 borrowed: 0,
-            });            
+            });
         };
+        validate_open_trove<C>(collateral_amount, account_addr);
         increase_trove_amount(account_addr, key_of<C>(), collateral_amount, amount);
         let treasury = borrow_global_mut<Vault<C>>(permission::owner_address());
         coin::merge(&mut treasury.coin, coin::withdraw<C>(account, collateral_amount));
