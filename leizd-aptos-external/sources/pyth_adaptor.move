@@ -2,7 +2,9 @@ module leizd_aptos_external::pyth_adaptor {
     use std::error;
     use std::signer;
     use std::string::String;
+    use aptos_std::event;
     use aptos_std::simple_map;
+    use aptos_framework::account;
     use leizd_aptos_common::permission;
     use leizd_aptos_common::coin_key::{key};
     use pyth::pyth;
@@ -19,6 +21,14 @@ module leizd_aptos_external::pyth_adaptor {
         price_feed_ids: simple_map::SimpleMap<String, vector<u8>>
     }
 
+    struct UpdatePriceFeedEvent has store, drop {
+        key: String,
+        price_feed_id: vector<u8>,
+    }
+    struct PythAdaptorEventHandle has key {
+        update_price_feed_event: event::EventHandle<UpdatePriceFeedEvent>,
+    }
+
     ////////////////////////////////////////////////////
     /// Manage module
     ////////////////////////////////////////////////////
@@ -27,9 +37,12 @@ module leizd_aptos_external::pyth_adaptor {
         permission::assert_owner(owner_addr);
         assert!(!exists<Storage>(owner_addr), error::invalid_argument(EALREADY_INITIALIZED));
         move_to(owner, Storage { price_feed_ids: simple_map::create<String, vector<u8>>() });
+        move_to(owner, PythAdaptorEventHandle {
+            update_price_feed_event: account::new_event_handle<UpdatePriceFeedEvent>(owner),
+        });
     }
 
-    public entry fun add_price_feed<C>(owner: &signer, price_feed_id: vector<u8>) acquires Storage {
+    public entry fun add_price_feed<C>(owner: &signer, price_feed_id: vector<u8>) acquires Storage, PythAdaptorEventHandle {
         let owner_addr = signer::address_of(owner);
         permission::assert_owner(owner_addr);
         let key = key<C>();
@@ -37,6 +50,10 @@ module leizd_aptos_external::pyth_adaptor {
         assert!(!is_registered(key), error::invalid_argument(EALREADY_REGISTERED));
         let ids = &mut borrow_global_mut<Storage>(owner_addr).price_feed_ids;
         simple_map::add(ids, key, price_feed_id);
+        event::emit_event(
+            &mut borrow_global_mut<PythAdaptorEventHandle>(owner_addr).update_price_feed_event,
+            UpdatePriceFeedEvent { key, price_feed_id },
+        );
     }
 
     fun is_registered(key: String): bool acquires Storage {
@@ -75,8 +92,6 @@ module leizd_aptos_external::pyth_adaptor {
     }
 
     #[test_only]
-    use aptos_framework::account;
-    #[test_only]
     use leizd_aptos_common::test_coin::{WETH};
     #[test(owner = @leizd_aptos_external)]
     fun test_initialize(owner: &signer) {
@@ -84,6 +99,7 @@ module leizd_aptos_external::pyth_adaptor {
         account::create_account_for_test(owner_addr);
         initialize(owner);
         assert!(exists<Storage>(owner_addr), 0);
+        assert!(exists<PythAdaptorEventHandle>(owner_addr), 0);
     }
     #[test(account = @0x111)]
     #[expected_failure(abort_code = 65537)]
@@ -98,27 +114,28 @@ module leizd_aptos_external::pyth_adaptor {
         initialize(owner);
     }
     #[test(owner = @leizd_aptos_external)]
-    fun test_add_price_feed(owner: &signer) acquires Storage {
+    fun test_add_price_feed(owner: &signer) acquires Storage, PythAdaptorEventHandle {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
         initialize(owner);
         add_price_feed<WETH>(owner, b"0x123");
         let id = simple_map::borrow(&borrow_global<Storage>(owner_addr).price_feed_ids, &key<WETH>());
         assert!(id == &(b"0x123"), 0);
+        assert!(event::counter(&borrow_global<PythAdaptorEventHandle>(owner_addr).update_price_feed_event) == 1, 0);
     }
     #[test(account = @0x111)]
     #[expected_failure(abort_code = 65537)]
-    fun test_add_price_feed_with_not_owner(account: &signer) acquires Storage {
+    fun test_add_price_feed_with_not_owner(account: &signer) acquires Storage, PythAdaptorEventHandle {
         add_price_feed<WETH>(account, b"0x123");
     }
     #[test(owner = @leizd_aptos_external)]
     #[expected_failure(abort_code = 65537)]
-    fun test_add_price_feed_before_initialize(owner: &signer) acquires Storage {
+    fun test_add_price_feed_before_initialize(owner: &signer) acquires Storage, PythAdaptorEventHandle {
         add_price_feed<WETH>(owner, b"0x123");
     }
     #[test(owner = @leizd_aptos_external)]
     #[expected_failure(abort_code = 65540)]
-    fun test_add_price_feed_twice(owner: &signer) acquires Storage {
+    fun test_add_price_feed_twice(owner: &signer) acquires Storage, PythAdaptorEventHandle {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
         initialize(owner);
