@@ -73,4 +73,56 @@ module leizd_aptos_external::pyth_adaptor {
         let (value, dec) = price_internal(*name);
         (value, dec)
     }
+
+    #[test_only]
+    use aptos_framework::account;
+    #[test_only]
+    use leizd_aptos_common::test_coin::{WETH};
+    #[test(owner = @leizd_aptos_external)]
+    fun test_initialize(owner: &signer) {
+        let owner_addr = signer::address_of(owner);
+        account::create_account_for_test(owner_addr);
+        initialize(owner);
+        assert!(exists<Storage>(owner_addr), 0);
+    }
+    #[test(account = @0x111)]
+    #[expected_failure(abort_code = 65537)]
+    fun test_initialize_with_not_owner(account: &signer) {
+        initialize(account);
+    }
+    #[test(owner = @leizd_aptos_external)]
+    #[expected_failure(abort_code = 65538)]
+    fun test_initialize_twice(owner: &signer) {
+        account::create_account_for_test(signer::address_of(owner));
+        initialize(owner);
+        initialize(owner);
+    }
+    #[test(owner = @leizd_aptos_external)]
+    fun test_add_price_feed(owner: &signer) acquires Storage {
+        let owner_addr = signer::address_of(owner);
+        account::create_account_for_test(owner_addr);
+        initialize(owner);
+        add_price_feed<WETH>(owner, b"0x123");
+        let id = simple_map::borrow(&borrow_global<Storage>(owner_addr).price_feed_ids, &key<WETH>());
+        assert!(id == &(b"0x123"), 0);
+    }
+    #[test(account = @0x111)]
+    #[expected_failure(abort_code = 65537)]
+    fun test_add_price_feed_with_not_owner(account: &signer) acquires Storage {
+        add_price_feed<WETH>(account, b"0x123");
+    }
+    #[test(owner = @leizd_aptos_external)]
+    #[expected_failure(abort_code = 65537)]
+    fun test_add_price_feed_before_initialize(owner: &signer) acquires Storage {
+        add_price_feed<WETH>(owner, b"0x123");
+    }
+    #[test(owner = @leizd_aptos_external)]
+    #[expected_failure(abort_code = 65540)]
+    fun test_add_price_feed_twice(owner: &signer) acquires Storage {
+        let owner_addr = signer::address_of(owner);
+        account::create_account_for_test(owner_addr);
+        initialize(owner);
+        add_price_feed<WETH>(owner, b"0x123");
+        add_price_feed<WETH>(owner, b"0x123");
+    }
 }
