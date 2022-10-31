@@ -115,7 +115,7 @@ module leizd::interest_rate {
 
     public fun set_config(key: String, owner: &signer, config: Config) acquires ConfigKey, InterestRateEventHandle {
         let owner_address = signer::address_of(owner);
-        permission::assert_owner(owner_address);
+        permission::assert_configurator(owner_address);
         assert_config(config);
 
         let config_ref = simple_map::borrow_mut<String,Config>(&mut borrow_global_mut<ConfigKey>(owner_address).config, &key);

@@ -4,6 +4,7 @@ module leizd::test_initializer {
     use leizd_aptos_common::system_status;
     use leizd_aptos_common::test_coin;
     use leizd_aptos_common::pool_status;
+    use leizd_aptos_common::permission;
     use leizd_aptos_trove::usdz::{USDZ};
     use leizd_aptos_trove::trove_manager;
     use leizd_aptos_treasury::treasury;
@@ -22,6 +23,7 @@ module leizd::test_initializer {
         central_liquidity_pool::initialize(owner);
         interest_rate::initialize(owner);
         pool_status::initialize(owner);
+        permission::initialize(owner);
     }
     public entry fun initialize_price_oracle_with_fixed_price_for_test(owner: &signer) {
         price_oracle::register_oracle_with_fixed_price<test_coin::USDC>(owner, 1000000000, 9, false);
@@ -32,6 +34,8 @@ module leizd::test_initializer {
         price_oracle::change_mode<test_coin::UNI>(owner, price_oracle::fixed_price_mode());
         price_oracle::register_oracle_with_fixed_price<test_coin::USDT>(owner, 1000000000, 9, false);
         price_oracle::change_mode<test_coin::USDT>(owner, price_oracle::fixed_price_mode());
+        price_oracle::register_oracle_with_fixed_price<test_coin::CoinDec10>(owner, 1000000000, 9, false);
+        price_oracle::change_mode<test_coin::CoinDec10>(owner, price_oracle::fixed_price_mode());
         price_oracle::register_oracle_with_fixed_price<USDZ>(owner, 1000000000, 9, false);
         price_oracle::change_mode<USDZ>(owner, price_oracle::fixed_price_mode());
     }

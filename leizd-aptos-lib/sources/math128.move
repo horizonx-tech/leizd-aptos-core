@@ -40,7 +40,7 @@ module leizd_aptos_lib::math128 {
         };
         let result = share * total_amount / total_shares;
 
-        // prevent rouding error
+        // prevent rounding error
         assert!(result != 0 || share == 0, 0);
         result
     }

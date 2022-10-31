@@ -1016,7 +1016,7 @@ module leizd::account_position {
     #[test_only]
     use leizd_aptos_common::pool_type::{Asset,Shadow};
     #[test_only]
-    use leizd_aptos_common::test_coin::{WETH,UNI,USDC,USDT};
+    use leizd_aptos_common::test_coin::{Self,WETH,UNI,USDC,USDT};
     #[test_only]
     use leizd::test_initializer;
 
@@ -1026,12 +1026,20 @@ module leizd::account_position {
         account::create_account_for_test(signer::address_of(owner));
         initialize(owner);
         test_initializer::initialize(owner);
+
         asset_pool::initialize(owner);
         shadow_pool::initialize(owner);
         asset_pool::init_pool_for_test<WETH>(owner);
         asset_pool::init_pool_for_test<UNI>(owner);
         asset_pool::init_pool_for_test<USDC>(owner);
         asset_pool::init_pool_for_test<USDT>(owner);
+
+        // for oracle
+        test_coin::init_usdc(owner);
+        test_coin::init_usdt(owner);
+        test_coin::init_weth(owner);
+        test_coin::init_uni(owner);
+        test_coin::init_coin_dec_10(owner);
     }
     #[test_only]
     public fun borrow_unsafe_for_test<C,P>(borrower_addr: address, amount: u64) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {

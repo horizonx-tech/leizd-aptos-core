@@ -190,7 +190,7 @@ module leizd_aptos_trove::trove {
     #[test_only]
     use leizd_aptos_lib::math64;
     #[test_only]
-    use leizd_aptos_common::test_coin::{Self,USDC,USDT};
+    use leizd_aptos_common::test_coin::{Self,USDC,USDT,CoinDec10};
     #[test_only]
     use aptos_std::comparator;
 
@@ -203,14 +203,18 @@ module leizd_aptos_trove::trove {
         account::create_account_for_test(account1_addr);
         test_coin::init_usdc(owner);
         test_coin::init_usdt(owner);
+        test_coin::init_coin_dec_10(owner);
         managed_coin::register<USDC>(account1);
         managed_coin::register<USDT>(account1);
+        managed_coin::register<CoinDec10>(account1);
         managed_coin::register<usdz::USDZ>(account1);
         managed_coin::mint<USDC>(owner, account1_addr, amount);
         managed_coin::mint<USDT>(owner, account1_addr, amount);
+        managed_coin::mint<CoinDec10>(owner, account1_addr, amount);
         initialize_internal(owner);
         add_supported_coin_internal<USDC>(owner);
         add_supported_coin_internal<USDT>(owner);
+        add_supported_coin_internal<CoinDec10>(owner);
     }
 
     #[test(owner=@leizd_aptos_trove)]
@@ -261,26 +265,27 @@ module leizd_aptos_trove::trove {
     fun test_open_trove(owner: signer, account1: signer) acquires Trove, TroveEventHandle {
         set_up(&owner, &account1);
         let account1_addr = signer::address_of(&account1);
-        let usdc_amt = 10000;
-        let want = usdc_amt * math64::pow(10, 8 - 6);
-        open_trove<USDC>(&account1, 10000);
+        let coin_amt = 10000;
+        let want_for_dec10 = coin_amt / math64::pow(10, 10 - 8);
+        open_trove<CoinDec10>(&account1, 10000);
         assert!(comparator::is_equal(&comparator::compare(
             &usdz::balance_of(account1_addr),
-            &want
+            &want_for_dec10
         )), 0);
-        assert!(coin::balance<USDC>(account1_addr) == 0, 0);
-        // add more USDC
-        managed_coin::mint<USDC>(&owner, account1_addr, 10000);
-        open_trove<USDC>(&account1, 10000);
+        assert!(coin::balance<CoinDec10>(account1_addr) == 0, 0);
+        // add more
+        managed_coin::mint<CoinDec10>(&owner, account1_addr, 10000);
+        open_trove<CoinDec10>(&account1, 10000);
         assert!(comparator::is_equal(&comparator::compare(
             &usdz::balance_of(account1_addr),
-            &(want * 2)
+            &(want_for_dec10 * 2)
         )), 0);
         // add USDT
+        let want_usdt = coin_amt * math64::pow(10, 8 - 8);
         open_trove<USDT>(&account1, 10000);
         assert!(comparator::is_equal(&comparator::compare(
             &usdz::balance_of(account1_addr),
-            &(want * 3)
+            &(want_for_dec10 * 2 + want_usdt)
         )), 0);
     }
     #[test(owner=@leizd_aptos_trove,account=@0x111,aptos_framework=@aptos_framework)]
@@ -329,14 +334,14 @@ module leizd_aptos_trove::trove {
     #[test(owner=@leizd_aptos_trove,aptos_framework=@aptos_framework)]
     fun test_borrowable_usdz(owner: &signer) {
         account::create_account_for_test(signer::address_of(owner));
-        test_coin::init_usdc(owner);
+        test_coin::init_coin_dec_10(owner);
         initialize(owner);
 
-        let usdc_amt = 12345678;
-        let usdc_want = usdc_amt * math64::pow(10, 8 - 6);
+        let coin_amt = 12345678;
+        let coin_want = coin_amt / math64::pow(10, 10 - 8);
         assert!(comparator::is_equal(&comparator::compare(
-            &borrowable_usdz<USDC>(usdc_amt),
-            &usdc_want
+            &borrowable_usdz<CoinDec10>(coin_amt),
+            &coin_want
         )), 0);
     }
     #[test_only]

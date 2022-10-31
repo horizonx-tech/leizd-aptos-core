@@ -21,7 +21,7 @@ module leizd_aptos_common::system_administrator {
         }
     }
     fun activate_pool_internal(key: String, owner: &signer) {
-        permission::assert_owner(signer::address_of(owner));
+        permission::assert_operator(signer::address_of(owner));
         pool_status::update_deposit_status_with(key, true);
         pool_status::update_withdraw_status_with(key, true);
         pool_status::update_borrow_status_with(key, true);
@@ -44,7 +44,7 @@ module leizd_aptos_common::system_administrator {
         }
     }
     fun deactivate_pool_internal(key: String, owner: &signer) {
-        permission::assert_owner(signer::address_of(owner));
+        permission::assert_operator(signer::address_of(owner));
         pool_status::update_deposit_status_with(key, false);
         pool_status::update_withdraw_status_with(key, false);
         pool_status::update_borrow_status_with(key, false);
@@ -67,7 +67,7 @@ module leizd_aptos_common::system_administrator {
         }
     }
     fun freeze_pool_internal(key: String, owner: &signer) {
-        permission::assert_owner(signer::address_of(owner));
+        permission::assert_operator(signer::address_of(owner));
         pool_status::update_deposit_status_with(key, false);
         pool_status::update_borrow_status_with(key, false);
         update_borrow_asset_with_rebalance_status(key, false);
@@ -87,7 +87,7 @@ module leizd_aptos_common::system_administrator {
         }
     }
     public entry fun unfreeze_pool_internal(key: String, owner: &signer) {
-        permission::assert_owner(signer::address_of(owner));
+        permission::assert_operator(signer::address_of(owner));
         pool_status::update_deposit_status_with(key, true);
         pool_status::update_borrow_status_with(key, true);
         update_borrow_asset_with_rebalance_status(key, true);
@@ -95,11 +95,11 @@ module leizd_aptos_common::system_administrator {
     }
 
     public entry fun enable_borrow_asset_with_rebalance<C>(owner: &signer) {
-        permission::assert_owner(signer::address_of(owner));
+        permission::assert_operator(signer::address_of(owner));
         update_borrow_asset_with_rebalance_status(key<C>(), true);
     }
     public entry fun enable_borrow_asset_with_rebalance_for_all_pool(owner: &signer) {
-        permission::assert_owner(signer::address_of(owner));
+        permission::assert_operator(signer::address_of(owner));
         let assets = pool_status::managed_assets();
         let i = 0;
         while (i < vector::length(&assets)) {
@@ -109,11 +109,11 @@ module leizd_aptos_common::system_administrator {
         }
     }
     public entry fun disable_borrow_asset_with_rebalance<C>(owner: &signer) {
-        permission::assert_owner(signer::address_of(owner));
+        permission::assert_operator(signer::address_of(owner));
         update_borrow_asset_with_rebalance_status(key<C>(), false);
     }
     public entry fun disable_borrow_asset_with_rebalance_for_all_pool(owner: &signer) {
-        permission::assert_owner(signer::address_of(owner));
+        permission::assert_operator(signer::address_of(owner));
         let assets = pool_status::managed_assets();
         let i = 0;
         while (i < vector::length(&assets)) {
@@ -127,20 +127,20 @@ module leizd_aptos_common::system_administrator {
     }
 
     public entry fun enable_repay_shadow_evenly(owner: &signer) {
-        permission::assert_owner(signer::address_of(owner));
+        permission::assert_operator(signer::address_of(owner));
         pool_status::update_repay_shadow_evenly_status(true);
     }
     public entry fun disable_repay_shadow_evenly(owner: &signer) {
-        permission::assert_owner(signer::address_of(owner));
+        permission::assert_operator(signer::address_of(owner));
         pool_status::update_repay_shadow_evenly_status(false);
     }
 
     public entry fun enable_liquidate<C>(owner: &signer) {
-        permission::assert_owner(signer::address_of(owner));
+        permission::assert_operator(signer::address_of(owner));
         update_liquidate_status(key<C>(), true);
     }
     public entry fun enable_liquidate_for_all_pool(owner: &signer) {
-        permission::assert_owner(signer::address_of(owner));
+        permission::assert_operator(signer::address_of(owner));
         let assets = pool_status::managed_assets();
         let i = 0;
         while (i < vector::length(&assets)) {
@@ -150,11 +150,11 @@ module leizd_aptos_common::system_administrator {
         }
     }
     public entry fun disable_liquidate<C>(owner: &signer) {
-        permission::assert_owner(signer::address_of(owner));
+        permission::assert_operator(signer::address_of(owner));
         update_liquidate_status(key<C>(), false);
     }
     public entry fun disable_liquidate_for_all_pool(owner: &signer) {
-        permission::assert_owner(signer::address_of(owner));
+        permission::assert_operator(signer::address_of(owner));
         let assets = pool_status::managed_assets();
         let i = 0;
         while (i < vector::length(&assets)) {
@@ -187,6 +187,7 @@ module leizd_aptos_common::system_administrator {
         system_status::initialize(owner);
         pool_status::initialize(owner);
         pool_status::initialize_for_asset_for_test<WETH>(owner);
+        permission::initialize(owner);
     }
     #[test(owner = @leizd_aptos_common)]
     fun test_operate_pool_to_deactivate(owner: &signer) {
@@ -480,98 +481,112 @@ module leizd_aptos_common::system_administrator {
             i = i + 1;
         };
     }
-    #[test(account = @0x111)]
-    #[expected_failure(abort_code = 65537)]
-    fun test_operate_pool_to_activate_without_owner(account: &signer) {
+    #[test(owner = @leizd_aptos_common, account = @0x111)]
+    #[expected_failure(abort_code = 65539)]
+    fun test_operate_pool_to_activate_without_operator(owner: &signer, account: &signer) {
+        permission::initialize(owner);
         activate_pool<WETH>(account);
     }
     #[test(owner = @leizd_aptos_common, account = @0x111)]
-    #[expected_failure(abort_code = 65537)]
-    fun test_activate_all_pool_without_owner(owner: &signer, account: &signer) {
+    #[expected_failure(abort_code = 65539)]
+    fun test_activate_all_pool_without_operator(owner: &signer, account: &signer) {
         prepare_for_test(owner);
         activate_all_pool(account);
     }
-    #[test(account = @0x111)]
-    #[expected_failure(abort_code = 65537)]
-    fun test_operate_pool_to_deactivate_without_owner(account: &signer) {
+    #[test(owner = @leizd_aptos_common, account = @0x111)]
+    #[expected_failure(abort_code = 65539)]
+    fun test_operate_pool_to_deactivate_without_operator(owner: &signer, account: &signer) {
+        permission::initialize(owner);
         deactivate_pool<WETH>(account);
     }
     #[test(owner = @leizd_aptos_common, account = @0x111)]
-    #[expected_failure(abort_code = 65537)]
-    fun test_deactivate_all_pool_without_owner(owner: &signer, account: &signer) {
+    #[expected_failure(abort_code = 65539)]
+    fun test_deactivate_all_pool_without_operator(owner: &signer, account: &signer) {
         prepare_for_test(owner);
         deactivate_all_pool(account);
     }
-    #[test(account = @0x111)]
-    #[expected_failure(abort_code = 65537)]
-    fun test_operate_pool_to_freeze_without_owner(account: &signer) {
+    #[test(owner = @leizd_aptos_common, account = @0x111)]
+    #[expected_failure(abort_code = 65539)]
+    fun test_operate_pool_to_freeze_without_operator(owner: &signer, account: &signer) {
+        permission::initialize(owner);
         freeze_pool<WETH>(account);
     }
     #[test(owner = @leizd_aptos_common, account = @0x111)]
-    #[expected_failure(abort_code = 65537)]
-    fun test_freeze_all_pool_without_owner(owner: &signer, account: &signer) {
+    #[expected_failure(abort_code = 65539)]
+    fun test_freeze_all_pool_without_operator(owner: &signer, account: &signer) {
         prepare_for_test(owner);
         freeze_all_pool(account);
     }
-    #[test(account = @0x111)]
-    #[expected_failure(abort_code = 65537)]
-    fun test_operate_pool_to_unfreeze_without_owner(account: &signer) {
+    #[test(owner = @leizd_aptos_common, account = @0x111)]
+    #[expected_failure(abort_code = 65539)]
+    fun test_operate_pool_to_unfreeze_without_operator(owner: &signer, account: &signer) {
+        permission::initialize(owner);
         unfreeze_pool<WETH>(account);
     }
     #[test(owner = @leizd_aptos_common, account = @0x111)]
-    #[expected_failure(abort_code = 65537)]
-    fun test_unfreeze_all_pool_without_owner(owner: &signer, account: &signer) {
+    #[expected_failure(abort_code = 65539)]
+    fun test_unfreeze_all_pool_without_operator(owner: &signer, account: &signer) {
         prepare_for_test(owner);
         unfreeze_all_pool(account);
     }
-    #[test(account = @0x111)]
-    #[expected_failure(abort_code = 65537)]
-    fun test_disable_borrow_asset_with_rebalance_without_owner(account: &signer) {
+    #[test(owner = @leizd_aptos_common, account = @0x111)]
+    #[expected_failure(abort_code = 65539)]
+    fun test_disable_borrow_asset_with_rebalance_without_operator(owner: &signer, account: &signer) {
+        permission::initialize(owner);
         disable_borrow_asset_with_rebalance<WETH>(account);
     }
-    #[test(account = @0x111)]
-    #[expected_failure(abort_code = 65537)]
-    fun test_disable_borrow_asset_with_rebalance_for_all_pool_without_owner(account: &signer) {
+    #[test(owner = @leizd_aptos_common, account = @0x111)]
+    #[expected_failure(abort_code = 65539)]
+    fun test_disable_borrow_asset_with_rebalance_for_all_pool_without_operator(owner: &signer, account: &signer) {
+        permission::initialize(owner);
         disable_borrow_asset_with_rebalance_for_all_pool(account);
     }
-    #[test(account = @0x111)]
-    #[expected_failure(abort_code = 65537)]
-    fun test_enable_borrow_asset_with_rebalance_without_owner(account: &signer) {
+    #[test(owner = @leizd_aptos_common,account = @0x111)]
+    #[expected_failure(abort_code = 65539)]
+    fun test_enable_borrow_asset_with_rebalance_without_operator(owner: &signer, account: &signer) {
+        permission::initialize(owner);
         enable_borrow_asset_with_rebalance<WETH>(account);
     }
-    #[test(account = @0x111)]
-    #[expected_failure(abort_code = 65537)]
-    fun test_enable_borrow_asset_with_rebalance_for_all_pool_without_owner(account: &signer) {
+    #[test(owner = @leizd_aptos_common,account = @0x111)]
+    #[expected_failure(abort_code = 65539)]
+    fun test_enable_borrow_asset_with_rebalance_for_all_pool_without_operator(owner: &signer, account: &signer) {
+        permission::initialize(owner);
         enable_borrow_asset_with_rebalance_for_all_pool(account);
     }
-    #[test(account = @0x111)]
-    #[expected_failure(abort_code = 65537)]
-    fun test_disable_repay_shadow_evenly_without_owner(account: &signer) {
+    #[test(owner = @leizd_aptos_common,account = @0x111)]
+    #[expected_failure(abort_code = 65539)]
+    fun test_disable_repay_shadow_evenly_without_operator(owner: &signer, account: &signer) {
+        permission::initialize(owner);
         disable_repay_shadow_evenly(account);
     }
-    #[test(account = @0x111)]
-    #[expected_failure(abort_code = 65537)]
-    fun test_enable_repay_shadow_evenly_without_owner(account: &signer) {
+    #[test(owner = @leizd_aptos_common,account = @0x111)]
+    #[expected_failure(abort_code = 65539)]
+    fun test_enable_repay_shadow_evenly_without_operator(owner: &signer, account: &signer) {
+        permission::initialize(owner);
         enable_repay_shadow_evenly(account);
     }
-    #[test(account = @0x111)]
-    #[expected_failure(abort_code = 65537)]
-    fun test_disable_liquidate_without_owner(account: &signer) {
+    #[test(owner = @leizd_aptos_common,account = @0x111)]
+    #[expected_failure(abort_code = 65539)]
+    fun test_disable_liquidate_without_operator(owner: &signer, account: &signer) {
+        permission::initialize(owner);
         disable_liquidate<WETH>(account);
     }
-    #[test(account = @0x111)]
-    #[expected_failure(abort_code = 65537)]
-    fun test_enable_liquidate_for_all_pool_without_owner(account: &signer) {
+    #[test(owner = @leizd_aptos_common,account = @0x111)]
+    #[expected_failure(abort_code = 65539)]
+    fun test_enable_liquidate_for_all_pool_without_operator(owner: &signer, account: &signer) {
+        permission::initialize(owner);
         enable_liquidate_for_all_pool(account);
     }
-    #[test(account = @0x111)]
-    #[expected_failure(abort_code = 65537)]
-    fun test_enable_liquidate_without_owner(account: &signer) {
+    #[test(owner = @leizd_aptos_common,account = @0x111)]
+    #[expected_failure(abort_code = 65539)]
+    fun test_enable_liquidate_without_operator(owner: &signer, account: &signer) {
+        permission::initialize(owner);
         enable_liquidate<WETH>(account);
     }
-    #[test(account = @0x111)]
-    #[expected_failure(abort_code = 65537)]
-    fun test_disable_liquidate_for_all_pool_without_owner(account: &signer) {
+    #[test(owner = @leizd_aptos_common,account = @0x111)]
+    #[expected_failure(abort_code = 65539)]
+    fun test_disable_liquidate_for_all_pool_without_operator(owner: &signer, account: &signer) {
+        permission::initialize(owner);
         disable_liquidate_for_all_pool(account);
     }
     #[test(owner = @leizd_aptos_common)]

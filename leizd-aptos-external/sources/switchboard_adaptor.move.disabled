@@ -1,3 +1,6 @@
+// https://switchboard.xyz/
+// https://docs.switchboard.xyz/aptos/feeds
+// https://github.com/switchboard-xyz/sbv2-aptos
 module leizd_aptos_external::switchboard_adaptor {
     use std::error;
     use std::signer;
