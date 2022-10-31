@@ -515,6 +515,20 @@ module leizd_aptos_trove::trove {
             &usdz::balance_of(account1_addr),
             &0
         )), 0);
+        let trove = borrow_global<Trove>(account1_addr);
+        assert!(comparator::is_equal(&comparator::compare(
+            &trove.borrowed,
+            &0
+        )), 0);
+        let amount = simple_map::borrow<String, Position>(&trove.amounts, &key_of<USDC>());
+        assert!(comparator::is_equal(&comparator::compare(
+            &amount.borrowed,
+            &0
+        )), 0);
+        assert!(comparator::is_equal(&comparator::compare(
+            &amount.deposited,
+            &0
+        )), 0);
     }
 
     //#[test(owner=@leizd_aptos_trove,account1=@0x111,aptos_framework=@aptos_framework)]
