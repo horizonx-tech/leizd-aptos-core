@@ -1339,15 +1339,15 @@ module leizd::account_position {
         // execute
         let deposit_amount = (price_oracle::volume(&weth_key, 10000) as u64); // = the worht of 10000 WETH
         let borrow_amount = 8999;
-        deposit_internal<Shadow>(key<WETH>(), account, account_addr, deposit_amount, false);
-        borrow_internal<Asset>(key<WETH>(), account, account_addr, borrow_amount);
+        deposit_internal<Shadow>(weth_key, account, account_addr, deposit_amount, false);
+        borrow_internal<Asset>(weth_key, account, account_addr, borrow_amount);
         assert!(deposited_shadow_share<WETH>(account_addr) == deposit_amount, 0);
         assert!(deposited_volume<ShadowToAsset>(account_addr, weth_key) == price_oracle::volume(&usdz_key, (deposit_amount as u128)), 0);
         assert!(borrowed_asset_share<WETH>(account_addr) == borrow_amount, 0);
         assert!(borrowed_volume<ShadowToAsset>(account_addr, weth_key) == price_oracle::volume(&weth_key, (borrow_amount as u128)), 0);
 
         //// calculate
-        let utilization = utilization_of<ShadowToAsset>(borrow_global<Position<ShadowToAsset>>(account_addr), key<WETH>());
+        let utilization = utilization_of<ShadowToAsset>(borrow_global<Position<ShadowToAsset>>(account_addr), weth_key);
         let lt_volume = (deposit_amount * 95 / 100 as u128);
         let borrwed_volume = price_oracle::volume(&weth_key, (borrow_amount as u128));
         assert!(lt - utilization == (lt_volume - borrwed_volume as u64) * risk_factor::precision() / deposit_amount + 1, 0); // TODO: check "+1" is needed?
@@ -1368,8 +1368,8 @@ module leizd::account_position {
         let deposit_amount = 10000;
         let deposited_volume = price_oracle::volume(&weth_key, (deposit_amount as u128));
         let borrow_amount = (deposited_volume * 70 / 100 - 1); // 70%(LTV) - 1
-        deposit_internal<Asset>(key<WETH>(), account, account_addr, deposit_amount, false);
-        borrow_internal<Shadow>(key<WETH>(), account, account_addr, (borrow_amount as u64));
+        deposit_internal<Asset>(weth_key, account, account_addr, deposit_amount, false);
+        borrow_internal<Shadow>(weth_key, account, account_addr, (borrow_amount as u64));
         assert!(deposited_asset_share<WETH>(account_addr) == deposit_amount, 0);
         assert!(deposited_volume<AssetToShadow>(account_addr, weth_key) == deposited_volume, 0);
         assert!(borrowed_shadow_share<WETH>(account_addr) == (borrow_amount as u64), 0);
@@ -1409,9 +1409,9 @@ module leizd::account_position {
         assert!(ltv == risk_factor::precision() * 70 / 100, 0); // 70%
 
         // execute
-        deposit_internal<Asset>(key<WETH>(), account, account_addr, 10000, false);
+        deposit_internal<Asset>(weth_key, account, account_addr, 10000, false);
         let borrowing_amount = (price_oracle::volume(&weth_key, 10000) * 70 / 100 as u64);
-        borrow_internal<Shadow>(key<WETH>(), account, account_addr, borrowing_amount);
+        borrow_internal<Shadow>(weth_key, account, account_addr, borrowing_amount);
     }
 
     // repay
@@ -1453,13 +1453,12 @@ module leizd::account_position {
         deposit_internal<Shadow>(weth_key, account, account_addr, deposit_amount, false);
         borrow_internal<Asset>(weth_key, account, account_addr, borrow_amount);
         repay_internal<Asset>(weth_key, account_addr, borrow_amount);
-        let weth_key = weth_key;
         assert!(deposited_shadow_share<WETH>(account_addr) == deposit_amount, 0);
         assert!(deposited_volume<ShadowToAsset>(account_addr, weth_key) == (deposit_amount as u128), 0);
         assert!(borrowed_asset_share<WETH>(account_addr) == 0, 0);
         assert!(borrowed_volume<ShadowToAsset>(account_addr, weth_key) == 0, 0);
         //// calculate
-        assert!(utilization_of<ShadowToAsset>(borrow_global<Position<ShadowToAsset>>(account_addr), key<WETH>()) == 0, 0);
+        assert!(utilization_of<ShadowToAsset>(borrow_global<Position<ShadowToAsset>>(account_addr), weth_key) == 0, 0);
     }
     #[test(owner=@leizd,account=@0x111)]
     public entry fun test_repay_all_asset(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
@@ -1488,7 +1487,7 @@ module leizd::account_position {
         assert!(borrowed_asset_share<WETH>(account_addr) == 0, 0);
         assert!(borrowed_volume<ShadowToAsset>(account_addr, weth_key) == 0, 0);
         //// calculate
-        assert!(utilization_of<ShadowToAsset>(borrow_global<Position<ShadowToAsset>>(account_addr), key<WETH>()) == 0, 0);
+        assert!(utilization_of<ShadowToAsset>(borrow_global<Position<ShadowToAsset>>(account_addr), weth_key) == 0, 0);
     }
     #[test(owner=@leizd,account=@0x111)]
     public entry fun test_repay_shadow(owner: &signer, account: &signer) acquires Position, AccountPositionEventHandle, GlobalPositionEventHandle {
@@ -1503,9 +1502,9 @@ module leizd::account_position {
         assert!(lt == risk_factor::precision() * 85 / 100, 0); // 85%
 
         // execute
-        deposit_internal<Asset>(key<WETH>(), account, account_addr, 10000, false);
-        borrow_internal<Shadow>(key<WETH>(), account, account_addr, 6999);
-        repay_internal<Shadow>(key<WETH>(), account_addr, 6999);
+        deposit_internal<Asset>(weth_key, account, account_addr, 10000, false);
+        borrow_internal<Shadow>(weth_key, account, account_addr, 6999);
+        repay_internal<Shadow>(weth_key, account_addr, 6999);
         assert!(deposited_asset_share<WETH>(account_addr) == 10000, 0);
         assert!(deposited_volume<AssetToShadow>(account_addr, weth_key) == price_oracle::volume(&weth_key, 10000), 0);
         assert!(borrowed_shadow_share<WETH>(account_addr) == 0, 0);
@@ -1526,9 +1525,9 @@ module leizd::account_position {
         assert!(lt == risk_factor::precision() * 70 / 100, 0); // 70%
 
         // execute
-        deposit_internal<Asset>(key<WETH>(), account, account_addr, 10000, false);
-        borrow_internal<Shadow>(key<WETH>(), account, account_addr, 1999);
-        borrow_internal<Shadow>(key<WETH>(), account, account_addr, 5000);
+        deposit_internal<Asset>(weth_key, account, account_addr, 10000, false);
+        borrow_internal<Shadow>(weth_key, account, account_addr, 1999);
+        borrow_internal<Shadow>(weth_key, account, account_addr, 5000);
         let share = repay_all_internal<WETH,Shadow>(account_addr);
         let depostied_volume = price_oracle::volume(&weth_key, 10000);
         assert!(share == 6999, 0);
