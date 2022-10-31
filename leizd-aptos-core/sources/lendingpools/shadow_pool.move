@@ -3843,11 +3843,11 @@ module leizd::shadow_pool {
         // support_fee: 121079707 (10%)
         let deficiency_amount = 121079707 - (1 * dec8);
 
-        assert!(total_liquidity() == (1 * dec8 as u128), 0);
+        assert!(total_liquidity() == ((1 * dec8 - deficiency_amount) as u128), 0);
         assert!(borrowed_amount<WETH>() == ((2999 * dec8) + 1210797066 + deficiency_amount as u128), 0);
-        assert!(central_liquidity_pool::left() == ((5000 + 1) * dec8 as u128), 0);
-        assert!(central_liquidity_pool::total_deposited() == ((5000 + 1) * dec8 + deficiency_amount as u128), 0);
-        assert!(central_liquidity_pool::borrowed(key<WETH>()) == (deficiency_amount as u128), 0);
+        assert!(central_liquidity_pool::left() == ((5000 * dec8 + 121079707) as u128), 0);
+        assert!(central_liquidity_pool::total_deposited() == ((5000 * dec8 + 121079707) as u128), 0);
+        assert!(central_liquidity_pool::borrowed(key<WETH>()) == 0, 0);
     }
 
     #[test(owner=@leizd,depositor=@0x111,borrower1=@0x222,aptos_framework=@aptos_framework)]
@@ -3889,10 +3889,10 @@ module leizd::shadow_pool {
         // accrued interest: 1212474300
         // support_fee: 121247430 (10%)
         let deficiency_amount = 121247430;
-        assert!(total_liquidity() == (1 * dec8 as u128), 0);
+        assert!(total_liquidity() == 0, 0);
         assert!(borrowed_amount<WETH>() == ((3000 * dec8) + 1212474300 + deficiency_amount as u128), 0);
-        assert!(central_liquidity_pool::left() == (5000 * dec8 as u128), 0);
+        assert!(central_liquidity_pool::left() == ((5000 + 1) * dec8 as u128), 0); // NOTE: (1 * dec8) is repayed by deposit
         assert!(central_liquidity_pool::total_deposited() == (5000 * dec8 + deficiency_amount as u128), 0);
-        assert!(central_liquidity_pool::borrowed(key<WETH>()) == (deficiency_amount as u128), 0);
+        assert!(central_liquidity_pool::borrowed(key<WETH>()) == ((deficiency_amount - 1 * dec8) as u128), 0); // NOTE: (1 * dec8) is repayed by deposit
     }
 }
