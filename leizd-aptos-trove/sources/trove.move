@@ -201,18 +201,30 @@ module leizd_aptos_trove::trove {
         coin_key::key<C>()
     }
 
-    public fun redeem<C>(account: &signer, target_account: address, amount: u64) acquires Trove, Vault {
-        redeem_internal<C>(account, target_account, amount)
+    public fun redeem<C>(account: &signer, target_accounts: vector<address>, amount: u64) acquires Trove, Vault {
+        redeem_internal<C>(account, target_accounts, amount)
     }
 
-    fun redeem_internal<C>(account: &signer, target_account: address, amount: u64) acquires Trove, Vault {
-        assert!(trove_amount<C>(target_account) >= amount, 0);
-        let usdz_amount = current_amount_in_usdz(amount, key_of<C>());
-        usdz::burn(account, usdz_amount);
-        let vault = borrow_global_mut<Vault<C>>(permission::owner_address());
-        let deposited = coin::extract(&mut vault.coin, amount);
-        coin::deposit<C>(signer::address_of(account), deposited);
-        decrease_trove_amount(target_account, key_of<C>(), amount, usdz_amount)
+    fun redeem_internal<C>(account: &signer, target_accounts: vector<address>, amount: u64) acquires Trove, Vault {
+        let redeemed = 0;
+        let i = 0;
+        while (i < vector::length(&target_accounts)){
+            let target_account = vector::borrow<address>(&target_accounts, i);
+            let target_amount = trove_amount<C>(*target_account);
+            if (amount < redeemed + target_amount) {
+                target_amount = amount - redeemed;
+            };
+            let usdz_amount = current_amount_in_usdz(target_amount, key_of<C>());
+            usdz::burn(account, usdz_amount);
+            let vault = borrow_global_mut<Vault<C>>(permission::owner_address());
+            let deposited = coin::extract(&mut vault.coin, amount);
+            coin::deposit<C>(signer::address_of(account), deposited);
+            decrease_trove_amount(*target_account, key_of<C>(), amount, usdz_amount);
+            redeemed = redeemed + target_amount;
+            if (amount == redeemed) {
+                return
+            }
+        }
     }
 
     fun increase_trove_amount(account: address,key:String, collateral_amount:u64 ,usdz_amount: u64) acquires Trove {
