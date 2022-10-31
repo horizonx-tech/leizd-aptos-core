@@ -1705,7 +1705,7 @@ module leizd::account_position {
         account::create_account_for_test(account_addr);
 
         // execute
-        deposit_internal<Shadow>(key<WETH>(), account, account_addr, 13363700, false);
+        deposit_internal<Shadow>(key<WETH>(), account, account_addr, (price_oracle::volume(&key<WETH>(), 15000) as u64), false);
         borrow_internal<Asset>(key<WETH>(), account, account_addr, 5000);
         repay_internal<Asset>(key<WETH>(), account_addr, 5000);
         borrow_internal<Asset>(key<WETH>(), account, account_addr, 2000);
