@@ -614,6 +614,7 @@ module leizd_aptos_entry::money_market {
         let (value, dec) = price_oracle::price_of(&key<WETH>());
         let dec_u128 = leizd_aptos_lib::math128::pow(10, (dec as u128));
         let borrowable_amount_in_weth = borrowable_amount_in_usd * dec_u128 / value - 1;
+        let entry_fee = (risk_factor::calculate_entry_fee((borrowable_amount_in_weth as u64)) as u128);
 
         // execute
         deposit<WETH, Shadow>(account, 10000, false);
@@ -622,8 +623,8 @@ module leizd_aptos_entry::money_market {
 
         assert!(coin::balance<WETH>(account_addr) == 0, 0);
         assert!(coin::balance<WETH>(for_addr) == (borrowable_amount_in_weth as u64), 0);
-        assert!(asset_pool::total_borrowed_amount<WETH>() == borrowable_amount_in_weth + 1, 0); // NOTE: amount + fee
-        assert!(account_position::borrowed_asset_share<WETH>(account_addr) == (borrowable_amount_in_weth + 1 as u64), 0);
+        assert!(asset_pool::total_borrowed_amount<WETH>() == borrowable_amount_in_weth + entry_fee, 0); // NOTE: amount + fee
+        assert!(account_position::borrowed_asset_share<WETH>(account_addr) == (borrowable_amount_in_weth + entry_fee as u64), 0);
         assert!(account_position::borrowed_asset_share<WETH>(for_addr) == 0, 0);
     }
     #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
@@ -716,15 +717,17 @@ module leizd_aptos_entry::money_market {
         let (value, dec) = price_oracle::price_of(&key<WETH>());
         let dec_u128 = leizd_aptos_lib::math128::pow(10, (dec as u128));
         let borrowable_amount_in_weth = borrowable_amount_in_usd * dec_u128 / value - 1;
+        let entry_fee = (risk_factor::calculate_entry_fee((borrowable_amount_in_weth as u64)) as u128);
 
         // execute
         deposit<WETH, Shadow>(account, 10000, false);
         borrow<WETH, Asset>(account, (borrowable_amount_in_weth as u64));
-        repay<WETH, Asset>(account, (borrowable_amount_in_weth - 1 as u64));
+        assert!(asset_pool::total_borrowed_amount<WETH>() == borrowable_amount_in_weth + entry_fee, 0);
+        repay<WETH, Asset>(account, ((borrowable_amount_in_weth) - 1 as u64));
 
         assert!(coin::balance<WETH>(account_addr) == 1, 0);
-        assert!(asset_pool::total_borrowed_amount<WETH>() == 1 + 1, 0);
-        assert!(account_position::borrowed_asset_share<WETH>(account_addr) == 2, 0);
+        assert!(asset_pool::total_borrowed_amount<WETH>() == entry_fee + 1, 0);
+        assert!(account_position::borrowed_asset_share<WETH>(account_addr) == (entry_fee + 1 as u64), 0);
     }
     #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
     fun test_repay_all_with_shadow(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
