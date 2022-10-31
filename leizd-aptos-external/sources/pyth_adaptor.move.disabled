@@ -1,3 +1,6 @@
+// https://pyth.network/
+// https://docs.pyth.network/consume-data/aptos
+// https://github.com/pyth-network/pyth-crosschain/tree/main/aptos
 module leizd_aptos_external::pyth_adaptor {
     use std::error;
     use std::signer;
