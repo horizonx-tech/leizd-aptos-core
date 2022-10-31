@@ -18,6 +18,7 @@ module leizd_aptos_trove::trove {
     const ENOT_SUPPORTED: u64 = 1;
     const EALREADY_SUPPORTED: u64 = 2;
     const ECR_UNDER_MINIMUM_CR: u64 = 3;
+    const EACCOUNT_NOT_REDEEMABLE: u64 = 4;
     const PRECISION: u64 = 1000000;
     const MINUMUM_COLLATERAL_RATIO: u64 = 110;
 
@@ -115,6 +116,10 @@ module leizd_aptos_trove::trove {
         });
     }
 
+    public fun redeemable(target: address): bool acquires SupportedCoins, Statistics, Trove {
+        collateral_ratio_of(target) <= total_collateral_ratio()
+    }
+
     public fun total_deposited_in_usdz():u64 acquires Statistics {
         let owner_addr = permission::owner_address();
         let deposits = borrow_global<Statistics>(owner_addr).total_deposited;
@@ -201,15 +206,16 @@ module leizd_aptos_trove::trove {
         coin_key::key<C>()
     }
 
-    public fun redeem<C>(account: &signer, target_accounts: vector<address>, amount: u64) acquires Trove, Vault {
+    public fun redeem<C>(account: &signer, target_accounts: vector<address>, amount: u64) acquires Trove, Vault, Statistics, SupportedCoins {
         redeem_internal<C>(account, target_accounts, amount)
     }
 
-    fun redeem_internal<C>(account: &signer, target_accounts: vector<address>, amount: u64) acquires Trove, Vault {
+    fun redeem_internal<C>(account: &signer, target_accounts: vector<address>, amount: u64) acquires Trove, Vault, Statistics, SupportedCoins {
         let redeemed = 0;
         let i = 0;
         while (i < vector::length(&target_accounts)){
             let target_account = vector::borrow<address>(&target_accounts, i);
+            assert!(redeemable(*target_account), EACCOUNT_NOT_REDEEMABLE);
             let target_amount = trove_amount<C>(*target_account);
             if (amount < redeemed + target_amount) {
                 target_amount = amount - redeemed;
