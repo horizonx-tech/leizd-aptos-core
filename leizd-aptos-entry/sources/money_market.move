@@ -1132,6 +1132,7 @@ module leizd_aptos_entry::money_market {
     #[test(owner=@leizd_aptos_entry,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
     fun test_scenario__borrow_asset_with_rebalance_with_larger_numbers(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
         initialize_lending_pool_for_test(owner, aptos_framework);
+        test_initializer::update_price_oracle_with_fixed_one_dollar_for_test(owner);
         setup_account_for_test(depositor);
         setup_account_for_test(borrower);
         let depositor_addr = signer::address_of(depositor);
@@ -1171,6 +1172,9 @@ module leizd_aptos_entry::money_market {
         initialize_lending_pool_for_test(owner, aptos_framework);
         setup_liquidity_provider_for_test(owner, lp);
         setup_account_for_test(account);
+
+        // fix one dollar
+        test_initializer::update_price_oracle_with_fixed_one_dollar_for_test(owner);
 
         // prerequisite
         deposit<USDC, Asset>(lp, 500000, false);
