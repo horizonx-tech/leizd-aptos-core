@@ -135,27 +135,34 @@ module leizd_aptos_trove::trove {
     }
 
     public fun collateral_ratio_of(account: address): u64 acquires Trove, SupportedCoins {
-        collateral_ratio_of_with(string::utf8(b""), 0, 0, account)
+        collateral_ratio_of_with(string::utf8(b""), 0, 0, false, account)
     }
 
-    fun collateral_ratio_of_with(key: String, additional_deposited: u64, additional_borrowed: u64, account: address): u64 acquires Trove, SupportedCoins {
+    fun collateral_ratio_of_with(key: String, additional_deposited: u64, additional_borrowed: u64, neg: bool, account: address): u64 acquires Trove, SupportedCoins {
         let coins = borrow_global<SupportedCoins>(permission::owner_address()).coins;
         let total_deposited = 0;
-        if (!string::is_empty(&key)) {
-            total_deposited = total_deposited + current_amount_in_usdz(additional_deposited, key);
-        };
         let i = 0;
         while (i < vector::length(&coins)) {
             let coin_key = *vector::borrow<String>(&coins, i);
              total_deposited = total_deposited + current_amount_in_usdz(trove_amount_of(account, coin_key), coin_key);
              i = i + 1
         };
-        let borrowed = borrow_global<Trove>(account).borrowed + additional_borrowed;
+        if (string::is_empty(&key)) {
+            return collateral_ratio(total_deposited, borrow_global<Trove>(account).borrowed)
+        };
+        let borrowed = borrow_global<Trove>(account).borrowed;
+        if (neg) {
+            total_deposited = total_deposited - current_amount_in_usdz(additional_deposited, key);
+            borrowed = borrowed - additional_borrowed;
+        } else {
+            total_deposited = total_deposited + current_amount_in_usdz(additional_deposited, key);
+            borrowed = borrowed + additional_borrowed;
+        };
         collateral_ratio(total_deposited, borrowed)
     }
 
-    public fun collateral_ratio_after_open_trove(key: String, amount: u64, usdz_amount: u64, account: address): u64 acquires Trove, SupportedCoins {
-        collateral_ratio_of_with(key, amount, usdz_amount, account)
+    public fun collateral_ratio_after_update_trove(key: String, amount: u64, usdz_amount: u64, neg: bool, account: address): u64 acquires Trove, SupportedCoins {
+        collateral_ratio_of_with(key, amount, usdz_amount, neg, account)
     }
 
     fun collateral_ratio(deposited: u64, borrowed: u64): u64 {
@@ -239,15 +246,19 @@ module leizd_aptos_trove::trove {
 
     fun validate_open_trove<C>(amount: u64, usdz_amount: u64, account: address) acquires SupportedCoins, Trove {
         validate_internal<C>();
-        require_cr_above_minimum_cr(key_of<C>(), amount, usdz_amount, account)
+        require_cr_above_minimum_cr(key_of<C>(), amount, usdz_amount, false, account)
     }
 
-    fun require_cr_above_minimum_cr(key: String, amount: u64, usdz_amount:u64, account: address) acquires SupportedCoins, Trove {
-        assert!(collateral_ratio_after_open_trove(key, amount, usdz_amount, account) > minimum_collateral_ratio(), ECR_UNDER_MINIMUM_CR)
+    fun require_cr_above_minimum_cr(key: String, amount: u64, usdz_amount:u64, neg: bool, account: address) acquires SupportedCoins, Trove {
+        assert!(collateral_ratio_after_update_trove(key, amount, usdz_amount, neg, account) > minimum_collateral_ratio(), ECR_UNDER_MINIMUM_CR)
     }
 
-    fun validate_close_trove<C>() acquires SupportedCoins {
-        validate_internal<C>()
+    fun validate_close_trove<C>(_account: address) acquires SupportedCoins {
+        validate_internal<C>();
+        // TODO: need it ?
+        //let trove = borrow_global<Trove>(account);
+        //let position = simple_map::borrow<String,Position>(&trove.amounts, &key_of<C>());
+        //require_cr_above_minimum_cr(key_of<C>(), position.deposited, position.borrowed, true, account)
     }
 
     fun validate_repay<C>() acquires SupportedCoins {
@@ -313,10 +324,15 @@ module leizd_aptos_trove::trove {
     }
 
     fun close_trove_internal<C>(account: &signer) acquires Trove, TroveEventHandle, Vault, SupportedCoins {
-        validate_close_trove<C>();
         let account_addr = signer::address_of(account);
-        let balance = trove_amount<C>(account_addr);
-        repay_internal<C>(account, balance);
+        validate_close_trove<C>(account_addr);
+        let troves = borrow_global_mut<Trove>(account_addr);
+        let position = simple_map::borrow_mut<String, Position>(&mut troves.amounts, &key_of<C>());
+        usdz::burn(account, position.borrowed);
+        let owner_addr = permission::owner_address();
+        let vault = borrow_global_mut<Vault<C>>(owner_addr);
+        coin::deposit(account_addr, coin::extract(&mut vault.coin, (position.deposited)));
+        decrease_trove_amount(account_addr, key_of<C>(), position.deposited, position.borrowed);
         event::emit_event<CloseTroveEvent>(
             &mut borrow_global_mut<TroveEventHandle<C>>(permission::owner_address()).close_trove_event,
             CloseTroveEvent {
@@ -481,7 +497,37 @@ module leizd_aptos_trove::trove {
             &usdz::balance_of(account1_addr),
             &want
         )), 0);
-    }    
+    }
+
+    #[test(owner=@leizd_aptos_trove,account1=@0x111,aptos_framework=@aptos_framework)]
+    fun test_close_trove(owner: signer, account1: signer) acquires Vault, Trove, TroveEventHandle, Statistics, SupportedCoins {
+        set_up(&owner, &account1);
+        let account1_addr = signer::address_of(&account1);
+        let usdc_amt = 10000;
+        let want = usdc_amt * math64::pow(10, 8 - 6) * 100 / 110;
+        open_trove<USDC>(&account1, 10000, want);
+        close_trove<USDC>(&account1);
+        assert!(comparator::is_equal(&comparator::compare(
+            &coin::balance<USDC>(account1_addr),
+            &usdc_amt
+        )), 0);
+        assert!(comparator::is_equal(&comparator::compare(
+            &usdz::balance_of(account1_addr),
+            &0
+        )), 0);
+    }
+
+    //#[test(owner=@leizd_aptos_trove,account1=@0x111,aptos_framework=@aptos_framework)]
+    //#[expected_failure(abort_code = 3)]
+    //fun test_close_trove_below_min_cr(owner: signer, account1: signer) acquires Vault, Trove, TroveEventHandle, Statistics, SupportedCoins {
+    //    set_up(&owner, &account1);
+    //    let usdc_amt = 10000;
+    //    // over minCR
+    //    let want = usdc_amt * math64::pow(10, 8 - 6) * 110 / 110;
+    //    open_trove<USDT>(&account1, 10000, 0);
+    //    open_trove<USDC>(&account1, 10000, want);
+    //    close_trove<USDC>(&account1);
+    //}
 
     #[test(owner=@leizd_aptos_trove,account=@0x111,aptos_framework=@aptos_framework)]
     #[expected_failure(abort_code = 65537)]
