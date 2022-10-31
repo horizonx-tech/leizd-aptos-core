@@ -3730,7 +3730,7 @@ module leizd::shadow_pool {
         // borrow and support fees will be charged
         timestamp::update_global_time_for_test((initial_sec + 10) * 1000 * 1000); // + 10sec
         borrow_for_internal(key<WETH>(), borrower1_addr, borrower1_addr, 1000 * dec8);
-        // accured interest: 800
+        // accrued interest: 800
         // support_fee: 80 (10%)
         assert!(total_liquidity() == (1000 * dec8 - 80 as u128), 0);
         assert!(borrowed_amount<WETH>() == (2000 * dec8 + 800 as u128), 0);
@@ -3782,7 +3782,7 @@ module leizd::shadow_pool {
         // borrow and support fees will be charged
         timestamp::update_global_time_for_test((initial_sec + 10) * 1000 * 1000); // + 10sec
         borrow_for_internal(key<WETH>(), borrower1_addr, borrower1_addr, 1000 * dec8);
-        // accured interest: 800
+        // accrued interest: 800
         assert!(total_liquidity() == (1000 * dec8 as u128), 0);
         assert!(borrowed_amount<WETH>() == (2000 * dec8 + 800 as u128), 0);
         assert!(central_liquidity_pool::left() == (5000 * dec8 as u128), 0);
