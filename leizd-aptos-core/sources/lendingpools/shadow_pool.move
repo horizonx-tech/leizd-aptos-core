@@ -113,7 +113,6 @@ module leizd::shadow_pool {
         borrow_event: event::EventHandle<BorrowEvent>,
         repay_event: event::EventHandle<RepayEvent>,
         liquidate_event: event::EventHandle<LiquidateEvent>,
-        rebalance_event: event::EventHandle<RebalanceEvent>,
         switch_collateral_event: event::EventHandle<SwitchCollateralEvent>,
     }
 
@@ -142,7 +141,6 @@ module leizd::shadow_pool {
             borrow_event: account::new_event_handle<BorrowEvent>(owner),
             repay_event: account::new_event_handle<RepayEvent>(owner),
             liquidate_event: account::new_event_handle<LiquidateEvent>(owner),
-            rebalance_event: account::new_event_handle<RebalanceEvent>(owner),
             switch_collateral_event: account::new_event_handle<SwitchCollateralEvent>(owner),
         });
     }
