@@ -158,6 +158,7 @@ module leizd_aptos_external::price_oracle {
     public fun price_of(key: &String): (u128, u64) acquires Storage {
         price_internal(key)
     }
+    // NOTE: use u128, u64 because that switchboard's price is u128, pyth's decimals is u64
     fun price_internal(key: &String): (u128, u64) acquires Storage {
         assert!(is_registered(*key), error::invalid_argument(ENOT_REGISTERED));
         let oracle = simple_map::borrow(&borrow_global<Storage>(permission::owner_address()).oracles, key);
