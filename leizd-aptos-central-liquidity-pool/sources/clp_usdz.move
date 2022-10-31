@@ -54,10 +54,10 @@ module leizd_aptos_central_liquidity_pool::clp_usdz {
     }
 
     #[test_only]
-    use leizd_aptos_trove::trove_manager;
+    use leizd_aptos_trove::trove;
     #[test(owner = @leizd_aptos_central_liquidity_pool)]
     fun test_initialize(owner: &signer) {
-        trove_manager::initialize(owner);
+        trove::initialize(owner);
         initialize(owner);
         assert!(coin::is_coin_initialized<LiquidityCentralPoolCollateral>(), 0);
         assert!(coin::name<LiquidityCentralPoolCollateral>() == string::utf8(b"Leizd CLP Collateral USDZ"), 0);
