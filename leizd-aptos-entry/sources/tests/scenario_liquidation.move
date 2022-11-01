@@ -38,9 +38,12 @@ module leizd_aptos_entry::scenario_liquidation {
         liquidate,
         borrow_unsafe_for_test
     };
+    #[test_only]
+    use leizd::test_initializer::update_price_oracle_with_fixed_one_dollar_for_test;
     #[test(owner=@leizd_aptos_entry,lp=@0x111,borrower=@0x222,liquidator=@0x333,aptos_framework=@aptos_framework)]
     fun test_liquidate_with_rebalance(owner: &signer, lp: &signer, borrower: &signer, liquidator: &signer, aptos_framework: &signer) {
         initialize_lending_pool_for_test(owner, aptos_framework);
+        update_price_oracle_with_fixed_one_dollar_for_test(owner);
         setup_liquidity_provider_for_test(owner, lp);
         setup_account_for_test(borrower);
         setup_account_for_test(liquidator);
@@ -84,6 +87,7 @@ module leizd_aptos_entry::scenario_liquidation {
     #[test(owner=@leizd_aptos_entry,lp=@0x111,borrower=@0x222,liquidator=@0x333,aptos_framework=@aptos_framework)]
     fun test_liquidate_with_rebalance_2(owner: &signer, lp: &signer, borrower: &signer, liquidator: &signer, aptos_framework: &signer) {
         initialize_lending_pool_for_test(owner, aptos_framework);
+        update_price_oracle_with_fixed_one_dollar_for_test(owner);
         setup_liquidity_provider_for_test(owner, lp);
         setup_account_for_test(borrower);
         setup_account_for_test(liquidator);
@@ -137,6 +141,7 @@ module leizd_aptos_entry::scenario_liquidation {
     #[test(owner=@leizd_aptos_entry,lp=@0x111,borrower=@0x222,liquidator=@0x333,aptos_framework=@aptos_framework,borrower2=@0x555)]
     fun test_liquidate_with_rebalance_3(owner: &signer, lp: &signer, borrower: &signer, borrower2: &signer, liquidator: &signer, aptos_framework: &signer) {
         initialize_lending_pool_for_test(owner, aptos_framework);
+        update_price_oracle_with_fixed_one_dollar_for_test(owner);
         setup_liquidity_provider_for_test(owner, lp);
         setup_account_for_test(borrower);
         setup_account_for_test(liquidator);
@@ -220,6 +225,7 @@ module leizd_aptos_entry::scenario_liquidation {
     #[test(owner=@leizd_aptos_entry,lp=@0x111,borrower=@0x222,liquidator=@0x333,aptos_framework=@aptos_framework)]
     fun test_liquidate_with_rebalance_4(owner: &signer, lp: &signer, borrower: &signer, liquidator: &signer, aptos_framework: &signer) {
         initialize_lending_pool_for_test(owner, aptos_framework);
+        update_price_oracle_with_fixed_one_dollar_for_test(owner);
         setup_liquidity_provider_for_test(owner, lp);
         setup_account_for_test(borrower);
         setup_account_for_test(liquidator);
@@ -271,6 +277,7 @@ module leizd_aptos_entry::scenario_liquidation {
     #[test(owner=@leizd_aptos_entry,lp=@0x111,borrower=@0x222,liquidator=@0x333,aptos_framework=@aptos_framework)]
     fun test_liquidate_with_rebalance_5(owner: &signer, lp: &signer, borrower: &signer, liquidator: &signer, aptos_framework: &signer) {
         initialize_lending_pool_for_test(owner, aptos_framework);
+        update_price_oracle_with_fixed_one_dollar_for_test(owner);
         setup_liquidity_provider_for_test(owner, lp);
         setup_account_for_test(borrower);
         setup_account_for_test(liquidator);
@@ -324,6 +331,7 @@ module leizd_aptos_entry::scenario_liquidation {
     #[test(owner=@leizd_aptos_entry,lp=@0x111,borrower=@0x222,liquidator=@0x333,aptos_framework=@aptos_framework)]
     fun test_liquidate_with_rebalance_6(owner: &signer, lp: &signer, borrower: &signer, liquidator: &signer, aptos_framework: &signer) {
         initialize_lending_pool_for_test(owner, aptos_framework);
+        update_price_oracle_with_fixed_one_dollar_for_test(owner);
         setup_liquidity_provider_for_test(owner, lp);
         setup_account_for_test(borrower);
         setup_account_for_test(liquidator);
@@ -385,6 +393,7 @@ module leizd_aptos_entry::scenario_liquidation {
     #[test(owner=@leizd_aptos_entry,lp=@0x111,borrower=@0x222,liquidator=@0x333,aptos_framework=@aptos_framework)]
     fun test_liquidate_with_rebalance_7(owner: &signer, lp: &signer, borrower: &signer, liquidator: &signer, aptos_framework: &signer) {
         initialize_lending_pool_for_test(owner, aptos_framework);
+        update_price_oracle_with_fixed_one_dollar_for_test(owner);
         setup_liquidity_provider_for_test(owner, lp);
         setup_account_for_test(borrower);
         setup_account_for_test(liquidator);
@@ -458,6 +467,7 @@ module leizd_aptos_entry::scenario_liquidation {
     #[test(owner=@leizd_aptos_entry,lp=@0x111,borrower=@0x222,liquidator=@0x333,target=@0x444,aptos_framework=@aptos_framework)]
     fun test_liquidate_with_rebalance_8(owner: &signer, lp: &signer, borrower: &signer, liquidator: &signer, target: &signer, aptos_framework: &signer) {
         initialize_lending_pool_for_test(owner, aptos_framework);
+        update_price_oracle_with_fixed_one_dollar_for_test(owner);
         setup_liquidity_provider_for_test(owner, lp);
         setup_account_for_test(borrower);
         setup_account_for_test(liquidator);
@@ -519,6 +529,7 @@ module leizd_aptos_entry::scenario_liquidation {
     #[test(owner=@leizd_aptos_entry,lp=@0x111,borrower=@0x222,liquidator=@0x333,target=@0x444,aptos_framework=@aptos_framework)]
     fun test_liquidate_with_rebalance_9(owner: &signer, lp: &signer, borrower: &signer, liquidator: &signer, target: &signer, aptos_framework: &signer) {
         initialize_lending_pool_for_test(owner, aptos_framework);
+        update_price_oracle_with_fixed_one_dollar_for_test(owner);
         setup_liquidity_provider_for_test(owner, lp);
         setup_account_for_test(borrower);
         setup_account_for_test(liquidator);
