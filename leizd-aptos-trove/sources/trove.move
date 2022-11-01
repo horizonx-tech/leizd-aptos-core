@@ -210,24 +210,26 @@ module leizd_aptos_trove::trove {
         redeem_internal<C>(account, target_accounts, amount)
     }
 
-    fun redeem_internal<C>(account: &signer, target_accounts: vector<address>, amount: u64) acquires Trove, Vault, Statistics, SupportedCoins {
-        let redeemed = 0;
+    fun redeem_internal<C>(account: &signer, target_accounts: vector<address>, usdz_amount: u64) acquires Trove, Vault, Statistics, SupportedCoins {
+        let redeemed_in_collateral_coin = 0;
+        let unredeemed = current_amount_in(usdz_amount, key_of<C>());
         let i = 0;
         while (i < vector::length(&target_accounts)){
             let target_account = vector::borrow<address>(&target_accounts, i);
             assert!(redeemable(*target_account), EACCOUNT_NOT_REDEEMABLE);
             let target_amount = trove_amount<C>(*target_account);
-            if (amount < redeemed + target_amount) {
-                target_amount = amount - redeemed;
+            if (target_amount > redeemed_in_collateral_coin + unredeemed) {
+                target_amount = unredeemed
             };
             let usdz_amount = current_amount_in_usdz(target_amount, key_of<C>());
             usdz::burn(account, usdz_amount);
             let vault = borrow_global_mut<Vault<C>>(permission::owner_address());
-            let deposited = coin::extract(&mut vault.coin, amount);
+            let deposited = coin::extract(&mut vault.coin, target_amount);
             coin::deposit<C>(signer::address_of(account), deposited);
-            decrease_trove_amount(*target_account, key_of<C>(), amount, usdz_amount);
-            redeemed = redeemed + target_amount;
-            if (amount == redeemed) {
+            decrease_trove_amount(*target_account, key_of<C>(), target_amount, usdz_amount);
+            redeemed_in_collateral_coin = redeemed_in_collateral_coin + target_amount;
+            unredeemed = unredeemed - target_amount;
+            if (unredeemed == 0) {
                 return
             }
         }
@@ -318,6 +320,15 @@ module leizd_aptos_trove::trove {
         (numerator / dominator as u64)
     }
 
+    fun current_amount_in(usdz_amount: u64, key: String): u64 {
+        let (price, _decimals) = price_oracle::price_of(&key);
+        let decimals = (_decimals as u128);
+        let decimals_usdz = (coin::decimals<usdz::USDZ>() as u128);
+        let numerator = (usdz_amount as u128) * math128::pow(10, decimals * 2);
+        let dominator = (price * math128::pow(10, decimals_usdz));
+        (numerator / dominator as u64)
+    }
+
     fun open_trove_internal<C>(account: &signer, collateral_amount: u64, amount: u64) acquires Vault, Trove, TroveEventHandle, SupportedCoins {
         let account_addr = signer::address_of(account);
         if (!exists<Trove>(account_addr)) {
@@ -401,6 +412,18 @@ module leizd_aptos_trove::trove {
         initialize_internal(owner);
         add_supported_coin_internal<USDC>(owner);
         add_supported_coin_internal<USDT>(owner);
+    }
+
+    #[test_only]
+    fun set_up_account(owner: &signer, account: &signer) {
+        let account_addr = signer::address_of(account);
+        let amount = 10000;
+        account::create_account_for_test(account_addr);
+        managed_coin::register<USDC>(account);
+        managed_coin::register<USDT>(account);
+        managed_coin::register<usdz::USDZ>(account);
+        managed_coin::mint<USDC>(owner, account_addr, amount);
+        managed_coin::mint<USDT>(owner, account_addr, amount);
     }
 
     #[test_only]
@@ -549,6 +572,15 @@ module leizd_aptos_trove::trove {
         )), 0);
     }
 
+    #[test(owner=@leizd_aptos_trove,account1=@0x111,aptos_framework=@aptos_framework)]
+    fun test_current_amount_in(owner: signer, account1: signer) acquires Statistics, SupportedCoins {
+        set_up(&owner, &account1);
+        assert!(comparator::is_equal(&comparator::compare(
+            &current_amount_in(10000, key_of<USDC>()),
+            &100
+        )), current_amount_in(100, key_of<USDC>()));
+    }
+
     //#[test(owner=@leizd_aptos_trove,account1=@0x111,aptos_framework=@aptos_framework)]
     //#[expected_failure(abort_code = 3)]
     //fun test_close_trove_below_min_cr(owner: signer, account1: signer) acquires Vault, Trove, TroveEventHandle, Statistics, SupportedCoins {
@@ -604,8 +636,31 @@ module leizd_aptos_trove::trove {
    //    repay<USDC>(&account1, 5000);
    //    assert!(coin::balance<USDC>(account1_addr) == 10000, 0);
    //    let trove2 = borrow_global<Trove>(account1_addr);
-// //      assert!(coin::value(&trove2.coin) == 0, 0);
+// //      as   sert!(coin::value(&trove2.coin) == 0, 0);
    //}
+
+    #[test(owner=@leizd_aptos_trove,alice=@0x111,bob=@0x222,carol=@0x333,dave=@0x444,aptos_framework=@aptos_framework)]
+    fun test_redeem(owner: &signer, alice: &signer, bob: &signer, carol: &signer, dave: &signer) acquires Statistics, SupportedCoins, Trove, TroveEventHandle, Vault {
+        set_up(owner, alice);
+        set_up_account(owner, bob);
+        set_up_account(owner, carol);
+        set_up_account(owner, dave);
+        let redeem_amount = 1000;
+        usdz::mint_for_test(signer::address_of(dave), redeem_amount);
+        let usdc_amt = 10000;
+        let mid_borrow = usdc_amt * math64::pow(10, 8 - 6) * 7 / 10;
+        open_trove<USDC>(alice, usdc_amt, mid_borrow);
+        open_trove<USDC>(bob, usdc_amt, mid_borrow + 1);
+        open_trove<USDC>(carol, usdc_amt, mid_borrow - 1);
+        // if redeems 1000 USDZ
+        redeem<USDC>(dave, vector::singleton<address>(signer::address_of(carol)), redeem_amount);
+        assert!(comparator::is_equal(&comparator::compare(
+            &coin::balance<USDC>(signer::address_of(dave)),
+        // then returns 10 USDC
+            &(10000 + 10)
+        )), coin::balance<USDC>(signer::address_of(dave)));
+    }
+
 
     #[test(owner=@leizd_aptos_trove,aptos_framework=@aptos_framework)]
     fun test_current_amount_in_usdz(owner: &signer) {
@@ -621,6 +676,7 @@ module leizd_aptos_trove::trove {
             &usdc_want
         )), 0);
     }
+
     #[test_only]
     struct DummyCoin {}
     #[test(owner=@leizd_aptos_trove,aptos_framework=@aptos_framework)]
