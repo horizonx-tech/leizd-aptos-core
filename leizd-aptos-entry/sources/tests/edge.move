@@ -101,15 +101,14 @@ module leizd_aptos_entry::edge {
         risk_factor::update_config<USDZ>(owner, risk_factor::precision(), risk_factor::precision()); // NOTE: to allow borrowing to the maximum
 
         let borrowable_amount_in_usd = price_oracle::volume(&key<USDZ>(),(max as u128)) * 70 / 100 - 1; // NOTE: minus 1 from amount because HF must be less than LTV
-        let (value, dec) = price_oracle::price_of(&key<WETH>());
-        let dec_u128 = leizd_aptos_lib::math128::pow(10, (dec as u128));
+        let (value, _dec) = price_oracle::price_of(&key<WETH>());
         let borrowable_amount_in_weth = borrowable_amount_in_usd / value;
 
         // execute
         money_market::deposit<WETH, Asset>(account1, max, false);
         money_market::deposit<WETH, Shadow>(account2, max, false);
         money_market::borrow<WETH, Asset>(account2, (borrowable_amount_in_weth as u64));
-        assert!(account_position::borrowed_volume<ShadowToAsset>(account2_addr, key<WETH>()) == borrowable_amount_in_weth * value / dec_u128, 0);
+        assert!(account_position::borrowed_volume<ShadowToAsset>(account2_addr, key<WETH>()) == price_oracle::volume(&key<WETH>(), borrowable_amount_in_weth), 0);
         assert!(coin::balance<WETH>(account2_addr) == (borrowable_amount_in_weth as u64), 0);
     }
     #[test(owner = @leizd_aptos_entry, aptos_framework = @aptos_framework)]
@@ -133,15 +132,13 @@ module leizd_aptos_entry::edge {
 
         let borrowable_amount_in_usd = price_oracle::volume(&key<USDC>(),(max as u128)) * 70 / 100 - 1; // NOTE: minus 1 from amount because HF must be less than LTV
         let (value, _) = price_oracle::price_of(&key<USDC>());
-        let (value_usdz, dec_usdz) = price_oracle::price_of(&key<USDZ>());
-        let dec_usdz_u128 = leizd_aptos_lib::math128::pow(10, (dec_usdz as u128));
         let borrowable_amount_in_usdc = borrowable_amount_in_usd / value;
 
         // execute
         money_market::deposit<USDC, Shadow>(account1, max, false);
         money_market::deposit<USDC, Asset>(account2, max, false);
-        money_market::borrow<USDC, Shadow>(account2, (borrowable_amount_in_usdc as u64)); // NOTE: minus 1 from amount because HF must be less than LTV
-        assert!(account_position::borrowed_volume<AssetToShadow>(account2_addr, key<USDC>()) == borrowable_amount_in_usdc * value_usdz / dec_usdz_u128, 0);
+        money_market::borrow<USDC, Shadow>(account2, (borrowable_amount_in_usdc as u64));
+        assert!(account_position::borrowed_volume<AssetToShadow>(account2_addr, key<USDC>()) == price_oracle::volume(&key<USDZ>(), borrowable_amount_in_usdc), 0);
         assert!(coin::balance<USDZ>(account2_addr) == (borrowable_amount_in_usdc as u64), 0);
     }
     #[test(owner = @leizd_aptos_entry, aptos_framework = @aptos_framework)]
@@ -170,7 +167,7 @@ module leizd_aptos_entry::edge {
         // execute
         money_market::deposit<WETH, Asset>(account1, max, false);
         money_market::deposit<WETH, Shadow>(account2, max, false);
-        money_market::borrow<WETH, Asset>(account2, (borrowable_amount_in_weth as u64)); // NOTE: minus 1 from amount because HF must be less than LT
+        money_market::borrow<WETH, Asset>(account2, (borrowable_amount_in_weth as u64));
         money_market::repay<WETH, Asset>(account2, (borrowable_amount_in_weth as u64));
         assert!(account_position::borrowed_volume<ShadowToAsset>(account2_addr, key<WETH>()) == 0, 0);
         assert!(coin::balance<WETH>(account2_addr) == 0, 0);
