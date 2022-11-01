@@ -10,7 +10,7 @@ module leizd_aptos_lib::fixed_point64 {
     /// decimal.
     struct FixedPoint64 has copy, drop, store { value: u128 }
 
-    ///> TODO: This is a basic constant and should be provided somewhere centrally in the framework.
+    /// This is a basic constant and should be provided somewhere centrally in the framework.
     const MAX_U128: u128 = 340282366920938463463374607431768211455;
 
     /// The denominator provided was zero

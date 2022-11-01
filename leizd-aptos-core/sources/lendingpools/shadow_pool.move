@@ -100,16 +100,6 @@ module leizd::shadow_pool {
         target: address,
     }
 
-    struct RebalanceEvent has store, drop {
-        // caller: address, // TODO: judge use or not use
-        from: String,
-        to: String,
-        amount: u64,
-        is_collateral_only_from: bool,
-        is_collateral_only_to: bool,
-        with_borrow: bool,
-    }
-
     struct SwitchCollateralEvent has store, drop {
         key: String,
         caller: address,
@@ -123,7 +113,6 @@ module leizd::shadow_pool {
         borrow_event: event::EventHandle<BorrowEvent>,
         repay_event: event::EventHandle<RepayEvent>,
         liquidate_event: event::EventHandle<LiquidateEvent>,
-        rebalance_event: event::EventHandle<RebalanceEvent>,
         switch_collateral_event: event::EventHandle<SwitchCollateralEvent>,
     }
 
@@ -152,7 +141,6 @@ module leizd::shadow_pool {
             borrow_event: account::new_event_handle<BorrowEvent>(owner),
             repay_event: account::new_event_handle<RepayEvent>(owner),
             liquidate_event: account::new_event_handle<LiquidateEvent>(owner),
-            rebalance_event: account::new_event_handle<RebalanceEvent>(owner),
             switch_collateral_event: account::new_event_handle<SwitchCollateralEvent>(owner),
         });
     }
