@@ -22,6 +22,7 @@ module leizd_aptos_trove::trove {
     const EACCOUNT_NOT_REDEEMABLE: u64 = 4;
     const PRECISION: u64 = 1000000;
     const MINUMUM_COLLATERAL_RATIO: u64 = 110;
+    const RECOVERY_MODE_COLLATERAL_RATIO: u64 = 150;
 
     struct Trove has key, store {
         amounts: simple_map::SimpleMap<String, Position>,
@@ -169,13 +170,11 @@ module leizd_aptos_trove::trove {
         };
         0
     }
-    
 
     public fun trove_amount<C>(account: address): u64 acquires Trove {
         trove_amount_of(account, coin_key::key<C>())
     }
     
-
     public fun open_trove<C>(account: &signer, amount: u64, usdz_amount: u64) acquires Vault, Trove, TroveEventHandle, SupportedCoins {
         open_trove_internal<C>(account, amount, usdz_amount);
     }
@@ -242,7 +241,6 @@ module leizd_aptos_trove::trove {
         position.borrowed = position.borrowed - usdz_amount;
         trove.borrowed = trove.borrowed - usdz_amount;
     }
-
 
 //    fun requireMaxFeePercentage(_input: RedeemInput){}
     fun requireAfterBootstrapPeriod() {}

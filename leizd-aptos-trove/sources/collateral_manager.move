@@ -5,6 +5,7 @@ module leizd_aptos_trove::collateral_manager {
     use std::vector;
     use std::signer;
     use leizd_aptos_common::permission;
+
     friend leizd_aptos_trove::trove;
 
     struct CoinStatistic has key, store, copy, drop {
@@ -34,7 +35,7 @@ module leizd_aptos_trove::collateral_manager {
         vector::push_back<CoinStatistic>(&mut statistics.total_deposited, CoinStatistic {
             key: key_of<C>(),
             total_deposited: 0,
-        });        
+        });
     }
 
     public fun coin_length():u64 acquires Statistics {

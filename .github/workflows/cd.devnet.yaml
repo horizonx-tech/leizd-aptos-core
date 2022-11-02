@@ -4,6 +4,7 @@ on:
     branches:
       - main
       - dev
+      - feature/usdz
 
 jobs:
   deploy:
@@ -69,7 +70,7 @@ jobs:
           repository: horizonx-tech/leizd-aptos-test
           token: ${{ secrets.PERSONAL_TOKEN }}
           path: leizd-aptos-test
-          ref: dev
+          ref: feature/usdz
 
       - name: push key file to test
         run: sh push_new_key_to_test.sh ${{ github.sha }}
