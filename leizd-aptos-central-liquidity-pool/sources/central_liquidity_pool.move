@@ -737,7 +737,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
     }
     #[test(owner=@leizd_aptos_central_liquidity_pool,account=@0x111)]
     #[expected_failure(abort_code = 65541)]
-    public entry fun test_withdraw_with_amount_is_greater_than_total_deposited(owner: &signer, account: &signer) acquires Balance, CentralLiquidityPool, CentralLiquidityPoolEventHandle {
+    public entry fun test_withdraw_with_amount_is_greater_than_deposited_by_user(owner: &signer, account: &signer) acquires Balance, CentralLiquidityPool, CentralLiquidityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -747,6 +747,22 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
 
         deposit(account, 300000);
         withdraw(account, 300001);
+    }
+    #[test(owner=@leizd_aptos_central_liquidity_pool,account=@0x111)]
+    #[expected_failure(abort_code = 65540)]
+    public entry fun test_withdraw_with_amount_is_greater_than_total_deposited(owner: &signer, account: &signer) acquires Balance, CentralLiquidityPool, CentralLiquidityPoolEventHandle {
+        initialize_for_test_to_use_coin(owner);
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+
+        managed_coin::register<USDZ>(account);
+        usdz::mint_for_test(account_addr, 300000);
+
+        deposit(account, 300000);
+        add_supported_pool<WETH>(owner);
+        let (borrowed, _) = borrow_internal(key<WETH>(), account_addr, 1);
+        coin::deposit(account_addr, borrowed); // post-process
+        withdraw(account, 300000);
     }
     #[test(owner=@leizd_aptos_central_liquidity_pool, account=@0x111)]
     public entry fun test_withdraw_more_than_once_sequentially(owner: &signer, account: &signer) acquires Balance, CentralLiquidityPool, CentralLiquidityPoolEventHandle {
