@@ -264,7 +264,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
             burned_share = math128::to_share_roundup((amount as u128), pool_ref.total_deposited, clp_usdz::supply());
             withdrawn_amount = (amount as u128);
         };
-        assert!((coin::value<USDZ>(&pool_ref.left) as u128) >= withdrawn_amount, error::invalid_argument(EEXCEED_REMAINING_AMOUNT));
+        assert!(withdrawn_amount <= left_internal(pool_ref), error::invalid_argument(EEXCEED_REMAINING_AMOUNT));
         pool_ref.total_deposited = pool_ref.total_deposited - withdrawn_amount;
         coin::deposit(account_addr, coin::extract(&mut pool_ref.left, (withdrawn_amount as u64)));
         clp_usdz::burn(account, (burned_share as u64));
@@ -293,10 +293,10 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
     fun borrow_internal(key: String, addr: address, amount: u64): (coin::Coin<USDZ>,u128) acquires CentralLiquidityPool, Balance, CentralLiquidityPoolEventHandle {
         assert!(is_supported(key), error::invalid_argument(ENOT_SUPPORTED_COIN));
         assert!(amount > 0, error::invalid_argument(EINVALID_AMOUNT));
+        assert!((amount as u128) <= left(), error::invalid_argument(EEXCEED_REMAINING_AMOUNT));
         let owner_address = permission::owner_address();
         let pool_ref = borrow_global_mut<CentralLiquidityPool>(owner_address);
         let balance_ref = borrow_global_mut<Balance>(owner_address);
-        assert!(coin::value<USDZ>(&pool_ref.left) >= amount, error::invalid_argument(EEXCEED_REMAINING_AMOUNT));
 
         let borrowed = simple_map::borrow_mut<String,u128>(&mut balance_ref.borrowed, &key);
         *borrowed = *borrowed + (amount as u128);
@@ -416,7 +416,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         if (harvested_fee == 0) {
             return
         };
-        let liquidity = (coin::value<USDZ>(&pool_ref.left) as u128);
+        let liquidity = left_internal(pool_ref);
         if (harvested_fee > liquidity) {
             harvested_fee = liquidity;
         };
@@ -427,7 +427,10 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
 
     ////// View functions
     public fun left(): u128 acquires CentralLiquidityPool {
-        (coin::value<USDZ>(&borrow_global<CentralLiquidityPool>(permission::owner_address()).left) as u128)
+        left_internal(borrow_global<CentralLiquidityPool>(permission::owner_address()))
+    }
+    fun left_internal(pool: &CentralLiquidityPool): u128 {
+        (coin::value<USDZ>(&pool.left) as u128)
     }
 
     public fun total_deposited(): u128 acquires CentralLiquidityPool {
