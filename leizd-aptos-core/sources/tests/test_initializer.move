@@ -5,7 +5,7 @@ module leizd::test_initializer {
     use leizd_aptos_common::test_coin;
     use leizd_aptos_common::pool_status;
     use leizd_aptos_trove::usdz::{USDZ};
-    use leizd_aptos_trove::trove_manager;
+    use leizd_aptos_trove::trove;
     use leizd_aptos_treasury::treasury;
     use leizd_aptos_external::price_oracle;
     use leizd_aptos_logic::risk_factor;
@@ -17,7 +17,7 @@ module leizd::test_initializer {
         system_status::initialize(owner);
         risk_factor::initialize(owner);
         treasury::initialize(owner);
-        trove_manager::initialize(owner);
+        trove::initialize(owner);
         price_oracle::initialize(owner);
         central_liquidity_pool::initialize(owner);
         interest_rate::initialize(owner);
