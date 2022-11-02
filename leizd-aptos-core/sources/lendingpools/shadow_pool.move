@@ -1143,9 +1143,8 @@ module leizd::shadow_pool {
     fun liquidity_internal(key: String, storage: &Storage): u128 {
         let normal_deposited = normal_deposited_amount_internal(key, storage);
         let borrowed = borrowed_amount_internal(key, storage);
-        let borrowed_from_clp = central_liquidity_pool::borrowed(key);
-        if (normal_deposited > (borrowed - borrowed_from_clp)) {
-            normal_deposited - (borrowed - borrowed_from_clp)
+        if (normal_deposited > borrowed) {
+            normal_deposited - borrowed
         } else {
             0
         }
@@ -3088,6 +3087,55 @@ module leizd::shadow_pool {
 
         deposit_for_internal(key<WETH>(), account, account_addr, 1000, true);
         switch_collateral_internal(key<WETH>(), account_addr, 1001, false);
+    }
+
+    // for view functions
+    #[test(owner=@leizd, account=@0x111, aptos_framework=@aptos_framework)]
+    fun test_liquidity_when_borrow_without_clp(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+
+        let dec8 = math64::pow(10, 8);
+        let billion = math64::pow(10, 9);
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+        managed_coin::register<USDZ>(account);
+        usdz::mint_for_test(account_addr, 50 * billion * dec8);
+
+        deposit_for_internal(key<WETH>(), account, account_addr, 45 * billion * dec8, false);
+        deposit_for_internal(key<WETH>(), account, account_addr, 5 * billion * dec8, true);
+        assert!(liquidity<WETH>() == ((45 * billion * dec8) as u128), 0);
+        withdraw_for_internal(key<WETH>(), account_addr, account_addr, 10 * billion * dec8, false, false, 0);
+        assert!(liquidity<WETH>() == ((35 * billion * dec8) as u128), 0);
+        borrow_for_internal(key<WETH>(), account_addr, account_addr, 20 * billion * dec8);
+        let entry_fee = risk_factor::calculate_entry_fee(20 * billion * dec8);
+        assert!(liquidity<WETH>() == ((15 * billion * dec8 - entry_fee) as u128), 0);
+    }
+    #[test(owner=@leizd, account=@0x111, aptos_framework=@aptos_framework)]
+        fun test_liquidity_when_borrow_from_clp(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+        central_liquidity_pool::add_supported_pool<WETH>(owner);
+
+        let dec8 = math64::pow(10, 8);
+        let billion = math64::pow(10, 9);
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+        managed_coin::register<USDZ>(account);
+        usdz::mint_for_test(account_addr, 100 * billion * dec8);
+
+        deposit_for_internal(key<WETH>(), account, account_addr, 40 * billion * dec8, false);
+        central_liquidity_pool::deposit(account, 60 * billion * dec8);
+        assert!(liquidity<WETH>() == ((40 * billion * dec8) as u128), 0);
+
+        borrow_for_internal(key<WETH>(), account_addr, account_addr, 50 * billion * dec8);
+        let entry_fee = risk_factor::calculate_entry_fee(50 * billion * dec8);
+        assert!(liquidity<WETH>() == 0, 0);
+        assert!(central_liquidity_pool::borrowed(key<WETH>()) == ((10 * billion * dec8 + entry_fee) as u128), 0);
+
+        deposit_for_internal(key<WETH>(), account, account_addr, 25 * billion * dec8, false);
+        assert!(liquidity<WETH>() == ((15 * billion * dec8 - entry_fee) as u128), 0);
+        assert!(central_liquidity_pool::borrowed(key<WETH>()) == 0, 0);
     }
 
     // for common validations
