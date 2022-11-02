@@ -472,7 +472,7 @@ module leizd::shadow_pool {
         let entry_fee = risk_factor::calculate_entry_fee(amount);
         let amount_with_entry_fee = amount + entry_fee;
 
-        let liquidity = liquidity_internal(key, storage_ref);
+        let liquidity = liquidity_internal(key, pool_ref, storage_ref);
 
         // check liquidity
         let total_left = if (central_liquidity_pool::is_supported(key)) liquidity + (central_liquidity_pool::left() as u128) else liquidity;
@@ -671,11 +671,12 @@ module leizd::shadow_pool {
         target_addr: address,
         amount: u64,
         _key: &OperatorKey
-    ): (u64,u64) acquires Storage, PoolEventHandle {
-        let storage_ref = borrow_global_mut<Storage>(permission::owner_address());
+    ): (u64,u64) acquires Pool, Storage, PoolEventHandle {
+        let owner_addr = permission::owner_address();
+        let storage_ref = borrow_global_mut<Storage>(owner_addr);
         let entry_fee = risk_factor::calculate_entry_fee(amount);
         let amount_with_entry_fee = amount + entry_fee;
-        let liquidity = liquidity_internal(key, storage_ref);
+        let liquidity = liquidity_internal(key, borrow_global<Pool>(owner_addr), storage_ref);
         assert!((amount_with_entry_fee as u128) <= liquidity, error::invalid_argument(EEXCEED_BORROWABLE_AMOUNT)); // do not use clp
         let (amount, share) = save_to_storage_for_borrow(key, target_addr, target_addr, amount, entry_fee, storage_ref);
         ((amount as u64), (share as u64))
@@ -1132,19 +1133,26 @@ module leizd::shadow_pool {
         }
     }
 
-    public fun liquidity<C>(): u128 acquires Storage {
+    public fun liquidity<C>(): u128 acquires Pool, Storage {
         liquidity_with(key<C>())
     }
-    public fun liquidity_with(key: String): u128 acquires Storage {
+    public fun liquidity_with(key: String): u128 acquires Pool, Storage {
         let owner_addr = permission::owner_address();
+        let pool_ref = borrow_global<Pool>(owner_addr);
         let storage_ref = borrow_global<Storage>(owner_addr);
-        liquidity_internal(key, storage_ref)
+        liquidity_internal(key, pool_ref, storage_ref)
     }
-    fun liquidity_internal(key: String, storage: &Storage): u128 {
+    fun liquidity_internal(key: String, pool: &Pool, storage: &Storage): u128 {
         let normal_deposited = normal_deposited_amount_internal(key, storage);
         let borrowed = borrowed_amount_internal(key, storage);
         if (normal_deposited > borrowed) {
-            normal_deposited - borrowed
+            let liquidity = normal_deposited - borrowed;
+            let total_liquidity = total_liquidity_internal(pool, storage);
+            if (liquidity > total_liquidity) {
+                total_liquidity
+            } else {
+                liquidity
+            }
         } else {
             0
         }
