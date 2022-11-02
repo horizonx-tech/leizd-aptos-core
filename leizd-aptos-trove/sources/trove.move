@@ -235,10 +235,12 @@ module leizd_aptos_trove::trove {
         if (!neg) {
             position.deposited = position.deposited + collateral_amount;
             position.borrowed = position.borrowed + usdz_amount;
+            trove.borrowed = trove.borrowed + usdz_amount;
             return
         };
         position.deposited = position.deposited - collateral_amount;
         position.borrowed = position.borrowed - usdz_amount;
+        trove.borrowed = trove.borrowed - usdz_amount;
     }
 
 
