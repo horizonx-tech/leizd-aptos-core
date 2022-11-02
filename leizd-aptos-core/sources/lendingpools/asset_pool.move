@@ -661,7 +661,7 @@ module leizd::asset_pool {
             harvested_fee = liquidity;
         };
         asset_storage_ref.harvested_protocol_fees = asset_storage_ref.harvested_protocol_fees + harvested_fee;
-        collect_fee<C>(pool_ref, (harvested_fee as u64));
+        collect_fee<C>(pool_ref, (harvested_fee as u64)); // NOTE: can cast to u64 because liquidity (<= coin::value) <= u64 max
     }
 
     //// Convert

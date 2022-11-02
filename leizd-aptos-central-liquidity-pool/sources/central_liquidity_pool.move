@@ -42,8 +42,8 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         total_deposited: u128,
         total_borrowed: u128,
         supported_pools: vector<String>, // e.g. 0x1::module_name::WBTC
-        protocol_fees: u64,
-        harvested_protocol_fees: u64,
+        protocol_fees: u128,
+        harvested_protocol_fees: u128,
     }
 
     struct Balance has key {
@@ -385,7 +385,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         *borrowed = *borrowed + interest;
         pool_ref.total_borrowed = pool_ref.total_borrowed + interest;
         pool_ref.total_deposited = pool_ref.total_deposited + depositors_share;
-        pool_ref.protocol_fees = pool_ref.protocol_fees + (protocol_fee as u64);
+        pool_ref.protocol_fees = pool_ref.protocol_fees + protocol_fee;
     }
 
     public fun collect_support_fee(
@@ -412,16 +412,16 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
 
     public entry fun harvest_protocol_fees() acquires CentralLiquidityPool {
         let pool_ref = borrow_global_mut<CentralLiquidityPool>(permission::owner_address());
-        let harvested_fee = (pool_ref.protocol_fees - pool_ref.harvested_protocol_fees as u128);
-        if(harvested_fee == 0){
+        let harvested_fee = pool_ref.protocol_fees - pool_ref.harvested_protocol_fees;
+        if (harvested_fee == 0) {
             return
         };
         let liquidity = (coin::value<USDZ>(&pool_ref.left) as u128);
-        if(harvested_fee > liquidity){
+        if (harvested_fee > liquidity) {
             harvested_fee = liquidity;
         };
-        pool_ref.harvested_protocol_fees = pool_ref.harvested_protocol_fees + (harvested_fee as u64);
-        let fee_extracted = coin::extract(&mut pool_ref.left, (harvested_fee as u64));
+        pool_ref.harvested_protocol_fees = pool_ref.harvested_protocol_fees + harvested_fee;
+        let fee_extracted = coin::extract(&mut pool_ref.left, (harvested_fee as u64)); // NOTE: can cast to u64 because liquidity (<= coin::value) <= u64 max
         treasury::collect_fee<USDZ>(fee_extracted);
     }
 
@@ -438,11 +438,11 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         borrow_global<CentralLiquidityPool>(permission::owner_address()).total_borrowed
     }
 
-    public fun protocol_fees(): u64 acquires CentralLiquidityPool {
+    public fun protocol_fees(): u128 acquires CentralLiquidityPool {
         borrow_global<CentralLiquidityPool>(permission::owner_address()).protocol_fees
     }
 
-    public fun harvested_protocol_fees(): u64 acquires CentralLiquidityPool {
+    public fun harvested_protocol_fees(): u128 acquires CentralLiquidityPool {
         borrow_global<CentralLiquidityPool>(permission::owner_address()).harvested_protocol_fees
     }
 
@@ -647,6 +647,22 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         assert!(usdz::balance_of(account_addr) == 0, 0);
         assert!(clp_usdz::balance_of(account_addr) == 1000, 0);
     }
+    #[test(owner=@leizd_aptos_central_liquidity_pool,account=@0x111)]
+    public entry fun test_deposit_with_u64_max(owner: &signer, account: &signer) acquires Balance, CentralLiquidityPool, CentralLiquidityPoolEventHandle {
+        initialize_for_test_to_use_coin(owner);
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+        let max = constant::u64_max();
+
+        managed_coin::register<USDZ>(account);
+        usdz::mint_for_test(account_addr, max);
+
+        deposit(account, max);
+        assert!(left() == (max as u128), 0);
+        assert!(total_deposited() == (max as u128), 0);
+        assert!(usdz::balance_of(account_addr) == 0, 0);
+        assert!(clp_usdz::balance_of(account_addr) == max, 0);
+    }
 
     // for withdraw
     #[test(owner=@leizd_aptos_central_liquidity_pool,account=@0x111)]
@@ -748,6 +764,23 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         withdraw(account, 400);
         assert!(usdz::balance_of(account_addr) == 1000, 0);
         assert!(clp_usdz::balance_of(account_addr) == 0, 0);
+    }
+    #[test(owner=@leizd_aptos_central_liquidity_pool,account=@0x111)]
+    public entry fun test_withdraw_with_u64_max_minus_one(owner: &signer, account: &signer) acquires Balance, CentralLiquidityPool, CentralLiquidityPoolEventHandle {
+        initialize_for_test_to_use_coin(owner);
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+        let max = constant::u64_max();
+
+        managed_coin::register<USDZ>(account);
+        usdz::mint_for_test(account_addr, max);
+
+        deposit(account, max);
+        withdraw(account, max - 1);
+        assert!(left() == 1, 0);
+        assert!(total_deposited() == 1, 0);
+        assert!(usdz::balance_of(account_addr) == max - 1, 0);
+        assert!(clp_usdz::balance_of(account_addr) == 1, 0);
     }
 
     // for borrow

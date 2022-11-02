@@ -972,7 +972,7 @@ module leizd::shadow_pool {
             harvested_fee = liquidity;
         };
         storage_ref.harvested_protocol_fees = storage_ref.harvested_protocol_fees + harvested_fee;
-        collect_fee(pool_ref, (harvested_fee as u64));
+        collect_fee(pool_ref, (harvested_fee as u64)); // NOTE: can cast to u64 because liquidity (<= coin::value) <= u64 max
     }
 
     ////// Convert
