@@ -647,6 +647,22 @@ module leizd_aptos_trove::trove {
         )), coin::balance<USDC>(signer::address_of(dave)));
     }
 
+    #[test(owner=@leizd_aptos_trove,alice=@0x111,bob=@0x222,carol=@0x333,dave=@0x444,aptos_framework=@aptos_framework)]
+    #[expected_failure(abort_code = 4)]
+    fun test_not_redeemable(owner: &signer, alice: &signer, bob: &signer, carol: &signer, dave: &signer) acquires SupportedCoins, Trove, TroveEventHandle, Vault {
+        set_up(owner, alice);
+        set_up_account(owner, bob);
+        set_up_account(owner, carol);
+        set_up_account(owner, dave);
+        let redeem_amount = 1000;
+        usdz::mint_for_test(signer::address_of(dave), redeem_amount);
+        let usdc_amt = 10000;
+        let mid_borrow = usdc_amt * math64::pow(10, 8 - 6) * 7 / 10;
+        open_trove<USDC>(alice, usdc_amt, mid_borrow);
+        open_trove<USDC>(bob, usdc_amt, mid_borrow + 1);
+        open_trove<USDC>(carol, usdc_amt, mid_borrow - 1);
+        redeem<USDC>(dave, vector::singleton<address>(signer::address_of(carol)), redeem_amount);
+    }
 
     #[test(owner=@leizd_aptos_trove,aptos_framework=@aptos_framework)]
     fun test_current_amount_in_usdz(owner: &signer) {
