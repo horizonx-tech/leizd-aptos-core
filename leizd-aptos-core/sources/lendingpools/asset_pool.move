@@ -389,8 +389,8 @@ module leizd::asset_pool {
         accrue_interest(key<C>(), asset_storage_ref);
 
         let fee = risk_factor::calculate_entry_fee(amount);
-        let amount_with_fee = amount + fee;
-        assert!((amount_with_fee as u128) <= liquidity_internal(pool_ref, asset_storage_ref), error::invalid_argument(EINSUFFICIENT_LIQUIDITY));
+        let amount_with_fee = amount + fee; // FIXME: possibility that exceed u64 max
+        assert!(amount_with_fee <= liquidity_internal(pool_ref, asset_storage_ref), error::invalid_argument(EINSUFFICIENT_LIQUIDITY));
 
         collect_fee<C>(pool_ref, fee);
         let borrowed = coin::extract(&mut pool_ref.asset, amount);
@@ -652,16 +652,19 @@ module leizd::asset_pool {
         let owner_addr = permission::owner_address();
         let pool_ref = borrow_global_mut<Pool<C>>(owner_addr);
         let asset_storage_ref = borrow_mut_asset_storage<C>(borrow_global_mut<Storage>(owner_addr));
-        let harvested_fee = asset_storage_ref.protocol_fees - asset_storage_ref.harvested_protocol_fees;
-        if (harvested_fee == 0) {
+        let unharvested_fee = asset_storage_ref.protocol_fees - asset_storage_ref.harvested_protocol_fees;
+        if (unharvested_fee == 0) {
             return
         };
+        let harvested_fee: u64;
         let liquidity = liquidity_internal(pool_ref, asset_storage_ref);
-        if (harvested_fee > liquidity) {
+        if (unharvested_fee > (liquidity as u128)) {
             harvested_fee = liquidity;
+        } else {
+            harvested_fee = (unharvested_fee as u64);
         };
-        asset_storage_ref.harvested_protocol_fees = asset_storage_ref.harvested_protocol_fees + harvested_fee;
-        collect_fee<C>(pool_ref, (harvested_fee as u64));
+        asset_storage_ref.harvested_protocol_fees = asset_storage_ref.harvested_protocol_fees + (harvested_fee as u128);
+        collect_fee<C>(pool_ref, harvested_fee);
     }
 
     //// Convert
@@ -705,14 +708,20 @@ module leizd::asset_pool {
         exists<Pool<C>>(permission::owner_address())
     }
 
-    public fun liquidity<C>(): u128 acquires Pool, Storage {
+    public fun liquidity<C>(): u64 acquires Pool, Storage {
         let owner_addr = permission::owner_address();
         let pool_ref = borrow_global<Pool<C>>(owner_addr);
         let asset_storage_ref = borrow_mut_asset_storage<C>(borrow_global_mut<Storage>(owner_addr));
         liquidity_internal(pool_ref, asset_storage_ref)
     }
-    fun liquidity_internal<C>(pool: &Pool<C>, asset_storage_ref: &AssetStorage): u128 {
-        (coin::value(&pool.asset) as u128) - asset_storage_ref.total_conly_deposited_amount
+    fun liquidity_internal<C>(pool: &Pool<C>, asset_storage_ref: &AssetStorage): u64 {
+        let coin = coin::value(&pool.asset);
+        if ((coin as u128) > asset_storage_ref.total_conly_deposited_amount) {
+            let liquidity = (coin as u128) - asset_storage_ref.total_conly_deposited_amount;
+            (liquidity as u64)
+        } else {
+            0
+        }
     }
 
     public fun total_normal_deposited_amount<C>(): u128 acquires Storage {
@@ -1052,7 +1061,7 @@ module leizd::asset_pool {
         assert!(amount == max, 0);
         assert!(coin::balance<WETH>(account_addr) == 0, 0);
         assert!(total_normal_deposited_amount<WETH>() == (max as u128), 0);
-        assert!(liquidity<WETH>() == (max as u128), 0);
+        assert!(liquidity<WETH>() == max, 0);
     }
 
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
