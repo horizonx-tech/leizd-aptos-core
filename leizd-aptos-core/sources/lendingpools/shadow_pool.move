@@ -475,7 +475,7 @@ module leizd::shadow_pool {
         let liquidity = liquidity_internal(key, storage_ref);
 
         // check liquidity
-        let total_left = if (central_liquidity_pool::is_supported(key)) liquidity + central_liquidity_pool::left() else liquidity;
+        let total_left = if (central_liquidity_pool::is_supported(key)) liquidity + (central_liquidity_pool::left() as u128) else liquidity;
         assert!((amount_with_entry_fee as u128) <= total_left, error::invalid_argument(EEXCEED_BORROWABLE_AMOUNT));
 
         // let asset_storage_ref = simple_map::borrow_mut<String, AssetStorage>(&mut storage_ref.asset_storages, &key);
@@ -2431,15 +2431,15 @@ module leizd::shadow_pool {
         let from_central = 10050 - from_shadow;
         assert!(pool_value() == 0, 0);
         assert!(central_liquidity_pool::borrowed(key<UNI>()) == (from_shadow as u128), 0); // from_shadow + fee calculated by from_shadow
-        assert!(central_liquidity_pool::left() == (50000 - from_shadow as u128), 0);
-        assert!(borrowed_amount<UNI>() == 5025 + from_shadow + from_central, 0);
+        assert!(central_liquidity_pool::left() == 50000 - from_shadow, 0);
+        assert!(borrowed_amount<UNI>() == ((5025 + from_shadow + from_central) as u128), 0);
         assert!(usdz::balance_of(borrower_addr) == 15000, 0);
         //// from only central_liquidity_pool
         borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 15000);
         assert!(pool_value() == 0, 0);
         assert!(borrowed_amount<UNI>() == 15101 + ((15000 + 75) - 26), 0); // (borrowed + fee) + fee calculated by (borrowed + fee)
         assert!(central_liquidity_pool::borrowed(key<UNI>()) == 5051 + ((15000 + 75) - 26), 0); // previous + this time
-        assert!(central_liquidity_pool::left() == (50000 - 5025 - 15075 as u128), 0); // initial - previous - this time
+        assert!(central_liquidity_pool::left() == 50000 - 5025 - 15075, 0); // initial - previous - this time
         assert!(usdz::balance_of(borrower_addr) == 30000, 0);
     }
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
@@ -3711,13 +3711,13 @@ module leizd::shadow_pool {
         central_liquidity_pool::deposit(depositor, 5000 * dec8);
         deposit_for_internal(key<WETH>(), depositor, depositor_addr, 3000 * dec8, false);
         assert!(total_liquidity() == (3000 * dec8 as u128), 0);
-        assert!(central_liquidity_pool::left() == (5000 * dec8 as u128), 0);
+        assert!(central_liquidity_pool::left() == 5000 * dec8, 0);
         //// borrow
         timestamp::update_global_time_for_test((initial_sec + 5) * 1000 * 1000); // + 5sec
         borrow_for_internal(key<WETH>(), borrower1_addr, borrower1_addr, 1000 * dec8);
         assert!(total_liquidity() == (2000 * dec8 as u128), 0);
         assert!(borrowed_amount<WETH>() == (1000 * dec8 as u128), 0);
-        assert!(central_liquidity_pool::left() == (5000 * dec8 as u128), 0);
+        assert!(central_liquidity_pool::left() == 5000 * dec8, 0);
         assert!(central_liquidity_pool::borrowed(key<WETH>()) == 0, 0);
 
         // borrow and support fees will be charged
@@ -3727,7 +3727,7 @@ module leizd::shadow_pool {
         // support_fee: 80 (10%)
         assert!(total_liquidity() == (1000 * dec8 - 80 as u128), 0);
         assert!(borrowed_amount<WETH>() == (2000 * dec8 + 800 as u128), 0);
-        assert!(central_liquidity_pool::left() == (5000 * dec8 + 80 as u128), 0);
+        assert!(central_liquidity_pool::left() == 5000 * dec8 + 80, 0);
         assert!(central_liquidity_pool::total_deposited() == (5000 * dec8 + 80 as u128), 0);
         assert!(central_liquidity_pool::borrowed(key<WETH>()) == 0, 0);
 
@@ -3763,13 +3763,13 @@ module leizd::shadow_pool {
         central_liquidity_pool::deposit(depositor, 5000 * dec8);
         deposit_for_internal(key<WETH>(), depositor, depositor_addr, 3000 * dec8, false);
         assert!(total_liquidity() == (3000 * dec8 as u128), 0);
-        assert!(central_liquidity_pool::left() == (5000 * dec8 as u128), 0);
+        assert!(central_liquidity_pool::left() == 5000 * dec8, 0);
         //// borrow
         timestamp::update_global_time_for_test((initial_sec + 5) * 1000 * 1000); // + 5sec
         borrow_for_internal(key<WETH>(), borrower1_addr, borrower1_addr, 1000 * dec8);
         assert!(total_liquidity() == (2000 * dec8 as u128), 0);
         assert!(borrowed_amount<WETH>() == (1000 * dec8 as u128), 0);
-        assert!(central_liquidity_pool::left() == (5000 * dec8 as u128), 0);
+        assert!(central_liquidity_pool::left() == 5000 * dec8, 0);
         assert!(central_liquidity_pool::borrowed(key<WETH>()) == 0, 0);
 
         // borrow and support fees will be charged
@@ -3778,7 +3778,7 @@ module leizd::shadow_pool {
         // accrued interest: 800
         assert!(total_liquidity() == (1000 * dec8 as u128), 0);
         assert!(borrowed_amount<WETH>() == (2000 * dec8 + 800 as u128), 0);
-        assert!(central_liquidity_pool::left() == (5000 * dec8 as u128), 0);
+        assert!(central_liquidity_pool::left() == 5000 * dec8, 0);
         assert!(central_liquidity_pool::total_deposited() == (5000 * dec8 as u128), 0);
         assert!(central_liquidity_pool::borrowed(key<WETH>()) == 0, 0);
 
@@ -3815,13 +3815,13 @@ module leizd::shadow_pool {
         central_liquidity_pool::deposit(depositor, 5000 * dec8);
         deposit_for_internal(key<WETH>(), depositor, depositor_addr, 3000 * dec8, false);
         assert!(total_liquidity() == (3000 * dec8 as u128), 0);
-        assert!(central_liquidity_pool::left() == (5000 * dec8 as u128), 0);
+        assert!(central_liquidity_pool::left() == 5000 * dec8, 0);
         //// borrow
         timestamp::update_global_time_for_test((initial_sec + 1) * 1000 * 1000); // + 1sec
         borrow_for_internal(key<WETH>(), borrower1_addr, borrower1_addr, 2999 * dec8);
         assert!(total_liquidity() == (1 * dec8 as u128), 0);
         assert!(borrowed_amount<WETH>() == (2999 * dec8 as u128), 0);
-        assert!(central_liquidity_pool::left() == (5000 * dec8 as u128), 0);
+        assert!(central_liquidity_pool::left() == 5000 * dec8, 0);
         assert!(central_liquidity_pool::borrowed(key<WETH>()) == 0, 0);
 
         // borrow and support fees will be charged
@@ -3833,7 +3833,7 @@ module leizd::shadow_pool {
 
         assert!(total_liquidity() == ((1 * dec8 - deficiency_amount) as u128), 0);
         assert!(borrowed_amount<WETH>() == ((2999 * dec8) + 1210797066 + deficiency_amount as u128), 0);
-        assert!(central_liquidity_pool::left() == ((5000 * dec8 + 121079707) as u128), 0);
+        assert!(central_liquidity_pool::left() == 5000 * dec8 + 121079707, 0);
         assert!(central_liquidity_pool::total_deposited() == ((5000 * dec8 + 121079707) as u128), 0);
         assert!(central_liquidity_pool::borrowed(key<WETH>()) == 0, 0);
     }
@@ -3862,13 +3862,13 @@ module leizd::shadow_pool {
         central_liquidity_pool::deposit(depositor, 5000 * dec8);
         deposit_for_internal(key<WETH>(), depositor, depositor_addr, 3000 * dec8, false);
         assert!(total_liquidity() == (3000 * dec8 as u128), 0);
-        assert!(central_liquidity_pool::left() == (5000 * dec8 as u128), 0);
+        assert!(central_liquidity_pool::left() == 5000 * dec8, 0);
         //// borrow
         timestamp::update_global_time_for_test((initial_sec + 1) * 1000 * 1000); // + 1sec
         borrow_for_internal(key<WETH>(), borrower1_addr, borrower1_addr, 3000 * dec8);
         assert!(total_liquidity() == (0 * dec8 as u128), 0);
         assert!(borrowed_amount<WETH>() == (3000 * dec8 as u128), 0);
-        assert!(central_liquidity_pool::left() == (5000 * dec8 as u128), 0);
+        assert!(central_liquidity_pool::left() == 5000 * dec8, 0);
         assert!(central_liquidity_pool::borrowed(key<WETH>()) == 0, 0);
 
         // borrow and support fees will be charged
@@ -3879,7 +3879,7 @@ module leizd::shadow_pool {
         let deficiency_amount = 121247430;
         assert!(total_liquidity() == 0, 0);
         assert!(borrowed_amount<WETH>() == ((3000 * dec8) + 1212474300 + deficiency_amount as u128), 0);
-        assert!(central_liquidity_pool::left() == ((5000 + 1) * dec8 as u128), 0); // NOTE: (1 * dec8) is repayed by deposit
+        assert!(central_liquidity_pool::left() == (5000 + 1) * dec8, 0); // NOTE: (1 * dec8) is repayed by deposit
         assert!(central_liquidity_pool::total_deposited() == (5000 * dec8 + deficiency_amount as u128), 0);
         assert!(central_liquidity_pool::borrowed(key<WETH>()) == ((deficiency_amount - 1 * dec8) as u128), 0); // NOTE: (1 * dec8) is repayed by deposit
     }
