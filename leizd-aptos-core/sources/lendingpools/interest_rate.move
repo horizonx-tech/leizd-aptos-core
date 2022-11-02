@@ -219,37 +219,37 @@ module leizd::interest_rate {
         let key = key<WETH>();
 
         let last_updated = 1648738800 * 1000000;
-        let now = (1648738800 + 31556926) * 1000000; // 1 Year
+        let now = (1648738800 + 31536000) * 1000000; // 1 Year
 
         // u = 10%, r = 2.14%
         let total_deposits = 100000 * 100000000;
         let total_borrows = 10000 * 100000000;
         let rcomp = compound_interest_rate(key, total_deposits, total_borrows, last_updated, now);
-        assert!(rcomp == 21674330, 0); // CHECK 2.16598%
+        assert!(rcomp == 21659803, 0); // 2.16%
 
         // u = 50%, r = 6.71
         let total_deposits = 100000 * 100000000;
         let total_borrows = 50000 * 100000000;
         let rcomp = compound_interest_rate(key, total_deposits, total_borrows, last_updated, now);
-        assert!(rcomp == 69495034, 0); // CHECK 6.94482%
+        assert!(rcomp == 69447388, 0); // 6.94%
 
         // u = 70, r = 9.00%
         let total_deposits = 100000 * 100000000;
         let total_borrows = 70000 * 100000000;
         let rcomp = compound_interest_rate(key, total_deposits, total_borrows, last_updated, now);
-        assert!(rcomp == 94236839, 0); // CHECK 9.41742%
+        assert!(rcomp == 94171500, 0); // 9.41%
 
         // u = 90%, r = 108.99%
         let total_deposits = 100000 * 100000000;
         let total_borrows = 90000 * 100000000;
         let rcomp = compound_interest_rate(key, total_deposits, total_borrows, last_updated, now);
-        assert!(rcomp == 1901829990, 0); // CHECK 197.42740%
+        assert!(rcomp == 1899888125, 0); // 189.98%
 
         // u = 100, r = 159.00%
         let total_deposits = 100000 * 100000000;
         let total_borrows = 100000 * 100000000;
         let rcomp = compound_interest_rate(key, total_deposits, total_borrows, last_updated, now);
-        assert!(rcomp == 3528064088, 0); // CHECK 390.37487%
+        assert!(rcomp == 3523996397, 0); // 352.39%
     }
 
     #[test(owner = @leizd_aptos_logic)]
@@ -261,37 +261,37 @@ module leizd::interest_rate {
         let key = key<WETH>();
 
         let last_updated = 1648738800 * 1000000;
-        let now = (1648738800 + (31556926 / 2)) * 1000000; // 0.5 Year
+        let now = (1648738800 + (31536000 / 2)) * 1000000; // 0.5 Year
 
         // u = 10%, r = 2.14%
         let total_deposits = 100000 * 100000000;
         let total_borrows = 10000 * 100000000;
         let rcomp = compound_interest_rate(key, total_deposits, total_borrows, last_updated, now);
-        assert!(rcomp == 10779075, 0);
+        assert!(rcomp == 10771889, 0);
 
         // u = 50%, r = 6.71
         let total_deposits = 100000 * 100000000;
         let total_borrows = 50000 * 100000000;
         let rcomp = compound_interest_rate(key, total_deposits, total_borrows, last_updated, now);
-        assert!(rcomp == 34164293, 0);
+        assert!(rcomp == 34141255, 0);
 
         // u = 70, r = 9.00%
         let total_deposits = 100000 * 100000000;
         let total_borrows = 70000 * 100000000;
         let rcomp = compound_interest_rate(key, total_deposits, total_borrows, last_updated, now);
-        assert!(rcomp == 46058922, 0);
+        assert!(rcomp == 46027688, 0);
 
         // u = 90%, r = 108.99%
         let total_deposits = 100000 * 100000000;
         let total_borrows = 90000 * 100000000;
         let rcomp = compound_interest_rate(key, total_deposits, total_borrows, last_updated, now);
-        assert!(rcomp == 721104798, 0);
+        assert!(rcomp == 720492256, 0);
 
         // u = 100, r = 159.00%
         let total_deposits = 100000 * 100000000;
         let total_borrows = 100000 * 100000000;
         let rcomp = compound_interest_rate(key, total_deposits, total_borrows, last_updated, now);
-        assert!(rcomp == 1195869648, 0);
+        assert!(rcomp == 1194755777, 0);
     }
 
     #[test(owner = @leizd_aptos_logic)]
@@ -303,37 +303,37 @@ module leizd::interest_rate {
         let key = key<WETH>();
 
         let last_updated = 1648738800 * 1000000;
-        let now = (1648738800 + (31556926 / 12)) * 1000000; // 1 Month
+        let now = (1648738800 + (31536000 / 12)) * 1000000; // 1 Month
 
         // u = 10%, r = 2.14%
         let total_deposits = 100000 * 100000000;
         let total_borrows = 10000 * 100000000;
         let rcomp = compound_interest_rate(key, total_deposits, total_borrows, last_updated, now);
-        assert!(rcomp == 1788497, 0);
+        assert!(rcomp == 1787310, 0);
 
         // u = 50%, r = 6.71
         let total_deposits = 100000 * 100000000;
         let total_borrows = 50000 * 100000000;
         let rcomp = compound_interest_rate(key, total_deposits, total_borrows, last_updated, now);
-        assert!(rcomp == 5614653, 0);
+        assert!(rcomp == 5610921, 0);
 
         // u = 70, r = 9.00%
         let total_deposits = 100000 * 100000000;
         let total_borrows = 70000 * 100000000;
         let rcomp = compound_interest_rate(key, total_deposits, total_borrows, last_updated, now);
-        assert!(rcomp == 7533208, 0);
+        assert!(rcomp == 7528196, 0);
 
         // u = 90%, r = 108.99%
         let total_deposits = 100000 * 100000000;
         let total_borrows = 90000 * 100000000;
         let rcomp = compound_interest_rate(key, total_deposits, total_borrows, last_updated, now);
-        assert!(rcomp == 95149553, 0);
+        assert!(rcomp == 95083586, 0);
 
         // u = 100, r = 159.00%
         let total_deposits = 100000 * 100000000;
         let total_borrows = 100000 * 100000000;
         let rcomp = compound_interest_rate(key, total_deposits, total_borrows, last_updated, now);
-        assert!(rcomp == 141766122, 0);
+        assert!(rcomp == 141665822, 0);
     }
 
     #[test(owner = @leizd_aptos_logic)]
