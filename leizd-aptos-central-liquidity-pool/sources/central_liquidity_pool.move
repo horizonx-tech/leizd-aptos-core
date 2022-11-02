@@ -255,7 +255,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         let withdrawable_amount = math128::to_amount(user_share, pool_ref.total_deposited, clp_usdz::supply());
 
         let burned_share: u128;
-        let withdrawn_amount: u128;
+        let withdrawn_amount: u128; // FIXME: should use u64?
         if (amount == constant::u64_max()) {
             burned_share = user_share;
             withdrawn_amount = withdrawable_amount;
@@ -264,7 +264,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
             burned_share = math128::to_share_roundup((amount as u128), pool_ref.total_deposited, clp_usdz::supply());
             withdrawn_amount = (amount as u128);
         };
-        assert!(withdrawn_amount <= left_internal(pool_ref), error::invalid_argument(EEXCEED_REMAINING_AMOUNT));
+        assert!(withdrawn_amount <= (left_internal(pool_ref) as u128), error::invalid_argument(EEXCEED_REMAINING_AMOUNT));
         pool_ref.total_deposited = pool_ref.total_deposited - withdrawn_amount;
         coin::deposit(account_addr, coin::extract(&mut pool_ref.left, (withdrawn_amount as u64)));
         clp_usdz::burn(account, (burned_share as u64));
@@ -293,7 +293,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
     fun borrow_internal(key: String, addr: address, amount: u64): (coin::Coin<USDZ>,u128) acquires CentralLiquidityPool, Balance, CentralLiquidityPoolEventHandle {
         assert!(is_supported(key), error::invalid_argument(ENOT_SUPPORTED_COIN));
         assert!(amount > 0, error::invalid_argument(EINVALID_AMOUNT));
-        assert!((amount as u128) <= left(), error::invalid_argument(EEXCEED_REMAINING_AMOUNT));
+        assert!(amount <= left(), error::invalid_argument(EEXCEED_REMAINING_AMOUNT));
         let owner_address = permission::owner_address();
         let pool_ref = borrow_global_mut<CentralLiquidityPool>(owner_address);
         let balance_ref = borrow_global_mut<Balance>(owner_address);
@@ -412,25 +412,28 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
 
     public entry fun harvest_protocol_fees() acquires CentralLiquidityPool {
         let pool_ref = borrow_global_mut<CentralLiquidityPool>(permission::owner_address());
-        let harvested_fee = pool_ref.protocol_fees - pool_ref.harvested_protocol_fees;
-        if (harvested_fee == 0) {
+        let unharvested_fee = pool_ref.protocol_fees - pool_ref.harvested_protocol_fees;
+        if (unharvested_fee == 0) {
             return
         };
+        let harvested_fee: u64;
         let liquidity = left_internal(pool_ref);
-        if (harvested_fee > liquidity) {
+        if (unharvested_fee > (liquidity as u128)) {
             harvested_fee = liquidity;
+        } else {
+            harvested_fee = (unharvested_fee as u64);
         };
-        pool_ref.harvested_protocol_fees = pool_ref.harvested_protocol_fees + harvested_fee;
-        let fee_extracted = coin::extract(&mut pool_ref.left, (harvested_fee as u64)); // NOTE: can cast to u64 because liquidity (<= coin::value) <= u64 max
+        pool_ref.harvested_protocol_fees = pool_ref.harvested_protocol_fees + (harvested_fee as u128);
+        let fee_extracted = coin::extract(&mut pool_ref.left, harvested_fee);
         treasury::collect_fee<USDZ>(fee_extracted);
     }
 
     ////// View functions
-    public fun left(): u128 acquires CentralLiquidityPool {
+    public fun left(): u64 acquires CentralLiquidityPool {
         left_internal(borrow_global<CentralLiquidityPool>(permission::owner_address()))
     }
-    fun left_internal(pool: &CentralLiquidityPool): u128 {
-        (coin::value<USDZ>(&pool.left) as u128)
+    fun left_internal(pool: &CentralLiquidityPool): u64 {
+        coin::value<USDZ>(&pool.left)
     }
 
     public fun total_deposited(): u128 acquires CentralLiquidityPool {
@@ -661,7 +664,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         usdz::mint_for_test(account_addr, max);
 
         deposit(account, max);
-        assert!(left() == (max as u128), 0);
+        assert!(left() == max, 0);
         assert!(total_deposited() == (max as u128), 0);
         assert!(usdz::balance_of(account_addr) == 0, 0);
         assert!(clp_usdz::balance_of(account_addr) == max, 0);
