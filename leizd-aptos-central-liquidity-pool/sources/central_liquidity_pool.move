@@ -647,6 +647,22 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         assert!(usdz::balance_of(account_addr) == 0, 0);
         assert!(clp_usdz::balance_of(account_addr) == 1000, 0);
     }
+    #[test(owner=@leizd_aptos_central_liquidity_pool,account=@0x111)]
+    public entry fun test_deposit_with_u64_max(owner: &signer, account: &signer) acquires Balance, CentralLiquidityPool, CentralLiquidityPoolEventHandle {
+        initialize_for_test_to_use_coin(owner);
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+        let max = constant::u64_max();
+
+        managed_coin::register<USDZ>(account);
+        usdz::mint_for_test(account_addr, max);
+
+        deposit(account, max);
+        assert!(left() == (max as u128), 0);
+        assert!(total_deposited() == (max as u128), 0);
+        assert!(usdz::balance_of(account_addr) == 0, 0);
+        assert!(clp_usdz::balance_of(account_addr) == max, 0);
+    }
 
     // for withdraw
     #[test(owner=@leizd_aptos_central_liquidity_pool,account=@0x111)]
@@ -748,6 +764,23 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         withdraw(account, 400);
         assert!(usdz::balance_of(account_addr) == 1000, 0);
         assert!(clp_usdz::balance_of(account_addr) == 0, 0);
+    }
+    #[test(owner=@leizd_aptos_central_liquidity_pool,account=@0x111)]
+    public entry fun test_withdraw_with_u64_max_minus_one(owner: &signer, account: &signer) acquires Balance, CentralLiquidityPool, CentralLiquidityPoolEventHandle {
+        initialize_for_test_to_use_coin(owner);
+        let account_addr = signer::address_of(account);
+        account::create_account_for_test(account_addr);
+        let max = constant::u64_max();
+
+        managed_coin::register<USDZ>(account);
+        usdz::mint_for_test(account_addr, max);
+
+        deposit(account, max);
+        withdraw(account, max - 1);
+        assert!(left() == 1, 0);
+        assert!(total_deposited() == 1, 0);
+        assert!(usdz::balance_of(account_addr) == max - 1, 0);
+        assert!(clp_usdz::balance_of(account_addr) == 1, 0);
     }
 
     // for borrow
