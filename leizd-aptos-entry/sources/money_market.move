@@ -99,17 +99,49 @@ module leizd_aptos_entry::money_market {
         amount: u64,
     ) acquires LendingPoolModKeys {
         pool_type::assert_pool_type<P>();
+        if ((amount as u128) >= get_max_withdrawal_amount<C,P>(signer::address_of(account))) {
+            withdraw_all_for<C,P>(account, receiver_addr)
+        } else {
+            withdraw_for_internal<C,P>(account, receiver_addr, amount)
+        }
+    }
+
+    fun get_max_withdrawal_amount<C,P>(account_addr: address): u128 {
+        let (is_collateral_only, share) = account_position::deposited_share<C,P>(account_addr);
+        if (share == 0) return 0;
+
+        let key = key<C>();
+        if (pool_type::is_type_asset<P>()) {
+            if (is_collateral_only) {
+                asset_pool::conly_deposited_share_to_amount(key, share)
+            } else {
+                asset_pool::normal_deposited_share_to_amount(key, share)
+            }
+        } else {
+            if (is_collateral_only) {
+                shadow_pool::conly_deposited_share_to_amount(key, share)
+            } else {
+                shadow_pool::normal_deposited_share_to_amount(key, share)
+            }
+        }
+    }
+
+    fun withdraw_for_internal<C,P>(
+        account: &signer,
+        receiver_addr: address,
+        amount: u64,
+    ) acquires LendingPoolModKeys {
+        let account_addr = signer::address_of(account);
         let (account_position_key, asset_pool_key, shadow_pool_key, _) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
 
-        let depositor_addr = signer::address_of(account);
-        let is_collateral_only = account_position::is_conly<C,P>(depositor_addr);
+        let is_collateral_only = account_position::is_conly<C,P>(account_addr);
         let withdrawed_user_share: u64;
         if (pool_type::is_type_asset<P>()) {
-            (_, withdrawed_user_share) = asset_pool::withdraw_for<C>(depositor_addr, receiver_addr, amount, is_collateral_only, asset_pool_key);
+            (_, withdrawed_user_share) = asset_pool::withdraw_for<C>(account_addr, receiver_addr, amount, is_collateral_only, asset_pool_key);
         } else {
-            (_, withdrawed_user_share) = shadow_pool::withdraw_for<C>(depositor_addr, receiver_addr, amount, is_collateral_only, 0, shadow_pool_key);
+            (_, withdrawed_user_share) = shadow_pool::withdraw_for<C>(account_addr, receiver_addr, amount, is_collateral_only, 0, shadow_pool_key);
         };
-        account_position::withdraw<C,P>(depositor_addr, withdrawed_user_share, is_collateral_only, account_position_key);
+        account_position::withdraw<C,P>(account_addr, withdrawed_user_share, is_collateral_only, account_position_key);
     }
 
     public entry fun withdraw_all<C,P>(account: &signer) acquires LendingPoolModKeys {
@@ -123,13 +155,13 @@ module leizd_aptos_entry::money_market {
         pool_type::assert_pool_type<P>();
         let (account_position_key, asset_pool_key, shadow_pool_key, _) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
 
-        let depositor_addr = signer::address_of(account);
-        let is_collateral_only = account_position::is_conly<C,P>(depositor_addr);
-        let user_share_all = account_position::withdraw_all<C,P>(depositor_addr, is_collateral_only, account_position_key);
+        let account_addr = signer::address_of(account);
+        let is_collateral_only = account_position::is_conly<C,P>(account_addr);
+        let user_share_all = account_position::withdraw_all<C,P>(account_addr, is_collateral_only, account_position_key);
         if (pool_type::is_type_asset<P>()) {
-            asset_pool::withdraw_for_by_share<C>(depositor_addr, receiver_addr, user_share_all, is_collateral_only, asset_pool_key);
+            asset_pool::withdraw_for_by_share<C>(account_addr, receiver_addr, user_share_all, is_collateral_only, asset_pool_key);
         } else {
-            shadow_pool::withdraw_for_by_share<C>(depositor_addr, receiver_addr, user_share_all, is_collateral_only, 0, shadow_pool_key);
+            shadow_pool::withdraw_for_by_share<C>(account_addr, receiver_addr, user_share_all, is_collateral_only, 0, shadow_pool_key);
         };
     }
 
@@ -163,9 +195,29 @@ module leizd_aptos_entry::money_market {
     /// Repay an asset or a shadow from the pool.
     public entry fun repay<C,P>(account: &signer, amount: u64) acquires LendingPoolModKeys {
         pool_type::assert_pool_type<P>();
+        if ((amount as u128) >= get_max_repayable_amount<C,P>(signer::address_of(account))) {
+            repay_all<C,P>(account)
+        } else {
+            repay_internal<C,P>(account, amount)
+        }
+    }
+
+    fun get_max_repayable_amount<C,P>(account_addr: address): u128 {
+        let share = account_position::borrowed_share<C,P>(account_addr);
+        if (share == 0) return 0;
+
+        let key = key<C>();
+        if (pool_type::is_type_asset<P>()) {
+            asset_pool::borrowed_share_to_amount(key, share)
+        } else {
+            shadow_pool::borrowed_share_to_amount(key, share)
+        }
+    }
+
+    fun repay_internal<C,P>(account: &signer, amount: u64) acquires LendingPoolModKeys {
+        let repayer = signer::address_of(account);
         let (account_position_key, asset_pool_key, shadow_pool_key, _) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
 
-        let repayer = signer::address_of(account);
         let repaid_user_share: u64;
         if (pool_type::is_type_asset<P>()) {
             (_, repaid_user_share) = asset_pool::repay<C>(account, amount, asset_pool_key);
@@ -518,6 +570,46 @@ module leizd_aptos_entry::money_market {
         assert!(shadow_pool::normal_deposited_amount<WETH>() == 0, 0);
         assert!(account_position::normal_deposited_shadow_share<WETH>(account_addr) == 0, 0);
     }
+    #[test(owner=@leizd_aptos_entry,account=@0x111,aptos_framework=@aptos_framework)]
+    fun test_get_max_withdrawal_amount(owner: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
+        initialize_lending_pool_for_test(owner, aptos_framework);
+        setup_account_for_test(account);
+        let account_addr = signer::address_of(account);
+
+        let k = 1000;
+        let dec8 = math64::pow(10, 8);
+        managed_coin::mint<WETH>(owner, account_addr, 5000 * k * dec8);
+        usdz::mint_for_test(account_addr, 5000 * k * dec8);
+
+        deposit<WETH, Asset>(account, 10 * k * dec8, false); // asset & normal
+        deposit<WETH, Shadow>(account, 20 * k * dec8, true); // shadow & conly
+        assert!(get_max_withdrawal_amount<WETH, Asset>(account_addr) == ((10 * k * dec8) as u128), 0);
+        assert!(get_max_withdrawal_amount<WETH, Shadow>(account_addr) == ((20 * k * dec8) as u128), 0);
+        deposit<WETH, Asset>(account, 500 * k * dec8, false);
+        deposit<WETH, Shadow>(account, 2500 * k * dec8, true);
+        assert!(get_max_withdrawal_amount<WETH, Asset>(account_addr) == ((510 * k * dec8) as u128), 0);
+        assert!(get_max_withdrawal_amount<WETH, Shadow>(account_addr) == ((2520 * k * dec8) as u128), 0);
+        withdraw<WETH, Asset>(account, 410 * k * dec8);
+        withdraw<WETH, Shadow>(account, 1520 * k * dec8);
+        assert!(get_max_withdrawal_amount<WETH, Asset>(account_addr) == ((100 * k * dec8) as u128), 0);
+        assert!(get_max_withdrawal_amount<WETH, Shadow>(account_addr) == ((1000 * k * dec8) as u128), 0);
+    }
+    #[test(owner=@leizd_aptos_entry,account=@0x111,aptos_framework=@aptos_framework)]
+    #[expected_failure(abort_code = 65547)]
+    fun test_get_max_withdrawal_amount_without_no_deposited_asset(owner: &signer, account: &signer, aptos_framework: &signer) {
+        initialize_lending_pool_for_test(owner, aptos_framework);
+        setup_account_for_test(account);
+
+        get_max_withdrawal_amount<WETH, Asset>(signer::address_of(account));
+    }
+    #[test(owner=@leizd_aptos_entry,account=@0x111,aptos_framework=@aptos_framework)]
+    #[expected_failure(abort_code = 65547)]
+    fun test_get_max_withdrawal_amount_without_no_deposited_shadow(owner: &signer, account: &signer, aptos_framework: &signer) {
+        initialize_lending_pool_for_test(owner, aptos_framework);
+        setup_account_for_test(account);
+
+        get_max_withdrawal_amount<WETH, Shadow>(signer::address_of(account));
+    }
 
     #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
     fun test_borrow_with_shadow_from_asset(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
@@ -773,6 +865,40 @@ module leizd_aptos_entry::money_market {
         assert!(asset_pool::total_borrowed_amount<WETH>() == 0, 0);
         assert!(account_position::borrowed_asset_share<WETH>(account_addr) == 0, 0);
     }
+    #[test(owner=@leizd_aptos_entry,account=@0x111,aptos_framework=@aptos_framework)]
+    fun test_get_max_repayable_amount_with_fixed_one_dollar_price(owner: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
+        initialize_lending_pool_for_test(owner, aptos_framework);
+        test_initializer::update_price_oracle_with_fixed_one_dollar_for_test(owner);
+        setup_account_for_test(account);
+        let account_addr = signer::address_of(account);
+
+        // prerequisite
+        assert!(risk_factor::entry_fee() == risk_factor::precision() / 1000 * 5, 0); // 0.5%
+        // prepares
+        let k = 1000;
+        let dec8 = math64::pow(10, 8);
+        managed_coin::mint<WETH>(owner, account_addr, 1000000 * k * dec8);
+        usdz::mint_for_test(account_addr, 1000000 * k * dec8);
+        deposit<WETH, Asset>(account, 1000000 * k * dec8, false);
+        deposit<WETH, Shadow>(account, 1000000 * k * dec8, false);
+
+        // execute
+        assert!(get_max_repayable_amount<WETH, Asset>(account_addr) == 0, 0);
+        assert!(get_max_repayable_amount<WETH, Shadow>(account_addr) == 0, 0);
+        borrow<WETH, Asset>(account, 2000 * k * dec8);
+        borrow<WETH, Shadow>(account, 1000 * k * dec8);
+        assert!(get_max_repayable_amount<WETH, Asset>(account_addr) == ((2010 * k * dec8) as u128), 0);
+        assert!(get_max_repayable_amount<WETH, Shadow>(account_addr) == ((1005 * k * dec8) as u128), 0);
+        borrow<WETH, Asset>(account, 250000 * k * dec8);
+        borrow<WETH, Shadow>(account, 50000 * k * dec8);
+        assert!(get_max_repayable_amount<WETH, Asset>(account_addr) == (((2010 + 251250) * k * dec8) as u128), 0);
+        assert!(get_max_repayable_amount<WETH, Shadow>(account_addr) == (((1005 + 50250) * k * dec8) as u128), 0);
+        repay<WETH, Asset>(account, (2010 + 251250 - 10000) * k * dec8);
+        repay<WETH, Shadow>(account, (1005 + 50250 - 1000) * k * dec8);
+        assert!(get_max_repayable_amount<WETH, Asset>(account_addr) == ((10000 * k * dec8) as u128), 0);
+        assert!(get_max_repayable_amount<WETH, Shadow>(account_addr) == ((1000 * k * dec8) as u128), 0);
+    }
+
     #[test_only]
     fun prepare_to_exec_repay_shadow_with_rebalance(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
         initialize_lending_pool_for_test(owner, aptos_framework);
