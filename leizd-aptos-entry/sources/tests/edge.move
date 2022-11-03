@@ -215,10 +215,10 @@ module leizd_aptos_entry::edge {
 
         money_market::deposit<WETH, Asset>(account1, max, false);
         money_market::switch_collateral<WETH, Asset>(account1, true);
-        assert!(account_position::deposited_asset_share<WETH>(account1_addr) == 0, 0);
+        assert!(account_position::normal_deposited_asset_share<WETH>(account1_addr) == 0, 0);
         assert!(account_position::conly_deposited_asset_share<WETH>(account1_addr) == max, 0);
         money_market::switch_collateral<WETH, Asset>(account1, false);
-        assert!(account_position::deposited_asset_share<WETH>(account1_addr) == max, 0);
+        assert!(account_position::normal_deposited_asset_share<WETH>(account1_addr) == max, 0);
         assert!(account_position::conly_deposited_asset_share<WETH>(account1_addr) == 0, 0);
     }
     #[test(owner = @leizd_aptos_entry, aptos_framework = @aptos_framework)]
@@ -233,10 +233,10 @@ module leizd_aptos_entry::edge {
 
         money_market::deposit<USDC, Shadow>(account1, max, false);
         money_market::switch_collateral<USDC, Shadow>(account1, true);
-        assert!(account_position::deposited_shadow_share<USDC>(account1_addr) == 0, 0);
+        assert!(account_position::normal_deposited_shadow_share<USDC>(account1_addr) == 0, 0);
         assert!(account_position::conly_deposited_shadow_share<USDC>(account1_addr) == max, 0);
         money_market::switch_collateral<USDC, Shadow>(account1, false);
-        assert!(account_position::deposited_shadow_share<USDC>(account1_addr) == max, 0);
+        assert!(account_position::normal_deposited_shadow_share<USDC>(account1_addr) == max, 0);
         assert!(account_position::conly_deposited_shadow_share<USDC>(account1_addr) == 0, 0);
     }
     #[test_only]
