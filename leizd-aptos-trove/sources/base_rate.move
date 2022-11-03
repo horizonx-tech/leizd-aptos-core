@@ -29,6 +29,10 @@ module leizd_aptos_trove::base_rate {
         last_operation_time_micro_seconds: u64
     }
 
+    public fun precision(): u64 {
+        PRECISION
+    }
+
     public(friend) fun initialize(owner: &signer) {
         move_to(owner, BaseRate {
             rate: 0,
@@ -68,7 +72,7 @@ module leizd_aptos_trove::base_rate {
         last_fee_operation_time.last_operation_time_micro_seconds = timestamp::now_microseconds()
     }
 
-    fun calc_decayed_base_rate(): u128 acquires FeeOperationTime, BaseRate {
+    public fun calc_decayed_base_rate(): u128 acquires FeeOperationTime, BaseRate {
         let minutes_passed = minutes_passed_since_last_fee_operation();
         let decay_factor = base_rate_calculator::dec_pow(MINUTE_DECAY_FACTOR, minutes_passed);
         (borrow_global<BaseRate>(permission::owner_address()).rate as u128) * decay_factor / (PRECISION as u128)

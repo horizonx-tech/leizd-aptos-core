@@ -15,7 +15,8 @@ module leizd_aptos_trove::trove {
     use leizd_aptos_common::coin_key;
     use leizd_aptos_lib::constant;
     use leizd_aptos_trove::collateral_manager;
-    use leizd_aptos_trove::base_rate;
+    use leizd_aptos_trove::base_rate;    
+    use leizd_aptos_trove::borrowing_rate;
 
     const ENOT_SUPPORTED: u64 = 1;
     const EALREADY_SUPPORTED: u64 = 2;
@@ -299,6 +300,10 @@ module leizd_aptos_trove::trove {
             i = i + 1;
         };
         false
+    }
+
+    public fun borrowing_fee(debt_amount: u64):u64 {
+        borrowing_rate::borrowing_fee(debt_amount)
     }
 
     public fun close_trove<C>(account: &signer) acquires Trove, TroveEventHandle, Vault, SupportedCoins {
