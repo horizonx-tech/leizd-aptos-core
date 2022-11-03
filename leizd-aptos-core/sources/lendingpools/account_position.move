@@ -811,6 +811,51 @@ module leizd::account_position {
         }
     }
 
+    //// utils for share - automatically select about Asset/Shadow, normal/is_conly
+    public fun deposited_share<C,P>(addr: address): (bool, u64) acquires Position {
+        deposited_share_with<P>(key<C>(), addr)
+    }
+    fun deposited_share_with<P>(key: String, addr: address): (bool, u64) acquires Position {
+        pool_type::assert_pool_type<P>();
+        if (pool_type::is_type_asset<P>()) {
+            deposited_asset_share_with(key, addr)
+        } else {
+            deposited_shadow_share_with(key, addr)
+        }
+    }
+    public fun deposited_asset_share<C>(addr: address): (bool, u64) acquires Position {
+        deposited_asset_share_with(key<C>(), addr)
+    }
+    fun deposited_asset_share_with(key: String, addr: address): (bool, u64) acquires Position {
+        let is_conly = is_conly_asset(key, addr);
+        (
+            is_conly,
+            if (is_conly) conly_deposited_asset_share_with(key, addr) else normal_deposited_asset_share_with(key, addr)
+        )
+    }
+    public fun deposited_shadow_share<C>(addr: address): (bool, u64) acquires Position {
+        deposited_shadow_share_with(key<C>(), addr)
+    }
+    fun deposited_shadow_share_with(key: String, addr: address): (bool, u64) acquires Position {
+        let is_conly = is_conly_shadow(key, addr);
+        (
+            is_conly,
+            if (is_conly) conly_deposited_shadow_share_with(key, addr) else normal_deposited_shadow_share_with(key, addr)
+        )
+    }
+
+    public fun borrowed_share<C,P>(addr: address): u64 acquires Position {
+        borrowed_share_with<P>(key<C>(), addr)
+    }
+    fun borrowed_share_with<P>(key: String, addr: address): u64 acquires Position {
+        pool_type::assert_pool_type<P>();
+        if (pool_type::is_type_asset<P>()) {
+            borrowed_asset_share_with(key, addr)
+        } else {
+            borrowed_shadow_share_with(key, addr)
+        }
+    }
+
     //// getter about Resources in this module
     public fun normal_deposited_asset_share<C>(addr: address): u64 acquires Position {
         normal_deposited_asset_share_with(key<C>(), addr)
@@ -839,7 +884,9 @@ module leizd::account_position {
     }
 
     public fun borrowed_asset_share<C>(addr: address): u64 acquires Position {
-        let key = key<C>();
+        borrowed_asset_share_with(key<C>(), addr)
+    }
+    public fun borrowed_asset_share_with(key: String, addr: address): u64 acquires Position {
         if (!exists<Position<ShadowToAsset>>(addr)) return 0;
         let position_ref = borrow_global<Position<ShadowToAsset>>(addr);
         if (simple_map::contains_key<String,Balance>(&position_ref.balance, &key)) {
