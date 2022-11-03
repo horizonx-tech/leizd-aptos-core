@@ -483,7 +483,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
     }
     // related initialize
     #[test(owner=@leizd_aptos_central_liquidity_pool)]
-    public entry fun test_initialize(owner: &signer) acquires CentralLiquidityPool, Config, CentralLiquidityPoolEventHandle {
+    fun test_initialize(owner: &signer) acquires CentralLiquidityPool, Config, CentralLiquidityPoolEventHandle {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
         trove_manager::initialize(owner);
@@ -503,7 +503,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
     }
     #[test(owner=@leizd_aptos_central_liquidity_pool)]
     #[expected_failure(abort_code = 196609)]
-    public entry fun test_initialize_twice(owner: &signer) acquires CentralLiquidityPoolEventHandle {
+    fun test_initialize_twice(owner: &signer) acquires CentralLiquidityPoolEventHandle {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
         trove_manager::initialize(owner);
@@ -513,7 +513,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
     }
     #[test(account=@0x111)]
     #[expected_failure(abort_code = 65537)]
-    public entry fun test_initialize_without_owner(account: &signer) acquires CentralLiquidityPoolEventHandle {
+    fun test_initialize_without_owner(account: &signer) acquires CentralLiquidityPoolEventHandle {
         initialize(account);
     }
     #[test(owner = @leizd_aptos_central_liquidity_pool)]
@@ -589,7 +589,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
     }
     // for deposit
     #[test(owner=@leizd_aptos_central_liquidity_pool,account=@0x111)]
-    public entry fun test_deposit(owner: &signer, account: &signer) acquires Balance, CentralLiquidityPool, CentralLiquidityPoolEventHandle {
+    fun test_deposit(owner: &signer, account: &signer) acquires Balance, CentralLiquidityPool, CentralLiquidityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -607,7 +607,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
     }
     #[test(owner=@leizd_aptos_central_liquidity_pool,account=@0x111)]
     #[expected_failure(abort_code = 65539)]
-    public entry fun test_deposit_with_no_amount(owner: &signer, account: &signer) acquires Balance, CentralLiquidityPool, CentralLiquidityPoolEventHandle {
+    fun test_deposit_with_no_amount(owner: &signer, account: &signer) acquires Balance, CentralLiquidityPool, CentralLiquidityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -619,7 +619,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
     }
     #[test(owner=@leizd_aptos_central_liquidity_pool,account=@0x111)]
     #[expected_failure(abort_code = 65542)]
-    public entry fun test_deposit_with_not_enough_coin(owner: &signer, account: &signer) acquires Balance, CentralLiquidityPool, CentralLiquidityPoolEventHandle {
+    fun test_deposit_with_not_enough_coin(owner: &signer, account: &signer) acquires Balance, CentralLiquidityPool, CentralLiquidityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -630,7 +630,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         deposit(account, 1001);
     }
     #[test(owner=@leizd_aptos_central_liquidity_pool, account=@0x111)]
-    public entry fun test_deposit_more_than_once_sequentially(owner: &signer, account: &signer) acquires Balance, CentralLiquidityPool, CentralLiquidityPoolEventHandle {
+    fun test_deposit_more_than_once_sequentially(owner: &signer, account: &signer) acquires Balance, CentralLiquidityPool, CentralLiquidityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -652,7 +652,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         assert!(clp_usdz::balance_of(account_addr) == 1000, 0);
     }
     #[test(owner=@leizd_aptos_central_liquidity_pool,account=@0x111)]
-    public entry fun test_deposit_with_u64_max(owner: &signer, account: &signer) acquires Balance, CentralLiquidityPool, CentralLiquidityPoolEventHandle {
+    fun test_deposit_with_u64_max(owner: &signer, account: &signer) acquires Balance, CentralLiquidityPool, CentralLiquidityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -670,7 +670,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
 
     // for withdraw
     #[test(owner=@leizd_aptos_central_liquidity_pool,account=@0x111)]
-    public entry fun test_withdraw(owner: &signer, account: &signer) acquires Balance, CentralLiquidityPool, CentralLiquidityPoolEventHandle {
+    fun test_withdraw(owner: &signer, account: &signer) acquires Balance, CentralLiquidityPool, CentralLiquidityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -690,7 +690,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
     }
     #[test(owner=@leizd_aptos_central_liquidity_pool,account=@0x111)]
     #[expected_failure(abort_code = 65539)]
-    public entry fun test_withdraw_with_no_amount(owner: &signer, account: &signer) acquires Balance, CentralLiquidityPool, CentralLiquidityPoolEventHandle {
+    fun test_withdraw_with_no_amount(owner: &signer, account: &signer) acquires Balance, CentralLiquidityPool, CentralLiquidityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -703,7 +703,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
     }
     #[test(owner=@leizd_aptos_central_liquidity_pool,account1=@0x111,account2=@0x222)]
     #[expected_failure(abort_code = 65541)]
-    public entry fun test_withdraw_without_any_deposit(owner: &signer, account1: &signer, account2: &signer) acquires Balance, CentralLiquidityPool, CentralLiquidityPoolEventHandle {
+    fun test_withdraw_without_any_deposit(owner: &signer, account1: &signer, account2: &signer) acquires Balance, CentralLiquidityPool, CentralLiquidityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         let account1_addr = signer::address_of(account1);
         let account2_addr = signer::address_of(account2);
@@ -719,7 +719,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         withdraw(account2, 300000);
     }
     #[test(owner=@leizd_aptos_central_liquidity_pool,account=@0x111)]
-    public entry fun test_withdraw_with_amount_is_total_deposited(owner: &signer, account: &signer) acquires Balance, CentralLiquidityPool, CentralLiquidityPoolEventHandle {
+    fun test_withdraw_with_amount_is_total_deposited(owner: &signer, account: &signer) acquires Balance, CentralLiquidityPool, CentralLiquidityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -735,7 +735,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
     }
     #[test(owner=@leizd_aptos_central_liquidity_pool,account=@0x111)]
     #[expected_failure(abort_code = 65541)]
-    public entry fun test_withdraw_with_amount_is_greater_than_deposited_by_user(owner: &signer, account: &signer) acquires Balance, CentralLiquidityPool, CentralLiquidityPoolEventHandle {
+    fun test_withdraw_with_amount_is_greater_than_deposited_by_user(owner: &signer, account: &signer) acquires Balance, CentralLiquidityPool, CentralLiquidityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -748,7 +748,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
     }
     #[test(owner=@leizd_aptos_central_liquidity_pool,account=@0x111)]
     #[expected_failure(abort_code = 65540)]
-    public entry fun test_withdraw_with_amount_is_greater_than_total_deposited(owner: &signer, account: &signer) acquires Balance, CentralLiquidityPool, CentralLiquidityPoolEventHandle {
+    fun test_withdraw_with_amount_is_greater_than_total_deposited(owner: &signer, account: &signer) acquires Balance, CentralLiquidityPool, CentralLiquidityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -763,7 +763,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         withdraw(account, 300000);
     }
     #[test(owner=@leizd_aptos_central_liquidity_pool, account=@0x111)]
-    public entry fun test_withdraw_more_than_once_sequentially(owner: &signer, account: &signer) acquires Balance, CentralLiquidityPool, CentralLiquidityPoolEventHandle {
+    fun test_withdraw_more_than_once_sequentially(owner: &signer, account: &signer) acquires Balance, CentralLiquidityPool, CentralLiquidityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -786,7 +786,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         assert!(clp_usdz::balance_of(account_addr) == 0, 0);
     }
     #[test(owner=@leizd_aptos_central_liquidity_pool,account=@0x111)]
-    public entry fun test_withdraw_with_u64_max_minus_one(owner: &signer, account: &signer) acquires Balance, CentralLiquidityPool, CentralLiquidityPoolEventHandle {
+    fun test_withdraw_with_u64_max_minus_one(owner: &signer, account: &signer) acquires Balance, CentralLiquidityPool, CentralLiquidityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
@@ -805,7 +805,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
 
     // for borrow
     #[test(owner=@leizd_aptos_central_liquidity_pool,account1=@0x111,account2=@0x222)]
-    public entry fun test_borrow(owner: &signer, account1: &signer, account2: &signer) acquires CentralLiquidityPool, Balance, CentralLiquidityPoolEventHandle {
+    fun test_borrow(owner: &signer, account1: &signer, account2: &signer) acquires CentralLiquidityPool, Balance, CentralLiquidityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         add_supported_pool<WETH>(owner);
         let account1_addr = signer::address_of(account1);
@@ -834,7 +834,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
     }
     #[test(owner=@leizd_aptos_central_liquidity_pool, account=@0x111)]
     #[expected_failure(abort_code = 65545)]
-    public entry fun test_borrow_with_not_supported_coin(owner: &signer, account: &signer) acquires CentralLiquidityPool, Balance, CentralLiquidityPoolEventHandle {
+    fun test_borrow_with_not_supported_coin(owner: &signer, account: &signer) acquires CentralLiquidityPool, Balance, CentralLiquidityPoolEventHandle {
         account::create_account_for_test(signer::address_of(owner));
         trove_manager::initialize(owner);
         initialize(owner);
@@ -847,7 +847,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
     }
     #[test(owner=@leizd_aptos_central_liquidity_pool, account=@0x111)]
     #[expected_failure(abort_code = 65539)]
-    public entry fun test_borrow_with_no_amount(owner: &signer, account: &signer) acquires CentralLiquidityPool, Balance, CentralLiquidityPoolEventHandle {
+    fun test_borrow_with_no_amount(owner: &signer, account: &signer) acquires CentralLiquidityPool, Balance, CentralLiquidityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         add_supported_pool<WETH>(owner);
         let account_addr = signer::address_of(account);
@@ -861,7 +861,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
     }
     #[test(owner=@leizd_aptos_central_liquidity_pool, account=@0x111)]
     #[expected_failure(abort_code = 65540)]
-    public entry fun test_borrow_with_amount_is_greater_than_left(owner: &signer, account: &signer) acquires CentralLiquidityPool, Balance, CentralLiquidityPoolEventHandle {
+    fun test_borrow_with_amount_is_greater_than_left(owner: &signer, account: &signer) acquires CentralLiquidityPool, Balance, CentralLiquidityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         add_supported_pool<WETH>(owner);
         let account_addr = signer::address_of(account);
@@ -874,7 +874,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         coin::deposit(account_addr, coin);
     }
     #[test(owner=@leizd_aptos_central_liquidity_pool,depositor=@0x111,borrower=@0x222)]
-    public entry fun test_borrow_more_than_once_sequentially(owner: &signer, depositor: &signer, borrower: &signer) acquires CentralLiquidityPool, Balance, CentralLiquidityPoolEventHandle {
+    fun test_borrow_more_than_once_sequentially(owner: &signer, depositor: &signer, borrower: &signer) acquires CentralLiquidityPool, Balance, CentralLiquidityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         add_supported_pool<WETH>(owner);
         let depositor_addr = signer::address_of(depositor);
@@ -917,7 +917,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
 
     // for repay
     #[test(owner=@leizd_aptos_central_liquidity_pool,account1=@0x111,account2=@0x222)]
-    public entry fun test_repay(owner: &signer, account1: &signer, account2: &signer) acquires CentralLiquidityPool, Balance, CentralLiquidityPoolEventHandle {
+    fun test_repay(owner: &signer, account1: &signer, account2: &signer) acquires CentralLiquidityPool, Balance, CentralLiquidityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         add_supported_pool<WETH>(owner);
         let account1_addr = signer::address_of(account1);
@@ -947,13 +947,13 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
     //// validations
     #[test(owner=@leizd_aptos_central_liquidity_pool,account=@0x111)]
     #[expected_failure(abort_code = 65539)]
-    public entry fun test_repay_with_zero_amount(owner: &signer, account: &signer) acquires CentralLiquidityPool, Balance, CentralLiquidityPoolEventHandle {
+    fun test_repay_with_zero_amount(owner: &signer, account: &signer) acquires CentralLiquidityPool, Balance, CentralLiquidityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         repay_internal(key<WETH>(), account, 0);
     }
     #[test(owner=@leizd_aptos_central_liquidity_pool,account=@0x111)]
     #[expected_failure(abort_code = 65539)]
-    public entry fun test_repay_with_amount_is_greater_than_total_borrowed(owner: &signer, account: &signer) acquires CentralLiquidityPool, Balance, CentralLiquidityPoolEventHandle {
+    fun test_repay_with_amount_is_greater_than_total_borrowed(owner: &signer, account: &signer) acquires CentralLiquidityPool, Balance, CentralLiquidityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         add_supported_pool<WETH>(owner);
         let owner_addr = signer::address_of(owner);
@@ -973,7 +973,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
     }
     //// calculation
     #[test(owner=@leizd_aptos_central_liquidity_pool,depositor=@0x111,borrower=@0x222)]
-    public entry fun test_repay_for_confirming_priority(owner: &signer, depositor: &signer, borrower: &signer) acquires CentralLiquidityPool, Balance, CentralLiquidityPoolEventHandle {
+    fun test_repay_for_confirming_priority(owner: &signer, depositor: &signer, borrower: &signer) acquires CentralLiquidityPool, Balance, CentralLiquidityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         add_supported_pool<WETH>(owner);
         let depositor_addr = signer::address_of(depositor);
@@ -1009,7 +1009,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         assert!(usdz::balance_of(borrower_addr) == 0, 0);
     }
     #[test(owner=@leizd_aptos_central_liquidity_pool,depositor=@0x111,borrower=@0x222)]
-    public entry fun test_repay_with_amount_between_total_borrowed_and_uncollected_fee(owner: &signer, depositor: &signer, borrower: &signer) acquires CentralLiquidityPool, Balance, CentralLiquidityPoolEventHandle {
+    fun test_repay_with_amount_between_total_borrowed_and_uncollected_fee(owner: &signer, depositor: &signer, borrower: &signer) acquires CentralLiquidityPool, Balance, CentralLiquidityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         add_supported_pool<WETH>(owner);
         let depositor_addr = signer::address_of(depositor);
@@ -1095,7 +1095,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
     }
 
     #[test(owner=@leizd_aptos_central_liquidity_pool, account1=@0x111, account2=@0x222)]
-    public entry fun test_deposit_and_withdraw_without_fees(owner: &signer, account1: &signer, account2: &signer) acquires Balance, CentralLiquidityPool, CentralLiquidityPoolEventHandle {
+    fun test_deposit_and_withdraw_without_fees(owner: &signer, account1: &signer, account2: &signer) acquires Balance, CentralLiquidityPool, CentralLiquidityPoolEventHandle {
         initialize_for_test_to_use_coin(owner);
         let account_addr1 = signer::address_of(account1);
         let account_addr2 = signer::address_of(account2);
