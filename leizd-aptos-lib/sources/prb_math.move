@@ -135,7 +135,7 @@ module leizd_aptos_lib::prb_math {
     }
 
     #[test]
-    public entry fun test_sqrt() {
+    fun test_sqrt() {
 
         let x = 1000000000; // 1.0
         let expected = 1000000000;
@@ -184,7 +184,7 @@ module leizd_aptos_lib::prb_math {
     }
 
     #[test]
-    public entry fun test_exp2() {
+    fun test_exp2() {
         let x = 1;
         let expected = 1000000000;
         x = (x << 64) / SCALE;

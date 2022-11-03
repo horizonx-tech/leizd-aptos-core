@@ -47,10 +47,8 @@ module leizd_aptos_lib::prb_math_30x9 {
         }    
     }
 
-    // use std::debug;
-
     #[test]
-    public entry fun test_exp_positive() {
+    fun test_exp_positive() {
         let result = exp(1, true);
         assert!(result == 1000000000, 0); // CHECK: 1000000001
 
@@ -74,7 +72,7 @@ module leizd_aptos_lib::prb_math_30x9 {
     }
 
     #[test]
-    public entry fun test_exp_negative() {
+    fun test_exp_negative() {
         let result = exp(1, false);
         assert!(result == 1000000000, 0); // CHECK: 0.999999999
 
@@ -101,7 +99,7 @@ module leizd_aptos_lib::prb_math_30x9 {
     }
 
     #[test]
-    public entry fun test_exp2_positive() {
+    fun test_exp2_positive() {
         let result = exp2(1, true);
         assert!(result == 1000000000, 0);
 
@@ -131,7 +129,7 @@ module leizd_aptos_lib::prb_math_30x9 {
     }
 
     #[test]
-    public entry fun test_exp2_negative() {
+    fun test_exp2_negative() {
         let result = exp2(1, false);
         assert!(result == 1000000000, 0);
 
