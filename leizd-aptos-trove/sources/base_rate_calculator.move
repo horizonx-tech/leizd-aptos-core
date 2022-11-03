@@ -51,8 +51,8 @@ module leizd_aptos_trove::base_rate_calculator {
 
     /* 
     * Multiply two decimal numbers and use normal rounding rules:
-    * -round product up if 17'th mantissa digit >= 5
-    * -round product down if 17'th mantissa digit < 5
+    * -round product up if 7'th mantissa digit >= 5
+    * -round product down if 7'th mantissa digit < 5
     *
     * Used only inside the exponentiation, calc_dec_pow().
     */
