@@ -125,7 +125,7 @@ module leizd_aptos_entry::money_market {
                 let share = account_position::conly_deposited_asset_share<C>(account_addr);
                 if (share > 0) asset_pool::conly_deposited_share_to_amount(key, share) else 0
             } else {
-                let share = account_position::deposited_asset_share<C>(account_addr);
+                let share = account_position::normal_deposited_asset_share<C>(account_addr);
                 if (share > 0) asset_pool::normal_deposited_share_to_amount(key, share) else 0
             }
         } else {
@@ -133,7 +133,7 @@ module leizd_aptos_entry::money_market {
                 let share = account_position::conly_deposited_shadow_share<C>(account_addr);
                 if (share > 0) shadow_pool::conly_deposited_share_to_amount(key, share) else 0
             } else {
-                let share = account_position::deposited_shadow_share<C>(account_addr);
+                let share = account_position::normal_deposited_shadow_share<C>(account_addr);
                 if (share > 0) shadow_pool::normal_deposited_share_to_amount(key, share) else 0
             }
         }
