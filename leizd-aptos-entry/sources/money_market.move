@@ -99,8 +99,7 @@ module leizd_aptos_entry::money_market {
         amount: u64,
     ) acquires LendingPoolModKeys {
         pool_type::assert_pool_type<P>();
-        let depositor_addr = signer::address_of(account);
-        if ((amount as u128) >= get_max_withdrawal_amount<C,P>(depositor_addr)) {
+        if ((amount as u128) >= get_max_withdrawal_amount<C,P>(signer::address_of(account))) {
             withdraw_all_for<C,P>(account, receiver_addr)
         } else {
             withdraw_for_internal<C,P>(account, receiver_addr, amount)
@@ -132,17 +131,17 @@ module leizd_aptos_entry::money_market {
         receiver_addr: address,
         amount: u64,
     ) acquires LendingPoolModKeys {
-        let depositor_addr = signer::address_of(account);
+        let account_addr = signer::address_of(account);
         let (account_position_key, asset_pool_key, shadow_pool_key, _) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
 
-        let is_collateral_only = account_position::is_conly<C,P>(depositor_addr);
+        let is_collateral_only = account_position::is_conly<C,P>(account_addr);
         let withdrawed_user_share: u64;
         if (pool_type::is_type_asset<P>()) {
-            (_, withdrawed_user_share) = asset_pool::withdraw_for<C>(depositor_addr, receiver_addr, amount, is_collateral_only, asset_pool_key);
+            (_, withdrawed_user_share) = asset_pool::withdraw_for<C>(account_addr, receiver_addr, amount, is_collateral_only, asset_pool_key);
         } else {
-            (_, withdrawed_user_share) = shadow_pool::withdraw_for<C>(depositor_addr, receiver_addr, amount, is_collateral_only, 0, shadow_pool_key);
+            (_, withdrawed_user_share) = shadow_pool::withdraw_for<C>(account_addr, receiver_addr, amount, is_collateral_only, 0, shadow_pool_key);
         };
-        account_position::withdraw<C,P>(depositor_addr, withdrawed_user_share, is_collateral_only, account_position_key);
+        account_position::withdraw<C,P>(account_addr, withdrawed_user_share, is_collateral_only, account_position_key);
     }
 
     public entry fun withdraw_all<C,P>(account: &signer) acquires LendingPoolModKeys {
@@ -156,13 +155,13 @@ module leizd_aptos_entry::money_market {
         pool_type::assert_pool_type<P>();
         let (account_position_key, asset_pool_key, shadow_pool_key, _) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
 
-        let depositor_addr = signer::address_of(account);
-        let is_collateral_only = account_position::is_conly<C,P>(depositor_addr);
-        let user_share_all = account_position::withdraw_all<C,P>(depositor_addr, is_collateral_only, account_position_key);
+        let account_addr = signer::address_of(account);
+        let is_collateral_only = account_position::is_conly<C,P>(account_addr);
+        let user_share_all = account_position::withdraw_all<C,P>(account_addr, is_collateral_only, account_position_key);
         if (pool_type::is_type_asset<P>()) {
-            asset_pool::withdraw_for_by_share<C>(depositor_addr, receiver_addr, user_share_all, is_collateral_only, asset_pool_key);
+            asset_pool::withdraw_for_by_share<C>(account_addr, receiver_addr, user_share_all, is_collateral_only, asset_pool_key);
         } else {
-            shadow_pool::withdraw_for_by_share<C>(depositor_addr, receiver_addr, user_share_all, is_collateral_only, 0, shadow_pool_key);
+            shadow_pool::withdraw_for_by_share<C>(account_addr, receiver_addr, user_share_all, is_collateral_only, 0, shadow_pool_key);
         };
     }
 
@@ -196,8 +195,7 @@ module leizd_aptos_entry::money_market {
     /// Repay an asset or a shadow from the pool.
     public entry fun repay<C,P>(account: &signer, amount: u64) acquires LendingPoolModKeys {
         pool_type::assert_pool_type<P>();
-        let repayer = signer::address_of(account);
-        if ((amount as u128) >= get_max_repayable_amount<C,P>(repayer)) {
+        if ((amount as u128) >= get_max_repayable_amount<C,P>(signer::address_of(account))) {
             repay_all<C,P>(account)
         } else {
             repay_internal<C,P>(account, amount)
