@@ -123,18 +123,18 @@ module leizd_aptos_entry::money_market {
         if (pool_type::is_type_asset<P>()) {
             if (is_collateral_only) {
                 let share = account_position::conly_deposited_asset_share<C>(account_addr);
-                asset_pool::conly_deposited_share_to_amount(key, share)
+                if (share > 0) asset_pool::conly_deposited_share_to_amount(key, share) else 0
             } else {
                 let share = account_position::deposited_asset_share<C>(account_addr);
-                asset_pool::normal_deposited_share_to_amount(key, share)
+                if (share > 0) asset_pool::normal_deposited_share_to_amount(key, share) else 0
             }
         } else {
             if (is_collateral_only) {
                 let share = account_position::conly_deposited_shadow_share<C>(account_addr);
-                shadow_pool::conly_deposited_share_to_amount(key, share)
+                if (share > 0) shadow_pool::conly_deposited_share_to_amount(key, share) else 0
             } else {
                 let share = account_position::deposited_shadow_share<C>(account_addr);
-                shadow_pool::normal_deposited_share_to_amount(key, share)
+                if (share > 0) shadow_pool::normal_deposited_share_to_amount(key, share) else 0
             }
         }
     }
@@ -191,7 +191,7 @@ module leizd_aptos_entry::money_market {
     public entry fun repay<C,P>(account: &signer, amount: u64) acquires LendingPoolModKeys {
         pool_type::assert_pool_type<P>();
         let repayer = signer::address_of(account);
-        if ((amount as u128) >= get_max_withdrawal_amount<C,P>(repayer)) {
+        if ((amount as u128) >= get_max_repayable_amount<C,P>(repayer)) {
             repay_all<C,P>(account);
             return ()
         };
@@ -211,10 +211,10 @@ module leizd_aptos_entry::money_market {
         let key = key<C>();
         if (pool_type::is_type_asset<P>()) {
             let share = account_position::borrowed_asset_share<C>(account_addr);
-            asset_pool::borrowed_share_to_amount(key, share)
+            if (share > 0) asset_pool::borrowed_share_to_amount(key, share) else 0
         } else {
             let share = account_position::borrowed_shadow_share<C>(account_addr);
-            shadow_pool::borrowed_share_to_amount(key, share)
+            if (share > 0) shadow_pool::borrowed_share_to_amount(key, share) else 0
         }
     }
 
