@@ -99,9 +99,14 @@ module leizd_aptos_entry::money_market {
         amount: u64,
     ) acquires LendingPoolModKeys {
         pool_type::assert_pool_type<P>();
+        let depositor_addr = signer::address_of(account);
+        if ((amount as u128) >= get_max_withdrawal_amount<C,P>(depositor_addr)) {
+            withdraw_all_for<C,P>(account, receiver_addr);
+            return ()
+        };
+
         let (account_position_key, asset_pool_key, shadow_pool_key, _) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
 
-        let depositor_addr = signer::address_of(account);
         let is_collateral_only = account_position::is_conly<C,P>(depositor_addr);
         let withdrawed_user_share: u64;
         if (pool_type::is_type_asset<P>()) {
@@ -110,6 +115,28 @@ module leizd_aptos_entry::money_market {
             (_, withdrawed_user_share) = shadow_pool::withdraw_for<C>(depositor_addr, receiver_addr, amount, is_collateral_only, 0, shadow_pool_key);
         };
         account_position::withdraw<C,P>(depositor_addr, withdrawed_user_share, is_collateral_only, account_position_key);
+    }
+
+    fun get_max_withdrawal_amount<C,P>(account_addr: address): u128 {
+        let is_collateral_only = account_position::is_conly<C,P>(account_addr);
+        let key = key<C>();
+        if (pool_type::is_type_asset<P>()) {
+            if (is_collateral_only) {
+                let share = account_position::conly_deposited_asset_share<C>(account_addr);
+                asset_pool::conly_deposited_share_to_amount(key, share)
+            } else {
+                let share = account_position::deposited_asset_share<C>(account_addr);
+                asset_pool::normal_deposited_share_to_amount(key, share)
+            }
+        } else {
+            if (is_collateral_only) {
+                let share = account_position::conly_deposited_shadow_share<C>(account_addr);
+                shadow_pool::conly_deposited_share_to_amount(key, share)
+            } else {
+                let share = account_position::deposited_shadow_share<C>(account_addr);
+                shadow_pool::normal_deposited_share_to_amount(key, share)
+            }
+        }
     }
 
     public entry fun withdraw_all<C,P>(account: &signer) acquires LendingPoolModKeys {
