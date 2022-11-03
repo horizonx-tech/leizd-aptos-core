@@ -47,6 +47,10 @@ module leizd_aptos_trove::trove {
         coin: coin::Coin<USDZ>
     }
 
+    struct BorrowingFeeVault has key, store {
+        coin: coin::Coin<USDZ>
+    }
+
     struct SupportedCoins has key {
         coins: vector<String>
     }
@@ -90,6 +94,9 @@ module leizd_aptos_trove::trove {
             coins: vector::empty<String>()
         });
         move_to(owner, GasPool{
+            coin: coin::zero<USDZ>()
+        });
+        move_to(owner, BorrowingFeeVault{
             coin: coin::zero<USDZ>()
         })
     }
@@ -341,11 +348,20 @@ module leizd_aptos_trove::trove {
                 borrowed: 0,
             });
         };
-        validate_open_trove<C>(collateral_amount, amount, account_addr);
+        let net_debt = amount;
+        let borrowing_fee = borrowing_fee(amount);
+//        if (!isRecoveryMode()){ // TODO: add
+        net_debt = net_debt + borrowing_fee;
+
+//        }
+        validate_open_trove<C>(collateral_amount, net_debt, account_addr);
         base_rate::decay_base_rate_from_borrowing();
-        increase_trove_amount(account_addr, key_of<C>(), collateral_amount, amount);
-        let treasury = borrow_global_mut<Vault<C>>(permission::owner_address());
+        increase_trove_amount(account_addr, key_of<C>(), collateral_amount, net_debt);
+        let owner_address = permission::owner_address();
+        let treasury = borrow_global_mut<Vault<C>>(owner_address);
         coin::merge(&mut treasury.coin, coin::withdraw<C>(account, collateral_amount));
+//        let borrowing_fee_vault = borrow_global_mut<BorrowingFeeVault>(owner_address);
+        // TODO: mint borrowing fee to borrowing_fee_vault 
         usdz::mint(account, amount);
         event::emit_event<OpenTroveEvent>(
             &mut borrow_global_mut<TroveEventHandle<C>>(permission::owner_address()).open_trove_event,
