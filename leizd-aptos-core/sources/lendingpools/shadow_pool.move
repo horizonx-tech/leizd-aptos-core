@@ -254,12 +254,12 @@ module leizd::shadow_pool {
         let user_share_u128: u128;
         if (is_collateral_only) {
             storage_ref.total_conly_deposited_amount = storage_ref.total_conly_deposited_amount + amount_u128;
-            user_share_u128 = math128::to_share((amount as u128), asset_storage.conly_deposited_amount, asset_storage.conly_deposited_share);
+            user_share_u128 = math128::to_share(amount_u128, asset_storage.conly_deposited_amount, asset_storage.conly_deposited_share);
             asset_storage.conly_deposited_amount = asset_storage.conly_deposited_amount + amount_u128;
             asset_storage.conly_deposited_share = asset_storage.conly_deposited_share + user_share_u128;
         } else {
             storage_ref.total_normal_deposited_amount = storage_ref.total_normal_deposited_amount + amount_u128;
-            user_share_u128 = math128::to_share((amount as u128), asset_storage.normal_deposited_amount, asset_storage.normal_deposited_share);
+            user_share_u128 = math128::to_share(amount_u128, asset_storage.normal_deposited_amount, asset_storage.normal_deposited_share);
             asset_storage.normal_deposited_amount = asset_storage.normal_deposited_amount + amount_u128;
             asset_storage.normal_deposited_share = asset_storage.normal_deposited_share + user_share_u128;
         };
@@ -960,7 +960,7 @@ module leizd::shadow_pool {
         treasury::collect_fee<USDZ>(fee_extracted);
     }
 
-    public fun harvest_protocol_fees() acquires Pool, Storage {
+    public entry fun harvest_protocol_fees() acquires Pool, Storage {
         let owner_addr = permission::owner_address();
         let storage_ref = borrow_global_mut<Storage>(owner_addr);
         let pool_ref = borrow_global_mut<Pool>(owner_addr);

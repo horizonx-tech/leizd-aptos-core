@@ -648,7 +648,7 @@ module leizd::asset_pool {
         treasury::collect_fee<C>(fee_extracted);
     }
 
-    public fun harvest_protocol_fees<C>() acquires Pool, Storage {
+    public entry fun harvest_protocol_fees<C>() acquires Pool, Storage {
         let owner_addr = permission::owner_address();
         let pool_ref = borrow_global_mut<Pool<C>>(owner_addr);
         let asset_storage_ref = borrow_mut_asset_storage<C>(borrow_global_mut<Storage>(owner_addr));

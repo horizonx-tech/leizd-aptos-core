@@ -457,8 +457,6 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         *simple_map::borrow<String,u128>(&balance_ref.borrowed, &key)
     }
 
-    // #[test_only]
-    // use aptos_framework::debug;
     #[test_only]
     use aptos_framework::managed_coin;
     #[test_only]
