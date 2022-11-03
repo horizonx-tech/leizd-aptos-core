@@ -922,7 +922,7 @@ module leizd::shadow_pool {
     ) acquires Keys {
         let liquidity = total_liquidity_internal(pool_ref, storage_ref);
         let asset_storage_ref = simple_map::borrow_mut<String,AssetStorage>(&mut storage_ref.asset_storages, &key);
-        let accrued_interest = (asset_storage_ref.borrowed_amount as u128) * rcomp / interest_rate::precision();
+        let accrued_interest = asset_storage_ref.borrowed_amount * rcomp / interest_rate::precision();
         let total_accrued_interest = accrued_interest;
         let key_for_central = &borrow_global<Keys>(permission::owner_address()).central_liquidity_pool;
 
