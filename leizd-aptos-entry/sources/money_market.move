@@ -222,11 +222,11 @@ module leizd_aptos_entry::money_market {
         let to_share: u64;
         if (pool_type::is_type_asset<P>()) {
             account_position::assert_invalid_deposit_asset(key, account_addr, !to_collateral_only);
-            let all_user_share = if (to_collateral_only) account_position::deposited_asset_share<C>(account_addr) else account_position::conly_deposited_asset_share<C>(account_addr);
+            let all_user_share = if (to_collateral_only) account_position::normal_deposited_asset_share<C>(account_addr) else account_position::conly_deposited_asset_share<C>(account_addr);
             (_, _, to_share) = asset_pool::switch_collateral<C>(account_addr, all_user_share, to_collateral_only, asset_pool_key);
         } else {
             account_position::assert_invalid_deposit_shadow(key, account_addr, !to_collateral_only);
-            let all_user_share = if (to_collateral_only) account_position::deposited_shadow_share<C>(account_addr) else account_position::conly_deposited_shadow_share<C>(account_addr);
+            let all_user_share = if (to_collateral_only) account_position::normal_deposited_shadow_share<C>(account_addr) else account_position::conly_deposited_shadow_share<C>(account_addr);
             (_, _, to_share) = shadow_pool::switch_collateral<C>(account_addr, all_user_share, to_collateral_only, shadow_pool_key);
         };
         account_position::switch_collateral<C,P>(account_addr, to_collateral_only, to_share, account_position_key);
@@ -371,7 +371,7 @@ module leizd_aptos_entry::money_market {
 
         assert!(coin::balance<WETH>(account_addr) == 0, 0);
         assert!(asset_pool::total_normal_deposited_amount<WETH>() == 100, 0);
-        assert!(account_position::deposited_asset_share<WETH>(account_addr) == 100, 0);
+        assert!(account_position::normal_deposited_asset_share<WETH>(account_addr) == 100, 0);
     }
     #[test(owner=@leizd_aptos_entry,account=@0x111,aptos_framework=@aptos_framework)]
     fun test_deposit_with_shadow(owner: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
@@ -384,7 +384,7 @@ module leizd_aptos_entry::money_market {
 
         assert!(coin::balance<WETH>(account_addr) == 0, 0);
         assert!(shadow_pool::normal_deposited_amount<WETH>() == 100, 0);
-        assert!(account_position::deposited_shadow_share<WETH>(account_addr) == 100, 0);
+        assert!(account_position::normal_deposited_shadow_share<WETH>(account_addr) == 100, 0);
     }
     #[test(owner=@leizd_aptos_entry,account=@0x111,for=@0x222,aptos_framework=@aptos_framework)]
     fun test_deposit_for_with_asset(owner: &signer, account: &signer, for: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
@@ -401,7 +401,7 @@ module leizd_aptos_entry::money_market {
 
         assert!(coin::balance<WETH>(account_addr) == 0, 0);
         assert!(asset_pool::total_normal_deposited_amount<WETH>() == 100, 0);
-        assert!(account_position::deposited_asset_share<WETH>(for_addr) == 100, 0);
+        assert!(account_position::normal_deposited_asset_share<WETH>(for_addr) == 100, 0);
     }
     #[test(owner=@leizd_aptos_entry,account=@0x111,for=@0x222,aptos_framework=@aptos_framework)]
     fun test_deposit_for_with_shadow(owner: &signer, account: &signer, for: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
@@ -418,7 +418,7 @@ module leizd_aptos_entry::money_market {
 
         assert!(coin::balance<USDZ>(account_addr) == 0, 0);
         assert!(shadow_pool::normal_deposited_amount<WETH>() == 100, 0);
-        assert!(account_position::deposited_shadow_share<WETH>(for_addr) == 100, 0);
+        assert!(account_position::normal_deposited_shadow_share<WETH>(for_addr) == 100, 0);
     }
     #[test(owner=@leizd_aptos_entry,account=@0x111,aptos_framework=@aptos_framework)]
     fun test_withdraw_with_asset(owner: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
@@ -432,7 +432,7 @@ module leizd_aptos_entry::money_market {
 
         assert!(coin::balance<WETH>(account_addr) == 75, 0);
         assert!(asset_pool::total_normal_deposited_amount<WETH>() == 25, 0);
-        assert!(account_position::deposited_asset_share<WETH>(account_addr) == 25, 0);
+        assert!(account_position::normal_deposited_asset_share<WETH>(account_addr) == 25, 0);
     }
     #[test(owner=@leizd_aptos_entry,account=@0x111,aptos_framework=@aptos_framework)]
     fun test_withdraw_with_shadow(owner: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
@@ -446,7 +446,7 @@ module leizd_aptos_entry::money_market {
 
         assert!(coin::balance<USDZ>(account_addr) == 75, 0);
         assert!(shadow_pool::normal_deposited_amount<WETH>() == 25, 0);
-        assert!(account_position::deposited_shadow_share<WETH>(account_addr) == 25, 0);
+        assert!(account_position::normal_deposited_shadow_share<WETH>(account_addr) == 25, 0);
     }
     #[test(owner=@leizd_aptos_entry,account=@0x111,for=@0x222,aptos_framework=@aptos_framework)]
     fun test_withdraw_for_with_asset(owner: &signer, account: &signer, for: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
@@ -464,7 +464,7 @@ module leizd_aptos_entry::money_market {
         assert!(coin::balance<WETH>(account_addr) == 0, 0);
         assert!(coin::balance<WETH>(for_addr) == 75, 0);
         assert!(asset_pool::total_normal_deposited_amount<WETH>() == 25, 0);
-        assert!(account_position::deposited_asset_share<WETH>(account_addr) == 25, 0);
+        assert!(account_position::normal_deposited_asset_share<WETH>(account_addr) == 25, 0);
     }
     #[test(owner=@leizd_aptos_entry,account=@0x111,for=@0x222,aptos_framework=@aptos_framework)]
     fun test_withdraw_for_with_shadow(owner: &signer, account: &signer, for: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
@@ -482,7 +482,7 @@ module leizd_aptos_entry::money_market {
         assert!(coin::balance<USDZ>(account_addr) == 0, 0);
         assert!(coin::balance<USDZ>(for_addr) == 75, 0);
         assert!(shadow_pool::normal_deposited_amount<WETH>() == 25, 0);
-        assert!(account_position::deposited_shadow_share<WETH>(account_addr) == 25, 0);
+        assert!(account_position::normal_deposited_shadow_share<WETH>(account_addr) == 25, 0);
     }
     #[test(owner=@leizd_aptos_entry,account=@0x111,aptos_framework=@aptos_framework)]
     fun test_withdraw_all_with_asset(owner: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
@@ -499,7 +499,7 @@ module leizd_aptos_entry::money_market {
         withdraw_all<WETH, Asset>(account);
         assert!(coin::balance<WETH>(account_addr) == 10000, 0);
         assert!(asset_pool::total_normal_deposited_amount<WETH>() == 0, 0);
-        assert!(account_position::deposited_asset_share<WETH>(account_addr) == 0, 0);
+        assert!(account_position::normal_deposited_asset_share<WETH>(account_addr) == 0, 0);
     }
     #[test(owner=@leizd_aptos_entry,account=@0x111,aptos_framework=@aptos_framework)]
     fun test_withdraw_all_with_shadow(owner: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
@@ -516,7 +516,7 @@ module leizd_aptos_entry::money_market {
         withdraw_all<WETH, Shadow>(account);
         assert!(coin::balance<USDZ>(account_addr) == 100000, 0);
         assert!(shadow_pool::normal_deposited_amount<WETH>() == 0, 0);
-        assert!(account_position::deposited_shadow_share<WETH>(account_addr) == 0, 0);
+        assert!(account_position::normal_deposited_shadow_share<WETH>(account_addr) == 0, 0);
     }
 
     #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
@@ -934,7 +934,7 @@ module leizd_aptos_entry::money_market {
         borrow<WETH, Shadow>(borrower, 100);
         assert!(asset_pool::total_normal_deposited_amount<WETH>() == 100, 0);
         assert!(shadow_pool::borrowed_amount<WETH>() == 100 + 1, 0);
-        assert!(account_position::deposited_asset_share<WETH>(borrower_addr) == 100, 0);
+        assert!(account_position::normal_deposited_asset_share<WETH>(borrower_addr) == 100, 0);
         assert!(account_position::borrowed_shadow_share<WETH>(borrower_addr) == 101, 0);
         assert!(coin::balance<WETH>(borrower_addr) == 0, 0);
         assert!(coin::balance<USDZ>(borrower_addr) == 100, 0);
@@ -949,7 +949,7 @@ module leizd_aptos_entry::money_market {
         liquidate<WETH, Asset>(liquidator, borrower_addr);
         assert!(asset_pool::total_normal_deposited_amount<WETH>() == 0, 0);
         assert!(shadow_pool::borrowed_amount<WETH>() == 0, 0);
-        assert!(account_position::deposited_asset_share<WETH>(borrower_addr) == 0, 0);
+        assert!(account_position::normal_deposited_asset_share<WETH>(borrower_addr) == 0, 0);
         assert!(account_position::borrowed_shadow_share<WETH>(borrower_addr) == 0, 0);
         assert!(coin::balance<WETH>(borrower_addr) == 0, 0);
         assert!(coin::balance<USDZ>(borrower_addr) == 100, 0);
@@ -1008,7 +1008,7 @@ module leizd_aptos_entry::money_market {
         borrow<WETH, Asset>(borrower, borrow_amount);
         assert!(shadow_pool::normal_deposited_amount<WETH>() == (deposit_amount as u128), 0);
         assert!(asset_pool::total_borrowed_amount<WETH>() == (borrow_amount + entry_fee as u128), 0);
-        assert!(account_position::deposited_shadow_share<WETH>(borrower_addr) == deposit_amount, 0);
+        assert!(account_position::normal_deposited_shadow_share<WETH>(borrower_addr) == deposit_amount, 0);
         assert!(account_position::borrowed_asset_share<WETH>(borrower_addr) == (borrow_amount + entry_fee), 0);
         assert!(coin::balance<USDZ>(borrower_addr) == 0, 0);
         assert!(coin::balance<WETH>(borrower_addr) == borrow_amount, 0);
@@ -1021,7 +1021,7 @@ module leizd_aptos_entry::money_market {
         liquidate<WETH, Shadow>(liquidator, borrower_addr);
         assert!(shadow_pool::normal_deposited_amount<WETH>() == 0, 0);
         assert!(asset_pool::total_borrowed_amount<WETH>() == 0, 0);
-        assert!(account_position::deposited_shadow_share<WETH>(borrower_addr) == 0, 0);
+        assert!(account_position::normal_deposited_shadow_share<WETH>(borrower_addr) == 0, 0);
         assert!(account_position::borrowed_asset_share<WETH>(borrower_addr) == 0, 0);
         assert!(coin::balance<WETH>(borrower_addr) == 100, 0);
         assert!(coin::balance<USDZ>(liquidator_addr) == (deposit_amount - deposit_amount / 2 / 100 - 1), 0);
@@ -1069,14 +1069,14 @@ module leizd_aptos_entry::money_market {
         deposit<WETH, Asset>(account, 1000, false);
         assert!(asset_pool::total_normal_deposited_amount<WETH>() == 1000, 0);
         assert!(asset_pool::total_conly_deposited_amount<WETH>() == 0, 0);
-        assert!(account_position::deposited_asset_share<WETH>(account_addr) == 1000, 0);
+        assert!(account_position::normal_deposited_asset_share<WETH>(account_addr) == 1000, 0);
         assert!(account_position::conly_deposited_asset_share<WETH>(account_addr) == 0, 0);
 
         // execute
         switch_collateral<WETH, Asset>(account, true);
         assert!(asset_pool::total_normal_deposited_amount<WETH>() == 0, 0);
         assert!(asset_pool::total_conly_deposited_amount<WETH>() == 1000, 0);
-        assert!(account_position::deposited_asset_share<WETH>(account_addr) == 0, 0);
+        assert!(account_position::normal_deposited_asset_share<WETH>(account_addr) == 0, 0);
         assert!(account_position::conly_deposited_asset_share<WETH>(account_addr) == 1000, 0);
     }
     #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
@@ -1091,14 +1091,14 @@ module leizd_aptos_entry::money_market {
         deposit<WETH, Shadow>(account, 1000, true);
         assert!(shadow_pool::normal_deposited_amount<WETH>() == 0, 0);
         assert!(shadow_pool::conly_deposited_amount<WETH>() == 1000, 0);
-        assert!(account_position::deposited_shadow_share<WETH>(account_addr) == 0, 0);
+        assert!(account_position::normal_deposited_shadow_share<WETH>(account_addr) == 0, 0);
         assert!(account_position::conly_deposited_shadow_share<WETH>(account_addr) == 1000, 0);
 
         // execute
         switch_collateral<WETH, Shadow>(account, false);
         assert!(shadow_pool::normal_deposited_amount<WETH>() == 1000, 0);
         assert!(shadow_pool::conly_deposited_amount<WETH>() == 0, 0);
-        assert!(account_position::deposited_shadow_share<WETH>(account_addr) == 1000, 0);
+        assert!(account_position::normal_deposited_shadow_share<WETH>(account_addr) == 1000, 0);
         assert!(account_position::conly_deposited_shadow_share<WETH>(account_addr) == 0, 0);
     }
     #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
@@ -1125,7 +1125,7 @@ module leizd_aptos_entry::money_market {
         assert!(asset_pool::total_normal_deposited_share<WETH>() == 200000, 0);
         assert!(asset_pool::total_conly_deposited_share<WETH>() == 0, 0);
         assert!(asset_pool::total_borrowed_amount<WETH>() == 40, 0);
-        assert!(account_position::deposited_asset_share<WETH>(account_addr) == 50000, 0);
+        assert!(account_position::normal_deposited_asset_share<WETH>(account_addr) == 50000, 0);
         assert!(account_position::conly_deposited_asset_share<WETH>(account_addr) == 0, 0);
 
         // execute: normal -> collateral only
@@ -1140,7 +1140,7 @@ module leizd_aptos_entry::money_market {
         assert!(asset_pool::total_conly_deposited_amount<WETH>() == (50000 + 10), 0);
         assert!(asset_pool::total_normal_deposited_share<WETH>() == 150000, 0);
         assert!(asset_pool::total_conly_deposited_share<WETH>() == 50000 + 10, 0);
-        assert!(account_position::deposited_asset_share<WETH>(account_addr) == 0, 0);
+        assert!(account_position::normal_deposited_asset_share<WETH>(account_addr) == 0, 0);
         assert!(account_position::conly_deposited_asset_share<WETH>(account_addr) == 50000 + 10, 0);
 
         // execute: collateral only -> normal
@@ -1155,7 +1155,7 @@ module leizd_aptos_entry::money_market {
         assert!(asset_pool::total_conly_deposited_amount<WETH>() == 0, 0);
         assert!(asset_pool::total_normal_deposited_share<WETH>() == 200040 - 60, 0);
         assert!(asset_pool::total_conly_deposited_share<WETH>() == 0, 0);
-        assert!(account_position::deposited_asset_share<WETH>(account_addr) == 50000 - 20, 0);
+        assert!(account_position::normal_deposited_asset_share<WETH>(account_addr) == 50000 - 20, 0);
         assert!(account_position::conly_deposited_asset_share<WETH>(account_addr) == 0, 0);
     }
 
@@ -1182,7 +1182,7 @@ module leizd_aptos_entry::money_market {
 
         assert!(coin::balance<USDC>(borrower_addr) == 0, 0);
         assert!(asset_pool::total_normal_deposited_amount<USDC>() == 500 * (billion as u128) * math128::pow(10, 6), 0);
-        assert!(account_position::deposited_asset_share<USDC>(borrower_addr) == 500 * billion * math64::pow(10, 6), 0);
+        assert!(account_position::normal_deposited_asset_share<USDC>(borrower_addr) == 500 * billion * math64::pow(10, 6), 0);
         assert!(account_position::borrowed_asset_share<USDT>(borrower_addr) == 1005 * billion / 10 * math64::pow(10, 6), 0); // +0.5% entry fee
     }
     #[test(owner=@leizd_aptos_entry,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
@@ -1210,15 +1210,15 @@ module leizd_aptos_entry::money_market {
 
         deposit<USDC, Asset>(borrower, 500 * billion * math64::pow(10, 6), false);
         assert!(account_position::borrowed_shadow_share<USDC>(borrower_addr) == 0, 0);
-        assert!(account_position::deposited_shadow_share<USDT>(borrower_addr) == 0, 0);
+        assert!(account_position::normal_deposited_shadow_share<USDT>(borrower_addr) == 0, 0);
         assert!(account_position::borrowed_asset_share<USDT>(borrower_addr) == 0, 0);
         borrow_asset_with_rebalance<USDT>(borrower, 180 * billion * math64::pow(10, 6));
 
         assert!(coin::balance<USDC>(borrower_addr) == 0, 0);
         assert!(asset_pool::total_normal_deposited_amount<USDC>() == 500 * (billion as u128) * math128::pow(10, 6), 0);
-        assert!(account_position::deposited_asset_share<USDC>(borrower_addr) == 500 * billion * math64::pow(10, 6), 0);
+        assert!(account_position::normal_deposited_asset_share<USDC>(borrower_addr) == 500 * billion * math64::pow(10, 6), 0);
         assert!(account_position::borrowed_shadow_share<USDC>(borrower_addr) == 200 * billion * math64::pow(10, 6), 0);
-        assert!(account_position::deposited_shadow_share<USDT>(borrower_addr) == 200 * billion * math64::pow(10, 6), 0);
+        assert!(account_position::normal_deposited_shadow_share<USDT>(borrower_addr) == 200 * billion * math64::pow(10, 6), 0);
         assert!(account_position::borrowed_asset_share<USDT>(borrower_addr) == 180 * billion * math64::pow(10, 6), 0);
     }
 
