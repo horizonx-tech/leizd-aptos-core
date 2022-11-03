@@ -782,11 +782,6 @@ module leizd::asset_pool {
         asset_storage_ref.harvested_protocol_fees
     }
 
-    public fun last_updated<C>(): u64 acquires Storage {
-        let asset_storage_ref = borrow_mut_asset_storage<C>(borrow_global_mut<Storage>(permission::owner_address()));
-        asset_storage_ref.last_updated
-    }
-
     #[test_only]
     friend leizd::shadow_pool;
     #[test_only]
@@ -2200,7 +2195,6 @@ module leizd::asset_pool {
         let event_handle = borrow_global<PoolEventHandle<UNI>>(signer::address_of(owner));
         assert!(event::counter<RepayEvent>(&event_handle.repay_event) == 1, 0);
     }
-    // use std::debug;
     // #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
     // public entry fun test_harvest_protocol_fees_more_than_liquidity(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, AssetManagerKeys, PoolEventHandle {
     //     setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);

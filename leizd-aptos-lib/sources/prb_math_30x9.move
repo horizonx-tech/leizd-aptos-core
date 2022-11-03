@@ -47,8 +47,6 @@ module leizd_aptos_lib::prb_math_30x9 {
         }    
     }
 
-    // use std::debug;
-
     #[test]
     public entry fun test_exp_positive() {
         let result = exp(1, true);
