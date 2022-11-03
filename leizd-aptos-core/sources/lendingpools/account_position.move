@@ -812,10 +812,10 @@ module leizd::account_position {
     }
 
     //// getter about Resources in this module
-    public fun deposited_asset_share<C>(addr: address): u64 acquires Position {
-        deposited_asset_share_with(key<C>(), addr)
+    public fun normal_deposited_asset_share<C>(addr: address): u64 acquires Position {
+        normal_deposited_asset_share_with(key<C>(), addr)
     }
-    public fun deposited_asset_share_with(key: String, addr: address): u64 acquires Position {
+    public fun normal_deposited_asset_share_with(key: String, addr: address): u64 acquires Position {
         if (!exists<Position<AssetToShadow>>(addr)) return 0;
         let position_ref = borrow_global<Position<AssetToShadow>>(addr);
         if (simple_map::contains_key<String,Balance>(&position_ref.balance, &key)) {
@@ -849,10 +849,10 @@ module leizd::account_position {
         }
     }
 
-    public fun deposited_shadow_share<C>(addr: address): u64 acquires Position {
-        deposited_shadow_share_with(key<C>(), addr)
+    public fun normal_deposited_shadow_share<C>(addr: address): u64 acquires Position {
+        normal_deposited_shadow_share_with(key<C>(), addr)
     }
-    public fun deposited_shadow_share_with(key: String, addr: address): u64 acquires Position {
+    public fun normal_deposited_shadow_share_with(key: String, addr: address): u64 acquires Position {
         if (!exists<Position<ShadowToAsset>>(addr)) return 0;
         let position_ref = borrow_global<Position<ShadowToAsset>>(addr);
         if (simple_map::contains_key<String,Balance>(&position_ref.balance, &key)) {
