@@ -101,20 +101,10 @@ module leizd_aptos_entry::money_market {
         pool_type::assert_pool_type<P>();
         let depositor_addr = signer::address_of(account);
         if ((amount as u128) >= get_max_withdrawal_amount<C,P>(depositor_addr)) {
-            withdraw_all_for<C,P>(account, receiver_addr);
-            return ()
-        };
-
-        let (account_position_key, asset_pool_key, shadow_pool_key, _) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
-
-        let is_collateral_only = account_position::is_conly<C,P>(depositor_addr);
-        let withdrawed_user_share: u64;
-        if (pool_type::is_type_asset<P>()) {
-            (_, withdrawed_user_share) = asset_pool::withdraw_for<C>(depositor_addr, receiver_addr, amount, is_collateral_only, asset_pool_key);
+            withdraw_all_for<C,P>(account, receiver_addr)
         } else {
-            (_, withdrawed_user_share) = shadow_pool::withdraw_for<C>(depositor_addr, receiver_addr, amount, is_collateral_only, 0, shadow_pool_key);
-        };
-        account_position::withdraw<C,P>(depositor_addr, withdrawed_user_share, is_collateral_only, account_position_key);
+            withdraw_for_internal<C,P>(account, receiver_addr, amount)
+        }
     }
 
     fun get_max_withdrawal_amount<C,P>(account_addr: address): u128 {
@@ -135,6 +125,24 @@ module leizd_aptos_entry::money_market {
                 shadow_pool::normal_deposited_share_to_amount(key, share)
             }
         }
+    }
+
+    fun withdraw_for_internal<C,P>(
+        account: &signer,
+        receiver_addr: address,
+        amount: u64,
+    ) acquires LendingPoolModKeys {
+        let depositor_addr = signer::address_of(account);
+        let (account_position_key, asset_pool_key, shadow_pool_key, _) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
+
+        let is_collateral_only = account_position::is_conly<C,P>(depositor_addr);
+        let withdrawed_user_share: u64;
+        if (pool_type::is_type_asset<P>()) {
+            (_, withdrawed_user_share) = asset_pool::withdraw_for<C>(depositor_addr, receiver_addr, amount, is_collateral_only, asset_pool_key);
+        } else {
+            (_, withdrawed_user_share) = shadow_pool::withdraw_for<C>(depositor_addr, receiver_addr, amount, is_collateral_only, 0, shadow_pool_key);
+        };
+        account_position::withdraw<C,P>(depositor_addr, withdrawed_user_share, is_collateral_only, account_position_key);
     }
 
     public entry fun withdraw_all<C,P>(account: &signer) acquires LendingPoolModKeys {
@@ -190,19 +198,10 @@ module leizd_aptos_entry::money_market {
         pool_type::assert_pool_type<P>();
         let repayer = signer::address_of(account);
         if ((amount as u128) >= get_max_repayable_amount<C,P>(repayer)) {
-            repay_all<C,P>(account);
-            return ()
-        };
-
-        let (account_position_key, asset_pool_key, shadow_pool_key, _) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
-
-        let repaid_user_share: u64;
-        if (pool_type::is_type_asset<P>()) {
-            (_, repaid_user_share) = asset_pool::repay<C>(account, amount, asset_pool_key);
+            repay_all<C,P>(account)
         } else {
-            (_, repaid_user_share) = shadow_pool::repay<C>(account, amount, shadow_pool_key);
-        };
-        account_position::repay<C,P>(repayer, repaid_user_share, account_position_key);
+            repay_internal<C,P>(account, amount)
+        }
     }
 
     fun get_max_repayable_amount<C,P>(account_addr: address): u128 {
@@ -215,6 +214,19 @@ module leizd_aptos_entry::money_market {
         } else {
             shadow_pool::borrowed_share_to_amount(key, share)
         }
+    }
+
+    fun repay_internal<C,P>(account: &signer, amount: u64) acquires LendingPoolModKeys {
+        let repayer = signer::address_of(account);
+        let (account_position_key, asset_pool_key, shadow_pool_key, _) = keys(borrow_global<LendingPoolModKeys>(permission::owner_address()));
+
+        let repaid_user_share: u64;
+        if (pool_type::is_type_asset<P>()) {
+            (_, repaid_user_share) = asset_pool::repay<C>(account, amount, asset_pool_key);
+        } else {
+            (_, repaid_user_share) = shadow_pool::repay<C>(account, amount, shadow_pool_key);
+        };
+        account_position::repay<C,P>(repayer, repaid_user_share, account_position_key);
     }
 
     public entry fun repay_all<C,P>(account: &signer) acquires LendingPoolModKeys {
