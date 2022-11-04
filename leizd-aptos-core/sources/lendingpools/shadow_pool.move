@@ -1720,7 +1720,7 @@ module leizd::shadow_pool {
         assert!(total_liquidity() == 0, 0);
     }
     #[test(owner=@leizd,depositor=@0x111,withdrawer=@0x222,aptos_framework=@aptos_framework)]
-    #[expected_failure] // TODO: add validation & use error code (when amount calculated by share is more than deposited)
+    #[expected_failure(abort_code = 65539)]
     fun test_withdraw_by_share_with_more_than_deposited(owner: &signer, depositor: &signer, withdrawer: &signer, aptos_framework: &signer) acquires Pool, Storage, Keys, PoolEventHandle {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
 
