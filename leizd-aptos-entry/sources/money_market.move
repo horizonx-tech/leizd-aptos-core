@@ -380,7 +380,7 @@ module leizd_aptos_entry::money_market {
 
         // initialize
         initializer::initialize(owner);
-        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner); // TODO: clean
+        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         initialize(owner);
 
         // add_pool
