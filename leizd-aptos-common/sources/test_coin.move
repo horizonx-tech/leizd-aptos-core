@@ -12,11 +12,11 @@ module leizd_aptos_common::test_coin {
     use aptos_framework::managed_coin;
 
     public fun init_usdc(account: &signer) {
-        init_coin<USDC>(account, b"USDC", 6);
+        init_coin<USDC>(account, b"USDC", 8); // temp, TODO: use 6 as decimals
     }
 
     public fun init_usdt(account: &signer) {
-        init_coin<USDT>(account, b"USDT", 6);
+        init_coin<USDT>(account, b"USDT", 8); // temp, TODO: use 6 as decimals
     }
 
     public fun init_weth(account: &signer) {

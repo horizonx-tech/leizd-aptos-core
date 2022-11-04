@@ -13,7 +13,6 @@ module leizd::asset_pool {
     use leizd_aptos_common::coin_key::{key};
     use leizd_aptos_common::permission;
     use leizd_aptos_common::pool_status::{Self, AssetManagerKey as PoolStatusKey};
-    use leizd_aptos_external::dex_facade;
     use leizd_aptos_treasury::treasury::{Self, AssetManagerKey as TreasuryKey};
     use leizd_aptos_central_liquidity_pool::central_liquidity_pool::{Self, AssetManagerKey as CentralLiquidityPoolKey};
     use leizd_aptos_logic::risk_factor::{Self, AssetManagerKey as RiskFactorKey};
@@ -166,7 +165,6 @@ module leizd::asset_pool {
         let owner_addr = permission::owner_address();
         assert!(exists<Storage>(owner_addr), error::invalid_argument(ENOT_INITIALIZED));
         assert!(!is_pool_initialized<C>(), error::invalid_argument(EIS_ALREADY_EXISTED));
-        assert!(dex_facade::has_liquidity<C>(), error::invalid_state(EDEX_DOES_NOT_HAVE_LIQUIDITY));
 
         let keys = borrow_global<AssetManagerKeys>(owner_addr);
         treasury::add_coin<C>(account, &keys.treasury);

@@ -1406,7 +1406,7 @@ module leizd::shadow_pool {
         assert!(amount == 800000, 0);
         assert!(coin::balance<USDZ>(account_addr) == 200000, 0);
         assert!(total_liquidity() == 0, 0);
-        // assert!(total_deposited() == 0, 0); // TODO: check
+        assert!(total_normal_deposited_amount() == 0, 0);
         assert!(total_conly_deposited_amount() == 800000, 0);
         assert!(total_borrowed_amount() == 0, 0);
         assert!(normal_deposited_amount<WETH>() == 0, 0);
@@ -1534,21 +1534,6 @@ module leizd::shadow_pool {
         assert!(total_borrowed_amount() == 0, 0);
         assert!(borrowed_amount<WETH>() == 0, 0);
     }
-    // TODO: move to money_market.move
-    // #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
-    // #[expected_failure(abort_code = 65542)]
-    // fun test_withdraw_with_more_than_deposited_amount(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
-    //     setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
-    //     test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
-
-    //     let account_addr = signer::address_of(account);
-    //     account::create_account_for_test(account_addr);
-    //     managed_coin::register<USDZ>(account);
-    //     usdz::mint_for_test(account_addr, 100);
-
-    //     deposit_for_internal(key<WETH>(), account, account_addr, 100, false);
-    //     withdraw_for_internal(key<WETH>(), account_addr, account_addr, 101, false, false, 0);
-    // }
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
     fun test_withdraw_more_than_once_sequentially_over_time(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);

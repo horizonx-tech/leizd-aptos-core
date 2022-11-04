@@ -610,6 +610,20 @@ module leizd_aptos_entry::money_market {
 
         get_max_withdrawal_amount<WETH, Shadow>(signer::address_of(account));
     }
+    #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
+    fun test_withdraw_shadow_with_more_than_deposited_amount(owner: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
+        initialize_lending_pool_for_test(owner, aptos_framework);
+        setup_account_for_test(account);
+        let account_addr = signer::address_of(account);
+        usdz::mint_for_test(account_addr, 100);
+
+        deposit<WETH, Shadow>(account, 100, false);
+        assert!(coin::balance<USDZ>(account_addr) == 0, 0);
+        assert!(shadow_pool::normal_deposited_amount<WETH>() == 100, 0);
+        withdraw<WETH, Shadow>(account, 101); // more than deposited amount
+        assert!(coin::balance<USDZ>(account_addr) == 100, 0);
+        assert!(shadow_pool::normal_deposited_amount<WETH>() == 0, 0);
+    }
 
     #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
     fun test_borrow_with_shadow_from_asset(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
