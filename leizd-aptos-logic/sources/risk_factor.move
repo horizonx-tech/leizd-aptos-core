@@ -498,21 +498,6 @@ module leizd_aptos_logic::risk_factor {
         assert!(*new_lt == DEFAULT_THRESHOLD, 0);
     }
 
-    // #[test(owner = @leizd_aptos_logic, account = @0x111)] // TODO: permission less or instead of friend visibility
-    // fun test_initialize_for_asset_without_owner(owner: &signer, account: &signer) acquires Config, RepositoryAssetEventHandle, RepositoryEventHandle {
-    //     let owner_addr = signer::address_of(owner);
-    //     account::create_account_for_test(owner_addr);
-    //     initialize(owner);
-    //     initialize_for_asset_internal<TestAsset>(account);
-
-    //     let key = key<TestAsset>();
-    //     let config = borrow_global<Config>(owner_addr);
-    //     let new_ltv = table::borrow<string::String,u64>(&config.ltv, key);
-    //     let new_lt = table::borrow<string::String,u64>(&config.lt, key);
-
-    //     assert!(*new_ltv == DEFAULT_LTV, 0);
-    //     assert!(*new_lt == DEFAULT_THRESHOLD, 0);
-    // }
     #[test(owner = @leizd_aptos_logic)]
     #[expected_failure(abort_code = 65537)]
     fun test_initialize_for_asset_twice(owner: &signer) acquires Config, RepositoryAssetEventHandle, RepositoryEventHandle {
