@@ -321,12 +321,12 @@ module leizd_aptos_common::pool_status {
         emit_current_pool_status(key);
     }
 
-    public(friend) fun update_repay_shadow_evenly_status(active: bool) acquires Status {
+    public(friend) fun update_repay_shadow_evenly_status(active: bool) acquires Status, PoolStatusEventHandle {
         let owner_address = permission::owner_address();
         // assert_pool_status_initialized(owner_address, key); // TODO: check Status only
         let pool_status_ref = borrow_global_mut<Status>(owner_address);
         pool_status_ref.can_repay_shadow_evenly = active;
-        // emit_current_pool_status(key); //TODO: event?
+        emit_current_cross_pool_status();
     }
 
     public(friend) fun update_liquidate_status<C>(active: bool) acquires Status, PoolStatusEventHandle {
@@ -446,5 +446,16 @@ module leizd_aptos_common::pool_status {
         assert!(!can_borrow_asset_with_rebalance<DummyStruct1>(), 0);
         assert!(!can_repay_shadow_evenly(), 0);
         assert!(!can_liquidate<DummyStruct1>(), 0);
+    }
+    #[test(owner = @leizd_aptos_common)]
+    fun test_update_repay_shadow_evenly_status__about_event(owner: &signer) acquires Status, PoolStatusEventHandle {
+        let owner_addr = signer::address_of(owner);
+        account::create_account_for_test(owner_addr);
+        system_status::initialize(owner);
+        initialize(owner);
+        assert!(event::counter<CrossPoolStatusUpdateEvent>(&borrow_global<PoolStatusEventHandle>(owner_addr).cross_pool_status_update_event) == 0, 0);
+
+        update_repay_shadow_evenly_status(false);
+        assert!(event::counter<CrossPoolStatusUpdateEvent>(&borrow_global<PoolStatusEventHandle>(owner_addr).cross_pool_status_update_event) == 1, 0);
     }
 }
