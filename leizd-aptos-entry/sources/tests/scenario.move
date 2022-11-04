@@ -59,7 +59,7 @@ module leizd_aptos_entry::scenario {
 
         initializer::initialize(owner);
         money_market::initialize(owner);
-        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner); // TODO: clean
+        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
     }
     #[test_only]
     public fun register_all_coins(account: &signer) {
