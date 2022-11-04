@@ -340,11 +340,11 @@ module leizd::asset_pool {
         let amount_to_transfer = (amount_u128 as u64) - liquidation_fee;
         coin::deposit<C>(receiver_addr, coin::extract(&mut pool_ref.asset, amount_to_transfer));
         if (is_collateral_only) {
-            asset_storage_ref.total_conly_deposited_amount = asset_storage_ref.total_conly_deposited_amount - amount_u128;
-            asset_storage_ref.total_conly_deposited_share = asset_storage_ref.total_conly_deposited_share - share_u128;
+            asset_storage_ref.total_conly_deposited_amount = math128::sub(asset_storage_ref.total_conly_deposited_amount, amount_u128);
+            asset_storage_ref.total_conly_deposited_share = math128::sub(asset_storage_ref.total_conly_deposited_share, share_u128);
         } else {
-            asset_storage_ref.total_normal_deposited_amount = asset_storage_ref.total_normal_deposited_amount - amount_u128;
-            asset_storage_ref.total_normal_deposited_share = asset_storage_ref.total_normal_deposited_share - share_u128;
+            asset_storage_ref.total_normal_deposited_amount = math128::sub(asset_storage_ref.total_normal_deposited_amount, amount_u128);
+            asset_storage_ref.total_normal_deposited_share = math128::sub(asset_storage_ref.total_normal_deposited_share, share_u128);
         };
 
         event::emit_event<WithdrawEvent>(
@@ -1325,7 +1325,7 @@ module leizd::asset_pool {
         assert!(total_normal_deposited_share<WETH>() == 3000, 0);
     }
     #[test(owner=@leizd,depositor=@0x111,withdrawer=@0x222,aptos_framework=@aptos_framework)]
-    #[expected_failure] // TODO: add validation & use error code (when amount calculated by share is more than deposited)
+    #[expected_failure(abort_code=65539)]
     fun test_withdraw_by_share_with_more_than_deposited(owner: &signer, depositor: &signer, withdrawer: &signer, aptos_framework: &signer) acquires Pool, Storage, AssetManagerKeys, PoolEventHandle {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
 
@@ -1463,38 +1463,45 @@ module leizd::asset_pool {
         assert!(coin::balance<UNI>(borrower_addr) == 10000, 0);
         assert!(total_borrowed_amount<UNI>() == 10000 + 5 * 10, 0);
     }
-    // TODO: fail because of total_borrowed increased by interest_rate (as time passes)
-    // #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
-    // fun test_borrow_more_than_once_sequentially_over_time(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
-    //     setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
-    //     test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+    #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
+    fun test_borrow_more_than_once_sequentially_over_time(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, AssetManagerKeys {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
 
-    //     let depositor_addr = signer::address_of(depositor);
-    //     let borrower_addr = signer::address_of(borrower);
-    //     account::create_account_for_test(depositor_addr);
-    //     account::create_account_for_test(borrower_addr);
-    //     managed_coin::register<UNI>(depositor);
-    //     managed_coin::register<UNI>(borrower);
-    //     managed_coin::mint<UNI>(owner, depositor_addr, 100 + 4);
+        let depositor_addr = signer::address_of(depositor);
+        let borrower_addr = signer::address_of(borrower);
+        account::create_account_for_test(depositor_addr);
+        account::create_account_for_test(borrower_addr);
+        managed_coin::register<UNI>(depositor);
+        managed_coin::register<UNI>(borrower);
+        managed_coin::mint<UNI>(owner, depositor_addr, 10000 + 5 * 10);
 
-    //     let initial_sec = 1648738800; // 20220401T00:00:00
-    //     // deposit UNI
-    //     timestamp::update_global_time_for_test(initial_sec * 1000 * 1000);
-    //     deposit_for_internal<UNI>(depositor, depositor_addr, 100 + 4, false);
-    //     // borrow UNI
-    //     timestamp::update_global_time_for_test((initial_sec + 250) * 1000 * 1000); // + 250 sec
-    //     borrow_for_internal<UNI>(borrower_addr, borrower_addr, 10);
-    //     assert!(coin::balance<UNI>(borrower_addr) == 10, 0);
-    //     timestamp::update_global_time_for_test((initial_sec + 500) * 1000 * 1000); // + 250 sec
-    //     borrow_for_internal<UNI>(borrower_addr, borrower_addr, 20);
-    //     assert!(coin::balance<UNI>(borrower_addr) == 30, 0);
-    //     timestamp::update_global_time_for_test((initial_sec + 750) * 1000 * 1000); // + 250 sec
-    //     borrow_for_internal<UNI>(borrower_addr, borrower_addr, 30);
-    //     assert!(coin::balance<UNI>(borrower_addr) == 60, 0);
-    //     timestamp::update_global_time_for_test((initial_sec + 1000) * 1000 * 1000); // + 250 sec
-    //     borrow_for_internal<UNI>(borrower_addr, borrower_addr, 40);
-    //     assert!(coin::balance<UNI>(borrower_addr) == 100, 0);
-    // }
+        let initial_sec = 1648738800; // 20220401T00:00:00
+        // deposit UNI
+        timestamp::update_global_time_for_test(initial_sec * 1000 * 1000);
+        deposit_for_internal<UNI>(depositor, depositor_addr, 10000 + 5 * 10, false);
+        // borrow UNI
+        timestamp::update_global_time_for_test((initial_sec + 2628000) * 1000 * 1000); // + 2628000 sec (1 month)
+        let (borrowed, _) = borrow_for_internal<UNI>(borrower_addr, borrower_addr, 1000);
+        assert!(borrowed == 1005, 0);
+        assert!(coin::balance<UNI>(borrower_addr) == 1000, 0);
+        assert!(total_borrowed_amount<UNI>() == 1000 + 5 * 1, 0);
+        timestamp::update_global_time_for_test((initial_sec + 2628000*2) * 1000 * 1000); // + 2628000 sec (1 month)
+        let (borrowed, _) = borrow_for_internal<UNI>(borrower_addr, borrower_addr, 2000);
+        assert!(borrowed == 2010, 0);
+        assert!(coin::balance<UNI>(borrower_addr) == 3000, 0);
+        assert!(total_borrowed_amount<UNI>() == 3000 + 5 * 3 + 1, 0); // +1: interest rate
+        timestamp::update_global_time_for_test((initial_sec + 2628000*3) * 1000 * 1000); // + 2628000 sec (1 month)
+        let (borrowed, _) = borrow_for_internal<UNI>(borrower_addr, borrower_addr, 3000);
+        assert!(borrowed == 3015, 0);
+        assert!(coin::balance<UNI>(borrower_addr) == 6000, 0);
+        assert!(total_borrowed_amount<UNI>() == 6000 + 5 * 6 + 12, 0); // +12: interest rate 
+        timestamp::update_global_time_for_test((initial_sec + 2628000*4) * 1000 * 1000); // + 2628000 sec (1 month)
+        let (borrowed, _) = borrow_for_internal<UNI>(borrower_addr, borrower_addr, 4000);
+        assert!(borrowed == 4020, 0);
+        assert!(coin::balance<UNI>(borrower_addr) == 10000, 0);
+        assert!(total_borrowed_amount<UNI>() == 10000 + 5 * 10 + 51, 0); // +51: interest rate
+    }
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
     #[expected_failure(abort_code = 65548)]
     fun test_borrow_to_not_borrow_collateral_only(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, AssetManagerKeys, PoolEventHandle {
