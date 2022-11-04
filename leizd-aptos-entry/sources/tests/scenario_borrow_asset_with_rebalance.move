@@ -98,13 +98,16 @@ module leizd_aptos_entry::scenario_borrow_asset_with_rebalance {
         // check
         // NOTE: `share` value is equal to `amount` value in this situation
         assert!(account_position::normal_deposited_asset_share<WETH>(account_addr) == 100000, 0);
-        assert!(account_position::normal_deposited_shadow_share<USDC>(account_addr) == 83332, 0); // -> 83333 ?
-        assert!(account_position::normal_deposited_shadow_share<UNI>(account_addr) == 16666, 0); // -> 16667 ?
+        assert!(account_position::normal_deposited_shadow_share<USDC>(account_addr) == 83332, 0);
+        assert!(account_position::normal_deposited_shadow_share<UNI>(account_addr) == 16666, 0);
         assert!(account_position::borrowed_asset_share<UNI>(account_addr) == 10050, 0);
         assert!(coin::balance<WETH>(account_addr) == 0, 0);
         assert!(coin::balance<USDC>(account_addr) == 50000, 0);
-        assert!(coin::balance<USDZ>(account_addr) == 2, 0); // -> 0, TODO: check
+        assert!(coin::balance<USDZ>(account_addr) == 2, 0);
         assert!(coin::balance<UNI>(account_addr) == 10000, 0);
+        assert!(account_position::normal_deposited_shadow_share<USDC>(account_addr) 
+            + account_position::normal_deposited_shadow_share<UNI>(account_addr)
+            + coin::balance<USDZ>(account_addr) == 100000, 0);
     }
     #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
     fun test_borrow_asset_with_rebalance__optimize_shadow_3(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) {
@@ -139,14 +142,18 @@ module leizd_aptos_entry::scenario_borrow_asset_with_rebalance {
         assert!(account_position::normal_deposited_asset_share<WETH>(account_addr) == 100000, 0);
         assert!(account_position::normal_deposited_shadow_share<WETH>(account_addr) == 0, 0);
         assert!(account_position::borrowed_shadow_share<WETH>(account_addr) == 10050, 0);
-        assert!(account_position::normal_deposited_shadow_share<USDC>(account_addr) == 133332, 0); // -> 133333 ?
+        assert!(account_position::normal_deposited_shadow_share<USDC>(account_addr) == 133332, 0);
         assert!(account_position::borrowed_asset_share<USDC>(account_addr) == 50250, 0);
-        assert!(account_position::normal_deposited_shadow_share<UNI>(account_addr) == 26666, 0); // -> 26667 ?
+        assert!(account_position::normal_deposited_shadow_share<UNI>(account_addr) == 26666, 0);
         assert!(account_position::borrowed_asset_share<UNI>(account_addr) == 10050, 0);
         assert!(coin::balance<WETH>(account_addr) == 0, 0);
         assert!(coin::balance<USDC>(account_addr) == 50000, 0);
-        assert!(coin::balance<USDZ>(account_addr) == 2, 0); // -> 0, TODO: check
+        assert!(coin::balance<USDZ>(account_addr) == 2, 0);
         assert!(coin::balance<UNI>(account_addr) == 10000, 0);
+        assert!(account_position::normal_deposited_shadow_share<WETH>(account_addr)
+            + account_position::normal_deposited_shadow_share<USDC>(account_addr) 
+            + account_position::normal_deposited_shadow_share<UNI>(account_addr)
+            + coin::balance<USDZ>(account_addr) == 160000, 0);
     }
     #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
     fun test_borrow_asset_with_rebalance__optimize_shadow_4(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) {
@@ -182,14 +189,17 @@ module leizd_aptos_entry::scenario_borrow_asset_with_rebalance {
         assert!(account_position::normal_deposited_asset_share<WETH>(account_addr) == 100000, 0);
         assert!(account_position::normal_deposited_shadow_share<WETH>(account_addr) == 50000, 0);
         assert!(account_position::borrowed_shadow_share<WETH>(account_addr) == 10050, 0);
-        assert!(account_position::normal_deposited_shadow_share<USDC>(account_addr) == 91666, 0); // -> 91667
+        assert!(account_position::normal_deposited_shadow_share<USDC>(account_addr) == 91666, 0);
         assert!(account_position::borrowed_asset_share<USDC>(account_addr) == 50250, 0);
-        assert!(account_position::normal_deposited_shadow_share<UNI>(account_addr) == 18332, 0); // -> 18333
+        assert!(account_position::normal_deposited_shadow_share<UNI>(account_addr) == 18332, 0);
         assert!(account_position::borrowed_asset_share<UNI>(account_addr) == 10050, 0);
         assert!(coin::balance<WETH>(account_addr) == 0, 0);
         assert!(coin::balance<USDC>(account_addr) == 50000, 0);
-        assert!(coin::balance<USDZ>(account_addr) == 2, 0); // -> 0, TODO: check
+        assert!(coin::balance<USDZ>(account_addr) == 2, 0);
         assert!(coin::balance<UNI>(account_addr) == 10000, 0);
+        assert!(account_position::normal_deposited_shadow_share<USDC>(account_addr)
+            + account_position::normal_deposited_shadow_share<UNI>(account_addr)
+            + coin::balance<USDZ>(account_addr) == 110000, 0);
     }
     #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
     fun test_borrow_asset_with_rebalance__optimize_shadow_5__adjust_three_with_normal_only(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) {
@@ -230,6 +240,11 @@ module leizd_aptos_entry::scenario_borrow_asset_with_rebalance {
         assert!(account_position::borrowed_asset_share<UNI>(account_addr) == 15000, 0);
         assert!(coin::balance<UNI>(account_addr) == 15000, 0);
         assert!(coin::balance<USDZ>(account_addr) == 0, 0);
+        assert!(account_position::normal_deposited_shadow_share<WETH>(account_addr)
+            + account_position::normal_deposited_shadow_share<USDC>(account_addr) 
+            + account_position::normal_deposited_shadow_share<USDT>(account_addr) 
+            + account_position::normal_deposited_shadow_share<UNI>(account_addr)
+            + coin::balance<USDZ>(account_addr) == 300000, 0);
     }
     #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
     fun test_borrow_asset_with_rebalance__optimize_shadow_5__adjust_three_with_conly_only(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) {
@@ -270,6 +285,11 @@ module leizd_aptos_entry::scenario_borrow_asset_with_rebalance {
         assert!(account_position::borrowed_asset_share<UNI>(account_addr) == 15000, 0);
         assert!(coin::balance<UNI>(account_addr) == 15000, 0);
         assert!(coin::balance<USDZ>(account_addr) == 0, 0);
+        assert!(account_position::conly_deposited_shadow_share<WETH>(account_addr)
+            + account_position::conly_deposited_shadow_share<USDC>(account_addr) 
+            + account_position::conly_deposited_shadow_share<USDT>(account_addr) 
+            + account_position::normal_deposited_shadow_share<UNI>(account_addr)
+            + coin::balance<USDZ>(account_addr) == 300000, 0);
     }
     #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
     fun test_borrow_asset_with_rebalance__optimize_shadow_5__adjust_three_with_normal_and_conly(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) {
@@ -313,6 +333,11 @@ module leizd_aptos_entry::scenario_borrow_asset_with_rebalance {
         assert!(account_position::borrowed_asset_share<UNI>(account_addr) == 15000, 0);
         assert!(coin::balance<UNI>(account_addr) == 15000, 0);
         assert!(coin::balance<USDZ>(account_addr) == 0, 0);
+        assert!(account_position::conly_deposited_shadow_share<WETH>(account_addr)
+            + account_position::normal_deposited_shadow_share<USDC>(account_addr) 
+            + account_position::conly_deposited_shadow_share<USDT>(account_addr) 
+            + account_position::normal_deposited_shadow_share<UNI>(account_addr)
+            + coin::balance<USDZ>(account_addr) == 300000, 0);
     }
     #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
     fun test_borrow_asset_with_rebalance__optimize_shadow_6(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) {
@@ -379,6 +404,11 @@ module leizd_aptos_entry::scenario_borrow_asset_with_rebalance {
         assert!(shadow_pool::normal_deposited_amount<UNI>() - liquidity_from_lp == 30000, 0);
         assert!(shadow_pool::conly_deposited_amount<UNI>() == 0, 0);
         assert!(asset_pool::total_borrowed_amount<UNI>() == 15000, 0);
+        assert!(account_position::conly_deposited_shadow_share<WETH>(account_addr)
+            + account_position::normal_deposited_shadow_share<USDC>(account_addr) 
+            + account_position::conly_deposited_shadow_share<USDT>(account_addr) 
+            + account_position::normal_deposited_shadow_share<UNI>(account_addr)
+            + coin::balance<USDZ>(account_addr) == 300000, 0);
     }
 
     #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]

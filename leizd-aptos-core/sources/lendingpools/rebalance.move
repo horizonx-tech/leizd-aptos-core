@@ -782,6 +782,11 @@ module leizd_aptos_logic::rebalance {
             i = i + 1;
         };
 
+        let sum_borrow = 0;
+        let sum_withdraw = 0;
+        let sum_deposit = 0;
+        let sum_repay = 0;
+
         // borrow shadow
         if (simple_map::length(&borrows) > 0) {
             i = 0;
@@ -791,6 +796,7 @@ module leizd_aptos_logic::rebalance {
                     let amount = simple_map::borrow(&borrows, key);
                     let (_, share) = shadow_pool::borrow_for_with(*key, account_addr, account_addr, *amount, shadow_pool_key);
                     account_position::borrow_unsafe_with<Shadow>(*key, account_addr, share, account_position_key);
+                    sum_borrow = sum_borrow + *amount;
                 };
                 i = i + 1;
             };
@@ -806,6 +812,7 @@ module leizd_aptos_logic::rebalance {
                     let is_conly = simple_map::borrow(&is_conly_vec, key);
                     let (_, share) = shadow_pool::withdraw_for_with(*key, account_addr, account_addr, *amount, *is_conly, 0, shadow_pool_key);
                     account_position::withdraw_unsafe_with<Shadow>(*key, account_addr, share, *is_conly, account_position_key);
+                    sum_withdraw = sum_withdraw + *amount;
                 };
                 i = i + 1;
             };
@@ -820,6 +827,7 @@ module leizd_aptos_logic::rebalance {
                     let amount = simple_map::borrow(&repays, key);
                     let (_, share) = shadow_pool::repay_with(*key, account, *amount, shadow_pool_key);
                     account_position::repay_with<Shadow>(*key, account_addr, share, account_position_key);
+                    sum_repay = sum_repay + *amount;
                 };
                 i = i + 1;
             };
@@ -839,10 +847,16 @@ module leizd_aptos_logic::rebalance {
                     let is_conly = simple_map::borrow(&is_conly_vec, key);
                     let (_, share) = shadow_pool::deposit_for_with(*key, account, account_addr, amount_as_input, *is_conly, shadow_pool_key);
                     account_position::deposit_with<Shadow>(*key, account, account_addr, share, *is_conly, account_position_key);
+                    sum_deposit = sum_deposit + amount_as_input;
                 };
                 i = i + 1;
             };
         };
+
+        std::debug::print(&sum_borrow);
+        std::debug::print(&sum_repay);
+        std::debug::print(&sum_withdraw);
+        std::debug::print(&sum_deposit);
     }
     fun borrowed_shares_to_amounts_for_shadow(keys: vector<String>, shares: vector<u64>): (
         vector<u64>, // amounts
