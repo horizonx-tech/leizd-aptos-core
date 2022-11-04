@@ -323,7 +323,7 @@ module leizd_aptos_common::pool_status {
 
     public(friend) fun update_repay_shadow_evenly_status(active: bool) acquires Status, PoolStatusEventHandle {
         let owner_address = permission::owner_address();
-        // assert_pool_status_initialized(owner_address, key); // TODO: check Status only
+        assert_is_initialized(owner_address);
         let pool_status_ref = borrow_global_mut<Status>(owner_address);
         pool_status_ref.can_repay_shadow_evenly = active;
         emit_current_cross_pool_status();
@@ -457,5 +457,10 @@ module leizd_aptos_common::pool_status {
 
         update_repay_shadow_evenly_status(false);
         assert!(event::counter<CrossPoolStatusUpdateEvent>(&borrow_global<PoolStatusEventHandle>(owner_addr).cross_pool_status_update_event) == 1, 0);
+    }
+    #[test]
+    #[expected_failure(abort_code = 65537)]
+    fun test_update_repay_shadow_evenly_status__revert_if_not_initialized() acquires Status, PoolStatusEventHandle {
+        update_repay_shadow_evenly_status(false);
     }
 }
