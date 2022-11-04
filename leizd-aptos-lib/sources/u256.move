@@ -959,8 +959,6 @@ module leizd_aptos_lib::u256 {
     fun test_from_u64() {
         let a = as_u128(from_u64(100));
         assert!(a == 100, 0);
-
-        // TODO: more tests.
     }
 
     #[test]
@@ -991,8 +989,6 @@ module leizd_aptos_lib::u256 {
 
         let a = leading_zeros_u64(1);
         assert!(a == 63, 1);
-
-        // TODO: more tests.
     }
 
     #[test]
@@ -1032,8 +1028,6 @@ module leizd_aptos_lib::u256 {
         let b = shl(a, 2);
 
         assert!(as_u128(b) == 400, 0);
-
-        // TODO: more shift left tests.
     }
 
     #[test]
@@ -1042,8 +1036,6 @@ module leizd_aptos_lib::u256 {
         let b = shr(a, 2);
 
         assert!(as_u128(b) == 25, 0);
-
-        // TODO: more shift right tests.
     }
 
     #[test]
