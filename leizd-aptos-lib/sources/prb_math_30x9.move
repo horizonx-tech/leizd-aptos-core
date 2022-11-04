@@ -50,31 +50,31 @@ module leizd_aptos_lib::prb_math_30x9 {
     #[test]
     fun test_exp_positive() {
         let result = exp(1, true);
-        assert!(result == 1000000000, 0); // CHECK: 1000000001
+        assert!(result == 1000000000, 0);
 
         let result = exp(321200000, true);
-        assert!(result == 1378781309, 0); // CHECK: 1.378781310
+        assert!(result == 1378781309, 0);
 
         let result = exp(500000000, true);
-        assert!(result == 1648721270, 0); // CHECK: 1.648721271
+        assert!(result == 1648721270, 0);
 
         let result = exp(1000000000, true);
-        assert!(result == 2718281826, 0); // CHECK: 2.718281828
+        assert!(result == 2718281826, 0);
 
         let result = exp(2000000000, true);
-        assert!(result == 7389056089, 0); // CHECK: 7.389056099
+        assert!(result == 7389056089, 0);
 
         let result = exp(2718281828, true);
-        assert!(result == 15154262213, 0); // CHECK: 15.154262235
+        assert!(result == 15154262213, 0);
 
         let result = exp(3141592653, true);
-        assert!(result == 23140692571, 0); // CHECK: 23.1406926191310
+        assert!(result == 23140692571, 0);
     }
 
     #[test]
     fun test_exp_negative() {
         let result = exp(1, false);
-        assert!(result == 1000000000, 0); // CHECK: 0.999999999
+        assert!(result == 1000000000, 0);
 
         let result = exp(10000, false);
         assert!(result == 999990000, 0);

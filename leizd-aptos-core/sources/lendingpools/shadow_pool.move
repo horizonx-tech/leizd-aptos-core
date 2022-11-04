@@ -1579,7 +1579,7 @@ module leizd::shadow_pool {
         assert!(amount == 600000, 0);
         assert!(coin::balance<USDZ>(account_addr) == 900000, 0);
         assert!(total_liquidity() == 0, 0);
-        // assert!(total_deposited() == 0, 0); // TODO: check
+        assert!(total_normal_deposited_amount() == 0, 0);
         assert!(total_conly_deposited_amount() == 100000, 0);
         assert!(total_borrowed_amount() == 0, 0);
         assert!(normal_deposited_amount<WETH>() == 0, 0);
