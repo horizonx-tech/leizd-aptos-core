@@ -1744,14 +1744,14 @@ module leizd::asset_pool {
         repay_internal<UNI>(borrower, 300, false);
         assert!(pool_value<(UNI)>() == 600, 0);
         assert!(coin::balance<UNI>(borrower_addr) == 400, 0);
-        // timestamp::update_global_time_for_test((initial_sec + 400) * 1000 * 1000); // + 80 sec
-        // let repaid_amount = repay_internal<UNI>(borrower, 400, false); // TODO: fail here because of ARITHMETIC_ERROR in accrue_interest (Cannot cast u128 to u64)
-        // assert!(repaid_amount == 400, 0);
-        // assert!(pool_value<(UNI)>() == 1000, 0);
-        // assert!(coin::balance<UNI>(borrower_addr) == 0, 0);
+        timestamp::update_global_time_for_test((initial_sec + 400) * 1000 * 1000); // + 80 sec
+        let (repaid_amount, _) = repay_internal<UNI>(borrower, 400, false);
+        assert!(repaid_amount == 400, 0);
+        assert!(pool_value<(UNI)>() == 1000, 0);
+        assert!(coin::balance<UNI>(borrower_addr) == 0, 0);
 
         let event_handle = borrow_global<PoolEventHandle<UNI>>(signer::address_of(owner));
-        assert!(event::counter<RepayEvent>(&event_handle.repay_event) == 3, 0);
+        assert!(event::counter<RepayEvent>(&event_handle.repay_event) == 4, 0);
     }
     // TODO: add case to use `share` as input
     #[test(_owner=@leizd)]
