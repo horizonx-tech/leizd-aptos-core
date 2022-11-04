@@ -2150,60 +2150,60 @@ module leizd::shadow_pool {
         let event_handle = borrow_global<PoolEventHandle>(signer::address_of(owner));
         assert!(event::counter<RepayEvent>(&event_handle.repay_event) == 4, 0);
     }
-    // TODO: fail because of total_borrowed increased by interest_rate (as time passes)
-    // #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
-    // fun test_repay_more_than_once_sequentially_over_time(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
-    //     setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
-    //     test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+    #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
+    fun test_repay_more_than_once_sequentially_over_time(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
 
-    //     let depositor_addr = signer::address_of(depositor);
-    //     let borrower_addr = signer::address_of(borrower);
-    //     account::create_account_for_test(depositor_addr);
-    //     account::create_account_for_test(borrower_addr);
-    //     managed_coin::register<USDZ>(depositor);
-    //     managed_coin::register<USDZ>(borrower);
+        let depositor_addr = signer::address_of(depositor);
+        let borrower_addr = signer::address_of(borrower);
+        account::create_account_for_test(depositor_addr);
+        account::create_account_for_test(borrower_addr);
+        managed_coin::register<USDZ>(depositor);
+        managed_coin::register<USDZ>(borrower);
 
-    //     // Check status before repay
-    //     assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
+        // Check status before repay
+        assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
 
-    //     // execute
-    //     usdz::mint_for_test(depositor_addr, 10050);
-    //     let initial_sec = 1648738800; // 20220401T00:00:00
-    //     timestamp::update_global_time_for_test(initial_sec * 1000 * 1000);
-    //     deposit_for_internal(key<UNI>(), depositor, depositor_addr, 10050, false);
-    //     assert!(pool_value() == 10050, 0);
-    //     timestamp::update_global_time_for_test((initial_sec + 80) * 1000 * 1000); // + 80 sec
-    //     borrow_for<UNI>(borrower_addr, borrower_addr, 10000);
-    //     assert!(pool_value() == 0, 0);
+        // execute
+        usdz::mint_for_test(depositor_addr, 10050);
+        let initial_sec = 1648738800; // 20220401T00:00:00
+        timestamp::update_global_time_for_test(initial_sec * 1000 * 1000);
+        deposit_for_internal(key<UNI>(), depositor, depositor_addr, 10050, false);
+        assert!(pool_value() == 10050, 0);
+        timestamp::update_global_time_for_test((initial_sec + 2628000) * 1000 * 1000); // + 2628000 sec (1 month)
+        borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 10000); // utilization is nearly 100%
+        assert!(borrowed_amount<UNI>() == 10050, 0);
+        assert!(pool_value() == 0, 0);
 
-    //     timestamp::update_global_time_for_test((initial_sec + 160) * 1000 * 1000); // + 80 sec
-    //     let repaid_amount = repay<UNI>(borrower, 1000);
-    //     assert!(repaid_amount == 1000, 0);
-    //     assert!(pool_value() == 1000, 0);
-    //     assert!(borrowed<UNI>() == 9050, 0);
-    //     assert!(coin::balance<USDZ>(borrower_addr) == 9000, 0);
-    //     timestamp::update_global_time_for_test((initial_sec + 240) * 1000 * 1000); // + 80 sec
-    //     let repaid_amount = repay<UNI>(borrower, 2000);
-    //     assert!(repaid_amount == 2000, 0);
-    //     assert!(pool_value() == 3000, 0);
-    //     assert!(borrowed<UNI>() == 7050, 0);
-    //     assert!(coin::balance<USDZ>(borrower_addr) == 7000, 0);
-    //     timestamp::update_global_time_for_test((initial_sec + 320) * 1000 * 1000); // + 80 sec
-    //     let repaid_amount = repay<UNI>(borrower, 3000);
-    //     assert!(repaid_amount == 3000, 0);
-    //     assert!(pool_value() == 6000, 0);
-    //     assert!(borrowed<UNI>() == 4050, 0);
-    //     assert!(coin::balance<USDZ>(borrower_addr) == 4000, 0);
-    //     timestamp::update_global_time_for_test((initial_sec + 400) * 1000 * 1000); // + 80 sec
-    //     // let repaid_amount = repay<UNI>(borrower, 4000); // TODO: fail here because of ARITHMETIC_ERROR in accrue_interest (Cannot cast u128 to u64)
-    //     // assert!(repaid_amount == 4000, 0);
-    //     // assert!(pool_value() == 10000, 0);
-    //     // assert!(borrowed<UNI>() == 50, 0);
-    //     // assert!(coin::balance<USDZ>(borrower_addr) == 0, 0);
+        timestamp::update_global_time_for_test((initial_sec + 2628000*2) * 1000 * 1000); // + 2628000 sec (1 month)
+        let (repaid_amount, _) = repay_internal(key<UNI>(), borrower, 1000, false);
+        assert!(repaid_amount == 1000, 0);
+        assert!(pool_value() == 1000, 0);
+        assert!(borrowed_amount<UNI>() == 10473, 0);
+        assert!(coin::balance<USDZ>(borrower_addr) == 9000, 0);
+        timestamp::update_global_time_for_test((initial_sec + 2628000*3) * 1000 * 1000); // + 2628000 sec (1 month)
+        let (repaid_amount, _) = repay_internal(key<UNI>(), borrower, 2000, false);
+        assert!(repaid_amount == 2000, 0);
+        assert!(pool_value() == 3000, 0);
+        assert!(borrowed_amount<UNI>() == 9532, 0);
+        assert!(coin::balance<USDZ>(borrower_addr) == 7000, 0);
+        timestamp::update_global_time_for_test((initial_sec + 2628000*4) * 1000 * 1000); // + 2628000 sec (1 month)
+        let (repaid_amount, _) = repay_internal(key<UNI>(), borrower, 3000, false);
+        assert!(repaid_amount == 3000, 0);
+        assert!(pool_value() == 6000, 0);
+        assert!(borrowed_amount<UNI>() == 6852, 0);
+        assert!(coin::balance<USDZ>(borrower_addr) == 4000, 0);
+        timestamp::update_global_time_for_test((initial_sec + 2628000*5) * 1000 * 1000); // + 2628000 sec (1 month)
+        let (repaid_amount, _) = repay_internal(key<UNI>(), borrower, 4000, false);
+        assert!(repaid_amount == 4000, 0);
+        assert!(pool_value() == 10000, 0);
+        assert!(borrowed_amount<UNI>() == 2892, 0);
+        assert!(coin::balance<USDZ>(borrower_addr) == 0, 0);
 
-    //     let event_handle = borrow_global<PoolEventHandle>(signer::address_of(owner));
-    //     assert!(event::counter<RepayEvent>(&event_handle.repay_event) == 3, 0);
-    // }
+        let event_handle = borrow_global<PoolEventHandle>(signer::address_of(owner));
+        assert!(event::counter<RepayEvent>(&event_handle.repay_event) == 4, 0);
+    }
 
     // TODO: add case to use `share` as input
     #[test(_owner=@leizd)]
