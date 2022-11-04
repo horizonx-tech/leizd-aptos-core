@@ -5,6 +5,7 @@ module leizd_aptos_lib::math128 {
 
     const EOVERFLOW: u64 = 1;
     const EUNDERFLOW: u64 = 2;
+    const EARITHMETIC_ERROR: u64 = 3;
 
     public fun to_share(amount: u128, total_amount: u128, total_shares: u128): u128 {
         if (total_shares == 0 || total_amount == 0) {
@@ -114,6 +115,11 @@ module leizd_aptos_lib::math128 {
     }
     public fun assert_underflow_by_sub(from: u128, to: u128) {
         assert!(!is_underflow_by_sub(from, to), error::invalid_argument(EUNDERFLOW));
+    }
+
+    public fun sub(a: u128, b: u128): u128 {
+        assert!(a >= b, error::invalid_argument(EARITHMETIC_ERROR));
+        a - b
     }
 
     #[test]

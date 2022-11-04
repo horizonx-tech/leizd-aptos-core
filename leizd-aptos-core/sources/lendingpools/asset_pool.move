@@ -457,7 +457,7 @@ module leizd::asset_pool {
             share_u128 = math128::to_share_roundup(amount_u128, asset_storage_ref.total_borrowed_amount, asset_storage_ref.total_borrowed_share);
         };
 
-        asset_storage_ref.total_borrowed_amount = asset_storage_ref.total_borrowed_amount - amount_u128;
+        asset_storage_ref.total_borrowed_amount = math128::sub(asset_storage_ref.total_borrowed_amount, amount_u128);
         asset_storage_ref.total_borrowed_share = asset_storage_ref.total_borrowed_share - share_u128;
         let withdrawn = coin::withdraw<C>(account, (amount_u128 as u64));
         coin::merge(&mut pool_ref.asset, withdrawn);
@@ -2311,7 +2311,7 @@ module leizd::asset_pool {
         deposit_for_internal<WETH>(account, account_addr, 1, false);
     }
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
-    #[expected_failure] // TODO: validation with appropriate errors
+    #[expected_failure(abort_code = 65542)]
     fun test_withdraw_when_remains_will_be_underflow(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, AssetManagerKeys, PoolEventHandle {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         // test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
@@ -2324,7 +2324,7 @@ module leizd::asset_pool {
         withdraw_for_internal<WETH>(account_addr, account_addr, 2, false, false, 0);
     }
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
-    #[expected_failure] // TODO: validation with appropriate errors
+    #[expected_failure(abort_code = 65548)]
     fun test_borrow_when_borrowed_will_be_over_u64_max(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, AssetManagerKeys, PoolEventHandle {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
@@ -2352,7 +2352,7 @@ module leizd::asset_pool {
         borrow_for_internal<UNI>(borrower_addr, borrower_addr, max);
     }
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
-    #[expected_failure] // TODO: validation with appropriate errors
+    #[expected_failure(abort_code = 65539)]
     fun test_repay_when_remains_will_be_underflow(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, AssetManagerKeys, PoolEventHandle {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
