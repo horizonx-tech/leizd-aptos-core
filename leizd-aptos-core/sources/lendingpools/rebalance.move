@@ -436,13 +436,13 @@ module leizd_aptos_logic::rebalance {
                     *key,
                     conly_deposited_share,
                 );
-                simple_map::add(&mut deposited, *key, ((normal_deposited_amount + conly_deposited_amount) as u64)); // TODO: check type (u64?u128?)
+                simple_map::add(&mut deposited, *key, ((normal_deposited_amount + conly_deposited_amount) as u64));
 
                 let borrowed_amount = asset_pool::borrowed_share_to_amount(
                     *key,
                     borrowed_share,
                 );
-                simple_map::add(&mut borrowed, *key, (borrowed_amount as u64)); // TODO: check type (u64?u128?)
+                simple_map::add(&mut borrowed, *key, (borrowed_amount as u64));
             };
             i = i + 1;
         };
@@ -504,11 +504,11 @@ module leizd_aptos_logic::rebalance {
         let extra_amount: u64;
         let insufficient_amount: u64;
         if (borrowable_volume > borrowed_volume) {
-            extra_amount = (price_oracle::to_amount(&deposited_key, borrowable_volume - borrowed_volume) as u64); // TODO: temp cast (maybe use u128 as return value)
+            extra_amount = (price_oracle::to_amount(&deposited_key, borrowable_volume - borrowed_volume) as u64);
             insufficient_amount = 0;
         } else if (borrowable_volume < borrowed_volume) {
             extra_amount = 0;
-            insufficient_amount = (price_oracle::to_amount(&deposited_key, borrowed_volume - borrowable_volume) as u64); // TODO: temp cast (maybe use u128 as return value)
+            insufficient_amount = (price_oracle::to_amount(&deposited_key, borrowed_volume - borrowable_volume) as u64);
         } else {
             extra_amount = 0;
             insufficient_amount = 0;
@@ -550,13 +550,13 @@ module leizd_aptos_logic::rebalance {
                 simple_map::add(
                     &mut amounts_to_withdraw,
                     *key,
-                    (price_oracle::to_amount(&usdz_key, *deposited_volume - opt_deposit_volume) as u64) // TODO: temp cast (maybe use u128 as return value)
+                    (price_oracle::to_amount(&usdz_key, *deposited_volume - opt_deposit_volume) as u64)
                 );
             } else if (current_hf < optimized_hf) {
                 simple_map::add(
                     &mut amounts_to_deposit,
                     *key,
-                    (price_oracle::to_amount(&usdz_key, opt_deposit_volume - *deposited_volume) as u64) // TODO: temp cast (maybe use u128 as return value)
+                    (price_oracle::to_amount(&usdz_key, opt_deposit_volume - *deposited_volume) as u64)
                 );
             };
             i = i + 1;
@@ -583,13 +583,13 @@ module leizd_aptos_logic::rebalance {
                     *key,
                     conly_deposited_share,
                 );
-                simple_map::add(&mut deposited, *key, ((normal_deposited_amount + conly_deposited_amount) as u64)); // TODO: check type (u64?u128?)
+                simple_map::add(&mut deposited, *key, ((normal_deposited_amount + conly_deposited_amount) as u64));
 
                 let borrowed_amount = shadow_pool::borrowed_share_to_amount(
                     *key,
                     borrowed_share,
                 );
-                simple_map::add(&mut borrowed, *key, (borrowed_amount as u64)); // TODO: check type (u64?u128?)
+                simple_map::add(&mut borrowed, *key, (borrowed_amount as u64));
             };
             i = i + 1;
         };
@@ -655,7 +655,7 @@ module leizd_aptos_logic::rebalance {
         let borrowable_volume = deposited_volume * (risk_factor::ltv_of(deposited_key) as u128) / risk_factor::precision_u128();
         if (borrowable_volume > borrowed_volume) {
             (
-                (price_oracle::to_amount(&borrowed_key, borrowable_volume - borrowed_volume) as u64), // TODO: temp cast (maybe use u128 as return value)
+                (price_oracle::to_amount(&borrowed_key, borrowable_volume - borrowed_volume) as u64),
                 0,
                 deposited_volume,
                 borrowed_volume
@@ -663,7 +663,7 @@ module leizd_aptos_logic::rebalance {
         } else if (borrowable_volume < borrowed_volume) {
             (
                 0,
-                (price_oracle::to_amount(&borrowed_key, (borrowed_volume - borrowable_volume)) as u64), // TODO: temp cast (maybe use u128 as return value)
+                (price_oracle::to_amount(&borrowed_key, (borrowed_volume - borrowable_volume)) as u64),
                 deposited_volume,
                 borrowed_volume
             )
@@ -739,13 +739,13 @@ module leizd_aptos_logic::rebalance {
                 simple_map::add(
                     &mut amount_to_borrow,
                     *key,
-                    (price_oracle::to_amount(&usdz_key, opt_borrow_volume - *borrowed_volume) as u64) // TODO: temp cast (maybe use u128 as return value)
+                    (price_oracle::to_amount(&usdz_key, opt_borrow_volume - *borrowed_volume) as u64)
                 );
             } else if (current_hf < optimized_hf) {
                 simple_map::add(
                     &mut amount_to_repay,
                     *key,
-                    (price_oracle::to_amount(&usdz_key, *borrowed_volume - opt_borrow_volume) as u64) // TODO: temp cast (maybe use u128 as return value)
+                    (price_oracle::to_amount(&usdz_key, *borrowed_volume - opt_borrow_volume) as u64)
                 );
             };
             i = i + 1;
@@ -846,7 +846,7 @@ module leizd_aptos_logic::rebalance {
     }
     fun borrowed_shares_to_amounts_for_shadow(keys: vector<String>, shares: vector<u64>): (
         vector<u64>, // amounts
-        u64 // total amount // TODO: u128?
+        u64 // total amount
     ) {
         let i = 0;
         let amounts = vector::empty<u64>();
@@ -856,8 +856,8 @@ module leizd_aptos_logic::rebalance {
                 *vector::borrow<String>(&keys, i),
                 *vector::borrow<u64>(&shares, i),
             );
-            total_amount = total_amount + (amount as u64); // TODO: check type (u64?u128)
-            vector::push_back(&mut amounts, (amount as u64)); // TODO: check type (u64?u128)
+            total_amount = total_amount + (amount as u64);
+            vector::push_back(&mut amounts, (amount as u64));
             i = i + 1;
         };
         (amounts, total_amount)
