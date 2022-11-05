@@ -421,12 +421,10 @@ module leizd_aptos_trove::trove {
         adjust_trove<C>(account, 0, collateral_amount, 0, false)
     }
 
-    // TODO: delete type parameter
     public fun withdraw_USDZ<C>(account: &signer, usdz_amount: u64) acquires Vault, TroveEventHandle, Trove, BorrowingFeeVault, SupportedCoins {
         adjust_trove<C>(account, 0, 0, usdz_amount, true)
     }
 
-    // TODO: delete type parameter
     public fun repay_USDZ<C>(account: &signer, usdz_amount: u64) acquires Vault, TroveEventHandle, Trove, BorrowingFeeVault, SupportedCoins {
         adjust_trove<C>(account, 0, 0, usdz_amount, false)
     }
@@ -440,59 +438,6 @@ module leizd_aptos_trove::trove {
     fun total_debt_of(account: address): u64 acquires Trove{
         let troves = borrow_global<Trove>(account);
         troves.debt
-    }
-
-    fun adjust_trove_of<C>(account: &signer, collateral_withdrawal: u64, collateral_deposit: u64, usdz_change: u64, debt_increase: bool) acquires Vault, TroveEventHandle, Trove, BorrowingFeeVault, SupportedCoins {
-        let recovery_mode = is_recovery_mode();
-        if (is_recovery_mode()) {
-            // _requireValidMaxFeePercentage(_maxFeePercentage, isRecoveryMode); TODO: add
-            require_non_zero_debt_change(usdz_change);
-        };
-        require_non_zero_collateral_change(collateral_withdrawal, collateral_deposit);
-        let account_addr = signer::address_of(account);
-        let position = position_of(account_addr, key_of<C>());
-        require_trove_is_active(position);
-        let net_debt_change = usdz_change;
-        if (!recovery_mode && debt_increase) {
-            let fee = borrowing_fee(usdz_change);
-            usdz::mint(account, fee);
-            let borrowing_fee_vault = borrow_global_mut<BorrowingFeeVault>(permission::owner_address());            
-            coin::merge(&mut borrowing_fee_vault.coin, coin::withdraw<USDZ>(account, fee));
-            net_debt_change = net_debt_change + fee;
-        };
-        let old_icr = collateral_ratio_of(account_addr);
-        let coin_key = key_of<C>();
-        let (coll_change, coll_increase) = coll_chagne(collateral_deposit, collateral_withdrawal);
-        let new_icr = collateral_ratio_after_update_trove(coin_key, coll_change, usdz_change, debt_increase, account_addr);
-        assert!(collateral_withdrawal <= deposited_amount_of(account_addr, coin_key), 0); // TODO: add error code
-        require_valid_adjustment_in_current_mode(AdjustmentTroveParam{
-            recovery_mode,
-            collateral_withdrawal,
-            debt_increase,
-            coll_increase,
-            new_icr,
-            old_icr,
-            coll_change,
-            net_debt_change,
-            coin_key
-        });
-        if (!debt_increase && usdz_change > 0) {
-            require_at_least_min_net_debt(collateral_manager::total_borrowed() - net_debt_change);
-            require_valid_usdz_payment(total_debt_of(account_addr), net_debt_change);
-            // _requireSufficientLUSDBalance TODO: add
-        };
-        let (new_coll, new_debt) = update_trove_from_adjustment(account_addr, coin_key, coll_change, coll_increase, net_debt_change, debt_increase);
-        move_tokens_from_adjustment<C>(account, coll_change, coll_increase, usdz_change, debt_increase);
-        // vars.stake = contractsCache.troveManager.updateStakeAndTotalStakes(_borrower); TODO
-        event::emit_event<UpdateTroveEvent>(
-            &mut borrow_global_mut<TroveEventHandle>(permission::owner_address()).update_trove_event,
-            UpdateTroveEvent {
-                caller: account_addr,
-                new_coll,
-                new_debt,
-                key: coin_key,
-            },
-        )        
     }
 
     fun adjust_trove<C>(account: &signer, collateral_withdrawal: u64, collateral_deposit: u64, usdz_change: u64, debt_increase: bool) acquires Vault, TroveEventHandle, Trove, BorrowingFeeVault, SupportedCoins {
