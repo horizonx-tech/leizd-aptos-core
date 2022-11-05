@@ -405,12 +405,12 @@ module leizd_aptos_entry::money_market {
         setup_account_for_test(account);
 
         let account_addr = signer::address_of(account);
-        managed_coin::mint<USDC>(owner, account_addr, 999999 * math64::pow(10, (coin::decimals<USDC>() as u64)));
-        managed_coin::mint<USDT>(owner, account_addr, 999999 * math64::pow(10, (coin::decimals<USDT>() as u64)));
-        managed_coin::mint<WETH>(owner, account_addr, 999999 * math64::pow(10, (coin::decimals<WETH>() as u64)));
-        managed_coin::mint<UNI>(owner, account_addr, 999999 * math64::pow(10, (coin::decimals<UNI>() as u64)));
-        managed_coin::mint<CoinDec10>(owner, account_addr, 999999 * math64::pow(10, (coin::decimals<CoinDec10>() as u64)));
-        usdz::mint_for_test(account_addr, 9999999 * math64::pow(10, (coin::decimals<USDZ>() as u64)));
+        managed_coin::mint<USDC>(owner, account_addr, 999999 * math64::pow_10((coin::decimals<USDC>() as u64)));
+        managed_coin::mint<USDT>(owner, account_addr, 999999 * math64::pow_10((coin::decimals<USDT>() as u64)));
+        managed_coin::mint<WETH>(owner, account_addr, 999999 * math64::pow_10((coin::decimals<WETH>() as u64)));
+        managed_coin::mint<UNI>(owner, account_addr, 999999 * math64::pow_10((coin::decimals<UNI>() as u64)));
+        managed_coin::mint<CoinDec10>(owner, account_addr, 999999 * math64::pow_10((coin::decimals<CoinDec10>() as u64)));
+        usdz::mint_for_test(account_addr, 9999999 * math64::pow_10((coin::decimals<USDZ>() as u64)));
     }
     #[test(owner=@leizd_aptos_entry,account=@0x111,aptos_framework=@aptos_framework)]
     fun test_deposit_with_asset(owner: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
@@ -577,7 +577,7 @@ module leizd_aptos_entry::money_market {
         let account_addr = signer::address_of(account);
 
         let k = 1000;
-        let dec8 = math64::pow(10, 8);
+        let dec8 = math64::pow_10(8);
         managed_coin::mint<WETH>(owner, account_addr, 5000 * k * dec8);
         usdz::mint_for_test(account_addr, 5000 * k * dec8);
 
@@ -733,8 +733,8 @@ module leizd_aptos_entry::money_market {
         initialize_lending_pool_for_test(owner, aptos_framework);
         setup_liquidity_provider_for_test(owner, lp);
         setup_account_for_test(account);
-        let dec8 = math64::pow(10, 8);
-        let dec10 = math64::pow(10, 10);
+        let dec8 = math64::pow_10(8);
+        let dec10 = math64::pow_10(10);
 
         // prerequisite
         deposit<CoinDec10, Asset>(lp, 100000 * dec10, false);
@@ -758,8 +758,8 @@ module leizd_aptos_entry::money_market {
         initialize_lending_pool_for_test(owner, aptos_framework);
         setup_liquidity_provider_for_test(owner, lp);
         setup_account_for_test(account);
-        let dec8 = math64::pow(10, 8);
-        let dec10 = math64::pow(10, 10);
+        let dec8 = math64::pow_10(8);
+        let dec10 = math64::pow_10(10);
 
         // prerequisite
         deposit<CoinDec10, Asset>(lp, 100000 * dec10, false);
@@ -890,7 +890,7 @@ module leizd_aptos_entry::money_market {
         assert!(risk_factor::entry_fee() == risk_factor::precision() / 1000 * 5, 0); // 0.5%
         // prepares
         let k = 1000;
-        let dec8 = math64::pow(10, 8);
+        let dec8 = math64::pow_10(8);
         managed_coin::mint<WETH>(owner, account_addr, 1000000 * k * dec8);
         usdz::mint_for_test(account_addr, 1000000 * k * dec8);
         deposit<WETH, Asset>(account, 1000000 * k * dec8, false);
@@ -1307,23 +1307,23 @@ module leizd_aptos_entry::money_market {
         setup_account_for_test(borrower);
         let depositor_addr = signer::address_of(depositor);
         let borrower_addr = signer::address_of(borrower);
-        let billion = math64::pow(10, 9);
-        usdz::mint_for_test(depositor_addr, 500 * billion * math64::pow(10, 6)); // 500k USDZ TODO: decimal scale by oracle price
-        managed_coin::mint<USDC>(owner, borrower_addr, 500 * billion * math64::pow(10, 6)); // 500k USDC
-        managed_coin::mint<USDT>(owner, depositor_addr, 500 * billion * math64::pow(10, 6)); // 500k USDT
+        let billion = math64::pow_10(9);
+        usdz::mint_for_test(depositor_addr, 500 * billion * math64::pow_10(6)); // 500k USDZ TODO: decimal scale by oracle price
+        managed_coin::mint<USDC>(owner, borrower_addr, 500 * billion * math64::pow_10(6)); // 500k USDC
+        managed_coin::mint<USDT>(owner, depositor_addr, 500 * billion * math64::pow_10(6)); // 500k USDT
 
-        deposit<USDC, Shadow>(depositor, 500 * billion * math64::pow(10, 6), false);
-        deposit<USDT, Asset>(depositor, 500 * billion * math64::pow(10, 6), false);
+        deposit<USDC, Shadow>(depositor, 500 * billion * math64::pow_10(6), false);
+        deposit<USDT, Asset>(depositor, 500 * billion * math64::pow_10(6), false);
 
-        deposit<USDC, Asset>(borrower, 500 * billion * math64::pow(10, 6), false);
-        borrow<USDC, Shadow>(borrower, 300 * billion * math64::pow(10, 6));
-        deposit<USDT, Shadow>(borrower, 200 * billion * math64::pow(10, 6), false);
-        borrow<USDT, Asset>(borrower, 100 * billion * math64::pow(10, 6));
+        deposit<USDC, Asset>(borrower, 500 * billion * math64::pow_10(6), false);
+        borrow<USDC, Shadow>(borrower, 300 * billion * math64::pow_10(6));
+        deposit<USDT, Shadow>(borrower, 200 * billion * math64::pow_10(6), false);
+        borrow<USDT, Asset>(borrower, 100 * billion * math64::pow_10(6));
 
         assert!(coin::balance<USDC>(borrower_addr) == 0, 0);
-        assert!(asset_pool::total_normal_deposited_amount<USDC>() == 500 * (billion as u128) * math128::pow(10, 6), 0);
-        assert!(account_position::normal_deposited_asset_share<USDC>(borrower_addr) == 500 * billion * math64::pow(10, 6), 0);
-        assert!(account_position::borrowed_asset_share<USDT>(borrower_addr) == 1005 * billion / 10 * math64::pow(10, 6), 0); // +0.5% entry fee
+        assert!(asset_pool::total_normal_deposited_amount<USDC>() == 500 * (billion as u128) * math128::pow_10(6), 0);
+        assert!(account_position::normal_deposited_asset_share<USDC>(borrower_addr) == 500 * billion * math64::pow_10(6), 0);
+        assert!(account_position::borrowed_asset_share<USDT>(borrower_addr) == 1005 * billion / 10 * math64::pow_10(6), 0); // +0.5% entry fee
     }
     #[test(owner=@leizd_aptos_entry,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
     fun test_scenario__borrow_asset_with_rebalance_with_larger_numbers(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
@@ -1333,14 +1333,14 @@ module leizd_aptos_entry::money_market {
         setup_account_for_test(borrower);
         let depositor_addr = signer::address_of(depositor);
         let borrower_addr = signer::address_of(borrower);
-        let billion = math64::pow(10, 9);
-        usdz::mint_for_test(depositor_addr, 500 * billion * math64::pow(10, 6)); // 500b USDZ TODO: decimal scale by oracle price
-        managed_coin::mint<USDC>(owner, borrower_addr, 500 * billion * math64::pow(10, 6)); // 500b USDC
-        managed_coin::mint<USDT>(owner, depositor_addr, 500 * billion * math64::pow(10, 6)); // 500b USDT
+        let billion = math64::pow_10(9);
+        usdz::mint_for_test(depositor_addr, 500 * billion * math64::pow_10(6)); // 500b USDZ TODO: decimal scale by oracle price
+        managed_coin::mint<USDC>(owner, borrower_addr, 500 * billion * math64::pow_10(6)); // 500b USDC
+        managed_coin::mint<USDT>(owner, depositor_addr, 500 * billion * math64::pow_10(6)); // 500b USDT
 
-        deposit<USDC, Shadow>(depositor, 300 * billion * math64::pow(10, 6), false);
-        deposit<USDT, Shadow>(depositor, 200 * billion * math64::pow(10, 6), false);
-        deposit<USDT, Asset>(depositor, 500 * billion * math64::pow(10, 6), false);
+        deposit<USDC, Shadow>(depositor, 300 * billion * math64::pow_10(6), false);
+        deposit<USDT, Shadow>(depositor, 200 * billion * math64::pow_10(6), false);
+        deposit<USDT, Asset>(depositor, 500 * billion * math64::pow_10(6), false);
 
         risk_factor::update_protocol_fees_unsafe(
             0,
@@ -1348,18 +1348,18 @@ module leizd_aptos_entry::money_market {
             risk_factor::default_liquidation_fee(),
         ); // NOTE: remove entry fee / share fee to make it easy to calculate borrowed amount/share
 
-        deposit<USDC, Asset>(borrower, 500 * billion * math64::pow(10, 6), false);
+        deposit<USDC, Asset>(borrower, 500 * billion * math64::pow_10(6), false);
         assert!(account_position::borrowed_shadow_share<USDC>(borrower_addr) == 0, 0);
         assert!(account_position::normal_deposited_shadow_share<USDT>(borrower_addr) == 0, 0);
         assert!(account_position::borrowed_asset_share<USDT>(borrower_addr) == 0, 0);
-        borrow_asset_with_rebalance<USDT>(borrower, 180 * billion * math64::pow(10, 6));
+        borrow_asset_with_rebalance<USDT>(borrower, 180 * billion * math64::pow_10(6));
 
         assert!(coin::balance<USDC>(borrower_addr) == 0, 0);
-        assert!(asset_pool::total_normal_deposited_amount<USDC>() == 500 * (billion as u128) * math128::pow(10, 6), 0);
-        assert!(account_position::normal_deposited_asset_share<USDC>(borrower_addr) == 500 * billion * math64::pow(10, 6), 0);
-        assert!(account_position::borrowed_shadow_share<USDC>(borrower_addr) == 200 * billion * math64::pow(10, 6), 0);
-        assert!(account_position::normal_deposited_shadow_share<USDT>(borrower_addr) == 200 * billion * math64::pow(10, 6), 0);
-        assert!(account_position::borrowed_asset_share<USDT>(borrower_addr) == 180 * billion * math64::pow(10, 6), 0);
+        assert!(asset_pool::total_normal_deposited_amount<USDC>() == 500 * (billion as u128) * math128::pow_10(6), 0);
+        assert!(account_position::normal_deposited_asset_share<USDC>(borrower_addr) == 500 * billion * math64::pow_10(6), 0);
+        assert!(account_position::borrowed_shadow_share<USDC>(borrower_addr) == 200 * billion * math64::pow_10(6), 0);
+        assert!(account_position::normal_deposited_shadow_share<USDT>(borrower_addr) == 200 * billion * math64::pow_10(6), 0);
+        assert!(account_position::borrowed_asset_share<USDT>(borrower_addr) == 180 * billion * math64::pow_10(6), 0);
     }
 
     // borrow_asset_with_rebalance

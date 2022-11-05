@@ -30,6 +30,6 @@ module leizd_aptos_external::integration {
         let (val, dec) = price_oracle::price<WETH>();
         assert!(val == 12345000000000, 0);
         assert!(dec == 9, 0);
-        assert!(val / math128::pow(10, (dec as u128)) == 12345, 0);
+        assert!(val / math128::pow_10((dec as u128)) == 12345, 0);
     }
 }

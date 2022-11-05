@@ -87,7 +87,7 @@ module leizd_aptos_entry::scenario {
     fun test_can_earn_interest_about_asset_by_withdrawing_after_depositing_except_interest_rate_calculation(owner: &signer, aptos_framework: &signer) {
         // prepares
         initialize_scenario(owner, aptos_framework);
-        let dec8 = math64::pow(10, 8);
+        let dec8 = math64::pow_10(8);
         let dec8_u128 = (dec8 as u128);
 
         let signers = initialize_signer_for_test(2);
@@ -141,7 +141,7 @@ module leizd_aptos_entry::scenario {
     fun test_can_earn_interest_about_shadow_by_withdrawing_after_depositing_except_interest_rate_calculation(owner: &signer, aptos_framework: &signer) {
         // prepares
         initialize_scenario(owner, aptos_framework);
-        let dec8 = math64::pow(10, 8);
+        let dec8 = math64::pow_10(8);
         let dec8_u128 = (dec8 as u128);
 
         let signers = initialize_signer_for_test(2);

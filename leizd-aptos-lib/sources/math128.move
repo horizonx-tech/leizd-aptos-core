@@ -93,6 +93,10 @@ module leizd_aptos_lib::math128 {
         }
     }
 
+    public fun pow_10(e: u128): u128 {
+        pow(10, e)
+    }
+
     public fun is_overflow_by_add(a: u128, b: u128): bool {
         if (a == 0 || b == 0) return false;
         if (constant::u128_max() - a < b) {
@@ -133,7 +137,17 @@ module leizd_aptos_lib::math128 {
         let result = pow(10, 0);
         assert!(result == 1, 0);
     }
+    #[test]
+    fun test_pow_10() {
+        let result = pow_10(18);
+        assert!(result == 1000000000000000000, 0);
 
+        let result = pow_10(1);
+        assert!(result == 10, 0);
+
+        let result = pow_10(0);
+        assert!(result == 1, 0);
+    }
     #[test]
     fun test_to_share() {
         assert!(to_share(100, 500, 100000) == 20000, 0);
