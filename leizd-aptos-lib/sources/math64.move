@@ -132,6 +132,17 @@ module leizd_aptos_lib::math64 {
         assert!(result == 1, 0);
     }
     #[test]
+    fun test_pow_10() {
+        let result = pow_10(18);
+        assert!(result == 1000000000000000000, 0);
+
+        let result = pow_10(1);
+        assert!(result == 10, 0);
+
+        let result = pow_10(0);
+        assert!(result == 1, 0);
+    }
+    #[test]
     fun test_is_overflow_by_add() {
         let max = constant::u64_max();
         assert!(is_overflow_by_add(max - 1, 2), 0);
