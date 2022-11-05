@@ -368,7 +368,7 @@ module leizd::asset_pool {
         receiver_addr: address,
         amount: u64,
         _key: &OperatorKey,
-    ): (u64, u64) acquires Pool, Storage, PoolEventHandle {
+    ): (u64, u64, u64) acquires Pool, Storage, PoolEventHandle {
         borrow_for_internal<C>(borrower_addr, receiver_addr, amount)
     }
 
@@ -376,7 +376,11 @@ module leizd::asset_pool {
         borrower_addr: address,
         receiver_addr: address,
         amount: u64,
-    ): (u64, u64) acquires Pool, Storage, PoolEventHandle {
+    ): (
+        u64, // amount
+        u64, // fee
+        u64, // share
+    ) acquires Pool, Storage, PoolEventHandle {
         assert!(pool_status::can_borrow<C>(), error::invalid_state(ENOT_AVAILABLE_STATUS));
         assert!(amount > 0, error::invalid_argument(EAMOUNT_ARG_IS_ZERO));
 
@@ -404,12 +408,13 @@ module leizd::asset_pool {
                 caller: borrower_addr,
                 borrower: borrower_addr,
                 receiver: receiver_addr,
-                amount: amount_with_fee,
+                amount,
             },
         );
 
         (
-            amount_with_fee, // TODO: only amount
+            amount,
+            fee,
             (share_u128 as u64)
         )
     }

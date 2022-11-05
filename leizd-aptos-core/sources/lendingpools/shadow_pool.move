@@ -438,7 +438,7 @@ module leizd::shadow_pool {
         receiver_addr: address,
         amount: u64,
         _key: &OperatorKey
-    ): (u64, u64) acquires Pool, Storage, PoolEventHandle, Keys {
+    ): (u64, u64, u64) acquires Pool, Storage, PoolEventHandle, Keys {
         let key = key<C>();
         borrow_for_internal(key, borrower_addr, receiver_addr, amount)
     }
@@ -449,7 +449,7 @@ module leizd::shadow_pool {
         receiver_addr: address,
         amount: u64,
         _key: &OperatorKey
-    ): (u64, u64) acquires Pool, Storage, PoolEventHandle, Keys {
+    ): (u64, u64, u64) acquires Pool, Storage, PoolEventHandle, Keys {
         borrow_for_internal(key, borrower_addr, receiver_addr, amount)
     }
 
@@ -458,7 +458,11 @@ module leizd::shadow_pool {
         borrower_addr: address,
         receiver_addr: address,
         amount: u64
-    ): (u64, u64) acquires Pool, Storage, PoolEventHandle, Keys {
+    ): (
+        u64, // amount
+        u64, // fee
+        u64, // share
+    ) acquires Pool, Storage, PoolEventHandle, Keys {
         assert!(pool_status::can_borrow_with(key), error::invalid_state(ENOT_AVAILABLE_STATUS));
         assert!(amount > 0, error::invalid_argument(EAMOUNT_ARG_IS_ZERO));
         assert!(is_initialized_asset_with(&key), error::invalid_argument(ENOT_INITIALIZED_COIN));
@@ -510,7 +514,8 @@ module leizd::shadow_pool {
         // update borrowed stats
         let (amount_with_total_fee_u128, user_share_u128) = save_to_storage_for_borrow(key, borrower_addr, receiver_addr, amount, entry_fee, storage_ref);
         (
-            (amount_with_total_fee_u128 as u64), // TODO: only amount
+            amount,
+            entry_fee,
             (user_share_u128 as u64)
         )
     }
