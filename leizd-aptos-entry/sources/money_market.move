@@ -178,9 +178,9 @@ module leizd_aptos_entry::money_market {
         let borrower_addr = signer::address_of(account);
         let user_share: u64;
         if (pool_type::is_type_asset<P>()) {
-            (_, user_share) = asset_pool::borrow_for<C>(borrower_addr, receiver_addr, amount, asset_pool_key);
+            (_, _, user_share) = asset_pool::borrow_for<C>(borrower_addr, receiver_addr, amount, asset_pool_key);
         } else {
-            (_, user_share) = shadow_pool::borrow_for<C>(borrower_addr, receiver_addr, amount, shadow_pool_key);
+            (_, _, user_share) = shadow_pool::borrow_for<C>(borrower_addr, receiver_addr, amount, shadow_pool_key);
         };
         account_position::borrow<C,P>(account, borrower_addr, user_share, account_position_key);
     }
@@ -340,9 +340,9 @@ module leizd_aptos_entry::money_market {
         let receiver_addr = signer::address_of(account);
         let user_share: u64;
         if (pool_type::is_type_asset<P>()) {
-            (_, user_share) = asset_pool::borrow_for<C>(borrower_addr, receiver_addr, amount, asset_pool_key);
+            (_, _, user_share) = asset_pool::borrow_for<C>(borrower_addr, receiver_addr, amount, asset_pool_key);
         } else {
-            (_, user_share) = shadow_pool::borrow_for<C>(borrower_addr, receiver_addr, amount, shadow_pool_key);
+            (_, _, user_share) = shadow_pool::borrow_for<C>(borrower_addr, receiver_addr, amount, shadow_pool_key);
         };
         account_position::borrow_unsafe_for_test<C,P>(borrower_addr, user_share);
     }
