@@ -3524,13 +3524,58 @@ module leizd::shadow_pool {
     //     assert!(event::counter<RepayEvent>(&event_handle.repay_event) == 1, 0);
     // }
 
-    //// Convert // TODO
-    #[test(_owner=@leizd)]
-    fun test_normal_deposited_share_to_amount(_owner: &signer) {}
-    #[test(_owner=@leizd)]
-    fun test_conly_deposited_share_to_amount(_owner: &signer) {}
-    #[test(_owner=@leizd)]
-    fun test_borrowed_share_to_amount(_owner: &signer) {}
+    //// Convert
+    #[test(owner = @leizd, aptos_framework = @aptos_framework)]
+    fun test_normal_deposited_share_to_amount(owner: &signer, aptos_framework: &signer) acquires Storage {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        let owner_addr = signer::address_of(owner);
+
+        assert!(normal_deposited_share_to_amount(key<UNI>(), 10000) == 0, 0);
+
+        let asset_storage = simple_map::borrow_mut<String,AssetStorage>(&mut borrow_global_mut<Storage>(owner_addr).asset_storages, &key<UNI>());
+        asset_storage.normal_deposited_amount = 2000;
+        asset_storage.normal_deposited_share = 1000;
+        assert!(normal_deposited_share_to_amount(key<UNI>(), 10000) == 20000, 0);
+
+        let asset_storage = simple_map::borrow_mut<String,AssetStorage>(&mut borrow_global_mut<Storage>(owner_addr).asset_storages, &key<UNI>());
+        asset_storage.normal_deposited_amount = 10000;
+        asset_storage.normal_deposited_share = 50000;
+        assert!(normal_deposited_share_to_amount(key<UNI>(), 200000) == 40000, 0);
+    }
+    #[test(owner = @leizd, aptos_framework = @aptos_framework)]
+    fun test_conly_deposited_share_to_amount(owner: &signer, aptos_framework: &signer) acquires Storage {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        let owner_addr = signer::address_of(owner);
+
+        assert!(conly_deposited_share_to_amount(key<UNI>(), 10000) == 0, 0);
+
+        let asset_storage = simple_map::borrow_mut<String,AssetStorage>(&mut borrow_global_mut<Storage>(owner_addr).asset_storages, &key<UNI>());
+        asset_storage.conly_deposited_amount = 2000;
+        asset_storage.conly_deposited_share = 1000;
+        assert!(conly_deposited_share_to_amount(key<UNI>(), 10000) == 20000, 0);
+
+        let asset_storage = simple_map::borrow_mut<String,AssetStorage>(&mut borrow_global_mut<Storage>(owner_addr).asset_storages, &key<UNI>());
+        asset_storage.conly_deposited_amount = 10000;
+        asset_storage.conly_deposited_share = 50000;
+        assert!(conly_deposited_share_to_amount(key<UNI>(), 200000) == 40000, 0);
+    }
+    #[test(owner = @leizd, aptos_framework = @aptos_framework)]
+    fun test_borrowed_share_to_amount(owner: &signer, aptos_framework: &signer) acquires Storage {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        let owner_addr = signer::address_of(owner);
+
+        assert!(borrowed_share_to_amount(key<UNI>(), 10000) == 0, 0);
+
+        let asset_storage = simple_map::borrow_mut<String,AssetStorage>(&mut borrow_global_mut<Storage>(owner_addr).asset_storages, &key<UNI>());
+        asset_storage.borrowed_amount = 2000;
+        asset_storage.borrowed_share = 1000;
+        assert!(borrowed_share_to_amount(key<UNI>(), 10000) == 20000, 0);
+
+        let asset_storage = simple_map::borrow_mut<String,AssetStorage>(&mut borrow_global_mut<Storage>(owner_addr).asset_storages, &key<UNI>());
+        asset_storage.borrowed_amount = 10000;
+        asset_storage.borrowed_share = 50000;
+        assert!(borrowed_share_to_amount(key<UNI>(), 200000) == 40000, 0);
+    }
 
     // about overflow/underflow
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
