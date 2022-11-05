@@ -1753,9 +1753,81 @@ module leizd::asset_pool {
         let event_handle = borrow_global<PoolEventHandle<UNI>>(signer::address_of(owner));
         assert!(event::counter<RepayEvent>(&event_handle.repay_event) == 4, 0);
     }
-    // TODO: add case to use `share` as input
-    #[test(_owner=@leizd)]
-    fun test_repay_by_share(_owner: &signer) {}
+
+    #[test_only]
+    fun prepare_to_test_repay_by_share(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, AssetManagerKeys, PoolEventHandle {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+
+        let depositor_addr = signer::address_of(depositor);
+        let borrower_addr = signer::address_of(borrower);
+        account::create_account_for_test(depositor_addr);
+        account::create_account_for_test(borrower_addr);
+        managed_coin::register<UNI>(depositor);
+        managed_coin::register<UNI>(borrower);
+
+        // prerequisite
+        risk_factor::update_protocol_fees_unsafe(
+            0,
+            0,
+            risk_factor::default_liquidation_fee(),
+        ); // NOTE: remove entry fee / share fee to make it easy to calculate borrowed amount/share
+        assert!(risk_factor::entry_fee() == 0, 0);
+        //// add liquidity
+        let dec6 = math64::pow(10, 6);
+        managed_coin::mint<UNI>(owner, depositor_addr, 100000 * dec6);
+        deposit_for_internal<UNI>(depositor, depositor_addr, 100000 * dec6, false);
+
+    }
+    #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
+    fun test_repay_by_share__over_1_amount_per_1_share(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, AssetManagerKeys, PoolEventHandle {
+        prepare_to_test_repay_by_share(owner, depositor, borrower, aptos_framework);
+        let owner_addr = signer::address_of(owner);
+        let borrower_addr = signer::address_of(borrower);
+        let dec6 = math64::pow(10, 6);
+
+        // execute
+        borrow_for_internal<UNI>(borrower_addr, borrower_addr, 100000 * dec6);
+        assert!(total_borrowed_amount<UNI>() == (100000 * dec6 as u128), 0);
+        assert!(total_borrowed_share<UNI>() == (100000 * dec6 as u128), 0);
+
+        //// update total_xxxx (instead of interest by accrue_interest)
+        let total_borrowed_amount = &mut borrow_mut_asset_storage<UNI>(borrow_global_mut<Storage>(owner_addr)).total_borrowed_amount;
+        *total_borrowed_amount = *total_borrowed_amount + (400000 * dec6 as u128);
+        assert!(total_borrowed_amount<UNI>() == (500000 * dec6 as u128), 0);
+        assert!(total_borrowed_share<UNI>() == (100000 * dec6 as u128), 0);
+
+        managed_coin::mint<UNI>(owner, borrower_addr, 100000 * dec6);
+        let (amount, share) = repay_internal<UNI>(borrower, 25000 * dec6, true);
+        assert!(amount == 125000 * dec6, 0);
+        assert!(share == 25000 * dec6, 0);
+        assert!(total_borrowed_amount<UNI>() == (375000 * dec6 as u128), 0);
+        assert!(total_borrowed_share<UNI>() == (75000 * dec6 as u128), 0);
+    }
+    #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
+    fun test_repay_by_share__under_1_amount_per_1_share(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, AssetManagerKeys, PoolEventHandle {
+        prepare_to_test_repay_by_share(owner, depositor, borrower, aptos_framework);
+        let owner_addr = signer::address_of(owner);
+        let borrower_addr = signer::address_of(borrower);
+        let dec6 = math64::pow(10, 6);
+
+        // execute
+        borrow_for_internal<UNI>(borrower_addr, borrower_addr, 100000 * dec6);
+        assert!(total_borrowed_amount<UNI>() == (100000 * dec6 as u128), 0);
+        assert!(total_borrowed_share<UNI>() == (100000 * dec6 as u128), 0);
+
+        //// update total_xxxx (instead of interest by accrue_interest)
+        let total_borrowed_amount = &mut borrow_mut_asset_storage<UNI>(borrow_global_mut<Storage>(owner_addr)).total_borrowed_amount;
+        *total_borrowed_amount = *total_borrowed_amount - (60000 * dec6 as u128);
+        assert!(total_borrowed_amount<UNI>() == (40000 * dec6 as u128), 0);
+        assert!(total_borrowed_share<UNI>() == (100000 * dec6 as u128), 0);
+
+        let (amount, share) = repay_internal<UNI>(borrower, 20000 * dec6, true);
+        assert!(amount == 8000 * dec6, 0);
+        assert!(share == 20000 * dec6, 0);
+        assert!(total_borrowed_amount<UNI>() == (32000 * dec6 as u128), 0);
+        assert!(total_borrowed_share<UNI>() == (80000 * dec6 as u128), 0);
+    }
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
     fun test_repay_with_u64_max(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, AssetManagerKeys, PoolEventHandle {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
