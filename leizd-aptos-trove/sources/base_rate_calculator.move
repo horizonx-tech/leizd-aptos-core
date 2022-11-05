@@ -4,7 +4,7 @@ module leizd_aptos_trove::base_rate_calculator {
 
     const MICROSECONDS_IN_MINUTE: u64 = 60 * 1000000;
 
-    const MINUTES_IN_1000_YEARS: u128 = 525600000;
+    const MINUTES_IN_1000_YEARS: u128 = 1000 * 365 * 24 * 60;
 
     public fun precision(): u64 {
         PRECISION
