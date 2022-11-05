@@ -2236,7 +2236,7 @@ module leizd::shadow_pool {
         managed_coin::register<USDZ>(borrower);
 
         // prerequisite
-        let dec8 = math64::pow(10, 8);
+        let dec8 = math64::pow_10(8);
         risk_factor::update_protocol_fees_unsafe(
             0,
             0,
@@ -2252,7 +2252,7 @@ module leizd::shadow_pool {
         prepare_to_test_repay_by_share(owner, depositor, borrower, aptos_framework);
         let owner_addr = signer::address_of(owner);
         let borrower_addr = signer::address_of(borrower);
-        let dec8 = math64::pow(10, 8);
+        let dec8 = math64::pow_10(8);
 
         // execute
         let key = key<UNI>();
@@ -2277,7 +2277,7 @@ module leizd::shadow_pool {
         prepare_to_test_repay_by_share(owner, depositor, borrower, aptos_framework);
         let owner_addr = signer::address_of(owner);
         let borrower_addr = signer::address_of(borrower);
-        let dec8 = math64::pow(10, 8);
+        let dec8 = math64::pow_10(8);
 
         // execute
         let key = key<UNI>();
@@ -2844,8 +2844,8 @@ module leizd::shadow_pool {
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         central_liquidity_pool::add_supported_pool<WETH>(owner);
         central_liquidity_pool::update_config(owner, 0, 0);
-        let dec8 = math64::pow(10, 8);
-        let dec8_u128 = math128::pow(10, 8);
+        let dec8 = math64::pow_10(8);
+        let dec8_u128 = math128::pow_10(8);
 
         let lp_addr = signer::address_of(lp);
         let depositor_addr = signer::address_of(depositor);
@@ -2895,8 +2895,8 @@ module leizd::shadow_pool {
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         central_liquidity_pool::add_supported_pool<WETH>(owner);
         central_liquidity_pool::update_config(owner, 0, 0);
-        let dec8 = math64::pow(10, 8);
-        let dec8_u128 = math128::pow(10, 8);
+        let dec8 = math64::pow_10(8);
+        let dec8_u128 = math128::pow_10(8);
 
         let lp_addr = signer::address_of(lp);
         let depositor_addr = signer::address_of(depositor);
@@ -3190,8 +3190,8 @@ module leizd::shadow_pool {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
 
-        let dec8 = math64::pow(10, 8);
-        let billion = math64::pow(10, 9);
+        let dec8 = math64::pow_10(8);
+        let billion = math64::pow_10(9);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
         managed_coin::register<USDZ>(account);
@@ -3212,8 +3212,8 @@ module leizd::shadow_pool {
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
         central_liquidity_pool::add_supported_pool<WETH>(owner);
 
-        let dec8 = math64::pow(10, 8);
-        let billion = math64::pow(10, 9);
+        let dec8 = math64::pow_10(8);
+        let billion = math64::pow_10(9);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(account_addr);
         managed_coin::register<USDZ>(account);
@@ -3313,7 +3313,7 @@ module leizd::shadow_pool {
     fun test_harvest_protocol_fees_when_liquidity_is_greater_than_not_harvested(owner: &signer, aptos_framework: &signer) acquires Pool, Storage {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         let owner_addr = signer::address_of(owner);
-        let dec6 = math64::pow(10, 6);
+        let dec6 = math64::pow_10(6);
 
         // prerequisite
         managed_coin::register<USDZ>(owner);
@@ -3339,7 +3339,7 @@ module leizd::shadow_pool {
     fun test_harvest_protocol_fees_when_liquidity_is_less_than_not_harvested(owner: &signer, aptos_framework: &signer) acquires Pool, Storage {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         let owner_addr = signer::address_of(owner);
-        let dec6 = math64::pow(10, 6);
+        let dec6 = math64::pow_10(6);
 
         // prerequisite
         managed_coin::register<USDZ>(owner);
@@ -3806,7 +3806,7 @@ module leizd::shadow_pool {
     fun test_repay_when_repaying_all_borrowed_with_clp(owner: &signer, aptos_framework: &signer, lp: &signer, account: &signer) acquires Pool, Storage, Keys, PoolEventHandle {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
 
-        let dec8 = (math128::pow(10, 8) as u64);
+        let dec8 = (math128::pow_10(8) as u64);
         let lp_addr = signer::address_of(lp);
         setup_account_for_test(lp);
         usdz::mint_for_test(lp_addr, 500000 * dec8);
@@ -3883,7 +3883,7 @@ module leizd::shadow_pool {
         central_liquidity_pool::update_config(owner, 0, central_liquidity_pool::default_support_fee());
         risk_factor::update_protocol_fees(owner, 0, 0, 0);
 
-        let dec8 = (math128::pow(10, 8) as u64);
+        let dec8 = (math128::pow_10(8) as u64);
 
         let depositor_addr = signer::address_of(depositor);
         let borrower1_addr = signer::address_of(borrower1);
@@ -3935,7 +3935,7 @@ module leizd::shadow_pool {
         central_liquidity_pool::update_config(owner, 0, central_liquidity_pool::default_support_fee());
         risk_factor::update_protocol_fees(owner, 0, 0, 0);
 
-        let dec8 = (math128::pow(10, 8) as u64);
+        let dec8 = (math128::pow_10(8) as u64);
 
         let depositor_addr = signer::address_of(depositor);
         let borrower1_addr = signer::address_of(borrower1);
@@ -3987,7 +3987,7 @@ module leizd::shadow_pool {
         central_liquidity_pool::update_config(owner, 0, central_liquidity_pool::default_support_fee());
         risk_factor::update_protocol_fees(owner, 0, 0, 0);
 
-        let dec8 = (math128::pow(10, 8) as u64);
+        let dec8 = (math128::pow_10(8) as u64);
 
         let depositor_addr = signer::address_of(depositor);
         let borrower1_addr = signer::address_of(borrower1);
@@ -4034,7 +4034,7 @@ module leizd::shadow_pool {
         central_liquidity_pool::update_config(owner, 0, central_liquidity_pool::default_support_fee());
         risk_factor::update_protocol_fees(owner, 0, 0, 0);
 
-        let dec8 = (math128::pow(10, 8) as u64);
+        let dec8 = (math128::pow_10(8) as u64);
 
         let depositor_addr = signer::address_of(depositor);
         let borrower1_addr = signer::address_of(borrower1);

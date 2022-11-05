@@ -1792,7 +1792,7 @@ module leizd::asset_pool {
         ); // NOTE: remove entry fee / share fee to make it easy to calculate borrowed amount/share
         assert!(risk_factor::entry_fee() == 0, 0);
         //// add liquidity
-        let dec6 = math64::pow(10, 6);
+        let dec6 = math64::pow_10(6);
         managed_coin::mint<UNI>(owner, depositor_addr, 100000 * dec6);
         deposit_for_internal<UNI>(depositor, depositor_addr, 100000 * dec6, false);
 
@@ -1802,7 +1802,7 @@ module leizd::asset_pool {
         prepare_to_test_repay_by_share(owner, depositor, borrower, aptos_framework);
         let owner_addr = signer::address_of(owner);
         let borrower_addr = signer::address_of(borrower);
-        let dec6 = math64::pow(10, 6);
+        let dec6 = math64::pow_10(6);
 
         // execute
         borrow_for_internal<UNI>(borrower_addr, borrower_addr, 100000 * dec6);
@@ -1827,7 +1827,7 @@ module leizd::asset_pool {
         prepare_to_test_repay_by_share(owner, depositor, borrower, aptos_framework);
         let owner_addr = signer::address_of(owner);
         let borrower_addr = signer::address_of(borrower);
-        let dec6 = math64::pow(10, 6);
+        let dec6 = math64::pow_10(6);
 
         // execute
         borrow_for_internal<UNI>(borrower_addr, borrower_addr, 100000 * dec6);
@@ -2182,7 +2182,7 @@ module leizd::asset_pool {
     fun test_harvest_protocol_fees_when_liquidity_is_greater_than_not_harvested(owner: &signer, aptos_framework: &signer) acquires Pool, Storage, AssetManagerKeys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         let owner_addr = signer::address_of(owner);
-        let dec6 = math64::pow(10, 6);
+        let dec6 = math64::pow_10(6);
 
         // prerequisite
         coin::merge(
@@ -2206,7 +2206,7 @@ module leizd::asset_pool {
     fun test_harvest_protocol_fees_when_liquidity_is_less_than_not_harvested(owner: &signer, aptos_framework: &signer) acquires Pool, Storage, AssetManagerKeys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         let owner_addr = signer::address_of(owner);
-        let dec6 = math64::pow(10, 6);
+        let dec6 = math64::pow_10(6);
 
         // prerequisite
         coin::merge(
