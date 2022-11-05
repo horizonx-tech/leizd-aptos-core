@@ -38,11 +38,12 @@ module leizd_aptos_trove::trove {
 
     struct Trove has key, store {
         amounts: simple_map::SimpleMap<String, Position>,
-        borrowed: u64,
+        debt: u64,
     }
 
     struct Position has key, store, copy, drop {
-        borrowed: u64,
+        // borrowed + fee + gas compensation
+        debt: u64,
         deposited: u64
     }
 
@@ -170,7 +171,7 @@ module leizd_aptos_trove::trove {
         collateral_ratio_of_with(string::utf8(b""), 0, 0, false, account)
     }
 
-    fun collateral_ratio_of_with(key: String, additional_deposited: u64, additional_borrowed: u64, neg: bool, account: address): u128 acquires Trove, SupportedCoins {
+    fun collateral_ratio_of_with(key: String, additional_deposited: u64, additional_debt: u64, neg: bool, account: address): u128 acquires Trove, SupportedCoins {
         let coins = borrow_global<SupportedCoins>(permission::owner_address()).coins;
         let total_deposited = 0;
         let i = 0;
@@ -180,17 +181,17 @@ module leizd_aptos_trove::trove {
              i = i + 1
         };
         if (string::is_empty(&key)) {
-            return collateral_ratio(total_deposited, borrow_global<Trove>(account).borrowed)
+            return collateral_ratio(total_deposited, borrow_global<Trove>(account).debt)
         };
-        let borrowed = borrow_global<Trove>(account).borrowed;
+        let debt = borrow_global<Trove>(account).debt;
         if (neg) {
             total_deposited = total_deposited - current_amount_in_usdz(additional_deposited, key);
-            borrowed = borrowed - additional_borrowed;
+            debt = debt - additional_debt;
         } else {
             total_deposited = total_deposited + current_amount_in_usdz(additional_deposited, key);
-            borrowed = borrowed + additional_borrowed;
+            debt = debt + additional_debt;
         };
-        collateral_ratio(total_deposited, borrowed)
+        collateral_ratio(total_deposited, debt)
     }
 
     public fun collateral_ratio_after_update_trove(key: String, amount: u64, usdz_amount: u64, neg: bool, account: address): u128 acquires Trove, SupportedCoins {
@@ -274,18 +275,18 @@ module leizd_aptos_trove::trove {
         collateral_manager::update_statistics(key, collateral_amount, usdz_amount, neg);
         let trove = borrow_global_mut<Trove>(account);
         if (!simple_map::contains_key<String,Position>(&mut trove.amounts, &key)) {
-            simple_map::add<String,Position>(&mut trove.amounts, key, Position{deposited: 0, borrowed: 0});
+            simple_map::add<String,Position>(&mut trove.amounts, key, Position{deposited: 0, debt: 0});
         };
         let position = simple_map::borrow_mut<String,Position>(&mut trove.amounts, &key);
         if (!neg) {
             position.deposited = position.deposited + collateral_amount;
-            position.borrowed = position.borrowed + usdz_amount;
-            trove.borrowed = trove.borrowed + usdz_amount;
+            position.debt = position.debt + usdz_amount;
+            trove.debt = trove.debt + usdz_amount;
             return
         };
         position.deposited = position.deposited - collateral_amount;
-        position.borrowed = position.borrowed - usdz_amount;
-        trove.borrowed = trove.borrowed - usdz_amount;
+        position.debt = position.debt - usdz_amount;
+        trove.debt = trove.debt - usdz_amount;
     }
 
 //    fun requireMaxFeePercentage(_input: RedeemInput){}
@@ -333,10 +334,9 @@ module leizd_aptos_trove::trove {
         validate_internal<C>();
         require_not_in_recovery_mode();
         let key = key_of<C>();
-        let new_tcr = total_collateral_ratio_after_update_trove(current_amount_in_usdz(position.deposited, key), position.borrowed, false);
+        let new_tcr = total_collateral_ratio_after_update_trove(current_amount_in_usdz(position.deposited, key), position.debt, false);
         require_new_tcr_is_above_ccr(new_tcr);
         require_trove_is_active(position);
-
         // TODO: need it ?
         //let trove = borrow_global<Trove>(account);
         //let position = simple_map::borrow<String,Position>(&trove.amounts, &key_of<C>());
@@ -408,7 +408,7 @@ module leizd_aptos_trove::trove {
         if (!exists<Trove>(account_addr)) {
             move_to(account, Trove {
                 amounts: simple_map::create<String,Position>(),
-                borrowed: 0,
+                debt: 0,
             });
         };
         let recovery_mode = is_recovery_mode();
@@ -446,11 +446,11 @@ module leizd_aptos_trove::trove {
         let troves = borrow_global_mut<Trove>(account_addr);
         let position = simple_map::borrow_mut<String, Position>(&mut troves.amounts, &key_of<C>());
         validate_close_trove<C>(*position);
-        usdz::burn(account, position.borrowed);
+        usdz::burn(account, position.debt);
         let owner_addr = permission::owner_address();
         let vault = borrow_global_mut<Vault<C>>(owner_addr);
         coin::deposit(account_addr, coin::extract(&mut vault.coin, (position.deposited)));
-        decrease_trove_amount(account_addr, key_of<C>(), position.deposited, position.borrowed);
+        decrease_trove_amount(account_addr, key_of<C>(), position.deposited, position.debt);
         event::emit_event<CloseTroveEvent>(
             &mut borrow_global_mut<TroveEventHandle<C>>(permission::owner_address()).close_trove_event,
             CloseTroveEvent {
@@ -649,12 +649,12 @@ module leizd_aptos_trove::trove {
         )), 0);
         let trove = borrow_global<Trove>(account1_addr);
         assert!(comparator::is_equal(&comparator::compare(
-            &trove.borrowed,
+            &trove.debt,
             &0
         )), 0);
         let amount = simple_map::borrow<String, Position>(&trove.amounts, &key_of<USDC>());
         assert!(comparator::is_equal(&comparator::compare(
-            &amount.borrowed,
+            &amount.debt,
             &0
         )), 0);
         assert!(comparator::is_equal(&comparator::compare(
