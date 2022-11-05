@@ -92,6 +92,10 @@ module leizd_aptos_lib::math64 {
         }
     }
 
+    public fun pow_10(e: u64): u64 {
+        pow(10, e)
+    }
+
     public fun is_overflow_by_add(a: u64, b: u64): bool {
         if (a == 0 || b == 0) return false;
         if (constant::u64_max() - a < b) {

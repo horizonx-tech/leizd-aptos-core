@@ -93,6 +93,10 @@ module leizd_aptos_lib::math128 {
         }
     }
 
+    public fun pow_10(e: u128): u128 {
+        pow(10, e)
+    }
+
     public fun is_overflow_by_add(a: u128, b: u128): bool {
         if (a == 0 || b == 0) return false;
         if (constant::u128_max() - a < b) {
