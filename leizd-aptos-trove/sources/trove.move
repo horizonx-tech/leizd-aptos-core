@@ -177,7 +177,7 @@ module leizd_aptos_trove::trove {
         let i = 0;
         while (i < vector::length(&coins)) {
             let coin_key = *vector::borrow<String>(&coins, i);
-             total_deposited = total_deposited + current_amount_in_usdz(trove_amount_of(account, coin_key), coin_key);
+             total_deposited = total_deposited + current_amount_in_usdz(deposited_amount_of(account, coin_key), coin_key);
              i = i + 1
         };
         if (string::is_empty(&key)) {
@@ -205,7 +205,7 @@ module leizd_aptos_trove::trove {
         ((PRECISION as u128) * (deposited as u128)) / (borrowed as u128)
     }
 
-    public fun trove_amount_of(account: address, key: String): u64 acquires Trove {
+    public fun deposited_amount_of(account: address, key: String): u64 acquires Trove {
         if(!exists<Trove>(account)) {
             return 0
         };
@@ -216,11 +216,11 @@ module leizd_aptos_trove::trove {
         0
     }
 
-    public fun trove_amount<C>(account: address): u64 acquires Trove {
-        trove_amount_of(account, coin_key::key<C>())
+    public fun deposited_amount<C>(account: address): u64 acquires Trove {
+        deposited_amount_of(account, coin_key::key<C>())
     }
     
-    public fun open_trove<C>(account: &signer, amount: u64, usdz_amount: u64) acquires Vault, Trove, TroveEventHandle, SupportedCoins {
+    public fun open_trove<C>(account: &signer, amount: u64, usdz_amount: u64) acquires Vault, Trove, TroveEventHandle, SupportedCoins, GasPool, BorrowingFeeVault {
         open_trove_internal<C>(account, amount, usdz_amount);
     }
 
@@ -244,7 +244,7 @@ module leizd_aptos_trove::trove {
         while (i < vector::length(&target_accounts)){
             let target_account = vector::borrow<address>(&target_accounts, i);
             assert!(redeemable(*target_account), EACCOUNT_NOT_REDEEMABLE);
-            let target_amount = trove_amount<C>(*target_account);
+            let target_amount = deposited_amount<C>(*target_account);
             if (target_amount > redeemed_in_collateral_coin + unredeemed) {
                 target_amount = unredeemed
             };
@@ -403,7 +403,7 @@ module leizd_aptos_trove::trove {
         (numerator / dominator as u64)
     }
 
-    fun open_trove_internal<C>(account: &signer, collateral_amount: u64, amount: u64) acquires Vault, Trove, TroveEventHandle, SupportedCoins {
+    fun open_trove_internal<C>(account: &signer, collateral_amount: u64, amount: u64) acquires Vault, Trove, TroveEventHandle, SupportedCoins, GasPool, BorrowingFeeVault {
         let account_addr = signer::address_of(account);
         if (!exists<Trove>(account_addr)) {
             move_to(account, Trove {
@@ -424,9 +424,15 @@ module leizd_aptos_trove::trove {
         let owner_address = permission::owner_address();
         let treasury = borrow_global_mut<Vault<C>>(owner_address);
         coin::merge(&mut treasury.coin, coin::withdraw<C>(account, collateral_amount));
+        usdz::mint(account, net_debt);
+        let gas_pool = borrow_global_mut<GasPool>(owner_address);
+        coin::merge(&mut gas_pool.coin, coin::withdraw<USDZ>(account, GAS_COMPENSATION));
+        if (!recovery_mode) {
+            let borrowing_fee_vault = borrow_global_mut<BorrowingFeeVault>(owner_address);
+            coin::merge(&mut borrowing_fee_vault.coin, coin::withdraw<USDZ>(account, borrowing_fee));
+        };
 //        let borrowing_fee_vault = borrow_global_mut<BorrowingFeeVault>(owner_address);
         // TODO: mint borrowing fee to borrowing_fee_vault 
-        usdz::mint(account, amount);
         event::emit_event<OpenTroveEvent>(
             &mut borrow_global_mut<TroveEventHandle<C>>(permission::owner_address()).open_trove_event,
             OpenTroveEvent {
@@ -446,10 +452,10 @@ module leizd_aptos_trove::trove {
         let troves = borrow_global_mut<Trove>(account_addr);
         let position = simple_map::borrow_mut<String, Position>(&mut troves.amounts, &key_of<C>());
         validate_close_trove<C>(*position);
-        usdz::burn(account, position.debt);
+        usdz::burn(account, position.debt - GAS_COMPENSATION);
         let owner_addr = permission::owner_address();
         let vault = borrow_global_mut<Vault<C>>(owner_addr);
-        coin::deposit(account_addr, coin::extract(&mut vault.coin, (position.deposited)));
+        coin::deposit(account_addr, coin::extract(&mut vault.coin, position.deposited));
         decrease_trove_amount(account_addr, key_of<C>(), position.deposited, position.debt);
         event::emit_event<CloseTroveEvent>(
             &mut borrow_global_mut<TroveEventHandle<C>>(permission::owner_address()).close_trove_event,
@@ -580,47 +586,47 @@ module leizd_aptos_trove::trove {
     }
 
     #[test(owner=@leizd_aptos_trove,account1=@0x111,aptos_framework=@aptos_framework)]
-    fun test_open_trove(owner: signer, account1: signer, aptos_framework: signer) acquires Vault, Trove, TroveEventHandle, SupportedCoins {
+    fun test_open_trove(owner: signer, account1: signer, aptos_framework: signer) acquires Vault, Trove, TroveEventHandle, SupportedCoins, BorrowingFeeVault, GasPool {
         set_up(&owner, &account1, &aptos_framework);
         let account1_addr = signer::address_of(&account1);
         let want = USDC_AMT * math64::pow(10, 8 - 6) * 8 / 10;
         open_trove<USDC>(&account1, USDC_AMT, want);
         assert!(comparator::is_equal(&comparator::compare(
             &usdz::balance_of(account1_addr),
-            &want
-        )), 0);
+            &(want - GAS_COMPENSATION)
+        )), usdz::balance_of(account1_addr));
         assert!(comparator::is_equal(&comparator::compare(
-            &trove_amount<USDC>(account1_addr),
+            &deposited_amount<USDC>(account1_addr),
             &USDC_AMT
-        )), 0);
+        )), usdz::balance_of(account1_addr));
         assert!(coin::balance<USDC>(account1_addr) == 0, 0);
         // add more USDC
         managed_coin::mint<USDC>(&owner, account1_addr, USDC_AMT);
         open_trove<USDC>(&account1, USDC_AMT, want);
         assert!(comparator::is_equal(&comparator::compare(
-            &trove_amount<USDC>(account1_addr),
-            &(USDC_AMT * 2)
-        )), 0);
-
-        assert!(comparator::is_equal(&comparator::compare(
             &usdz::balance_of(account1_addr),
-            &(want * 2)
-        )), 0);
+            &((want - GAS_COMPENSATION) * 2)
+        )), usdz::balance_of(account1_addr));
+        assert!(comparator::is_equal(&comparator::compare(
+            &deposited_amount<USDC>(account1_addr),
+            &(USDC_AMT * 2)
+        )), deposited_amount<USDC>(account1_addr));
+
         // add USDT
         open_trove<USDT>(&account1, USDC_AMT, want);
         assert!(comparator::is_equal(&comparator::compare(
             &usdz::balance_of(account1_addr),
-            &(want * 3)
-        )), 0);
+            &((want - GAS_COMPENSATION) * 3)
+        )), usdz::balance_of(account1_addr));
         assert!(comparator::is_equal(&comparator::compare(
-            &trove_amount<USDT>(account1_addr),
-            &USDC_AMT
-        )), 0);        
+            &deposited_amount<USDT>(account1_addr),
+            &(USDC_AMT)
+        )), usdz::balance_of(account1_addr));        
     }
 
     #[test(owner=@leizd_aptos_trove,account1=@0x111,aptos_framework=@aptos_framework)]
     #[expected_failure(abort_code = 3)]
-    fun test_open_trove_below_min_cr(owner: signer, account1: signer, aptos_framework: signer) acquires Vault, Trove, TroveEventHandle, SupportedCoins {
+    fun test_open_trove_below_min_cr(owner: signer, account1: signer, aptos_framework: signer) acquires Vault, Trove, TroveEventHandle, SupportedCoins, BorrowingFeeVault, GasPool {
         set_up(&owner, &account1, &aptos_framework);
         let account1_addr = signer::address_of(&account1);
         // collateral raio under 110%
@@ -633,7 +639,7 @@ module leizd_aptos_trove::trove {
     }
 
     #[test(owner=@leizd_aptos_trove,account1=@0x111,aptos_framework=@aptos_framework)]
-    fun test_close_trove(owner: signer, account1: signer, aptos_framework: signer) acquires Vault, Trove, TroveEventHandle, SupportedCoins {
+    fun test_close_trove(owner: signer, account1: signer, aptos_framework: signer) acquires Vault, Trove, TroveEventHandle, SupportedCoins, BorrowingFeeVault, GasPool {
         set_up(&owner, &account1, &aptos_framework);
         let account1_addr = signer::address_of(&account1);
         let want = USDC_AMT * math64::pow(10, 8 - 6) * 90 / 110;
@@ -686,7 +692,7 @@ module leizd_aptos_trove::trove {
 
     #[test(owner=@leizd_aptos_trove,account=@0x111,aptos_framework=@aptos_framework)]
     #[expected_failure(abort_code = 65537)]
-    fun test_open_trove_before_add_supported_coin(owner: &signer, account: &signer) acquires Vault, Trove, TroveEventHandle, SupportedCoins {
+    fun test_open_trove_before_add_supported_coin(owner: &signer, account: &signer) acquires Vault, Trove, TroveEventHandle, SupportedCoins, BorrowingFeeVault, GasPool {
         let owner_addr = signer::address_of(owner);
         let account_addr = signer::address_of(account);
         account::create_account_for_test(owner_addr);
@@ -731,7 +737,7 @@ module leizd_aptos_trove::trove {
    //}
 
     #[test(owner=@leizd_aptos_trove,alice=@0x111,bob=@0x222,carol=@0x333,dave=@0x444,aptos_framework=@aptos_framework)]
-    fun test_redeem(owner: &signer, alice: &signer, bob: &signer, carol: &signer, dave: &signer, aptos_framework: &signer) acquires SupportedCoins, Trove, TroveEventHandle, Vault {
+    fun test_redeem(owner: &signer, alice: &signer, bob: &signer, carol: &signer, dave: &signer, aptos_framework: &signer) acquires SupportedCoins, Trove, TroveEventHandle, GasPool, BorrowingFeeVault, Vault {
         set_up(owner, alice, aptos_framework);
         set_up_account(owner, bob);
         set_up_account(owner, carol);
@@ -757,7 +763,7 @@ module leizd_aptos_trove::trove {
 
     #[test(owner=@leizd_aptos_trove,alice=@0x111,bob=@0x222,carol=@0x333,dave=@0x444,aptos_framework=@aptos_framework)]
     #[expected_failure(abort_code = 4)]
-    fun test_not_redeemable(owner: &signer, alice: &signer, bob: &signer, carol: &signer, dave: &signer, aptos_framework: &signer) acquires SupportedCoins, Trove, TroveEventHandle, Vault {
+    fun test_not_redeemable(owner: &signer, alice: &signer, bob: &signer, carol: &signer, dave: &signer, aptos_framework: &signer) acquires SupportedCoins, Trove, TroveEventHandle, GasPool, BorrowingFeeVault, Vault {
         set_up(owner, alice, aptos_framework);
         set_up_account(owner, bob);
         set_up_account(owner, carol);
