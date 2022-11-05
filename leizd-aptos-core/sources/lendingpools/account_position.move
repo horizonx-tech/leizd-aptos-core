@@ -935,6 +935,9 @@ module leizd::account_position {
             0
         }
     }
+    public fun borrowed_shadow_amount_with(key: String, addr: address): u128 acquires Position {
+        borrowed_amount<AssetToShadow>(addr, key)
+    }
 
     ////// for repay_shadow_with_rebalance
     public fun borrowed_shadow_share_all(addr: address): (

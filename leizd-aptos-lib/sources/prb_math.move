@@ -252,13 +252,13 @@ module leizd_aptos_lib::prb_math {
         assert!(result == expected, 0);
 
         let x = 33333333000;
-        let expected = 10822636909120553476; // TODO:10822636909120553492
+        let expected = 10822636909120553476;
         x = (x << 64) / SCALE; 
         let result = exp2(x);
         assert!(result == expected, 0);
         
         let x = 34100000000;
-        let expected = 18412927881256241384; // TODO: 18412927881256241413
+        let expected = 18412927881256241384;
         x = (x << 64) / SCALE;
         let result = exp2(x);
         assert!(result == expected, 0);
