@@ -27,6 +27,8 @@ module leizd_aptos_trove::trove {
     const ECOLLATERAL_RATIO_IS_UNDER_CRITICAL_COLLATERAL_RATIO: u64 = 7;
     const ECOLLATERAL_RATIO_IS_UNDER_MINIMUM_COLLATERAL_RATIO: u64 = 8;
     const ETOTAL_COLLATERAL_RATIO_IS_UNDER_CRITICAL_COLLATERAL_RATIO: u64 = 9;
+    const ETROVE_IS_NOT_ACTIVE: u64 = 10;
+    const EIN_RECOVERY_MODE: u64 = 10;
     const PRECISION: u64 = 1000000;
     const MINUMUM_COLLATERAL_RATIO: u128 = 110; // 100%
     const CRITICAL_COLLATERAL_RATIO: u128 = 150; // 150%
@@ -39,7 +41,7 @@ module leizd_aptos_trove::trove {
         borrowed: u64,
     }
 
-    struct Position has key, store {
+    struct Position has key, store, copy, drop {
         borrowed: u64,
         deposited: u64
     }
@@ -327,12 +329,26 @@ module leizd_aptos_trove::trove {
         assert!(collateral_ratio_after_update_trove(key, amount, usdz_amount, neg, account) > minimum_collateral_ratio(), ECR_UNDER_MINIMUM_CR)
     }
 
-    fun validate_close_trove<C>(_account: address) acquires SupportedCoins {
+    fun validate_close_trove<C>(position: Position) acquires SupportedCoins {
         validate_internal<C>();
+        require_not_in_recovery_mode();
+        let key = key_of<C>();
+        let new_tcr = total_collateral_ratio_after_update_trove(current_amount_in_usdz(position.deposited, key), position.borrowed, false);
+        require_new_tcr_is_above_ccr(new_tcr);
+        require_trove_is_active(position);
+
         // TODO: need it ?
         //let trove = borrow_global<Trove>(account);
         //let position = simple_map::borrow<String,Position>(&trove.amounts, &key_of<C>());
         //require_cr_above_minimum_cr(key_of<C>(), position.deposited, position.borrowed, true, account)
+    }
+
+    fun require_trove_is_active(position: Position) {
+        assert!(position.deposited != 0, ETROVE_IS_NOT_ACTIVE)
+    }
+
+    fun require_not_in_recovery_mode() {
+        assert!(!is_recovery_mode(), EIN_RECOVERY_MODE)
     }
 
     fun validate_repay<C>() acquires SupportedCoins {
@@ -427,9 +443,9 @@ module leizd_aptos_trove::trove {
 
     fun close_trove_internal<C>(account: &signer) acquires Trove, TroveEventHandle, Vault, SupportedCoins {
         let account_addr = signer::address_of(account);
-        validate_close_trove<C>(account_addr);
         let troves = borrow_global_mut<Trove>(account_addr);
         let position = simple_map::borrow_mut<String, Position>(&mut troves.amounts, &key_of<C>());
+        validate_close_trove<C>(*position);
         usdz::burn(account, position.borrowed);
         let owner_addr = permission::owner_address();
         let vault = borrow_global_mut<Vault<C>>(owner_addr);
