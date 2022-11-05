@@ -249,7 +249,7 @@ module leizd_aptos_trove::trove {
                 target_amount = unredeemed
             };
             let usdz_amount = current_amount_in_usdz(target_amount, key_of<C>());
-            usdz::burn(account, usdz_amount);
+            usdz::burn_from(account, usdz_amount);
             let vault = borrow_global_mut<Vault<C>>(permission::owner_address());
             let deposited = coin::extract(&mut vault.coin, target_amount);
             coin::deposit<C>(signer::address_of(account), deposited);
@@ -376,7 +376,7 @@ module leizd_aptos_trove::trove {
         borrowing_rate::borrowing_fee(debt_amount)
     }
 
-    public fun close_trove<C>(account: &signer) acquires Trove, TroveEventHandle, Vault, SupportedCoins {
+    public fun close_trove<C>(account: &signer) acquires Trove, TroveEventHandle, Vault, SupportedCoins, GasPool {
         close_trove_internal<C>(account);
     }
 
@@ -447,15 +447,16 @@ module leizd_aptos_trove::trove {
         total_collateral_ratio() < CRITICAL_COLLATERAL_RATIO
     }
 
-    fun close_trove_internal<C>(account: &signer) acquires Trove, TroveEventHandle, Vault, SupportedCoins {
+    fun close_trove_internal<C>(account: &signer) acquires Trove, TroveEventHandle, Vault, SupportedCoins, GasPool {
         let account_addr = signer::address_of(account);
         let troves = borrow_global_mut<Trove>(account_addr);
         let position = simple_map::borrow_mut<String, Position>(&mut troves.amounts, &key_of<C>());
         validate_close_trove<C>(*position);
-        usdz::burn(account, position.debt - GAS_COMPENSATION);
         let owner_addr = permission::owner_address();
-        let vault = borrow_global_mut<Vault<C>>(owner_addr);
-        coin::deposit(account_addr, coin::extract(&mut vault.coin, position.deposited));
+        usdz::burn_from(account, position.debt - GAS_COMPENSATION);
+        usdz::burn(coin::extract(&mut borrow_global_mut<GasPool>(owner_addr).coin, GAS_COMPENSATION));
+        coin::deposit(account_addr, coin::extract(&mut borrow_global_mut<Vault<C>>(owner_addr).coin, position.deposited));
+
         decrease_trove_amount(account_addr, key_of<C>(), position.deposited, position.debt);
         event::emit_event<CloseTroveEvent>(
             &mut borrow_global_mut<TroveEventHandle<C>>(permission::owner_address()).close_trove_event,
@@ -468,7 +469,7 @@ module leizd_aptos_trove::trove {
     fun repay_internal<C>(account: &signer, collateral_amount: u64) acquires Vault, Trove, TroveEventHandle, SupportedCoins {
         validate_repay<C>();
         let amount = current_amount_in_usdz(collateral_amount, key_of<C>());
-        usdz::burn(account, amount);
+        usdz::burn_from(account, amount);
         let vault = borrow_global_mut<Vault<C>>(permission::owner_address());
         decrease_trove_amount(signer::address_of(account), key_of<C>(), collateral_amount, amount);
         coin::deposit<C>(signer::address_of(account), coin::extract(&mut vault.coin, collateral_amount));

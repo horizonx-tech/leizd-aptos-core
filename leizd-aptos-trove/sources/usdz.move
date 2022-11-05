@@ -3,6 +3,7 @@ module leizd_aptos_trove::usdz {
     use std::string;
     use aptos_std::signer;
     use leizd_aptos_trove::coin_base_usdz;
+    use aptos_framework::coin::{Coin};
 
     friend leizd_aptos_trove::trove;
 
@@ -25,8 +26,12 @@ module leizd_aptos_trove::usdz {
         coin_base_usdz::mint<USDZ>(account_addr, amount);
     }
 
-    public(friend) fun burn(account: &signer, amount: u64) {
-        coin_base_usdz::burn<USDZ>(account, amount);
+    public(friend) fun burn_from(account: &signer, amount: u64) {
+        coin_base_usdz::burn_from<USDZ>(account, amount);
+    }
+
+    public(friend) fun burn(coin: Coin<USDZ>) {
+        coin_base_usdz::burn<USDZ>(coin)
     }
 
     public entry fun balance_of(owner: address): u64 {
