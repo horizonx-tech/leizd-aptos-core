@@ -90,7 +90,7 @@ module leizd_aptos_logic::rebalance {
         shadow_pool::exec_accrue_interest_for_selected(account_position::deposited_coins<Shadow>(account_addr), shadow_pool_key); // for deposit, withdraw for rebalance
 
         // borrow asset for first without checking HF because updating account position & totals in asset_pool
-        let (_, share) = asset_pool::borrow_for<C>(account_addr, account_addr, amount, asset_pool_key);
+        let (_, _, share) = asset_pool::borrow_for<C>(account_addr, account_addr, amount, asset_pool_key);
         account_position::borrow_unsafe<C, Asset>(account_addr, share, account_position_key);
         if (account_position::is_safe_shadow_to_asset<C>(account_addr)) {
             return ()
@@ -191,7 +191,7 @@ module leizd_aptos_logic::rebalance {
                 let key = vector::borrow(&unprotected_in_atos, i);
                 if (simple_map::contains_key(&borrowings, key)) {
                     let amount = simple_map::borrow(&borrowings, key);
-                    let (_, share) = shadow_pool::borrow_for_with(*key, account_addr, account_addr, *amount, shadow_pool_key);
+                    let (_, _, share) = shadow_pool::borrow_for_with(*key, account_addr, account_addr, *amount, shadow_pool_key);
                     account_position::borrow_unsafe_with<Shadow>(*key, account_addr, share, account_position_key);
                     pre_borrowed_shadow = pre_borrowed_shadow + *amount;
                 };
@@ -799,7 +799,7 @@ module leizd_aptos_logic::rebalance {
                 let key = vector::borrow(&coins, i);
                 if (simple_map::contains_key(&borrows, key)) {
                     let amount = simple_map::borrow(&borrows, key);
-                    let (_, share) = shadow_pool::borrow_for_with(*key, account_addr, account_addr, *amount, shadow_pool_key);
+                    let (_, _, share) = shadow_pool::borrow_for_with(*key, account_addr, account_addr, *amount, shadow_pool_key);
                     account_position::borrow_unsafe_with<Shadow>(*key, account_addr, share, account_position_key);
                     sum_borrow = sum_borrow + *amount;
                 };
@@ -866,7 +866,7 @@ module leizd_aptos_logic::rebalance {
                 let updated = (sum_deposit + sum_repay) - (sum_borrow + sum_withdraw);
                 if (sum_borrow != 0) {
                     // do borrow
-                    let (_, share) = shadow_pool::borrow_for_with(*key, account_addr, account_addr, updated, shadow_pool_key);
+                    let (_, _, share) = shadow_pool::borrow_for_with(*key, account_addr, account_addr, updated, shadow_pool_key);
                     account_position::borrow_unsafe_with<Shadow>(*key, account_addr, share, account_position_key);
                     sum_borrow = sum_borrow + updated;
                 } else {

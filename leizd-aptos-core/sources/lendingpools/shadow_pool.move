@@ -512,7 +512,7 @@ module leizd::shadow_pool {
         };
 
         // update borrowed stats
-        let (amount_with_total_fee_u128, user_share_u128) = save_to_storage_for_borrow(key, borrower_addr, receiver_addr, amount, entry_fee, storage_ref);
+        let (_, user_share_u128) = save_to_storage_for_borrow(key, borrower_addr, receiver_addr, amount, entry_fee, storage_ref);
         (
             amount,
             entry_fee,
@@ -1766,8 +1766,9 @@ module leizd::shadow_pool {
         deposit_for_internal(key<UNI>(), depositor, depositor_addr, 800000, false);
 
         // borrow
-        let (borrowed, _) = borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 100000);
-        assert!(borrowed == 100500, 0);
+        let (borrowed, imposed_fee, _) = borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 100000);
+        assert!(borrowed == 100000, 0);
+        assert!(imposed_fee == 500, 0);
         assert!(coin::balance<USDZ>(borrower_addr) == 100000, 0);
         assert!(total_normal_deposited_amount() == 800000, 0);
         assert!(normal_deposited_amount<UNI>() == 800000, 0);
@@ -1810,8 +1811,9 @@ module leizd::shadow_pool {
         deposit_for_internal(key<UNI>(), depositor, depositor_addr, 1005, false);
 
         // borrow
-        let (borrowed, _) = borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 1000);
-        assert!(borrowed == 1005, 0);
+        let (borrowed, imposed_fee, _) = borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 1000);
+        assert!(borrowed == 1000, 0);
+        assert!(imposed_fee == 5, 0);
         assert!(coin::balance<USDZ>(borrower_addr) == 1000, 0);
         assert!(total_normal_deposited_amount() == 1005, 0);
         assert!(normal_deposited_amount<UNI>() == 1005, 0);
@@ -1865,20 +1867,24 @@ module leizd::shadow_pool {
         //// deposit UNI
         deposit_for_internal(key<UNI>(), depositor, depositor_addr, 10000 + 5 * 10, false);
         //// borrow UNI
-        let (borrowed, _) = borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 1000);
-        assert!(borrowed == 1005, 0);
+        let (borrowed, imposed_fee, _) = borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 1000);
+        assert!(borrowed == 1000, 0);
+        assert!(imposed_fee == 5, 0);
         assert!(coin::balance<USDZ>(borrower_addr) == 1000, 0);
         assert!(borrowed_amount<UNI>() == 1000 + 5 * 1, 0);
-        let (borrowed, _) = borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 2000);
-        assert!(borrowed == 2010, 0);
+        let (borrowed, imposed_fee, _) = borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 2000);
+        assert!(borrowed == 2000, 0);
+        assert!(imposed_fee == 10, 0);
         assert!(coin::balance<USDZ>(borrower_addr) == 3000, 0);
         assert!(borrowed_amount<UNI>() == 3000 + 5 * 3, 0);
-        let (borrowed, _) = borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 3000);
-        assert!(borrowed == 3015, 0);
+        let (borrowed, imposed_fee, _) = borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 3000);
+        assert!(borrowed == 3000, 0);
+        assert!(imposed_fee == 15, 0);
         assert!(coin::balance<USDZ>(borrower_addr) == 6000, 0);
         assert!(borrowed_amount<UNI>() == 6000 + 5 * 6, 0);
-        let (borrowed, _) = borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 4000);
-        assert!(borrowed == 4020, 0);
+        let (borrowed, imposed_fee, _) = borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 4000);
+        assert!(borrowed == 4000, 0);
+        assert!(imposed_fee == 20, 0);
         assert!(coin::balance<USDZ>(borrower_addr) == 10000, 0);
         assert!(borrowed_amount<UNI>() == 10000 + 5 * 10, 0);
     }
@@ -1902,23 +1908,27 @@ module leizd::shadow_pool {
         
         // borrow UNI
         timestamp::update_global_time_for_test((initial_sec + 2628000) * 1000 * 1000); // + 2628000 sec (1 month)
-        let (borrowed, _) = borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 1000);
-        assert!(borrowed == 1005, 0);
+        let (borrowed, imposed_fee, _) = borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 1000);
+        assert!(borrowed == 1000, 0);
+        assert!(imposed_fee == 5, 0);
         assert!(coin::balance<USDZ>(borrower_addr) == 1000, 0);
         assert!(borrowed_amount<UNI>() == 1000 + 5 * 1, 0);
         timestamp::update_global_time_for_test((initial_sec + 2628000*2) * 1000 * 1000); // + 2628000 sec (1 month)
-        let (borrowed, _) = borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 2000);
-        assert!(borrowed == 2010, 0);
+        let (borrowed, imposed_fee, _) = borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 2000);
+        assert!(borrowed == 2000, 0);
+        assert!(imposed_fee == 10, 0);
         assert!(coin::balance<USDZ>(borrower_addr) == 3000, 0);
         assert!(borrowed_amount<UNI>() == 3000 + 5 * 3 + 1, 0); // +1: interest rate
         timestamp::update_global_time_for_test((initial_sec + 2628000*3) * 1000 * 1000); // + 2628000 sec (1 month)
-        let (borrowed, _) = borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 3000);
-        assert!(borrowed == 3015, 0);
+        let (borrowed, imposed_fee, _) = borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 3000);
+        assert!(borrowed == 3000, 0);
+        assert!(imposed_fee == 15, 0);
         assert!(coin::balance<USDZ>(borrower_addr) == 6000, 0);
         assert!(borrowed_amount<UNI>() == 6000 + 5 * 6 + 12, 0); // +12: interest rate 
         timestamp::update_global_time_for_test((initial_sec + 2628000*4) * 1000 * 1000); // + 2628000 sec (1 month)
-        let (borrowed, _) = borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 4000);
-        assert!(borrowed == 4020, 0);
+        let (borrowed, imposed_fee, _) = borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 4000);
+        assert!(borrowed == 4000, 0);
+        assert!(imposed_fee == 20, 0);
         assert!(coin::balance<USDZ>(borrower_addr) == 10000, 0);
         assert!(borrowed_amount<UNI>() == 10000 + 5 * 10 + 51, 0); // +51: interest rate
     }
@@ -1966,8 +1976,9 @@ module leizd::shadow_pool {
         deposit_for_internal(key<UNI>(), depositor, depositor_addr, max, false);
 
         // borrow
-        let (borrowed, _) = borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, max);
+        let (borrowed, imposed_fee, _) = borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, max);
         assert!(borrowed == max, 0);
+        assert!(imposed_fee == 0, 0);
         assert!(coin::balance<USDZ>(borrower_addr) == max, 0);
         assert!(total_normal_deposited_amount() == (max as u128), 0);
         assert!(normal_deposited_amount<UNI>() == (max as u128), 0);
@@ -1995,8 +2006,9 @@ module leizd::shadow_pool {
         assert!(normal_deposited_share<WETH>() == 500000, 0);
         assert!(total_borrowed_amount() == 0, 0);
 
-        let (amount, share) = borrow_for_internal(key, account_addr, account_addr, 100000);
-        assert!(amount == 100000 + 500, 0);
+        let (amount, imposed_fee, share) = borrow_for_internal(key, account_addr, account_addr, 100000);
+        assert!(amount == 100000, 0);
+        assert!(imposed_fee == 500, 0);
         assert!(share == 100000 + 500, 0);
         assert!(borrowed_amount<WETH>() == 100500, 0);
         assert!(borrowed_share<WETH>() == 100500, 0);
@@ -2008,8 +2020,9 @@ module leizd::shadow_pool {
         assert!(borrowed_share<WETH>() == 100500, 0);
         assert!(total_borrowed_amount() == 201000, 0);
 
-        let (amount, share) = borrow_for_internal(key, account_addr, account_addr, 50000);
-        assert!(amount == 50000 + 250, 0);
+        let (amount, imposed_fee, share) = borrow_for_internal(key, account_addr, account_addr, 50000);
+        assert!(amount == 50000, 0);
+        assert!(imposed_fee == 250, 0);
         assert!(share == 25125, 0);
         assert!(borrowed_amount<WETH>() == 250000 + 1250, 0);
         assert!(borrowed_share<WETH>() == 125000 + 625, 0);
@@ -2389,8 +2402,9 @@ module leizd::shadow_pool {
         assert!(normal_deposited_share<WETH>() == 500000, 0);
         assert!(total_borrowed_amount() == 0, 0);
 
-        let (amount, share) = borrow_for_internal(key, account_addr, account_addr, 100000);
-        assert!(amount == 100500, 0);
+        let (amount, imposed_fee, share) = borrow_for_internal(key, account_addr, account_addr, 100000);
+        assert!(amount == 100000, 0);
+        assert!(imposed_fee == 500, 0);
         assert!(share == 100500, 0);
         assert!(borrowed_amount<WETH>() == 100500, 0);
         assert!(borrowed_share<WETH>() == 100500, 0);
