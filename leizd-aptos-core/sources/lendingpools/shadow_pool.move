@@ -32,6 +32,7 @@ module leizd::shadow_pool {
     const EEXCEED_BORROWABLE_AMOUNT: u64 = 12;
     const EINSUFFICIENT_LIQUIDITY: u64 = 13;
     const EINSUFFICIENT_CONLY_DEPOSITED: u64 = 14;
+    const EEXCEED_COIN_IN_POOL: u64 = 15;
 
     //// resources
     /// access control
@@ -235,6 +236,7 @@ module leizd::shadow_pool {
         let to_shadow_pool = amount - repaid_to_central_liquidity_pool;
         if (to_shadow_pool > 0) {
             let withdrawn = coin::withdraw<USDZ>(account, to_shadow_pool);
+            assert!(coin::value(&withdrawn) <= constant::u64_max() - coin::value(&pool_ref.shadow), error::invalid_argument(EEXCEED_COIN_IN_POOL));
             coin::merge(&mut pool_ref.shadow, withdrawn);
         };
 
@@ -2739,7 +2741,7 @@ module leizd::shadow_pool {
         assert!(central_liquidity_pool::left() == 5000, 0);
         assert!(usdz::balance_of(borrower_addr) == 0, 0);
     }
-    #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)] // TODO: check
+    #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
     fun test_with_central_liquidity_pool_to_open_position_more_than_once(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
@@ -3589,7 +3591,7 @@ module leizd::shadow_pool {
 
     // about overflow/underflow
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
-    #[expected_failure] // TODO: validation with appropriate errors
+    #[expected_failure(abort_code = 65551)]
     fun test_deposit_when_deposited_will_be_over_u64_max(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
 
