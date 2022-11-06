@@ -2585,7 +2585,6 @@ module leizd::shadow_pool {
 
         borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 41);
     }
-    // TODO: fail because of total_borrowed increased by interest_rate (as time passes)
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
     fun test_with_central_liquidity_pool_to_borrow_over_time(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
