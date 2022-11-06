@@ -2689,63 +2689,61 @@ module leizd::shadow_pool {
         assert!(central_liquidity_pool::left() == 5000, 0);
         assert!(usdz::balance_of(borrower_addr) == 0, 0);
     }
-    // TODO: fail because of total_borrowed increased by interest_rate (as time passes)
-    // #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
-    // fun test_with_central_liquidity_pool_to_repay_over_time(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
-    //     setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
-    //     test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
-    //     central_liquidity_pool::add_supported_pool<UNI>(owner);
-    //     central_liquidity_pool::update_config(owner, central_liquidity_pool::entry_fee(), 0);
+    #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
+    fun test_with_central_liquidity_pool_to_repay_over_time(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+        central_liquidity_pool::add_supported_pool<UNI>(owner);
+        // central_liquidity_pool::update_config(owner, central_liquidity_pool::entry_fee(), 0);
 
-    //     let owner_addr = signer::address_of(owner);
-    //     let depositor_addr = signer::address_of(depositor);
-    //     let borrower_addr = signer::address_of(borrower);
-    //     account::create_account_for_test(depositor_addr);
-    //     account::create_account_for_test(borrower_addr);
-    //     managed_coin::register<USDZ>(depositor);
-    //     managed_coin::register<USDZ>(borrower);
-    //     usdz::mint_for_test(depositor_addr, 10000);
+        // let owner_addr = signer::address_of(owner);
+        let depositor_addr = signer::address_of(depositor);
+        let borrower_addr = signer::address_of(borrower);
+        account::create_account_for_test(depositor_addr);
+        account::create_account_for_test(borrower_addr);
+        managed_coin::register<USDZ>(depositor);
+        managed_coin::register<USDZ>(borrower);
+        usdz::mint_for_test(depositor_addr, 10000);
 
-    //     // execute
-    //     let initial_sec = 1648738800; // 20220401T00:00:00
-    //     //// prepares
-    //     timestamp::update_global_time_for_test(initial_sec * 1000 * 1000);
-    //     central_liquidity_pool::deposit(depositor, 5000);
-    //     timestamp::update_global_time_for_test((initial_sec + 11) * 1000 * 1000); // + 11 sec
-    //     deposit_for_internal(key<UNI>(), depositor, depositor_addr, 1000, false);
-    //     timestamp::update_global_time_for_test((initial_sec + 22) * 1000 * 1000); // + 11 sec
-    //     timestamp::update_global_time_for_test((initial_sec + 33) * 1000 * 1000); // + 11 sec
-    //     borrow_for<UNI>(borrower_addr, borrower_addr, 3000);
-    //     assert!(pool_value() == 0, 0);
-    //     assert!(borrowed<UNI>() == (1000 + 5) + (2000 + 10 + 11), 0);
-    //     assert!(central_liquidity_pool::borrowed(key<UNI>()) == 5 + 2000 + 10 + 11, 0);
-    //     assert!(central_liquidity_pool::left() == 5000 - (5 + 2000 + 10), 0);
-    //     assert!(usdz::balance_of(borrower_addr) == 3000, 0);
-    //     //// from only central_liquidity_pool
-    //     timestamp::update_global_time_for_test((initial_sec + 44) * 1000 * 1000); // + 11 sec
-    //     repay<UNI>(borrower, 1800);
-    //     assert!(pool_value() == 0, 0);
-    //     assert!(borrowed<UNI>() == ((1000 + 5) + (2000 + 10 + 11)) - 1800, 0);
-    //     assert!(central_liquidity_pool::borrowed(key<UNI>()) == (5 + 2000 + 10 + 11) - 1800, 0);
-    //     assert!(central_liquidity_pool::left() == 5000 - (5 + 2000 + 10) + (1800 - 11), 0);
-    //     assert!(usdz::balance_of(borrower_addr) == 1200, 0);
-    //     //// from both
-    //     timestamp::update_global_time_for_test((initial_sec + 55) * 1000 * 1000); // + 11 sec
-    //     repay<UNI>(borrower, 1000);
-    //     assert!(pool_value() == 1000 - 226, 0);
-    //     assert!(borrowed<UNI>() == ((1000 + 5) + (2000 + 10 + 11)) - 1800 - 1000, 0);
-    //     assert!(central_liquidity_pool::borrowed(key<UNI>()) == 0, 0);
-    //     assert!(central_liquidity_pool::left() == 5000, 0);
-    //     assert!(usdz::balance_of(borrower_addr) == 200, 0);
-    //     //// from only shadow_pool
-    //     timestamp::update_global_time_for_test((initial_sec + 66) * 1000 * 1000); // + 11 sec
-    //     repay<UNI>(borrower, 200);
-    //     assert!(pool_value() == 1000 - 26, 0);
-    //     assert!(borrowed<UNI>() == 5 + 10 + 11, 0);
-    //     assert!(central_liquidity_pool::borrowed(key<UNI>()) == 0, 0);
-    //     assert!(central_liquidity_pool::left() == 5000, 0);
-    //     assert!(usdz::balance_of(borrower_addr) == 0, 0);
-    // }
+        // execute
+        let initial_sec = 1648738800; // 20220401T00:00:00
+        //// prepares
+        timestamp::update_global_time_for_test(initial_sec * 1000 * 1000);
+        central_liquidity_pool::deposit(depositor, 5000);
+        timestamp::update_global_time_for_test((initial_sec + 11) * 1000 * 1000); // + 11 sec
+        deposit_for_internal(key<UNI>(), depositor, depositor_addr, 1000, false);
+        timestamp::update_global_time_for_test((initial_sec + 22) * 1000 * 1000); // + 11 sec
+        borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 3000);
+        assert!(pool_value() == 0, 0);
+        assert!(borrowed_amount<UNI>() == 3015, 0);
+        assert!(central_liquidity_pool::borrowed(key<UNI>()) == 2015, 0);
+        assert!(central_liquidity_pool::left() == 5000 - 2015, 0);
+        assert!(usdz::balance_of(borrower_addr) == 3000, 0);
+        //// from only central_liquidity_pool
+        timestamp::update_global_time_for_test((initial_sec + 33) * 1000 * 1000); // + 11 sec
+        repay_internal(key<UNI>(), borrower, 1800, false);
+        assert!(pool_value() == 0, 0);
+        assert!(borrowed_amount<UNI>() == 3015 - 1800, 0);
+        assert!(central_liquidity_pool::borrowed(key<UNI>()) == 2015 - 1800, 0);
+        assert!(central_liquidity_pool::left() == 5000 - (2015 - 1800), 0);
+        assert!(usdz::balance_of(borrower_addr) == 1200, 0);
+        //// from both
+        timestamp::update_global_time_for_test((initial_sec + 44) * 1000 * 1000); // + 11 sec
+        repay_internal(key<UNI>(), borrower, 1000, false);
+        assert!(pool_value() == 1000 - 215, 0);
+        assert!(borrowed_amount<UNI>() == 3015 - 1800 - 1000, 0);
+        assert!(central_liquidity_pool::borrowed(key<UNI>()) == 0, 0);
+        assert!(central_liquidity_pool::left() == 5000, 0);
+        assert!(usdz::balance_of(borrower_addr) == 200, 0);
+        //// from only shadow_pool
+        timestamp::update_global_time_for_test((initial_sec + 55) * 1000 * 1000); // + 11 sec
+        repay_internal(key<UNI>(), borrower, 200, false);
+        assert!(pool_value() == 1000 - 15, 0);
+        assert!(borrowed_amount<UNI>() == 15, 0);
+        assert!(central_liquidity_pool::borrowed(key<UNI>()) == 0, 0);
+        assert!(central_liquidity_pool::left() == 5000, 0);
+        assert!(usdz::balance_of(borrower_addr) == 0, 0);
+    }
     #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)] // TODO: check
     fun test_with_central_liquidity_pool_to_open_position_more_than_once(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
