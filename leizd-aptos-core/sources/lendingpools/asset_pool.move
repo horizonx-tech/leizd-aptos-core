@@ -9,6 +9,7 @@ module leizd::asset_pool {
     use aptos_framework::account;
     use aptos_framework::coin;
     use aptos_framework::timestamp;
+    use leizd_aptos_lib::constant;
     use leizd_aptos_lib::math128;
     use leizd_aptos_common::coin_key::{key};
     use leizd_aptos_common::permission;
@@ -29,6 +30,7 @@ module leizd::asset_pool {
     const EAMOUNT_ARG_IS_ZERO: u64 = 11;
     const EINSUFFICIENT_LIQUIDITY: u64 = 12;
     const EINSUFFICIENT_CONLY_DEPOSITED: u64 = 13;
+    const EEXCEED_COIN_IN_POOL: u64 = 14;
 
     //// resources
     /// access control
@@ -241,7 +243,9 @@ module leizd::asset_pool {
         accrue_interest(key<C>(), asset_storage_ref);
 
         let user_share_u128: u128;
-        coin::merge(&mut pool_ref.asset, coin::withdraw<C>(account, amount));
+        let withdrawn = coin::withdraw<C>(account, amount);
+        assert!(coin::value(&withdrawn) <= constant::u64_max() - coin::value(&pool_ref.asset), error::invalid_argument(EEXCEED_COIN_IN_POOL));
+        coin::merge(&mut pool_ref.asset, withdrawn);
         if (is_collateral_only) {
             user_share_u128 = math128::to_share((amount as u128), asset_storage_ref.total_conly_deposited_amount, asset_storage_ref.total_conly_deposited_share);
             asset_storage_ref.total_conly_deposited_amount = asset_storage_ref.total_conly_deposited_amount + (amount as u128);
@@ -789,8 +793,6 @@ module leizd::asset_pool {
     friend leizd::shadow_pool;
     #[test_only]
     use aptos_framework::managed_coin;
-    #[test_only]
-    use leizd_aptos_lib::constant;
     #[test_only]
     use leizd_aptos_lib::math64;
     #[test_only]
@@ -2439,7 +2441,7 @@ module leizd::asset_pool {
     }
     // about overflow/underflow
     #[test(owner=@leizd,account=@0x111,aptos_framework=@aptos_framework)]
-    #[expected_failure] // TODO: validation with appropriate errors
+    #[expected_failure(abort_code = 65550)]
     public fun test_deposit_when_deposited_will_be_over_u64_max(owner: &signer, account: &signer, aptos_framework: &signer) acquires Pool, Storage, AssetManagerKeys, PoolEventHandle {
         setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
         let account_addr = signer::address_of(account);
