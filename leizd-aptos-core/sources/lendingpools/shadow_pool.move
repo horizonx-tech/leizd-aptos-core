@@ -9,6 +9,7 @@ module leizd::shadow_pool {
     use aptos_framework::account;
     use aptos_framework::coin;
     use aptos_framework::timestamp;
+    use leizd_aptos_lib::constant;
     use leizd_aptos_lib::math128;
     use leizd_aptos_common::coin_key::{key};
     use leizd_aptos_common::permission;
@@ -1184,8 +1185,6 @@ module leizd::shadow_pool {
 
     #[test_only]
     use aptos_framework::managed_coin;
-    #[test_only]
-    use leizd_aptos_lib::constant;
     #[test_only]
     use leizd_aptos_lib::math64;
     #[test_only]
