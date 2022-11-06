@@ -3380,161 +3380,158 @@ module leizd::shadow_pool {
         assert!(pool_value() == 0, 0);
     }
     // TODO: fail because of total_borrowed increased by interest_rate (as time passes)
-    // #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
-    // fun test_harvest_protocol_fees(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
-    //     setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
-    //     test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+    #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
+    fun test_harvest_protocol_fees(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
 
-    //     let owner_address = signer::address_of(owner);
-    //     let depositor_addr = signer::address_of(depositor);
-    //     let borrower_addr = signer::address_of(borrower);
-    //     account::create_account_for_test(depositor_addr);
-    //     account::create_account_for_test(borrower_addr);
-    //     managed_coin::register<USDZ>(depositor);
-    //     managed_coin::register<USDZ>(borrower);
-    //     usdz::mint_for_test(depositor_addr, 3000000);
+        let depositor_addr = signer::address_of(depositor);
+        let borrower_addr = signer::address_of(borrower);
+        account::create_account_for_test(depositor_addr);
+        account::create_account_for_test(borrower_addr);
+        managed_coin::register<USDZ>(depositor);
+        managed_coin::register<USDZ>(borrower);
+        usdz::mint_for_test(depositor_addr, 3000000);
 
-    //     let initial_sec = 1648738800; // 20220401T00:00:00
-    //     timestamp::update_global_time_for_test(initial_sec * 1000 * 1000);
+        let initial_sec = 1648738800; // 20220401T00:00:00
+        timestamp::update_global_time_for_test(initial_sec * 1000 * 1000);
 
-    //     // Check status before repay
-    //     assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
-    //     assert!(risk_factor::share_fee() == risk_factor::default_share_fee(), 0);
+        // Check status before repay
+        assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
+        assert!(risk_factor::share_fee() == risk_factor::default_share_fee(), 0);
 
-    //     // execute
-    //     deposit_for_internal(key<UNI>(), depositor, depositor_addr, 3000000, false);
-    //     assert!(pool_value() == 3000000, 0);
-    //     assert!(borrowed_amount<UNI>() == 0, 0);
-    //     borrow_for<UNI>(borrower_addr, borrower_addr, 1000);
-    //     assert!(pool_value() == 3000000 - (1000 + 5), 0);
-    //     // assert!(borrowed<UNI>() == 1005, 0); // TODO: fail because of total_borrowed increased by interest_rate (as time passes)
-    //     assert!(coin::balance<USDZ>(borrower_addr) == 1000, 0);
-    //     timestamp::update_global_time_for_test((initial_sec + 250) * 1000 * 1000); // + 250 sec
-    //     let repaid_amount = repay<UNI>(borrower, 1000);
-    //     assert!(repaid_amount == 1000, 0);
-    //     assert!(pool_value() == 3000000 - (1000 + 5) + 1000, 0);
-    //     // assert!(borrowed<UNI>() == 5, 0); // TODO: fail because of total_borrowed increased by interest_rate (as time passes)
-    //     assert!(coin::balance<USDZ>(borrower_addr) == 0, 0);
-    //     let total_protocol_fees = protocol_fees();
-    //     assert!(total_protocol_fees > 0, 0);
-    //     assert!(harvested_protocol_fees() == 0, 0);
-    //     let treasury_balance = treasury::balance<USDZ>();
-    //     harvest_protocol_fees<UNI>();
-    //     assert!(protocol_fees() == total_protocol_fees, 0);
-    //     assert!(harvested_protocol_fees() == total_protocol_fees, 0);
-    //     assert!(treasury::balance<USDZ>() == treasury_balance + total_protocol_fees, 0);
-    //     assert!(pool_value() == 2999995 - total_protocol_fees, 0);
+        // execute
+        deposit_for_internal(key<UNI>(), depositor, depositor_addr, 3000000, false);
+        assert!(pool_value() == 3000000, 0);
+        assert!(borrowed_amount<UNI>() == 0, 0);
+        borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 1000);
+        assert!(pool_value() == 3000000 - (1000 + 5), 0);
+        // assert!(borrowed_amount<UNI>() == 1005, 0); // TODO: fail because of total_borrowed increased by interest_rate (as time passes)
+        assert!(coin::balance<USDZ>(borrower_addr) == 1000, 0);
+        timestamp::update_global_time_for_test((initial_sec + 250) * 1000 * 1000); // + 250 sec
+        let (repaid_amount, _) = repay_internal(key<UNI>(), borrower, 1000, false);
+        assert!(repaid_amount == 1000, 0);
+        assert!(pool_value() == 3000000 - (1000 + 5) + 1000, 0);
+        // assert!(borrowed_amount<UNI>() == 5, 0); // TODO: fail because of total_borrowed increased by interest_rate (as time passes)
+        assert!(coin::balance<USDZ>(borrower_addr) == 0, 0);
+        // let total_protocol_fees = protocol_fees();
+        // assert!(total_protocol_fees > 0, 0);
+        // assert!(harvested_protocol_fees() == 0, 0);
+        // let treasury_balance = treasury::balance<USDZ>();
+        // harvest_protocol_fees();
+        // assert!(protocol_fees() == total_protocol_fees, 0);
+        // assert!(harvested_protocol_fees() == total_protocol_fees, 0);
+        // assert!(treasury::balance<USDZ>() == treasury_balance + (total_protocol_fees as u64), 0);
+        // assert!(pool_value() == 2999995 - (total_protocol_fees as u64), 0);
 
-    //     let event_handle = borrow_global<PoolEventHandle>(signer::address_of(owner));
-    //     assert!(event::counter<RepayEvent>(&event_handle.repay_event) == 1, 0);
-    // }
+        let event_handle = borrow_global<PoolEventHandle>(signer::address_of(owner));
+        assert!(event::counter<RepayEvent>(&event_handle.repay_event) == 1, 0);
+    }
     // TODO: fail because of total_borrowed increased by interest_rate (as time passes)
-    // #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
-    // fun test_harvest_protocol_fees_more_than_liquidity(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
-    //     setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
-    //     test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+    #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
+    fun test_harvest_protocol_fees_more_than_liquidity(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
 
-    //     let owner_address = signer::address_of(owner);
-    //     let depositor_addr = signer::address_of(depositor);
-    //     let borrower_addr = signer::address_of(borrower);
-    //     account::create_account_for_test(depositor_addr);
-    //     account::create_account_for_test(borrower_addr);
-    //     managed_coin::register<USDZ>(depositor);
-    //     managed_coin::register<USDZ>(borrower);
-    //     usdz::mint_for_test(depositor_addr, 3000000);
+        let depositor_addr = signer::address_of(depositor);
+        let borrower_addr = signer::address_of(borrower);
+        account::create_account_for_test(depositor_addr);
+        account::create_account_for_test(borrower_addr);
+        managed_coin::register<USDZ>(depositor);
+        managed_coin::register<USDZ>(borrower);
+        usdz::mint_for_test(depositor_addr, 3000000);
 
-    //     let initial_sec = 1648738800; // 20220401T00:00:00
-    //     timestamp::update_global_time_for_test(initial_sec * 1000 * 1000);
+        let initial_sec = 1648738800; // 20220401T00:00:00
+        timestamp::update_global_time_for_test(initial_sec * 1000 * 1000);
 
-    //     // Check status before repay
-    //     assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
-    //     assert!(risk_factor::share_fee() == risk_factor::default_share_fee(), 0);
+        // Check status before repay
+        assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
+        assert!(risk_factor::share_fee() == risk_factor::default_share_fee(), 0);
 
-    //     // execute
-    //     deposit_for_internal(key<UNI>(), depositor, depositor_addr, 300000, false);
-    //     assert!(pool_value() == 300000, 0);
-    //     assert!(borrowed_amount<UNI>() == 0, 0);
-    //     borrow_for<UNI>(borrower_addr, borrower_addr, 1000);
-    //     assert!(pool_value() == 300000 - (1000 + 5), 0);
-    //     // assert!(borrowed<UNI>() == 1005, 0); // TODO: fail because of total_borrowed increased by interest_rate (as time passes)
-    //     assert!(coin::balance<USDZ>(borrower_addr) == 1000, 0);
-    //     timestamp::update_global_time_for_test((initial_sec + 250) * 1000 * 1000); // + 250 sec
-    //     let repaid_amount = repay<UNI>(borrower, 1000);
-    //     assert!(repaid_amount == 1000, 0);
-    //     assert!(pool_value() == 300000 - (1000 + 5) + 1000, 0);
-    //     // assert!(borrowed<UNI>() == 5, 0); // TODO: fail because of total_borrowed increased by interest_rate (as time passes)
-    //     assert!(coin::balance<USDZ>(borrower_addr) == 0, 0);
-    //     let total_protocol_fees = protocol_fees();
-    //     let liquidity = total_liquidity();
-    //     assert!(liquidity > 0, 0);
-    //     assert!((total_protocol_fees as u128) > liquidity, 0);
-    //     assert!(harvested_protocol_fees() == 0, 0);
-    //     let treasury_balance = treasury::balance<USDZ>();
-    //     harvest_protocol_fees<UNI>();
-    //     assert!(protocol_fees() == total_protocol_fees, 0);
-    //     assert!((harvested_protocol_fees() as u128) == liquidity, 0);
-    //     assert!((treasury::balance<USDZ>() as u128) == (treasury_balance as u128) + liquidity, 0);
-    //     assert!((pool_value() as u128) == 299995 - liquidity, 0);
+        // execute
+        deposit_for_internal(key<UNI>(), depositor, depositor_addr, 300000, false);
+        assert!(pool_value() == 300000, 0);
+        assert!(borrowed_amount<UNI>() == 0, 0);
+        borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 1000);
+        assert!(pool_value() == 300000 - (1000 + 5), 0);
+        // assert!(borrowed<UNI>() == 1005, 0); // TODO: fail because of total_borrowed increased by interest_rate (as time passes)
+        assert!(coin::balance<USDZ>(borrower_addr) == 1000, 0);
+        timestamp::update_global_time_for_test((initial_sec + 250) * 1000 * 1000); // + 250 sec
+        let (repaid_amount, _) = repay_internal(key<UNI>(), borrower, 1000, false);
+        assert!(repaid_amount == 1000, 0);
+        assert!(pool_value() == 300000 - (1000 + 5) + 1000, 0);
+        // assert!(borrowed<UNI>() == 5, 0); // TODO: fail because of total_borrowed increased by interest_rate (as time passes)
+        assert!(coin::balance<USDZ>(borrower_addr) == 0, 0);
+        // let total_protocol_fees = protocol_fees();
+        // let liquidity = total_liquidity();
+        // assert!(liquidity > 0, 0);
+        // assert!(total_protocol_fees > (liquidity as u128), 0);
+        // assert!(harvested_protocol_fees() == 0, 0);
+        // let treasury_balance = treasury::balance<USDZ>();
+        // harvest_protocol_fees();
+        // assert!(protocol_fees() == total_protocol_fees, 0);
+        // assert!(harvested_protocol_fees() == (liquidity as u128), 0);
+        // assert!(treasury::balance<USDZ>() == treasury_balance + liquidity, 0);
+        // assert!(pool_value() == 299995 - liquidity, 0);
 
-    //     let event_handle = borrow_global<PoolEventHandle>(signer::address_of(owner));
-    //     assert!(event::counter<RepayEvent>(&event_handle.repay_event) == 1, 0);
-    // }
+        // let event_handle = borrow_global<PoolEventHandle>(signer::address_of(owner));
+        // assert!(event::counter<RepayEvent>(&event_handle.repay_event) == 1, 0);
+    }
     // TODO: fail because of total_borrowed increased by interest_rate (as time passes)
-    // #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
-    // fun test_harvest_protocol_fees_at_zero(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle {
-    //     setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
-    //     test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
+    #[test(owner=@leizd,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
+    fun test_harvest_protocol_fees_at_zero(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires Pool, Storage, PoolEventHandle, Keys {
+        setup_for_test_to_initialize_coins_and_pools(owner, aptos_framework);
+        test_initializer::initialize_price_oracle_with_fixed_price_for_test(owner);
 
-    //     let owner_address = signer::address_of(owner);
-    //     let depositor_addr = signer::address_of(depositor);
-    //     let borrower_addr = signer::address_of(borrower);
-    //     account::create_account_for_test(depositor_addr);
-    //     account::create_account_for_test(borrower_addr);
-    //     managed_coin::register<USDZ>(depositor);
-    //     managed_coin::register<USDZ>(borrower);
-    //     usdz::mint_for_test(depositor_addr, 3000000);
+        let depositor_addr = signer::address_of(depositor);
+        let borrower_addr = signer::address_of(borrower);
+        account::create_account_for_test(depositor_addr);
+        account::create_account_for_test(borrower_addr);
+        managed_coin::register<USDZ>(depositor);
+        managed_coin::register<USDZ>(borrower);
+        usdz::mint_for_test(depositor_addr, 3000000);
 
-    //     let initial_sec = 1648738800; // 20220401T00:00:00
-    //     timestamp::update_global_time_for_test(initial_sec * 1000 * 1000);
+        let initial_sec = 1648738800; // 20220401T00:00:00
+        timestamp::update_global_time_for_test(initial_sec * 1000 * 1000);
 
-    //     // Check status before repay
-    //     assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
-    //     assert!(risk_factor::share_fee() == risk_factor::default_share_fee(), 0);
+        // Check status before repay
+        assert!(risk_factor::entry_fee() == risk_factor::default_entry_fee(), 0);
+        assert!(risk_factor::share_fee() == risk_factor::default_share_fee(), 0);
 
-    //     // execute
-    //     deposit_for_internal(key<UNI>(), depositor, depositor_addr, 3000000, false);
-    //     assert!(pool_value() == 3000000, 0);
-    //     assert!(borrowed_amount<UNI>() == 0, 0);
-    //     borrow_for<UNI>(borrower_addr, borrower_addr, 1000);
-    //     assert!(pool_value() == 3000000 - (1000 + 5), 0);
-    //     // assert!(borrowed<UNI>() == 1005, 0); // TODO: fail because of total_borrowed increased by interest_rate (as time passes)
-    //     assert!(coin::balance<USDZ>(borrower_addr) == 1000, 0);
-    //     timestamp::update_global_time_for_test((initial_sec + 250) * 1000 * 1000); // + 250 sec
-    //     let repaid_amount = repay<UNI>(borrower, 1000);
-    //     assert!(repaid_amount == 1000, 0);
-    //     assert!(pool_value() == 3000000 - (1000 + 5) + 1000, 0);
-    //     // assert!(borrowed<UNI>() == 5, 0); // TODO: fail because of total_borrowed increased by interest_rate (as time passes)
-    //     assert!(coin::balance<USDZ>(borrower_addr) == 0, 0);
-    //     let total_protocol_fees = protocol_fees();
-    //     assert!(total_protocol_fees > 0, 0);
-    //     assert!(harvested_protocol_fees() == 0, 0);
-    //     let treasury_balance = treasury::balance<USDZ>();
-    //     harvest_protocol_fees<UNI>();
-    //     assert!(protocol_fees() == total_protocol_fees, 0);
-    //     assert!(harvested_protocol_fees() == total_protocol_fees, 0);
-    //     assert!(treasury::balance<USDZ>() == treasury_balance + total_protocol_fees, 0);
-    //     assert!(pool_value() == 2999995 - total_protocol_fees, 0);
-    //     // harvest again
-    //     treasury_balance = treasury::balance<USDZ>();
-    //     let pool_balance = pool_value();
-    //     harvest_protocol_fees<UNI>();
-    //     assert!(protocol_fees() - harvested_protocol_fees() == 0, 0);
-    //     assert!(treasury::balance<USDZ>() == treasury_balance, 0);
-    //     assert!(pool_value() == pool_balance, 0);
+        // execute
+        deposit_for_internal(key<UNI>(), depositor, depositor_addr, 3000000, false);
+        assert!(pool_value() == 3000000, 0);
+        assert!(borrowed_amount<UNI>() == 0, 0);
+        borrow_for_internal(key<UNI>(), borrower_addr, borrower_addr, 1000);
+        assert!(pool_value() == 3000000 - (1000 + 5), 0);
+        // assert!(borrowed<UNI>() == 1005, 0); // TODO: fail because of total_borrowed increased by interest_rate (as time passes)
+        assert!(coin::balance<USDZ>(borrower_addr) == 1000, 0);
+        timestamp::update_global_time_for_test((initial_sec + 250) * 1000 * 1000); // + 250 sec
+        let (repaid_amount, _) = repay_internal(key<UNI>(), borrower, 1000, false);
+        assert!(repaid_amount == 1000, 0);
+        assert!(pool_value() == 3000000 - (1000 + 5) + 1000, 0);
+        // assert!(borrowed<UNI>() == 5, 0); // TODO: fail because of total_borrowed increased by interest_rate (as time passes)
+        assert!(coin::balance<USDZ>(borrower_addr) == 0, 0);
+        // let total_protocol_fees = protocol_fees();
+        // assert!(total_protocol_fees > 0, 0);
+        // assert!(harvested_protocol_fees() == 0, 0);
+        // let treasury_balance = treasury::balance<USDZ>();
+        // harvest_protocol_fees();
+        // assert!(protocol_fees() == total_protocol_fees, 0);
+        // assert!(harvested_protocol_fees() == total_protocol_fees, 0);
+        // assert!(treasury::balance<USDZ>() == treasury_balance + (total_protocol_fees as u64), 0);
+        // assert!(pool_value() == 2999995 - (total_protocol_fees as u64), 0);
+        // // harvest again
+        // treasury_balance = treasury::balance<USDZ>();
+        // let pool_balance = pool_value();
+        // harvest_protocol_fees();
+        // assert!(protocol_fees() - harvested_protocol_fees() == 0, 0);
+        // assert!(treasury::balance<USDZ>() == treasury_balance, 0);
+        // assert!(pool_value() == pool_balance, 0);
 
-    //     let event_handle = borrow_global<PoolEventHandle>(signer::address_of(owner));
-    //     assert!(event::counter<RepayEvent>(&event_handle.repay_event) == 1, 0);
-    // }
+        // let event_handle = borrow_global<PoolEventHandle>(signer::address_of(owner));
+        // assert!(event::counter<RepayEvent>(&event_handle.repay_event) == 1, 0);
+    }
 
     //// Convert
     #[test(owner = @leizd, aptos_framework = @aptos_framework)]
