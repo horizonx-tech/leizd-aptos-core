@@ -8,6 +8,7 @@ module leizd::interest_rate {
     use leizd_aptos_common::coin_key::{key};
     use leizd_aptos_common::permission;
     use leizd_aptos_lib::math128;
+    use leizd_aptos_lib::u256;
 
     friend leizd::asset_pool;
     friend leizd::shadow_pool;
@@ -151,12 +152,41 @@ module leizd::interest_rate {
         let exp_minus_one = time - 1;
         let exp_minus_two = if (time > 2) { time - 2 } else 0;
         let rate_per_sec = r * PRECISION / SECONDS_PER_YEAR;
-        let base_power_two = rate_per_sec * rate_per_sec / PRECISION;
-        let base_power_three = base_power_two * rate_per_sec / PRECISION;
-    
-        let second_term = base_power_two / 2 * time * exp_minus_one / PRECISION;
-        let third_term = base_power_three / 6 * time * exp_minus_one * exp_minus_two / PRECISION / PRECISION;
-        let rcomp =  (PRECISION + (rate_per_sec * time)) + (second_term) + third_term;
+        let rate_per_sec_u256 = u256::from_u128(rate_per_sec);
+        let base_power_two_u256 = u256::mul(rate_per_sec_u256, rate_per_sec_u256);
+        let base_power_three_u256 = u256::mul(base_power_two_u256, rate_per_sec_u256);
+        let second_term_u256 = u256::mul(
+            u256::mul(
+                u256::div(
+                    base_power_two_u256, 
+                    u256::from_u128(2)
+                ),
+                u256::from_u128(time)
+            ),
+            u256::from_u128(exp_minus_one)
+        );
+        second_term_u256 = u256::div(second_term_u256, u256::from_u128(PRECISION*PRECISION));
+        let third_term_u256 = u256::mul(
+            u256::mul(
+                u256::mul(
+                    u256::div(
+                        base_power_three_u256,
+                        u256::from_u128(6)
+                    ),
+                    u256::from_u128(time)
+                ),
+                u256::from_u128(exp_minus_one)
+            ),
+            u256::from_u128(exp_minus_two)
+        );
+        third_term_u256 = u256::div(
+            u256::div(
+                third_term_u256, 
+                u256::from_u128(PRECISION*PRECISION)
+            ),
+            u256::from_u128(PRECISION*PRECISION)
+        );
+        let rcomp = (PRECISION + (rate_per_sec * time) + u256::as_u128(second_term_u256) + u256::as_u128(third_term_u256));
         rcomp = rcomp / PRECISION;
         rcomp
     }
@@ -189,27 +219,121 @@ module leizd::interest_rate {
         let key = key<WETH>();
 
         let last_updated = 1648738800 * 1000000;
-        let now = (1648738800 + 31556926) * 1000000; // 1 Year
+        let now = (1648738800 + 31536000) * 1000000; // 1 Year
 
-        // u = 10%
+        // u = 10%, r = 2.14%
         let total_deposits = 100000 * 100000000;
         let total_borrows = 10000 * 100000000;
         let rcomp = compound_interest_rate(key, total_deposits, total_borrows, last_updated, now);
-        assert!(rcomp == 21674330, 0); 
+        assert!(rcomp == 21659803, 0); // 2.16%
 
-        // u = 50%
+        // u = 50%, r = 6.71
         let total_deposits = 100000 * 100000000;
         let total_borrows = 50000 * 100000000;
         let rcomp = compound_interest_rate(key, total_deposits, total_borrows, last_updated, now);
-        assert!(rcomp == 69495034, 0); 
+        assert!(rcomp == 69447388, 0); // 6.94%
 
-        // u = 90%
+        // u = 70, r = 9.00%
+        let total_deposits = 100000 * 100000000;
+        let total_borrows = 70000 * 100000000;
+        let rcomp = compound_interest_rate(key, total_deposits, total_borrows, last_updated, now);
+        assert!(rcomp == 94171500, 0); // 9.41%
+
+        // u = 90%, r = 108.99%
         let total_deposits = 100000 * 100000000;
         let total_borrows = 90000 * 100000000;
         let rcomp = compound_interest_rate(key, total_deposits, total_borrows, last_updated, now);
-        assert!(rcomp == 1901829990, 0);
+        assert!(rcomp == 1899888125, 0); // 189.98%
 
-        // TODO: more tests
+        // u = 100, r = 159.00%
+        let total_deposits = 100000 * 100000000;
+        let total_borrows = 100000 * 100000000;
+        let rcomp = compound_interest_rate(key, total_deposits, total_borrows, last_updated, now);
+        assert!(rcomp == 3523996397, 0); // 352.39%
+    }
+
+    #[test(owner = @leizd_aptos_logic)]
+    public fun test_compound_interest_rate_half_year(owner: &signer) acquires ConfigKey, InterestRateEventHandle {
+        let owner_addr = signer::address_of(owner);
+        account::create_account_for_test(owner_addr);
+        initialize_internal(owner);
+        initialize_for_asset_internal<WETH>(owner);
+        let key = key<WETH>();
+
+        let last_updated = 1648738800 * 1000000;
+        let now = (1648738800 + (31536000 / 2)) * 1000000; // 0.5 Year
+
+        // u = 10%, r = 2.14%
+        let total_deposits = 100000 * 100000000;
+        let total_borrows = 10000 * 100000000;
+        let rcomp = compound_interest_rate(key, total_deposits, total_borrows, last_updated, now);
+        assert!(rcomp == 10771889, 0);
+
+        // u = 50%, r = 6.71
+        let total_deposits = 100000 * 100000000;
+        let total_borrows = 50000 * 100000000;
+        let rcomp = compound_interest_rate(key, total_deposits, total_borrows, last_updated, now);
+        assert!(rcomp == 34141255, 0);
+
+        // u = 70, r = 9.00%
+        let total_deposits = 100000 * 100000000;
+        let total_borrows = 70000 * 100000000;
+        let rcomp = compound_interest_rate(key, total_deposits, total_borrows, last_updated, now);
+        assert!(rcomp == 46027688, 0);
+
+        // u = 90%, r = 108.99%
+        let total_deposits = 100000 * 100000000;
+        let total_borrows = 90000 * 100000000;
+        let rcomp = compound_interest_rate(key, total_deposits, total_borrows, last_updated, now);
+        assert!(rcomp == 720492256, 0);
+
+        // u = 100, r = 159.00%
+        let total_deposits = 100000 * 100000000;
+        let total_borrows = 100000 * 100000000;
+        let rcomp = compound_interest_rate(key, total_deposits, total_borrows, last_updated, now);
+        assert!(rcomp == 1194755777, 0);
+    }
+
+    #[test(owner = @leizd_aptos_logic)]
+    public fun test_compound_interest_rate_a_month(owner: &signer) acquires ConfigKey, InterestRateEventHandle {
+        let owner_addr = signer::address_of(owner);
+        account::create_account_for_test(owner_addr);
+        initialize_internal(owner);
+        initialize_for_asset_internal<WETH>(owner);
+        let key = key<WETH>();
+
+        let last_updated = 1648738800 * 1000000;
+        let now = (1648738800 + (31536000 / 12)) * 1000000; // 1 Month
+
+        // u = 10%, r = 2.14%
+        let total_deposits = 100000 * 100000000;
+        let total_borrows = 10000 * 100000000;
+        let rcomp = compound_interest_rate(key, total_deposits, total_borrows, last_updated, now);
+        assert!(rcomp == 1787310, 0);
+
+        // u = 50%, r = 6.71
+        let total_deposits = 100000 * 100000000;
+        let total_borrows = 50000 * 100000000;
+        let rcomp = compound_interest_rate(key, total_deposits, total_borrows, last_updated, now);
+        assert!(rcomp == 5610921, 0);
+
+        // u = 70, r = 9.00%
+        let total_deposits = 100000 * 100000000;
+        let total_borrows = 70000 * 100000000;
+        let rcomp = compound_interest_rate(key, total_deposits, total_borrows, last_updated, now);
+        assert!(rcomp == 7528196, 0);
+
+        // u = 90%, r = 108.99%
+        let total_deposits = 100000 * 100000000;
+        let total_borrows = 90000 * 100000000;
+        let rcomp = compound_interest_rate(key, total_deposits, total_borrows, last_updated, now);
+        assert!(rcomp == 95083586, 0);
+
+        // u = 100, r = 159.00%
+        let total_deposits = 100000 * 100000000;
+        let total_borrows = 100000 * 100000000;
+        let rcomp = compound_interest_rate(key, total_deposits, total_borrows, last_updated, now);
+        assert!(rcomp == 141665822, 0);
     }
 
     #[test(owner = @leizd_aptos_logic)]
@@ -225,28 +349,28 @@ module leizd::interest_rate {
         let total_borrows = 0 * 100000000;
         let u = math128::utilization(PRECISION, total_deposits, total_borrows);
         let r = calc_interest_rate(key, u);
-        assert!(r == 10000000, 0); // 1%
+        assert!(r == 10000000, 0); // 1.00%
 
         // u = 10%
         let total_deposits = 100000 * 100000000;
         let total_borrows = 10000 * 100000000;
         let u = math128::utilization(PRECISION, total_deposits, total_borrows);
         let r = calc_interest_rate(key, u);
-        assert!(r == 21428571, 0);
+        assert!(r == 21428571, 0); // 2.14%
 
         // u = 50%
         let total_deposits = 100000 * 100000000;
         let total_borrows = 50000 * 100000000;
         let u = math128::utilization(PRECISION, total_deposits, total_borrows);
         let r = calc_interest_rate(key, u);
-        assert!(r == 67142857, 0);
+        assert!(r == 67142857, 0); // 6.71%
 
         // u = 70% (optimal)
         let total_deposits = 100000 * 100000000;
         let total_borrows = 70000 * 100000000;
         let u = math128::utilization(PRECISION, total_deposits, total_borrows);
         let r = calc_interest_rate(key, u);
-        assert!(r == 90000000, 0); // 9%
+        assert!(r == 90000000, 0); // 9.00%
 
         // u = 90%
         let total_deposits = 100000 * 100000000;
@@ -267,6 +391,6 @@ module leizd::interest_rate {
         let total_borrows = 100000 * 100000000;
         let u = math128::utilization(PRECISION, total_deposits, total_borrows);
         let r = calc_interest_rate(key, u);
-        assert!(r == 1590000000, 0); // 159% -> base: 1% + slope1: 8% + slope2: 150%
+        assert!(r == 1590000000, 0); // 159.00% -> base: 1% + slope1: 8% + slope2: 150%
     }
 }

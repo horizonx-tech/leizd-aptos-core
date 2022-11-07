@@ -76,7 +76,7 @@ module leizd_aptos_treasury::treasury {
         simple_map::add<String, address>(&mut treasuries.treasuries, coin_key::key<C>(), signer::address_of(owner));
     }
 
-    public entry fun collect_fee<C>(coin: coin::Coin<C>) acquires Treasury, SupportedTreasuries {
+    public fun collect_fee<C>(coin: coin::Coin<C>) acquires Treasury, SupportedTreasuries {
         assert_coin_supported<C>();
         let treasury_ref = borrow_global_mut<Treasury<C>>(permission::owner_address());
         coin::merge<C>(&mut treasury_ref.coin, coin);

@@ -179,19 +179,19 @@ module leizd_aptos_external::price_oracle {
     public fun volume(name: &String, amount: u128): u128 acquires Storage {
         let (value, dec) = price_of(name);
         let numerator = u256::mul(u256::from_u128(amount), u256::from_u128(value));
-        let denominator = u256::from_u128(math128::pow(10, (dec as u128)));
+        let denominator = u256::from_u128(math128::pow_10((dec as u128)));
         let not_normalized_result = u256::div(numerator, denominator); // FIXME: need to use u256 by right
-        let dec_u256 = u256::from_u128(math128::pow(10, (coin_decimals_internal(*name) as u128)));
+        let dec_u256 = u256::from_u128(math128::pow_10((coin_decimals_internal(*name) as u128)));
         let normalized = u256::div(u256::mul(not_normalized_result, precision_u256()), dec_u256);
         u256::as_u128(normalized)
     }
 
     public fun to_amount(name: &String, volume: u128): u128 acquires Storage {
         let (value, dec) = price_of(name);
-        let numerator = u256::mul(u256::from_u128(volume), u256::from_u128(math128::pow(10, (dec as u128))));
+        let numerator = u256::mul(u256::from_u128(volume), u256::from_u128(math128::pow_10((dec as u128))));
         let denominator = u256::from_u128(value);
         let not_normalized_result = u256::div(numerator, denominator);
-        let dec_u256 = u256::from_u128(math128::pow(10, (coin_decimals_internal(*name) as u128)));
+        let dec_u256 = u256::from_u128(math128::pow_10((coin_decimals_internal(*name) as u128)));
         let normalized = u256::div(u256::mul(not_normalized_result, dec_u256), precision_u256());
         u256::as_u128(normalized)
     }
@@ -482,12 +482,12 @@ module leizd_aptos_external::price_oracle {
         initialize_dummy_coin(owner);
 
         initialize(owner);
-        register_oracle_with_fixed_price<DummyCoin>(owner, math128::pow(10, 8) * 5 / 100, 8, false); // 0.05
+        register_oracle_with_fixed_price<DummyCoin>(owner, math128::pow_10(8) * 5 / 100, 8, false); // 0.05
         change_mode<DummyCoin>(owner, fixed_price_mode());
         assert!(mode<DummyCoin>() == FIXED_PRICE, 0);
 
         let (val, dec) = price<DummyCoin>();
-        assert!(val == math128::pow(10, 8) * 5 / 100, 0);
+        assert!(val == math128::pow_10(8) * 5 / 100, 0);
         assert!(dec == 8, 0);
 
         assert!(volume(&key<DummyCoin>(), 100) == 5, 0);
@@ -500,13 +500,13 @@ module leizd_aptos_external::price_oracle {
         initialize_dummy_coin(owner);
 
         initialize(owner);
-        // register_oracle_with_fixed_price<DummyCoin>(owner, math128::pow(10, 8) * 50000, 8, false); // 50000
-        register_oracle_with_fixed_price<DummyCoin>(owner, math128::pow(10, 8) * 5 / 100, 8, false); // 0.05
+        // register_oracle_with_fixed_price<DummyCoin>(owner, math128::pow_10(8) * 50000, 8, false); // 50000
+        register_oracle_with_fixed_price<DummyCoin>(owner, math128::pow_10(8) * 5 / 100, 8, false); // 0.05
         change_mode<DummyCoin>(owner, fixed_price_mode());
         assert!(mode<DummyCoin>() == FIXED_PRICE, 0);
 
         let (val, dec) = price<DummyCoin>();
-        assert!(val == math128::pow(10, 8) * 5 / 100, 0);
+        assert!(val == math128::pow_10(8) * 5 / 100, 0);
         assert!(dec == 8, 0);
 
         let u128_max: u128 = 340282366920938463463374607431768211455;
@@ -520,9 +520,9 @@ module leizd_aptos_external::price_oracle {
         initialize_dummy_dec_10(owner);
         initialize_dummy_dec_12(owner);
 
-        let dec8 = math128::pow(10, 8);
-        let dec10 = math128::pow(10, 10);
-        let dec12 = math128::pow(10, 12);
+        let dec8 = math128::pow_10(8);
+        let dec10 = math128::pow_10(10);
+        let dec12 = math128::pow_10(12);
 
         initialize(owner);
         register_oracle_with_fixed_price<DummyCoin>(owner, dec8 * 99 / 100, 8, false); // 0.99
@@ -543,12 +543,12 @@ module leizd_aptos_external::price_oracle {
         initialize_dummy_coin(owner);
 
         initialize(owner);
-        register_oracle_with_fixed_price<DummyCoin>(owner, math128::pow(10, 8) * 5 / 100, 8, false); // 0.05
+        register_oracle_with_fixed_price<DummyCoin>(owner, math128::pow_10(8) * 5 / 100, 8, false); // 0.05
         change_mode<DummyCoin>(owner, fixed_price_mode());
         assert!(mode<DummyCoin>() == FIXED_PRICE, 0);
 
         let (val, dec) = price<DummyCoin>();
-        assert!(val == math128::pow(10, 8) * 5 / 100, 0);
+        assert!(val == math128::pow_10(8) * 5 / 100, 0);
         assert!(dec == 8, 0);
 
         assert!(to_amount(&key<DummyCoin>(), 5) == 100, 0);
@@ -561,13 +561,13 @@ module leizd_aptos_external::price_oracle {
         initialize_dummy_coin(owner);
 
         initialize(owner);
-        // register_oracle_with_fixed_price<DummyCoin>(owner, math128::pow(10, 8) * 5 / 10000, 8, false); // 0.0005
-        register_oracle_with_fixed_price<DummyCoin>(owner, math128::pow(10, 8) * 50, 8, false); // 50
+        // register_oracle_with_fixed_price<DummyCoin>(owner, math128::pow_10(8) * 5 / 10000, 8, false); // 0.0005
+        register_oracle_with_fixed_price<DummyCoin>(owner, math128::pow_10(8) * 50, 8, false); // 50
         change_mode<DummyCoin>(owner, fixed_price_mode());
         assert!(mode<DummyCoin>() == FIXED_PRICE, 0);
 
         let (val, dec) = price<DummyCoin>();
-        assert!(val == math128::pow(10, 8) * 50, 0);
+        assert!(val == math128::pow_10(8) * 50, 0);
         assert!(dec == 8, 0);
 
         let u128_max: u128 = 340282366920938463463374607431768211455;
@@ -581,9 +581,9 @@ module leizd_aptos_external::price_oracle {
         initialize_dummy_dec_10(owner);
         initialize_dummy_dec_12(owner);
 
-        let dec8 = math128::pow(10, 8);
-        let dec10 = math128::pow(10, 10);
-        let dec12 = math128::pow(10, 12);
+        let dec8 = math128::pow_10(8);
+        let dec10 = math128::pow_10(10);
+        let dec12 = math128::pow_10(12);
 
         initialize(owner);
         register_oracle_with_fixed_price<DummyCoin>(owner, dec8 * 99 / 100, 8, false); // 0.99
