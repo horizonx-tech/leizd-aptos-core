@@ -1375,14 +1375,16 @@ module leizd_aptos_entry::money_market {
         test_initializer::update_price_oracle_with_fixed_one_dollar_for_test(owner);
 
         // prerequisite
-        deposit<USDC, Asset>(lp, 500000, false);
-        deposit<USDT, Asset>(lp, 500000, false);
-        deposit<WETH, Asset>(lp, 500000, false);
-        deposit<UNI, Asset>(lp, 500000, false);
-        deposit<USDC, Shadow>(lp, 500000, false);
-        deposit<USDT, Shadow>(lp, 500000, false);
-        deposit<WETH, Shadow>(lp, 500000, false);
-        deposit<UNI, Shadow>(lp, 500000, false);
+        let dec6 = math64::pow_10(6);
+        let dec8 = math64::pow_10(8);
+        deposit<USDC, Asset>(lp, 500000 * dec6, false);
+        deposit<USDT, Asset>(lp, 500000 * dec6, false);
+        deposit<WETH, Asset>(lp, 500000 * dec8, false);
+        deposit<UNI, Asset>(lp, 500000 * dec8, false);
+        deposit<USDC, Shadow>(lp, 500000 * dec8, false);
+        deposit<USDT, Shadow>(lp, 500000 * dec8, false);
+        deposit<WETH, Shadow>(lp, 500000 * dec8, false);
+        deposit<UNI, Shadow>(lp, 500000 * dec8, false);
     }
     #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
     #[expected_failure(abort_code = 65547)]
