@@ -17,8 +17,8 @@ module leizd_aptos_entry::scenario_borrow_asset_with_rebalance {
     #[test_only]
     use leizd_aptos_common::test_coin::{
         Self,
-        USDC_DEC8 as USDC,
-        USDT_DEC8 as USDT,
+        USDC_DEC8 as USDC, // NOTE: caution. for simplified scenario testing
+        USDT_DEC8 as USDT, // NOTE: caution. for simplified scenario testing
         WETH,
         UNI
     };
@@ -64,6 +64,7 @@ module leizd_aptos_entry::scenario_borrow_asset_with_rebalance {
 
         // initialize
         initializer::initialize(owner);
+        //// about all coins, one amount is one dollar
         test_initializer::initialize_price_oracle_with_fixed_one_dollar_for_test<USDC>(owner);
         test_initializer::initialize_price_oracle_with_fixed_one_dollar_for_test<USDT>(owner);
         test_initializer::initialize_price_oracle_with_fixed_one_dollar_for_test<WETH>(owner);
