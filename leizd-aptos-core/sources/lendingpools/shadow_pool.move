@@ -486,6 +486,7 @@ module leizd::shadow_pool {
         assert!((amount_with_entry_fee as u128) <= total_left, error::invalid_argument(EEXCEED_BORROWABLE_AMOUNT));
 
         // let asset_storage_ref = simple_map::borrow_mut<String, AssetStorage>(&mut storage_ref.asset_storages, &key);
+        let is_borrowed_from_clp: bool;
         if ((amount_with_entry_fee as u128) > liquidity) {
             // use central-liquidity-pool
             if (liquidity > 0) {
@@ -506,16 +507,31 @@ module leizd::shadow_pool {
                 let for_entry_fee = coin::extract(&mut borrowed_from_central, entry_fee);
                 coin::deposit<USDZ>(receiver_addr, borrowed_from_central); // to receiver
                 treasury::collect_fee<USDZ>(for_entry_fee); // to treasury (collected fee)
-            }
+            };
+            is_borrowed_from_clp = true;
         } else {
             // not use central-liquidity-pool
             let extracted = coin::extract(&mut pool_ref.shadow, amount);
             coin::deposit<USDZ>(receiver_addr, extracted);
             collect_fee(pool_ref, entry_fee); // fee to treasury
+            is_borrowed_from_clp = false;
         };
 
         // update borrowed stats
         let (_, user_share_u128) = save_to_storage_for_borrow(key, borrower_addr, receiver_addr, amount, entry_fee, storage_ref);
+
+        // update interest in all shadow_pool
+        if (is_borrowed_from_clp) {
+            let supported_by_clp = central_liquidity_pool::supported_pools();
+            if (vector::length(&supported_by_clp) > 1) {
+                // remove self from targets to update interest
+                let (_, i) = vector::index_of<String>(&supported_by_clp, &key);
+                vector::remove<String>(&mut supported_by_clp, i);
+
+                exec_accrue_interest_for_selected_internal(supported_by_clp);
+            }
+        };
+
         (
             amount,
             entry_fee,

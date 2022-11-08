@@ -429,6 +429,10 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
     }
 
     ////// View functions
+    public fun supported_pools(): vector<String> acquires CentralLiquidityPool {
+        borrow_global<CentralLiquidityPool>(permission::owner_address()).supported_pools
+    }
+
     public fun left(): u64 acquires CentralLiquidityPool {
         left_internal(borrow_global<CentralLiquidityPool>(permission::owner_address()))
     }
