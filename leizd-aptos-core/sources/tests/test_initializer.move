@@ -54,4 +54,9 @@ module leizd::test_initializer {
         price_oracle::update_fixed_price<USDZ>(owner, 1000000000, 9, false);
         price_oracle::change_mode<USDZ>(owner, price_oracle::fixed_price_mode());
     }
+
+    public fun initialize_price_oracle_with_fixed_one_dollar_for_test<C>(owner: &signer) {
+        price_oracle::register_oracle_with_fixed_price<C>(owner, 1000000000, 9, false);
+        price_oracle::change_mode<C>(owner, price_oracle::fixed_price_mode());
+    }
 }
