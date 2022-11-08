@@ -145,7 +145,7 @@ module leizd_aptos_trove::trove {
         });
     }
 
-    public entry fun liquidate<C>(account: &signer, target: address) acquires Trove {
+    public entry fun liquidate<C>(_account: &signer, target: address) acquires Trove {
         let position = simple_map::borrow<String, Position>(&borrow_global<Trove>(target).amounts, &key_of<C>());
         require_trove_is_active(*position);
         let recovery_mode = is_recovery_mode();
@@ -158,12 +158,10 @@ module leizd_aptos_trove::trove {
         // send_gas_comp
     }
 
-    fun liquidate_normal_mode<C>(account: &signer, target: address, amount: u64) {
-        let total_debt = collateral_manager::total_borrowed();
-        let total_collateral = total_deposited_in_usdz();
-        
-
-    }
+    // fun liquidate_normal_mode<C>(account: &signer, target: address, amount: u64) {
+    //     let total_debt = collateral_manager::total_borrowed();
+    //     let total_collateral = total_deposited_in_usdz();
+    // }
 
     public entry fun add_supported_coin<C>(owner: &signer) acquires SupportedCoins {
         permission::assert_owner(signer::address_of(owner));
