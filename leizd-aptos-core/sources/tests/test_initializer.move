@@ -14,7 +14,7 @@ module leizd::test_initializer {
     use leizd::interest_rate;
 
     /// Called only once by the owner.
-    public entry fun initialize(owner: &signer) {
+    public fun initialize(owner: &signer) {
         system_status::initialize(owner);
         risk_factor::initialize(owner);
         treasury::initialize(owner);
@@ -25,7 +25,7 @@ module leizd::test_initializer {
         pool_status::initialize(owner);
         permission::initialize(owner);
     }
-    public entry fun initialize_price_oracle_with_fixed_price_for_test(owner: &signer) {
+    public fun initialize_price_oracle_with_fixed_price_for_test(owner: &signer) {
         price_oracle::register_oracle_with_fixed_price<test_coin::USDC>(owner, 999900000, 9, false);
         price_oracle::change_mode<test_coin::USDC>(owner, price_oracle::fixed_price_mode());
         price_oracle::register_oracle_with_fixed_price<test_coin::WETH>(owner, 1616370000000, 9, false);
