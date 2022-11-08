@@ -40,19 +40,18 @@ module leizd::test_initializer {
         price_oracle::change_mode<USDZ>(owner, price_oracle::fixed_price_mode());
     }
 
-    public entry fun update_price_oracle_with_fixed_one_dollar_for_test(owner: &signer) {
-        price_oracle::update_fixed_price<test_coin::USDC>(owner, 1000000000, 9, false);
-        price_oracle::change_mode<test_coin::USDC>(owner, price_oracle::fixed_price_mode());
-        price_oracle::update_fixed_price<test_coin::WETH>(owner, 1000000000, 9, false);
-        price_oracle::change_mode<test_coin::WETH>(owner, price_oracle::fixed_price_mode());
-        price_oracle::update_fixed_price<test_coin::UNI>(owner, 1000000000, 9, false);
-        price_oracle::change_mode<test_coin::UNI>(owner, price_oracle::fixed_price_mode());
-        price_oracle::update_fixed_price<test_coin::USDT>(owner, 1000000000, 9, false);
-        price_oracle::change_mode<test_coin::USDT>(owner, price_oracle::fixed_price_mode());
-        price_oracle::update_fixed_price<test_coin::CoinDec10>(owner, 1000000000, 9, false);
-        price_oracle::change_mode<test_coin::CoinDec10>(owner, price_oracle::fixed_price_mode());
-        price_oracle::update_fixed_price<USDZ>(owner, 1000000000, 9, false);
-        price_oracle::change_mode<USDZ>(owner, price_oracle::fixed_price_mode());
+    public fun update_price_oracle_with_fixed_one_dollar_to_all_for_test(owner: &signer) {
+        update_price_oracle_with_fixed_one_dollar_for_test<test_coin::USDC>(owner);
+        update_price_oracle_with_fixed_one_dollar_for_test<test_coin::WETH>(owner);
+        update_price_oracle_with_fixed_one_dollar_for_test<test_coin::UNI>(owner);
+        update_price_oracle_with_fixed_one_dollar_for_test<test_coin::USDT>(owner);
+        update_price_oracle_with_fixed_one_dollar_for_test<test_coin::CoinDec10>(owner);
+        update_price_oracle_with_fixed_one_dollar_for_test<USDZ>(owner);
+    }
+
+    public fun update_price_oracle_with_fixed_one_dollar_for_test<C>(owner: &signer) {
+        price_oracle::update_fixed_price<C>(owner, 1000000000, 9, false);
+        price_oracle::change_mode<C>(owner, price_oracle::fixed_price_mode());
     }
 
     public fun initialize_price_oracle_with_fixed_one_dollar_for_test<C>(owner: &signer) {
