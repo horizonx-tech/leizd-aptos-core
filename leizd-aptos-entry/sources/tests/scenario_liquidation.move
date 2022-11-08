@@ -3,17 +3,29 @@ module leizd_aptos_entry::scenario_liquidation {
     #[test_only]
     use std::signer;
     #[test_only]
-    use leizd_aptos_common::coin_key::{key};
-    #[test_only]
-    use leizd_aptos_common::position_type::{AssetToShadow,ShadowToAsset};
+    use aptos_framework::account;
     #[test_only]
     use aptos_framework::coin;
     #[test_only]
     use aptos_framework::managed_coin;
     #[test_only]
+    use aptos_framework::timestamp;
+    #[test_only]
+    use leizd_aptos_lib::math64;
+    #[test_only]
+    use leizd_aptos_common::coin_key::{key};
+    #[test_only]
+    use leizd_aptos_common::position_type::{AssetToShadow,ShadowToAsset};
+    #[test_only]
     use leizd_aptos_common::pool_type::{Asset, Shadow};
     #[test_only]
-    use leizd_aptos_common::test_coin::{USDC, USDT, WETH, UNI};
+    use leizd_aptos_common::test_coin::{
+        Self,
+        USDC_DEC8 as USDC, // NOTE: caution. for simplified scenario testing
+        USDT_DEC8 as USDT, // NOTE: caution. for simplified scenario testing
+        WETH,
+        UNI
+    };
     #[test_only]
     use leizd_aptos_logic::risk_factor;
     #[test_only]
@@ -29,21 +41,71 @@ module leizd_aptos_entry::scenario_liquidation {
     #[test_only]
     use leizd_aptos_core::shadow_pool;
     #[test_only]
+    use leizd_aptos_core::pool_manager;
+    #[test_only]
+    use leizd_aptos_core::initializer;
+    #[test_only]
+    use leizd_aptos_core::test_initializer;
+    #[test_only]
     use leizd::money_market::{
-        initialize_lending_pool_for_test,
-        setup_liquidity_provider_for_test,
-        setup_account_for_test,
+        Self,
         deposit,
         borrow,
         liquidate,
         borrow_unsafe_for_test
     };
+
     #[test_only]
-    use leizd::test_initializer::update_price_oracle_with_fixed_one_dollar_for_test;
+    public fun initialize_lending_pool_with_same_decimals_coins_for_test(owner: &signer, aptos_framework: &signer) {
+        timestamp::set_time_has_started_for_testing(aptos_framework);
+        timestamp::update_global_time_for_test(1648738800 * 1000 * 1000); // 20220401T00:00:00
+
+        account::create_account_for_test(signer::address_of(owner));
+
+        test_coin::init_usdc_dec8(owner);
+        test_coin::init_usdt_dec8(owner);
+        test_coin::init_weth(owner);
+        test_coin::init_uni(owner);
+
+        // initialize
+        initializer::initialize(owner);
+        //// about all coins, one amount is one dollar
+        test_initializer::initialize_price_oracle_with_fixed_one_dollar_for_test<USDC>(owner);
+        test_initializer::initialize_price_oracle_with_fixed_one_dollar_for_test<USDT>(owner);
+        test_initializer::initialize_price_oracle_with_fixed_one_dollar_for_test<WETH>(owner);
+        test_initializer::initialize_price_oracle_with_fixed_one_dollar_for_test<UNI>(owner);
+        test_initializer::initialize_price_oracle_with_fixed_one_dollar_for_test<USDZ>(owner);
+        money_market::initialize(owner);
+
+        // add_pool
+        pool_manager::add_pool<USDC>(owner);
+        pool_manager::add_pool<USDT>(owner);
+        pool_manager::add_pool<WETH>(owner);
+        pool_manager::add_pool<UNI>(owner);
+    }
+    #[test_only]
+    public fun setup_account_for_test(account: &signer) {
+        account::create_account_for_test(signer::address_of(account));
+        managed_coin::register<USDC>(account);
+        managed_coin::register<USDT>(account);
+        managed_coin::register<WETH>(account);
+        managed_coin::register<UNI>(account);
+        managed_coin::register<USDZ>(account);
+    }
+    #[test_only]
+    public fun setup_liquidity_provider_for_test(owner: &signer, account: &signer) {
+        setup_account_for_test(account);
+
+        let account_addr = signer::address_of(account);
+        managed_coin::mint<USDC>(owner, account_addr, 999999 * math64::pow_10((coin::decimals<USDC>() as u64)));
+        managed_coin::mint<USDT>(owner, account_addr, 999999 * math64::pow_10((coin::decimals<USDT>() as u64)));
+        managed_coin::mint<WETH>(owner, account_addr, 999999 * math64::pow_10((coin::decimals<WETH>() as u64)));
+        managed_coin::mint<UNI>(owner, account_addr, 999999 * math64::pow_10((coin::decimals<UNI>() as u64)));
+        usdz::mint_for_test(account_addr, 9999999 * math64::pow_10((coin::decimals<USDZ>() as u64)));
+    }
     #[test(owner=@leizd_aptos_entry,lp=@0x111,borrower=@0x222,liquidator=@0x333,aptos_framework=@aptos_framework)]
     fun test_liquidate_with_rebalance(owner: &signer, lp: &signer, borrower: &signer, liquidator: &signer, aptos_framework: &signer) {
-        initialize_lending_pool_for_test(owner, aptos_framework);
-        update_price_oracle_with_fixed_one_dollar_for_test(owner);
+        initialize_lending_pool_with_same_decimals_coins_for_test(owner, aptos_framework);
         setup_liquidity_provider_for_test(owner, lp);
         setup_account_for_test(borrower);
         setup_account_for_test(liquidator);
@@ -86,8 +148,7 @@ module leizd_aptos_entry::scenario_liquidation {
     }
     #[test(owner=@leizd_aptos_entry,lp=@0x111,borrower=@0x222,liquidator=@0x333,aptos_framework=@aptos_framework)]
     fun test_liquidate_with_rebalance_2(owner: &signer, lp: &signer, borrower: &signer, liquidator: &signer, aptos_framework: &signer) {
-        initialize_lending_pool_for_test(owner, aptos_framework);
-        update_price_oracle_with_fixed_one_dollar_for_test(owner);
+        initialize_lending_pool_with_same_decimals_coins_for_test(owner, aptos_framework);
         setup_liquidity_provider_for_test(owner, lp);
         setup_account_for_test(borrower);
         setup_account_for_test(liquidator);
@@ -140,8 +201,7 @@ module leizd_aptos_entry::scenario_liquidation {
     }
     #[test(owner=@leizd_aptos_entry,lp=@0x111,borrower=@0x222,liquidator=@0x333,aptos_framework=@aptos_framework,borrower2=@0x555)]
     fun test_liquidate_with_rebalance_3(owner: &signer, lp: &signer, borrower: &signer, borrower2: &signer, liquidator: &signer, aptos_framework: &signer) {
-        initialize_lending_pool_for_test(owner, aptos_framework);
-        update_price_oracle_with_fixed_one_dollar_for_test(owner);
+        initialize_lending_pool_with_same_decimals_coins_for_test(owner, aptos_framework);
         setup_liquidity_provider_for_test(owner, lp);
         setup_account_for_test(borrower);
         setup_account_for_test(liquidator);
@@ -224,8 +284,7 @@ module leizd_aptos_entry::scenario_liquidation {
     }
     #[test(owner=@leizd_aptos_entry,lp=@0x111,borrower=@0x222,liquidator=@0x333,aptos_framework=@aptos_framework)]
     fun test_liquidate_with_rebalance_4(owner: &signer, lp: &signer, borrower: &signer, liquidator: &signer, aptos_framework: &signer) {
-        initialize_lending_pool_for_test(owner, aptos_framework);
-        update_price_oracle_with_fixed_one_dollar_for_test(owner);
+        initialize_lending_pool_with_same_decimals_coins_for_test(owner, aptos_framework);
         setup_liquidity_provider_for_test(owner, lp);
         setup_account_for_test(borrower);
         setup_account_for_test(liquidator);
@@ -276,8 +335,7 @@ module leizd_aptos_entry::scenario_liquidation {
     }
     #[test(owner=@leizd_aptos_entry,lp=@0x111,borrower=@0x222,liquidator=@0x333,aptos_framework=@aptos_framework)]
     fun test_liquidate_with_rebalance_5(owner: &signer, lp: &signer, borrower: &signer, liquidator: &signer, aptos_framework: &signer) {
-        initialize_lending_pool_for_test(owner, aptos_framework);
-        update_price_oracle_with_fixed_one_dollar_for_test(owner);
+        initialize_lending_pool_with_same_decimals_coins_for_test(owner, aptos_framework);
         setup_liquidity_provider_for_test(owner, lp);
         setup_account_for_test(borrower);
         setup_account_for_test(liquidator);
@@ -330,8 +388,7 @@ module leizd_aptos_entry::scenario_liquidation {
     }
     #[test(owner=@leizd_aptos_entry,lp=@0x111,borrower=@0x222,liquidator=@0x333,aptos_framework=@aptos_framework)]
     fun test_liquidate_with_rebalance_6(owner: &signer, lp: &signer, borrower: &signer, liquidator: &signer, aptos_framework: &signer) {
-        initialize_lending_pool_for_test(owner, aptos_framework);
-        update_price_oracle_with_fixed_one_dollar_for_test(owner);
+        initialize_lending_pool_with_same_decimals_coins_for_test(owner, aptos_framework);
         setup_liquidity_provider_for_test(owner, lp);
         setup_account_for_test(borrower);
         setup_account_for_test(liquidator);
@@ -392,8 +449,7 @@ module leizd_aptos_entry::scenario_liquidation {
     }
     #[test(owner=@leizd_aptos_entry,lp=@0x111,borrower=@0x222,liquidator=@0x333,aptos_framework=@aptos_framework)]
     fun test_liquidate_with_rebalance_7(owner: &signer, lp: &signer, borrower: &signer, liquidator: &signer, aptos_framework: &signer) {
-        initialize_lending_pool_for_test(owner, aptos_framework);
-        update_price_oracle_with_fixed_one_dollar_for_test(owner);
+        initialize_lending_pool_with_same_decimals_coins_for_test(owner, aptos_framework);
         setup_liquidity_provider_for_test(owner, lp);
         setup_account_for_test(borrower);
         setup_account_for_test(liquidator);
@@ -466,8 +522,7 @@ module leizd_aptos_entry::scenario_liquidation {
     }
     #[test(owner=@leizd_aptos_entry,lp=@0x111,borrower=@0x222,liquidator=@0x333,target=@0x444,aptos_framework=@aptos_framework)]
     fun test_liquidate_with_rebalance_8(owner: &signer, lp: &signer, borrower: &signer, liquidator: &signer, target: &signer, aptos_framework: &signer) {
-        initialize_lending_pool_for_test(owner, aptos_framework);
-        update_price_oracle_with_fixed_one_dollar_for_test(owner);
+        initialize_lending_pool_with_same_decimals_coins_for_test(owner, aptos_framework);
         setup_liquidity_provider_for_test(owner, lp);
         setup_account_for_test(borrower);
         setup_account_for_test(liquidator);
@@ -528,8 +583,7 @@ module leizd_aptos_entry::scenario_liquidation {
 
     #[test(owner=@leizd_aptos_entry,lp=@0x111,borrower=@0x222,liquidator=@0x333,target=@0x444,aptos_framework=@aptos_framework)]
     fun test_liquidate_with_rebalance_9(owner: &signer, lp: &signer, borrower: &signer, liquidator: &signer, target: &signer, aptos_framework: &signer) {
-        initialize_lending_pool_for_test(owner, aptos_framework);
-        update_price_oracle_with_fixed_one_dollar_for_test(owner);
+        initialize_lending_pool_with_same_decimals_coins_for_test(owner, aptos_framework);
         setup_liquidity_provider_for_test(owner, lp);
         setup_account_for_test(borrower);
         setup_account_for_test(liquidator);

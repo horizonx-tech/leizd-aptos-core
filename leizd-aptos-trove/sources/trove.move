@@ -281,7 +281,7 @@ module leizd_aptos_trove::trove {
             &(want_for_dec10 * 2)
         )), 0);
         // add USDT
-        let want_usdt = coin_amt * math64::pow(10, 8 - 8);
+        let want_usdt = coin_amt * math64::pow(10, 8 - 6);
         open_trove<USDT>(&account1, 10000);
         assert!(comparator::is_equal(&comparator::compare(
             &usdz::balance_of(account1_addr),
