@@ -903,7 +903,9 @@ module leizd::shadow_pool {
         };
 
         // Deposited amount from CLP must be included to calculate the interest rate precisely
-        let deposited_amount_included_clp = asset_storage_ref.normal_deposited_amount + central_liquidity_pool::borrowed(key);
+        let deposited_amount_included_clp = asset_storage_ref.normal_deposited_amount
+            + central_liquidity_pool::borrowed(key)
+            + (central_liquidity_pool::left() as u128); // NOTE: add clp's liquidity. divide equally for supported pools?
         let rcomp = interest_rate::compound_interest_rate(
             key,
             deposited_amount_included_clp,
