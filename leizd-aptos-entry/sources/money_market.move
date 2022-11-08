@@ -1365,29 +1365,18 @@ module leizd_aptos_entry::money_market {
     }
 
     // borrow_asset_with_rebalance
-    #[test_only]
-    public fun prepare_to_exec_borrow_asset_with_rebalance(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
-        initialize_lending_pool_for_test(owner, aptos_framework);
-        setup_liquidity_provider_for_test(owner, lp);
-        setup_account_for_test(account);
-
-        // fix one dollar
-        test_initializer::update_price_oracle_with_fixed_one_dollar_for_test(owner);
-
-        // prerequisite
-        deposit<USDC, Asset>(lp, 500000, false);
-        deposit<USDT, Asset>(lp, 500000, false);
-        deposit<WETH, Asset>(lp, 500000, false);
-        deposit<UNI, Asset>(lp, 500000, false);
-        deposit<USDC, Shadow>(lp, 500000, false);
-        deposit<USDT, Shadow>(lp, 500000, false);
-        deposit<WETH, Shadow>(lp, 500000, false);
-        deposit<UNI, Shadow>(lp, 500000, false);
-    }
     #[test(owner=@leizd_aptos_entry,lp=@0x111,account=@0x222,aptos_framework=@aptos_framework)]
     #[expected_failure(abort_code = 65547)]
     fun test_borrow_asset_with_rebalance_when_insufficient_collateral(owner: &signer, lp: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
-        prepare_to_exec_borrow_asset_with_rebalance(owner, lp, account, aptos_framework);
+        // prepares
+        initialize_lending_pool_for_test(owner, aptos_framework);
+        setup_liquidity_provider_for_test(owner, lp);
+        setup_account_for_test(account);
+        //// fix one dollar
+        test_initializer::update_price_oracle_with_fixed_one_dollar_for_test(owner);
+        //// add liquidity
+        deposit<WETH, Asset>(lp, 1, false);
+
         let account_addr = signer::address_of(account);
 
         // execute
