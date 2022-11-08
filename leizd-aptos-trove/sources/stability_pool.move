@@ -119,5 +119,4 @@ module leizd_aptos_trove::stability_pool {
         withdraw(alice, USDZ_AMT + 1);
     }
 
-
 }

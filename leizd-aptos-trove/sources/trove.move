@@ -115,7 +115,7 @@ module leizd_aptos_trove::trove {
         update_trove_event: event::EventHandle<UpdateTroveEvent>,
     }
     
-    public fun initialize(owner: &signer) {
+    public  fun initialize(owner: &signer) {
         permission::assert_owner(signer::address_of(owner));
         initialize_internal(owner);
     }
@@ -145,7 +145,27 @@ module leizd_aptos_trove::trove {
         });
     }
 
-    public fun add_supported_coin<C>(owner: &signer) acquires SupportedCoins {
+    public entry fun liquidate<C>(account: &signer, target: address) acquires Trove {
+        let position = simple_map::borrow<String, Position>(&borrow_global<Trove>(target).amounts, &key_of<C>());
+        require_trove_is_active(*position);
+        let recovery_mode = is_recovery_mode();
+        if (recovery_mode) {
+
+        } else {
+
+        };
+
+        // send_gas_comp
+    }
+
+    fun liquidate_normal_mode<C>(account: &signer, target: address, amount: u64) {
+        let total_debt = collateral_manager::total_borrowed();
+        let total_collateral = total_deposited_in_usdz();
+        
+
+    }
+
+    public entry fun add_supported_coin<C>(owner: &signer) acquires SupportedCoins {
         permission::assert_owner(signer::address_of(owner));
         add_supported_coin_internal<C>(owner);
     }
@@ -251,7 +271,7 @@ module leizd_aptos_trove::trove {
         deposited_amount_of(account, coin_key::key<C>())
     }
     
-    public fun open_trove<C>(account: &signer, amount: u64, usdz_amount: u64) acquires Vault, Trove, TroveEventHandle, SupportedCoins, GasPool, BorrowingFeeVault {
+    public entry fun open_trove<C>(account: &signer, amount: u64, usdz_amount: u64) acquires Vault, Trove, TroveEventHandle, SupportedCoins, GasPool, BorrowingFeeVault {
         open_trove_internal<C>(account, amount, usdz_amount);
     }
 
@@ -263,7 +283,7 @@ module leizd_aptos_trove::trove {
         coin_key::key<C>()
     }
 
-    public fun redeem<C>(account: &signer, target_accounts: vector<address>, amount: u64) acquires Trove, Vault, SupportedCoins {
+    public entry fun redeem<C>(account: &signer, target_accounts: vector<address>, amount: u64) acquires Trove, Vault, SupportedCoins {
         redeem_internal<C>(account, target_accounts, amount)
     }
 
@@ -403,29 +423,29 @@ module leizd_aptos_trove::trove {
         borrowing_rate::borrowing_fee(debt_amount)
     }
 
-    public fun close_trove<C>(account: &signer) acquires Trove, TroveEventHandle, Vault, SupportedCoins, GasPool {
+    public entry fun close_trove<C>(account: &signer) acquires Trove, TroveEventHandle, Vault, SupportedCoins, GasPool {
         close_trove_internal<C>(account);
     }
 
-    public fun repay<C>(account: &signer, collateral_amount: u64) acquires Trove, Vault, TroveEventHandle, SupportedCoins {
+    public entry fun repay<C>(account: &signer, collateral_amount: u64) acquires Trove, Vault, TroveEventHandle, SupportedCoins {
         repay_internal<C>(account, collateral_amount);
     }
 
-    public fun add_collateral<C>(account: &signer, collateral_amount: u64) acquires Vault, TroveEventHandle, Trove, BorrowingFeeVault, SupportedCoins {
+    public entry fun add_collateral<C>(account: &signer, collateral_amount: u64) acquires Vault, TroveEventHandle, Trove, BorrowingFeeVault, SupportedCoins {
         adjust_trove<C>(account, 0, collateral_amount, 0, false)
     }
 
     // public fun move_gain_to_trove<C>() TODO: from stability pool
 
-    public fun withdraw_collateral<C>(account: &signer, collateral_amount: u64) acquires Vault, TroveEventHandle, Trove, BorrowingFeeVault, SupportedCoins {
+    public entry fun withdraw_collateral<C>(account: &signer, collateral_amount: u64) acquires Vault, TroveEventHandle, Trove, BorrowingFeeVault, SupportedCoins {
         adjust_trove<C>(account, 0, collateral_amount, 0, false)
     }
 
-    public fun withdraw_USDZ<C>(account: &signer, usdz_amount: u64) acquires Vault, TroveEventHandle, Trove, BorrowingFeeVault, SupportedCoins {
+    public entry fun withdraw_USDZ<C>(account: &signer, usdz_amount: u64) acquires Vault, TroveEventHandle, Trove, BorrowingFeeVault, SupportedCoins {
         adjust_trove<C>(account, 0, 0, usdz_amount, true)
     }
 
-    public fun repay_USDZ<C>(account: &signer, usdz_amount: u64) acquires Vault, TroveEventHandle, Trove, BorrowingFeeVault, SupportedCoins {
+    public entry fun repay_USDZ<C>(account: &signer, usdz_amount: u64) acquires Vault, TroveEventHandle, Trove, BorrowingFeeVault, SupportedCoins {
         adjust_trove<C>(account, 0, 0, usdz_amount, false)
     }
 
