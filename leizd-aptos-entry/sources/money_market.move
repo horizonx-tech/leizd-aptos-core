@@ -880,7 +880,7 @@ module leizd_aptos_entry::money_market {
     #[test(owner=@leizd_aptos_entry,account=@0x111,aptos_framework=@aptos_framework)]
     fun test_get_max_repayable_amount_with_fixed_one_dollar_price(owner: &signer, account: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
         initialize_lending_pool_for_test(owner, aptos_framework);
-        test_initializer::update_price_oracle_with_fixed_one_dollar_to_all_for_test(owner);
+        test_initializer::update_price_oracle_with_fixed_one_dollar_to_all_for_test(owner); // NOTE: use one dollar to all coins
         setup_account_for_test(account);
         let account_addr = signer::address_of(account);
 
@@ -1328,7 +1328,7 @@ module leizd_aptos_entry::money_market {
     #[test(owner=@leizd_aptos_entry,depositor=@0x111,borrower=@0x222,aptos_framework=@aptos_framework)]
     fun test_scenario__borrow_asset_with_rebalance_with_larger_numbers(owner: &signer, depositor: &signer, borrower: &signer, aptos_framework: &signer) acquires LendingPoolModKeys {
         initialize_lending_pool_for_test(owner, aptos_framework);
-        test_initializer::update_price_oracle_with_fixed_one_dollar_to_all_for_test(owner);
+        test_initializer::update_price_oracle_with_fixed_one_dollar_to_all_for_test(owner); // NOTE: use one dollar to all coins
         setup_account_for_test(depositor);
         setup_account_for_test(borrower);
         let depositor_addr = signer::address_of(depositor);
@@ -1372,8 +1372,7 @@ module leizd_aptos_entry::money_market {
         initialize_lending_pool_for_test(owner, aptos_framework);
         setup_liquidity_provider_for_test(owner, lp);
         setup_account_for_test(account);
-        //// fix one dollar
-        test_initializer::update_price_oracle_with_fixed_one_dollar_to_all_for_test(owner);
+        test_initializer::update_price_oracle_with_fixed_one_dollar_to_all_for_test(owner); // NOTE: use one dollar to all coins
         //// add liquidity
         deposit<WETH, Asset>(lp, 1, false);
 
