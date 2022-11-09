@@ -2670,7 +2670,7 @@ module leizd::shadow_pool {
         assert!(pool_value() == 0, 0);
         assert!(borrowed_amount<UNI>() == ((1000 + 5) + (2000 + 10)) - 1800, 0);
         assert!(central_liquidity_pool::borrowed(key<UNI>()) == (5 + 2000 + 10) - 1800, 0);
-        assert!(central_liquidity_pool::left() == 5000 - (5 + 2000 + 10) + 1800, 0); //TODO:
+        assert!(central_liquidity_pool::left() == 5000 - (5 + 2000 + 10) + 1800, 0);
         assert!(usdz::balance_of(borrower_addr) == 1200, 0);
         //// from both
         repay_internal(key<UNI>(), borrower, 1000, false);
