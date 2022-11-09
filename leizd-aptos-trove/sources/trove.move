@@ -15,7 +15,7 @@ module leizd_aptos_trove::trove {
     use leizd_aptos_common::coin_key;
     use leizd_aptos_lib::constant;
     use leizd_aptos_trove::collateral_manager;
-    use leizd_aptos_trove::base_rate;    
+    use leizd_aptos_trove::base_rate;
     use leizd_aptos_trove::borrowing_rate;
     use leizd_aptos_lib::math64;
 
@@ -52,14 +52,13 @@ module leizd_aptos_trove::trove {
         deposited: u64
     }
 
-
     struct AdjustmentTroveParam has drop {
         recovery_mode: bool,
         collateral_withdrawal: u64,
         debt_increase: bool,
         coll_increase: bool,
         new_icr: u128,
-        old_icr: u128, 
+        old_icr: u128,
         coll_change: u64,
         net_debt_change: u64,
         coin_key: String,
@@ -81,40 +80,39 @@ module leizd_aptos_trove::trove {
         coins: vector<String>
     }
 
-    struct OpenTroveEvent has store, drop {
-        caller: address,
-        amount: u64,
-        collateral_amount: u64,
-        key: String,
-    }
+    // struct OpenTroveEvent has store, drop {
+    //     caller: address,
+    //     amount: u64,
+    //     collateral_amount: u64,
+    //     key: String,
+    // }
 
-    struct CloseTroveEvent has store, drop {
-        caller: address,
-        key: String,
-    }
+    // struct CloseTroveEvent has store, drop {
+    //     caller: address,
+    //     key: String,
+    // }
 
-    struct RepayEvent has store, drop {
-        caller: address,
-        amount: u64,
-        collateral_amount: u64,
-        key: String,
-    }
+    // struct RepayEvent has store, drop {
+    //     caller: address,
+    //     amount: u64,
+    //     collateral_amount: u64,
+    //     key: String,
+    // }
 
     struct UpdateTroveEvent has store, drop {
-        caller: address,
-        new_coll: u64,
-        new_debt: u64,
-        key: String,
+        account: address,
+        new_collaterals: simple_map::SimpleMap<String, Position>,
+        new_borrowed: u64,
     }
 
 
     struct TroveEventHandle has key, store {
-        open_trove_event: event::EventHandle<OpenTroveEvent>,
-        close_trove_event: event::EventHandle<CloseTroveEvent>,
-        repay_event: event::EventHandle<RepayEvent>,
+        // open_trove_event: event::EventHandle<OpenTroveEvent>,
+        // close_trove_event: event::EventHandle<CloseTroveEvent>,
+        // repay_event: event::EventHandle<RepayEvent>,
         update_trove_event: event::EventHandle<UpdateTroveEvent>,
     }
-    
+
     public  fun initialize(owner: &signer) {
         permission::assert_owner(signer::address_of(owner));
         initialize_internal(owner);
@@ -138,14 +136,14 @@ module leizd_aptos_trove::trove {
             coin: coin::zero<USDZ>()
         });
         move_to(owner, TroveEventHandle{
-            open_trove_event: account::new_event_handle<OpenTroveEvent>(owner),
-            close_trove_event: account::new_event_handle<CloseTroveEvent>(owner),
-            repay_event: account::new_event_handle<RepayEvent>(owner),
+            // open_trove_event: account::new_event_handle<OpenTroveEvent>(owner),
+            // close_trove_event: account::new_event_handle<CloseTroveEvent>(owner),
+            // repay_event: account::new_event_handle<RepayEvent>(owner),
             update_trove_event: account::new_event_handle<UpdateTroveEvent>(owner),
         });
     }
 
-    public entry fun liquidate<C>(account: &signer, target: address) acquires Trove {
+    public entry fun liquidate<C>(_account: &signer, target: address) acquires Trove {
         let position = simple_map::borrow<String, Position>(&borrow_global<Trove>(target).amounts, &key_of<C>());
         require_trove_is_active(*position);
         let recovery_mode = is_recovery_mode();
@@ -158,12 +156,10 @@ module leizd_aptos_trove::trove {
         // send_gas_comp
     }
 
-    fun liquidate_normal_mode<C>(account: &signer, target: address, amount: u64) {
-        let total_debt = collateral_manager::total_borrowed();
-        let total_collateral = total_deposited_in_usdz();
-        
-
-    }
+    // fun liquidate_normal_mode<C>(account: &signer, target: address, amount: u64) {
+    //     let total_debt = collateral_manager::total_borrowed();
+    //     let total_collateral = total_deposited_in_usdz();
+    // }
 
     public entry fun add_supported_coin<C>(owner: &signer) acquires SupportedCoins {
         permission::assert_owner(signer::address_of(owner));
@@ -270,7 +266,7 @@ module leizd_aptos_trove::trove {
     public fun deposited_amount<C>(account: address): u64 acquires Trove {
         deposited_amount_of(account, coin_key::key<C>())
     }
-    
+
     public entry fun open_trove<C>(account: &signer, amount: u64, usdz_amount: u64) acquires Vault, Trove, TroveEventHandle, SupportedCoins, GasPool, BorrowingFeeVault {
         open_trove_internal<C>(account, amount, usdz_amount);
     }
@@ -283,15 +279,16 @@ module leizd_aptos_trove::trove {
         coin_key::key<C>()
     }
 
-    public entry fun redeem<C>(account: &signer, target_accounts: vector<address>, amount: u64) acquires Trove, Vault, SupportedCoins {
+    public entry fun redeem<C>(account: &signer, target_accounts: vector<address>, amount: u64) acquires Trove, Vault, SupportedCoins, TroveEventHandle {
         redeem_internal<C>(account, target_accounts, amount)
     }
 
-    fun redeem_internal<C>(account: &signer, target_accounts: vector<address>, usdz_amount: u64) acquires Trove, Vault, SupportedCoins {
+    fun redeem_internal<C>(account: &signer, target_accounts: vector<address>, usdz_amount: u64) acquires Trove, Vault, SupportedCoins, TroveEventHandle {
         let redeemed_in_collateral_coin = 0;
         let unredeemed = current_amount_in(usdz_amount, key_of<C>());
         let total_usdz_supply_at_start = collateral_manager::total_borrowed();
         let i = 0;
+        let account_addr = signer::address_of(account);
         while (i < vector::length(&target_accounts)){
             let target_account = vector::borrow<address>(&target_accounts, i);
             assert!(redeemable(*target_account), EACCOUNT_NOT_REDEEMABLE);
@@ -303,27 +300,36 @@ module leizd_aptos_trove::trove {
             usdz::burn_from(account, usdz_amount);
             let vault = borrow_global_mut<Vault<C>>(permission::owner_address());
             let deposited = coin::extract(&mut vault.coin, target_amount);
-            coin::deposit<C>(signer::address_of(account), deposited);
-            decrease_trove_amount(*target_account, key_of<C>(), target_amount, usdz_amount);
+            coin::deposit<C>(account_addr, deposited);
+            let (new_collaterals, new_borrowed) = decrease_trove_amount(*target_account, key_of<C>(), target_amount, usdz_amount);
+            event::emit_event<UpdateTroveEvent>(
+                &mut borrow_global_mut<TroveEventHandle>(permission::owner_address()).update_trove_event,
+                UpdateTroveEvent {
+                    account: *target_account,
+                    new_collaterals,
+                    new_borrowed,
+                }
+            );
+
             redeemed_in_collateral_coin = redeemed_in_collateral_coin + target_amount;
             unredeemed = unredeemed - target_amount;
             if (unredeemed == 0) {
                 break
             }
         };
-        base_rate::update_base_rate_from_redemption(usdz_amount - unredeemed, total_usdz_supply_at_start)
+        base_rate::update_base_rate_from_redemption(usdz_amount - unredeemed, total_usdz_supply_at_start);
     }
 
-    fun increase_trove_amount(account: address, key:String, collateral_amount:u64 ,usdz_amount: u64): (u64, u64) acquires Trove {
+    fun increase_trove_amount(account: address, key:String, collateral_amount:u64 ,usdz_amount: u64): (simple_map::SimpleMap<String, Position>, u64) acquires Trove {
         update_trove_amount(account, key, collateral_amount, usdz_amount, false)
     }
 
-    fun decrease_trove_amount(account: address,key:String, collateral_amount:u64 ,usdz_amount: u64): (u64, u64) acquires Trove {
+    fun decrease_trove_amount(account: address,key:String, collateral_amount:u64 ,usdz_amount: u64): (simple_map::SimpleMap<String, Position>, u64) acquires Trove {
         update_trove_amount(account, key, collateral_amount, usdz_amount, true)
     }
 
     // returns new_deposited of the coin and new_total_debt
-    fun update_trove_amount(account: address, key: String, collateral_amount:u64 ,usdz_amount: u64, neg: bool): (u64, u64)acquires Trove {
+    fun update_trove_amount(account: address, key: String, collateral_amount:u64 ,usdz_amount: u64, neg: bool): (simple_map::SimpleMap<String, Position>, u64)acquires Trove {
         collateral_manager::update_statistics(key, collateral_amount, usdz_amount, neg);
         let trove = borrow_global_mut<Trove>(account);
         if (!simple_map::contains_key<String,Position>(&mut trove.amounts, &key)) {
@@ -334,12 +340,12 @@ module leizd_aptos_trove::trove {
             position.deposited = position.deposited + collateral_amount;
             position.debt = position.debt + usdz_amount;
             trove.debt = trove.debt + usdz_amount;
-            return (position.deposited, trove.debt)
+            return (trove.amounts, trove.debt)
         };
         position.deposited = position.deposited - collateral_amount;
         position.debt = position.debt - usdz_amount;
         trove.debt = trove.debt - usdz_amount;
-        (position.deposited, trove.debt)
+        (trove.amounts, trove.debt)
     }
 
     fun validate_open_trove<C>(amount: u64, usdz_amount: u64, composite_usdz_amount: u64, account: address) acquires SupportedCoins, Trove {
@@ -474,7 +480,7 @@ module leizd_aptos_trove::trove {
         if (!recovery_mode && debt_increase) {
             let fee = borrowing_fee(usdz_change);
             usdz::mint(account, fee);
-            let borrowing_fee_vault = borrow_global_mut<BorrowingFeeVault>(permission::owner_address());            
+            let borrowing_fee_vault = borrow_global_mut<BorrowingFeeVault>(permission::owner_address());
             coin::merge(&mut borrowing_fee_vault.coin, coin::withdraw<USDZ>(account, fee));
             net_debt_change = net_debt_change + fee;
         };
@@ -499,21 +505,20 @@ module leizd_aptos_trove::trove {
             require_valid_usdz_payment(total_debt_of(account_addr), net_debt_change);
             // _requireSufficientLUSDBalance TODO: add
         };
-        let (new_coll, new_debt) = update_trove_from_adjustment(account_addr, coin_key, coll_change, coll_increase, net_debt_change, debt_increase);
+        let (new_collaterals, new_borrowed) = update_trove_from_adjustment(account_addr, coin_key, coll_change, coll_increase, net_debt_change, debt_increase);
         move_tokens_from_adjustment<C>(account, coll_change, coll_increase, usdz_change, debt_increase);
         // vars.stake = contractsCache.troveManager.updateStakeAndTotalStakes(_borrower); TODO
         event::emit_event<UpdateTroveEvent>(
             &mut borrow_global_mut<TroveEventHandle>(permission::owner_address()).update_trove_event,
             UpdateTroveEvent {
-                caller: account_addr,
-                new_coll,
-                new_debt,
-                key: coin_key,
+                account: account_addr,
+                new_collaterals,
+                new_borrowed,
             },
         )
     }
 
-    fun update_trove_from_adjustment(account: address, key: String, coll_change: u64, coll_increase: bool, debt_change: u64, debt_increase: bool): (u64, u64) acquires Trove {
+    fun update_trove_from_adjustment(account: address, key: String, coll_change: u64, coll_increase: bool, debt_change: u64, debt_increase: bool): (simple_map::SimpleMap<String, Position>, u64) acquires Trove {
         if (coll_increase && debt_increase) {
             return increase_trove_amount(account, key, coll_change , debt_change)
         };
@@ -643,7 +648,7 @@ module leizd_aptos_trove::trove {
         let composite_debt = composite_debt(net_debt);
         validate_open_trove<C>(collateral_amount, net_debt, composite_debt, account_addr);
         base_rate::decay_base_rate_from_borrowing();
-        increase_trove_amount(account_addr, key_of<C>(), collateral_amount, net_debt);
+        let (new_collaterals, new_borrowed) = increase_trove_amount(account_addr, key_of<C>(), collateral_amount, net_debt);
         let owner_address = permission::owner_address();
         let vault = borrow_global_mut<Vault<C>>(owner_address);
         coin::merge(&mut vault.coin, coin::withdraw<C>(account, collateral_amount));
@@ -655,14 +660,13 @@ module leizd_aptos_trove::trove {
             coin::merge(&mut borrowing_fee_vault.coin, coin::withdraw<USDZ>(account, borrowing_fee));
         };
 //        let borrowing_fee_vault = borrow_global_mut<BorrowingFeeVault>(owner_address);
-        // TODO: mint borrowing fee to borrowing_fee_vault 
-        event::emit_event<OpenTroveEvent>(
-            &mut borrow_global_mut<TroveEventHandle>(permission::owner_address()).open_trove_event,
-            OpenTroveEvent {
-                caller: account_addr,
-                amount,
-                collateral_amount,
-                key: key_of<C>()
+        // TODO: mint borrowing fee to borrowing_fee_vault
+        event::emit_event<UpdateTroveEvent>(
+            &mut borrow_global_mut<TroveEventHandle>(permission::owner_address()).update_trove_event,
+            UpdateTroveEvent {
+                account: account_addr,
+                new_collaterals,
+                new_borrowed,
             },
         )
     }
@@ -681,32 +685,33 @@ module leizd_aptos_trove::trove {
         usdz::burn(coin::extract(&mut borrow_global_mut<GasPool>(owner_addr).coin, GAS_COMPENSATION));
         coin::deposit(account_addr, coin::extract(&mut borrow_global_mut<Vault<C>>(owner_addr).coin, position.deposited));
 
-        decrease_trove_amount(account_addr, key_of<C>(), position.deposited, position.debt);
-        event::emit_event<CloseTroveEvent>(
-            &mut borrow_global_mut<TroveEventHandle>(permission::owner_address()).close_trove_event,
-            CloseTroveEvent {
-                caller: signer::address_of(account),
-                key: key_of<C>()
+        let (new_collaterals, new_borrowed) = decrease_trove_amount(account_addr, key_of<C>(), position.deposited, position.debt);
+        event::emit_event<UpdateTroveEvent>(
+            &mut borrow_global_mut<TroveEventHandle>(permission::owner_address()).update_trove_event,
+            UpdateTroveEvent {
+                account: account_addr,
+                new_collaterals,
+                new_borrowed
             },
-        );
+        )
     }
 
     fun repay_internal<C>(account: &signer, collateral_amount: u64) acquires Vault, Trove, TroveEventHandle, SupportedCoins {
         validate_repay<C>();
+        let account_addr = signer::address_of(account);
         let amount = current_amount_in_usdz(collateral_amount, key_of<C>());
         usdz::burn_from(account, amount);
         let vault = borrow_global_mut<Vault<C>>(permission::owner_address());
-        decrease_trove_amount(signer::address_of(account), key_of<C>(), collateral_amount, amount);
-        coin::deposit<C>(signer::address_of(account), coin::extract(&mut vault.coin, collateral_amount));
-        event::emit_event<RepayEvent>(
-            &mut borrow_global_mut<TroveEventHandle>(permission::owner_address()).repay_event,
-            RepayEvent {
-                caller: signer::address_of(account),
-                amount,
-                collateral_amount,
-                key: key_of<C>()
+        let (new_collaterals, new_borrowed) = decrease_trove_amount(account_addr, key_of<C>(), collateral_amount, amount);
+        coin::deposit<C>(account_addr, coin::extract(&mut vault.coin, collateral_amount));
+        event::emit_event<UpdateTroveEvent>(
+            &mut borrow_global_mut<TroveEventHandle>(permission::owner_address()).update_trove_event,
+            UpdateTroveEvent {
+                account: account_addr,
+                new_collaterals,
+                new_borrowed
             },
-        );
+        )
     }
 
     #[test_only]

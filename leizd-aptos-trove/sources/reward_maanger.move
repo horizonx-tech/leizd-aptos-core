@@ -55,7 +55,7 @@ module leizd_aptos_trove::reward_maanger {
             simple_map::add<String, u64>(&mut snapshot.debt.debts, key<C>(), 0);
         };
         let debt = simple_map::borrow_mut<String, u64>(&mut snapshot.debt.debts, &key);
-        debt = debt + reward.debt
+        *debt = *debt + coin::value<C>(&reward.debt)
 
     }
 
