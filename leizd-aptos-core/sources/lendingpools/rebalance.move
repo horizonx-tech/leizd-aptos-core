@@ -167,11 +167,12 @@ module leizd_aptos_logic::rebalance {
         let (coins_in_atos, _, balances_in_atos) = account_position::position<Asset>(account_addr);
         let unprotected_in_atos = unprotected_coins(account_addr, coins_in_atos);
         let (deposited_amounts_atos, borrowed_amounts_atos) = shares_to_amounts_for_asset_to_shadow_pos(unprotected_in_atos, balances_in_atos);
-        let (sum_capacity, _, capacities, _, _, total_borrowed_volume_in_atos, deposited_volumes_in_atos, borrowed_volumes_in_atos) = sum_capacity_and_overdebt_shadow(
+        let (sum_capacity, _sum_overdebt, capacities, _, _, total_borrowed_volume_in_atos, deposited_volumes_in_atos, borrowed_volumes_in_atos) = sum_capacity_and_overdebt_shadow(
             unprotected_in_atos,
             deposited_amounts_atos,
             borrowed_amounts_atos,
-        ); // TODO: whether check sum_overdebt or not?
+        );
+        // NOTE: not to use sum_overdebt because max of additional borrowing is below required_shadow
         if (sum_capacity >= required_shadow) {
             // supply shadow deficiency by borrowing
             let borrowings = make_up_for_required_shadow_by_borrow(
