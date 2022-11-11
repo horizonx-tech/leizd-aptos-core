@@ -3,7 +3,7 @@ module leizd_aptos_entry::initializer {
     use aptos_framework::managed_coin;
     use leizd_aptos_common::system_status;
     use leizd_aptos_common::permission;
-    use leizd_aptos_trove::trove_manager;
+    use leizd_aptos_trove::trove;
     use leizd_aptos_external::price_oracle;
     use leizd_aptos_central_liquidity_pool::central_liquidity_pool;
     use leizd_aptos_treasury::treasury;
@@ -17,7 +17,7 @@ module leizd_aptos_entry::initializer {
         system_status::initialize(owner);
         risk_factor::initialize(owner);
         treasury::initialize(owner);
-        trove_manager::initialize(owner);
+        trove::initialize(owner);
         price_oracle::initialize(owner);
         interest_rate::initialize(owner);
         pool_status::initialize(owner);

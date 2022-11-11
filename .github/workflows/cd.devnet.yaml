@@ -3,6 +3,8 @@ on:
   push:
     branches:
       - main
+      - dev
+      - feature/usdz
 
 jobs:
   deploy:
@@ -24,9 +26,13 @@ jobs:
         with:
           version: latest
           token: ${{ secrets.GITHUB_TOKEN }}
+          prerelease: true
+
+      - name: get expect
+        run: sudo apt-get install -y expect
 
       - name: aptos init
-        run: aptos init --rest-url https://fullnode.devnet.aptoslabs.com/v1 --faucet-url https://faucet.devnet.aptoslabs.com/ --assume-yes
+        run: sh new_account.sh
 
       - name: Set up release
         run: sh prerelease.sh
@@ -64,6 +70,7 @@ jobs:
           repository: horizonx-tech/leizd-aptos-test
           token: ${{ secrets.PERSONAL_TOKEN }}
           path: leizd-aptos-test
+      #          ref: feature/usdz
 
       - name: push key file to test
         run: sh push_new_key_to_test.sh ${{ github.sha }}

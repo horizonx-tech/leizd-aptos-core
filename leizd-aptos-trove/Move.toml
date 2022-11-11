@@ -14,7 +14,11 @@ local = "../leizd-aptos-lib"
 [dependencies.LeizdAptosCommon]
 local = "../leizd-aptos-common"
 
+[dependencies.LeizdAptosExternal]
+local = "../leizd-aptos-external"
+
 [addresses]
 leizd_aptos_trove="0x0123456789ABCDEF"
 leizd_aptos_lib="0x0123456789ABCDEF"
 leizd_aptos_common="0x0123456789ABCDEF"
+leizd_aptos_external="0x0123456789ABCDEF"

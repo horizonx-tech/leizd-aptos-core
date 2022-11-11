@@ -462,7 +462,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
     #[test_only]
     use leizd_aptos_trove::usdz;
     #[test_only]
-    use leizd_aptos_trove::trove_manager;
+    use leizd_aptos_trove::trove;
     #[test_only]
     use leizd_aptos_common::test_coin::{Self,WETH,USDC};
     #[test_only]
@@ -474,7 +474,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
 
-        trove_manager::initialize(owner);
+        trove::initialize(owner);
         permission::initialize(owner);
         initialize(owner);
 
@@ -486,7 +486,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
     fun test_initialize(owner: &signer) acquires CentralLiquidityPool, Config, CentralLiquidityPoolEventHandle {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
-        trove_manager::initialize(owner);
+        trove::initialize(owner);
 
         initialize(owner);
 
@@ -506,7 +506,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
     fun test_initialize_twice(owner: &signer) acquires CentralLiquidityPoolEventHandle {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
-        trove_manager::initialize(owner);
+        trove::initialize(owner);
 
         initialize(owner);
         initialize(owner);
@@ -520,7 +520,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
     fun test_is_supported(owner: &signer) acquires CentralLiquidityPool, CentralLiquidityPoolEventHandle {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
-        trove_manager::initialize(owner);
+        trove::initialize(owner);
         permission::initialize(owner);
         initialize(owner);
 
@@ -558,7 +558,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
     fun test_add_supported_pool_with_not_initialized_coin(owner: &signer) acquires CentralLiquidityPool, CentralLiquidityPoolEventHandle {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
-        trove_manager::initialize(owner);
+        trove::initialize(owner);
         permission::initialize(owner);
         initialize(owner);
 
@@ -836,7 +836,7 @@ module leizd_aptos_central_liquidity_pool::central_liquidity_pool {
     #[expected_failure(abort_code = 65545)]
     fun test_borrow_with_not_supported_coin(owner: &signer, account: &signer) acquires CentralLiquidityPool, Balance, CentralLiquidityPoolEventHandle {
         account::create_account_for_test(signer::address_of(owner));
-        trove_manager::initialize(owner);
+        trove::initialize(owner);
         initialize(owner);
 
         let account_addr = signer::address_of(account);
