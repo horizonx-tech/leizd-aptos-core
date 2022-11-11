@@ -37,12 +37,19 @@ module leizd_aptos_trove::coin_base_usdz {
         };
     }
 
-    public(friend) fun mint<C>(minter_addr: address, amount: u64) acquires Capabilities {
+    public(friend) fun mint_for<C>(minter_addr: address, amount: u64) acquires Capabilities {
         assert!(coin::is_account_registered<C>(minter_addr), 0);
         let caps = borrow_global<Capabilities<C>>(permission::owner_address());
-        let coin_minted = coin::mint(amount, &caps.mint_cap);
+        let coin_minted = mint<C>(amount);
         coin::deposit(minter_addr, coin_minted);
     }
+
+
+    public(friend) fun mint<C>(amount: u64): coin::Coin<C> acquires Capabilities {
+        let caps = borrow_global<Capabilities<C>>(permission::owner_address());
+        coin::mint(amount, &caps.mint_cap)
+    }
+
 
     public(friend) fun burn_from<C>(account: &signer, amount: u64) acquires Capabilities {
         let caps = borrow_global<Capabilities<C>>(permission::owner_address());
@@ -93,7 +100,7 @@ module leizd_aptos_trove::coin_base_usdz {
         assert!(supply<Dummy>() == 0, 0);
         assert!(balance_of<Dummy>(account_address) == 0, 0);
 
-        mint<Dummy>(account_address, 100);
+        mint_for<Dummy>(account_address, 100);
         assert!(supply<Dummy>() == 100, 0);
         assert!(balance_of<Dummy>(account_address) == 100, 0);
 
