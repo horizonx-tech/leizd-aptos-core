@@ -142,7 +142,7 @@ module leizd_aptos_logic::risk_factor {
         new_liquidation_fee: u64
     ) acquires ProtocolFees, RepositoryEventHandle {
         let owner_address = signer::address_of(owner);
-        permission::assert_owner(owner_address);
+        permission::assert_configurator(owner_address);
 
         assert!(new_entry_fee < PRECISION, error::invalid_argument(EINVALID_ENTRY_FEE));
         assert!(new_share_fee < PRECISION, error::invalid_argument(EINVALID_SHARE_FEE));
@@ -172,7 +172,7 @@ module leizd_aptos_logic::risk_factor {
     }
 
     public entry fun update_config<C>(owner: &signer, new_ltv: u64, new_lt: u64) acquires Config, RepositoryAssetEventHandle {
-        permission::assert_owner(signer::address_of(owner));
+        permission::assert_configurator(signer::address_of(owner));
         let owner_address = signer::address_of(owner);
 
         let _config = borrow_global_mut<Config>(owner_address);
@@ -385,9 +385,10 @@ module leizd_aptos_logic::risk_factor {
         update_protocol_fees_internal(permission::owner_address(), new_entry_fee, new_share_fee, new_liquidation_fee);
     }
     #[test(owner = @leizd_aptos_logic)]
-    public entry fun test_initialize(owner: signer) acquires ProtocolFees, RepositoryEventHandle {
+    fun test_initialize(owner: signer) acquires ProtocolFees, RepositoryEventHandle {
         let owner_addr = signer::address_of(&owner);
         account::create_account_for_test(owner_addr);
+        permission::initialize(&owner);
         initialize(&owner);
 
         let protocol_fees = borrow_global<ProtocolFees>(owner_addr);
@@ -399,15 +400,16 @@ module leizd_aptos_logic::risk_factor {
     }
     #[test(account = @0x111)]
     #[expected_failure(abort_code = 65537)]
-    public entry fun test_initialize_without_owner(account: signer) acquires RepositoryEventHandle {
+    fun test_initialize_without_owner(account: signer) acquires RepositoryEventHandle {
         initialize(&account);
     }
     #[test(owner=@leizd_aptos_logic,account1=@0x111)]
-    public entry fun test_update_protocol_fees(owner: signer, account1: signer) acquires Config, ProtocolFees, RepositoryEventHandle, RepositoryAssetEventHandle {
+    fun test_update_protocol_fees(owner: signer, account1: signer) acquires Config, ProtocolFees, RepositoryEventHandle, RepositoryAssetEventHandle {
         let owner_addr = signer::address_of(&owner);
         let account1_addr = signer::address_of(&account1);
         account::create_account_for_test(owner_addr);
         account::create_account_for_test(account1_addr);
+        permission::initialize(&owner);
 
         test_coin::init_weth(&owner);
         initialize(&owner);
@@ -426,11 +428,21 @@ module leizd_aptos_logic::risk_factor {
         let event_handle = borrow_global<RepositoryEventHandle>(owner_addr);
         assert!(event::counter(&event_handle.update_protocol_fees_event) == 2, 0);
     }
+    #[test(owner=@leizd_aptos_logic, account = @0x111)]
+    #[expected_failure(abort_code = 65540)]
+    fun test_update_protocol_fees_without_configurator(owner: &signer, account: &signer) acquires ProtocolFees, RepositoryEventHandle {
+        permission::initialize(owner);
+        let new_entry_fee = PRECISION / 1000 * 8;
+        let new_share_fee = PRECISION;
+        let new_liquidation_fee = PRECISION / 1000 * 6;
+        update_protocol_fees(account, new_entry_fee, new_share_fee, new_liquidation_fee);
+    }
     #[test(owner=@leizd_aptos_logic)]
     #[expected_failure(abort_code = 65541)]
-    public entry fun test_update_protocol_fees_when_share_fee_is_greater_than_100(owner: signer) acquires Config, ProtocolFees, RepositoryEventHandle, RepositoryAssetEventHandle {
+    fun test_update_protocol_fees_when_share_fee_is_greater_than_100(owner: signer) acquires Config, ProtocolFees, RepositoryEventHandle, RepositoryAssetEventHandle {
         let owner_addr = signer::address_of(&owner);
         account::create_account_for_test(owner_addr);
+        permission::initialize(&owner);
         initialize(&owner);
         initialize_for_asset_internal<WETH>(&owner);
 
@@ -441,9 +453,10 @@ module leizd_aptos_logic::risk_factor {
     }
     #[test(owner=@leizd_aptos_logic)]
     #[expected_failure(abort_code = 65542)]
-    public entry fun test_update_protocol_fees_when_liquidation_fee_is_greater_than_100(owner: signer) acquires Config, ProtocolFees, RepositoryEventHandle, RepositoryAssetEventHandle {
+    fun test_update_protocol_fees_when_liquidation_fee_is_greater_than_100(owner: signer) acquires Config, ProtocolFees, RepositoryEventHandle, RepositoryAssetEventHandle {
         let owner_addr = signer::address_of(&owner);
         account::create_account_for_test(owner_addr);
+        permission::initialize(&owner);
         initialize(&owner);
         initialize_for_asset_internal<WETH>(&owner);
 
@@ -454,9 +467,10 @@ module leizd_aptos_logic::risk_factor {
     }
     #[test(owner=@leizd_aptos_logic)]
     #[expected_failure(abort_code = 65540)]
-    public entry fun test_update_protocol_fees_when_entry_fee_is_greater_than_100(owner: signer) acquires Config, ProtocolFees, RepositoryEventHandle, RepositoryAssetEventHandle {
+    fun test_update_protocol_fees_when_entry_fee_is_greater_than_100(owner: signer) acquires Config, ProtocolFees, RepositoryEventHandle, RepositoryAssetEventHandle {
         let owner_addr = signer::address_of(&owner);
         account::create_account_for_test(owner_addr);
+        permission::initialize(&owner);
         initialize(&owner);
         initialize_for_asset_internal<WETH>(&owner);
 
@@ -468,9 +482,10 @@ module leizd_aptos_logic::risk_factor {
     #[test_only]
     struct TestAsset {}
     #[test(owner = @leizd_aptos_logic)]
-    public entry fun test_initialize_for_asset(owner: &signer) acquires Config, RepositoryAssetEventHandle, RepositoryEventHandle {
+    fun test_initialize_for_asset(owner: &signer) acquires Config, RepositoryAssetEventHandle, RepositoryEventHandle {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
+        permission::initialize(owner);
         initialize(owner);
         initialize_for_asset_internal<TestAsset>(owner);
 
@@ -483,34 +498,21 @@ module leizd_aptos_logic::risk_factor {
         assert!(*new_lt == DEFAULT_THRESHOLD, 0);
     }
 
-    // #[test(owner = @leizd_aptos_logic, account = @0x111)] // TODO: permission less or instead of friend visibility
-    // public entry fun test_initialize_for_asset_without_owner(owner: &signer, account: &signer) acquires Config, RepositoryAssetEventHandle, RepositoryEventHandle {
-    //     let owner_addr = signer::address_of(owner);
-    //     account::create_account_for_test(owner_addr);
-    //     initialize(owner);
-    //     initialize_for_asset_internal<TestAsset>(account);
-
-    //     let key = key<TestAsset>();
-    //     let config = borrow_global<Config>(owner_addr);
-    //     let new_ltv = table::borrow<string::String,u64>(&config.ltv, key);
-    //     let new_lt = table::borrow<string::String,u64>(&config.lt, key);
-
-    //     assert!(*new_ltv == DEFAULT_LTV, 0);
-    //     assert!(*new_lt == DEFAULT_THRESHOLD, 0);
-    // }
     #[test(owner = @leizd_aptos_logic)]
     #[expected_failure(abort_code = 65537)]
-    public entry fun test_initialize_for_asset_twice(owner: &signer) acquires Config, RepositoryAssetEventHandle, RepositoryEventHandle {
+    fun test_initialize_for_asset_twice(owner: &signer) acquires Config, RepositoryAssetEventHandle, RepositoryEventHandle {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
+        permission::initialize(owner);
         initialize(owner);
         initialize_for_asset_internal<TestAsset>(owner);
         initialize_for_asset_internal<TestAsset>(owner);
     }
     #[test(owner=@leizd_aptos_logic)]
-    public entry fun test_update_config(owner: &signer) acquires Config, RepositoryAssetEventHandle, RepositoryEventHandle {
+    fun test_update_config(owner: &signer) acquires Config, RepositoryAssetEventHandle, RepositoryEventHandle {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
+        permission::initialize(owner);
         initialize(owner);
         initialize_for_asset_internal<TestAsset>(owner);
         let name = key<TestAsset>();
@@ -530,10 +532,17 @@ module leizd_aptos_logic::risk_factor {
         let event_handle = borrow_global<RepositoryAssetEventHandle>(owner_addr);
         assert!(event::counter(&event_handle.update_config_event) == 2, 0);
     }
+    #[test(owner=@leizd_aptos_logic, account = @0x111)]
+    #[expected_failure(abort_code = 65540)]
+    fun test_update_config_without_configurator(owner: &signer, account: &signer) acquires Config, RepositoryAssetEventHandle {
+        permission::initialize(owner);
+        update_config<TestAsset>(account, PRECISION / 100 * 70, PRECISION / 100 * 90);
+    }
     #[test(owner=@leizd_aptos_logic)]
-    public entry fun test_update_config_with_usdz(owner: &signer) acquires Config, RepositoryAssetEventHandle, RepositoryEventHandle {
+    fun test_update_config_with_usdz(owner: &signer) acquires Config, RepositoryAssetEventHandle, RepositoryEventHandle {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
+        permission::initialize(owner);
         initialize(owner);
 
         update_config<USDZ>(owner, PRECISION / 100 * 20, PRECISION / 100 * 40);
@@ -552,26 +561,29 @@ module leizd_aptos_logic::risk_factor {
     }
     #[test(owner=@leizd_aptos_logic)]
     #[expected_failure(abort_code = 65538)]
-    public entry fun test_update_config_when_lt_is_greater_than_100(owner: &signer) acquires Config, RepositoryAssetEventHandle, RepositoryEventHandle {
+    fun test_update_config_when_lt_is_greater_than_100(owner: &signer) acquires Config, RepositoryAssetEventHandle, RepositoryEventHandle {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
+        permission::initialize(owner);
         initialize(owner);
         initialize_for_asset_internal<TestAsset>(owner);
         update_config<TestAsset>(owner, 1, PRECISION + 1);
     }
     #[test(owner=@leizd_aptos_logic)]
     #[expected_failure(abort_code = 65539)]
-    public entry fun test_update_config_when_ltv_is_0(owner: &signer) acquires Config, RepositoryAssetEventHandle, RepositoryEventHandle {
+    fun test_update_config_when_ltv_is_0(owner: &signer) acquires Config, RepositoryAssetEventHandle, RepositoryEventHandle {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
+        permission::initialize(owner);
         initialize(owner);
         initialize_for_asset_internal<TestAsset>(owner);
         update_config<TestAsset>(owner, 0, PRECISION);
     }
     #[test(owner=@leizd_aptos_logic)]
-    public entry fun test_update_config_when_ltv_is_equal_to_lt(owner: &signer) acquires Config, RepositoryAssetEventHandle, RepositoryEventHandle {
+    fun test_update_config_when_ltv_is_equal_to_lt(owner: &signer) acquires Config, RepositoryAssetEventHandle, RepositoryEventHandle {
         let owner_addr = signer::address_of(owner);
         account::create_account_for_test(owner_addr);
+        permission::initialize(owner);
         initialize(owner);
         initialize_for_asset_internal<TestAsset>(owner);
         update_config<TestAsset>(owner, PRECISION / 100 * 50, PRECISION / 100 * 50);
@@ -581,6 +593,7 @@ module leizd_aptos_logic::risk_factor {
     #[test(owner = @leizd_aptos_logic)]
     fun test_calculate_entry_fee(owner: &signer) acquires ProtocolFees, RepositoryEventHandle {
         account::create_account_for_test(signer::address_of(owner));
+        permission::initialize(owner);
         initialize(owner);
 
         // Prerequisite
@@ -598,6 +611,7 @@ module leizd_aptos_logic::risk_factor {
     #[test(owner = @leizd_aptos_logic)]
     fun test_calculate_share_fee(owner: &signer) acquires ProtocolFees, RepositoryEventHandle {
         account::create_account_for_test(signer::address_of(owner));
+        permission::initialize(owner);
         initialize(owner);
 
         // Prerequisite
@@ -618,6 +632,7 @@ module leizd_aptos_logic::risk_factor {
     #[test(owner = @leizd_aptos_logic)]
     fun test_calculate_liquidation_fee(owner: &signer) acquires ProtocolFees, RepositoryEventHandle {
         account::create_account_for_test(signer::address_of(owner));
+        permission::initialize(owner);
         initialize(owner);
 
         // Prerequisite

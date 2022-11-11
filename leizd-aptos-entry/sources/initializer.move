@@ -2,6 +2,7 @@ module leizd_aptos_entry::initializer {
 
     use aptos_framework::managed_coin;
     use leizd_aptos_common::system_status;
+    use leizd_aptos_common::permission;
     use leizd_aptos_trove::trove;
     use leizd_aptos_external::price_oracle;
     use leizd_aptos_central_liquidity_pool::central_liquidity_pool;
@@ -22,6 +23,7 @@ module leizd_aptos_entry::initializer {
         pool_status::initialize(owner);
         pool_manager::initialize(owner);
         central_liquidity_pool::initialize(owner);
+        permission::initialize(owner);
     }
 
     public entry fun register<C>(account: &signer) {

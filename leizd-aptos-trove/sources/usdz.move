@@ -34,11 +34,11 @@ module leizd_aptos_trove::usdz {
         coin_base_usdz::burn<USDZ>(coin)
     }
 
-    public entry fun balance_of(owner: address): u64 {
+    public fun balance_of(owner: address): u64 {
         coin_base_usdz::balance_of<USDZ>(owner)
     }
 
-    public entry fun supply(): u128 {
+    public fun supply(): u128 {
         coin_base_usdz::supply<USDZ>()
     }
 

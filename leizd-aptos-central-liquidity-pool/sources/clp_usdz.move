@@ -29,7 +29,7 @@ module leizd_aptos_central_liquidity_pool::clp_usdz {
         coin_base_clp_usdz::initialize<LiquidityCentralPoolCollateral>(owner, name, symbol, coin_decimals);
     }
 
-    public fun register(account: &signer) {
+    public entry fun register(account: &signer) {
         coin_base_clp_usdz::register<LiquidityCentralPoolCollateral>(account);
     }
 

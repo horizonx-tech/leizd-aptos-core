@@ -135,7 +135,7 @@ module leizd_aptos_lib::prb_math {
     }
 
     #[test]
-    public entry fun test_sqrt() {
+    fun test_sqrt() {
 
         let x = 1000000000; // 1.0
         let expected = 1000000000;
@@ -184,7 +184,7 @@ module leizd_aptos_lib::prb_math {
     }
 
     #[test]
-    public entry fun test_exp2() {
+    fun test_exp2() {
         let x = 1;
         let expected = 1000000000;
         x = (x << 64) / SCALE;
@@ -252,13 +252,13 @@ module leizd_aptos_lib::prb_math {
         assert!(result == expected, 0);
 
         let x = 33333333000;
-        let expected = 10822636909120553476; // TODO:10822636909120553492
+        let expected = 10822636909120553476;
         x = (x << 64) / SCALE; 
         let result = exp2(x);
         assert!(result == expected, 0);
         
         let x = 34100000000;
-        let expected = 18412927881256241384; // TODO: 18412927881256241413
+        let expected = 18412927881256241384;
         x = (x << 64) / SCALE;
         let result = exp2(x);
         assert!(result == expected, 0);

@@ -1,3 +1,6 @@
+// https://switchboard.xyz/
+// https://docs.switchboard.xyz/aptos/feeds
+// https://github.com/switchboard-xyz/sbv2-aptos
 module leizd_aptos_external::switchboard_adaptor {
     use std::error;
     use std::signer;
@@ -161,19 +164,19 @@ module leizd_aptos_external::switchboard_adaptor {
         add_aggregator<WETH>(owner, signer::address_of(weth_aggr));
 
         let (usdc_value, usdc_dec) = price_from_aggregator(signer::address_of(usdc_aggr));
-        assert!(usdc_value == 2 * math128::pow(10, 9), 0);
+        assert!(usdc_value == 2 * math128::pow_10(9), 0);
         assert!(usdc_dec == 9, 0);
         let (weth_value, weth_dec) = price_from_aggregator(signer::address_of(weth_aggr));
-        assert!(weth_value == 3 * math128::pow(10, 9), 0);
+        assert!(weth_value == 3 * math128::pow_10(9), 0);
         assert!(weth_dec == 9, 0);
         let (usdc_value, usdc_dec) = price<USDC>();
-        assert!(usdc_value / math128::pow(10, (usdc_dec as u128)) == 2, 0);
+        assert!(usdc_value / math128::pow_10((usdc_dec as u128)) == 2, 0);
         let (weth_value, weth_dec) = price<WETH>();
-        assert!(weth_value / math128::pow(10, (weth_dec as u128)) == 3, 0);
+        assert!(weth_value / math128::pow_10((weth_dec as u128)) == 3, 0);
         let (usdc_value, usdc_dec) = price_of(&key<USDC>());
-        assert!(usdc_value / math128::pow(10, (usdc_dec as u128)) == 2, 0);
+        assert!(usdc_value / math128::pow_10((usdc_dec as u128)) == 2, 0);
         let (weth_value, weth_dec) = price_of(&key<WETH>());
-        assert!(weth_value / math128::pow(10, (weth_dec as u128)) == 3, 0);
+        assert!(weth_value / math128::pow_10((weth_dec as u128)) == 3, 0);
     }
     #[test(aptos_framework = @aptos_framework)]
     fun test_aggregator(aptos_framework: &signer) {
@@ -186,7 +189,7 @@ module leizd_aptos_external::switchboard_adaptor {
 
         aggregator::new_test(acc1, 100, 0, false);
         let (val, dec, is_neg) = math::unpack(aggregator::latest_value(signer::address_of(acc1)));
-        assert!(val == 100 * math128::pow(10, (dec as u128)), 0);
+        assert!(val == 100 * math128::pow_10((dec as u128)), 0);
         assert!(dec == 9, 0);
         assert!(is_neg == false, 0);
     }

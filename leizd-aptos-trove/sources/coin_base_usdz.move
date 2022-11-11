@@ -57,11 +57,11 @@ module leizd_aptos_trove::coin_base_usdz {
     }
 
 
-    public entry fun balance_of<C>(addr: address): u64 {
+    public fun balance_of<C>(addr: address): u64 {
         coin::balance<C>(addr)
     }
 
-    public entry fun supply<C>(): u128 {
+    public fun supply<C>(): u128 {
         let _supply = coin::supply<C>();
         if (option::is_some(&_supply)) {
             *option::borrow<u128>(&_supply)

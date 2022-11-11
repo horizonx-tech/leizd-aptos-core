@@ -90,7 +90,7 @@ module leizd_aptos_logic::rebalance {
         shadow_pool::exec_accrue_interest_for_selected(account_position::deposited_coins<Shadow>(account_addr), shadow_pool_key); // for deposit, withdraw for rebalance
 
         // borrow asset for first without checking HF because updating account position & totals in asset_pool
-        let (_, share) = asset_pool::borrow_for<C>(account_addr, account_addr, amount, asset_pool_key);
+        let (_, _, share) = asset_pool::borrow_for<C>(account_addr, account_addr, amount, asset_pool_key);
         account_position::borrow_unsafe<C, Asset>(account_addr, share, account_position_key);
         if (account_position::is_safe_shadow_to_asset<C>(account_addr)) {
             return ()
@@ -127,6 +127,7 @@ module leizd_aptos_logic::rebalance {
                 amounts_to_withdraw,
                 empty_map,
                 empty_map,
+                0,
                 account_position_key,
                 shadow_pool_key
             );
@@ -166,11 +167,12 @@ module leizd_aptos_logic::rebalance {
         let (coins_in_atos, _, balances_in_atos) = account_position::position<Asset>(account_addr);
         let unprotected_in_atos = unprotected_coins(account_addr, coins_in_atos);
         let (deposited_amounts_atos, borrowed_amounts_atos) = shares_to_amounts_for_asset_to_shadow_pos(unprotected_in_atos, balances_in_atos);
-        let (sum_capacity, _, capacities, _, _, total_borrowed_volume_in_atos, deposited_volumes_in_atos, borrowed_volumes_in_atos) = sum_capacity_and_overdebt_shadow(
+        let (sum_capacity, _sum_overdebt, capacities, _, _, total_borrowed_volume_in_atos, deposited_volumes_in_atos, borrowed_volumes_in_atos) = sum_capacity_and_overdebt_shadow(
             unprotected_in_atos,
             deposited_amounts_atos,
             borrowed_amounts_atos,
-        ); // TODO: whether check sum_overdebt or not?
+        );
+        // NOTE: not to use sum_overdebt because max of additional borrowing is below required_shadow
         if (sum_capacity >= required_shadow) {
             // supply shadow deficiency by borrowing
             let borrowings = make_up_for_required_shadow_by_borrow(
@@ -184,13 +186,15 @@ module leizd_aptos_logic::rebalance {
             total_borrowed_volume_in_atos = total_borrowed_volume_in_atos + required_shadow_volume;
             total_borrowed_volume_in_atos;
             //// borrow from shadow_pool for required_shadow & update account_position
+            let pre_borrowed_shadow = 0;
             let i = 0;
             while (i < simple_map::length(&borrowings)) {
                 let key = vector::borrow(&unprotected_in_atos, i);
                 if (simple_map::contains_key(&borrowings, key)) {
                     let amount = simple_map::borrow(&borrowings, key);
-                    let (_, share) = shadow_pool::borrow_for_with(*key, account_addr, account_addr, *amount, shadow_pool_key);
+                    let (_, _, share) = shadow_pool::borrow_for_with(*key, account_addr, account_addr, *amount, shadow_pool_key);
                     account_position::borrow_unsafe_with<Shadow>(*key, account_addr, share, account_position_key);
+                    pre_borrowed_shadow = pre_borrowed_shadow + *amount;
                 };
                 i = i + 1;
             };
@@ -251,6 +255,7 @@ module leizd_aptos_logic::rebalance {
                 amounts_to_withdraw,
                 amounts_to_borrow,
                 amounts_to_repay,
+                pre_borrowed_shadow,
                 account_position_key,
                 shadow_pool_key
             );
@@ -361,10 +366,16 @@ module leizd_aptos_logic::rebalance {
         pool_type::assert_pool_type<P>();
         let liquidator_addr = signer::address_of(account);
 
+        // update interests for pools that may be used
+        asset_pool::exec_accrue_interest<C>(asset_pool_key);
+        asset_pool::exec_accrue_interest_for_selected(account_position::deposited_coins<Asset>(target_addr), asset_pool_key);
+        shadow_pool::exec_accrue_interest<C>(shadow_pool_key);
+        shadow_pool::exec_accrue_interest_for_selected(account_position::deposited_coins<Shadow>(target_addr), shadow_pool_key);
+
         if (pool_type::is_type_asset<P>()) {
             // judge if the coin should be liquidated
             assert!(!account_position::is_safe_asset_to_shadow<C>(target_addr), error::invalid_state(ENO_SAFE_POSITION));
-    
+
             if (!account_position::is_protected<C>(target_addr)) {
                 flatten_positions(liquidator_addr, target_addr, account_position_key, shadow_pool_key);
             };
@@ -430,13 +441,13 @@ module leizd_aptos_logic::rebalance {
                     *key,
                     conly_deposited_share,
                 );
-                simple_map::add(&mut deposited, *key, ((normal_deposited_amount + conly_deposited_amount) as u64)); // TODO: check type (u64?u128?)
+                simple_map::add(&mut deposited, *key, ((normal_deposited_amount + conly_deposited_amount) as u64));
 
                 let borrowed_amount = asset_pool::borrowed_share_to_amount(
                     *key,
                     borrowed_share,
                 );
-                simple_map::add(&mut borrowed, *key, (borrowed_amount as u64)); // TODO: check type (u64?u128?)
+                simple_map::add(&mut borrowed, *key, (borrowed_amount as u64));
             };
             i = i + 1;
         };
@@ -498,11 +509,11 @@ module leizd_aptos_logic::rebalance {
         let extra_amount: u64;
         let insufficient_amount: u64;
         if (borrowable_volume > borrowed_volume) {
-            extra_amount = (price_oracle::to_amount(&deposited_key, borrowable_volume - borrowed_volume) as u64); // TODO: temp cast (maybe use u128 as return value)
+            extra_amount = (price_oracle::to_amount(&deposited_key, borrowable_volume - borrowed_volume) as u64);
             insufficient_amount = 0;
         } else if (borrowable_volume < borrowed_volume) {
             extra_amount = 0;
-            insufficient_amount = (price_oracle::to_amount(&deposited_key, borrowed_volume - borrowable_volume) as u64); // TODO: temp cast (maybe use u128 as return value)
+            insufficient_amount = (price_oracle::to_amount(&deposited_key, borrowed_volume - borrowable_volume) as u64);
         } else {
             extra_amount = 0;
             insufficient_amount = 0;
@@ -544,13 +555,13 @@ module leizd_aptos_logic::rebalance {
                 simple_map::add(
                     &mut amounts_to_withdraw,
                     *key,
-                    (price_oracle::to_amount(&usdz_key, *deposited_volume - opt_deposit_volume) as u64) // TODO: temp cast (maybe use u128 as return value)
+                    (price_oracle::to_amount(&usdz_key, *deposited_volume - opt_deposit_volume) as u64)
                 );
             } else if (current_hf < optimized_hf) {
                 simple_map::add(
                     &mut amounts_to_deposit,
                     *key,
-                    (price_oracle::to_amount(&usdz_key, opt_deposit_volume - *deposited_volume) as u64) // TODO: temp cast (maybe use u128 as return value)
+                    (price_oracle::to_amount(&usdz_key, opt_deposit_volume - *deposited_volume) as u64)
                 );
             };
             i = i + 1;
@@ -577,13 +588,13 @@ module leizd_aptos_logic::rebalance {
                     *key,
                     conly_deposited_share,
                 );
-                simple_map::add(&mut deposited, *key, ((normal_deposited_amount + conly_deposited_amount) as u64)); // TODO: check type (u64?u128?)
+                simple_map::add(&mut deposited, *key, ((normal_deposited_amount + conly_deposited_amount) as u64));
 
                 let borrowed_amount = shadow_pool::borrowed_share_to_amount(
                     *key,
                     borrowed_share,
                 );
-                simple_map::add(&mut borrowed, *key, (borrowed_amount as u64)); // TODO: check type (u64?u128?)
+                simple_map::add(&mut borrowed, *key, (borrowed_amount as u64));
             };
             i = i + 1;
         };
@@ -649,7 +660,7 @@ module leizd_aptos_logic::rebalance {
         let borrowable_volume = deposited_volume * (risk_factor::ltv_of(deposited_key) as u128) / risk_factor::precision_u128();
         if (borrowable_volume > borrowed_volume) {
             (
-                (price_oracle::to_amount(&borrowed_key, borrowable_volume - borrowed_volume) as u64), // TODO: temp cast (maybe use u128 as return value)
+                (price_oracle::to_amount(&borrowed_key, borrowable_volume - borrowed_volume) as u64),
                 0,
                 deposited_volume,
                 borrowed_volume
@@ -657,7 +668,7 @@ module leizd_aptos_logic::rebalance {
         } else if (borrowable_volume < borrowed_volume) {
             (
                 0,
-                (price_oracle::to_amount(&borrowed_key, (borrowed_volume - borrowable_volume)) as u64), // TODO: temp cast (maybe use u128 as return value)
+                (price_oracle::to_amount(&borrowed_key, (borrowed_volume - borrowable_volume)) as u64),
                 deposited_volume,
                 borrowed_volume
             )
@@ -733,13 +744,13 @@ module leizd_aptos_logic::rebalance {
                 simple_map::add(
                     &mut amount_to_borrow,
                     *key,
-                    (price_oracle::to_amount(&usdz_key, opt_borrow_volume - *borrowed_volume) as u64) // TODO: temp cast (maybe use u128 as return value)
+                    (price_oracle::to_amount(&usdz_key, opt_borrow_volume - *borrowed_volume) as u64)
                 );
             } else if (current_hf < optimized_hf) {
                 simple_map::add(
                     &mut amount_to_repay,
                     *key,
-                    (price_oracle::to_amount(&usdz_key, *borrowed_volume - opt_borrow_volume) as u64) // TODO: temp cast (maybe use u128 as return value)
+                    (price_oracle::to_amount(&usdz_key, *borrowed_volume - opt_borrow_volume) as u64)
                 );
             };
             i = i + 1;
@@ -754,6 +765,7 @@ module leizd_aptos_logic::rebalance {
         withdraws: SimpleMap<String, u64>,
         borrows: SimpleMap<String, u64>,
         repays: SimpleMap<String, u64>,
+        pre_borrowed_shadow_amount: u64,
         account_position_key: &AccountPositionKey,
         shadow_pool_key: &ShadowPoolKey,
     ) {
@@ -776,6 +788,11 @@ module leizd_aptos_logic::rebalance {
             i = i + 1;
         };
 
+        let sum_borrow = pre_borrowed_shadow_amount;
+        let sum_withdraw = 0;
+        let sum_deposit = 0;
+        let sum_repay = 0;
+
         // borrow shadow
         if (simple_map::length(&borrows) > 0) {
             i = 0;
@@ -783,8 +800,9 @@ module leizd_aptos_logic::rebalance {
                 let key = vector::borrow(&coins, i);
                 if (simple_map::contains_key(&borrows, key)) {
                     let amount = simple_map::borrow(&borrows, key);
-                    let (_, share) = shadow_pool::borrow_for_with(*key, account_addr, account_addr, *amount, shadow_pool_key);
+                    let (_, _, share) = shadow_pool::borrow_for_with(*key, account_addr, account_addr, *amount, shadow_pool_key);
                     account_position::borrow_unsafe_with<Shadow>(*key, account_addr, share, account_position_key);
+                    sum_borrow = sum_borrow + *amount;
                 };
                 i = i + 1;
             };
@@ -800,6 +818,7 @@ module leizd_aptos_logic::rebalance {
                     let is_conly = simple_map::borrow(&is_conly_vec, key);
                     let (_, share) = shadow_pool::withdraw_for_with(*key, account_addr, account_addr, *amount, *is_conly, 0, shadow_pool_key);
                     account_position::withdraw_unsafe_with<Shadow>(*key, account_addr, share, *is_conly, account_position_key);
+                    sum_withdraw = sum_withdraw + *amount;
                 };
                 i = i + 1;
             };
@@ -814,6 +833,7 @@ module leizd_aptos_logic::rebalance {
                     let amount = simple_map::borrow(&repays, key);
                     let (_, share) = shadow_pool::repay_with(*key, account, *amount, shadow_pool_key);
                     account_position::repay_with<Shadow>(*key, account_addr, share, account_position_key);
+                    sum_repay = sum_repay + *amount;
                 };
                 i = i + 1;
             };
@@ -828,19 +848,59 @@ module leizd_aptos_logic::rebalance {
                     let amount = simple_map::borrow(&deposits, key);
                     
                     let balance = coin::balance<USDZ>(account_addr);
-                    let amount_as_input = if (*amount > balance) balance else *amount; // TODO: check - short 1 amount because of rounded down somewhere
+                    let amount_as_input = if (*amount > balance) balance else *amount;
 
                     let is_conly = simple_map::borrow(&is_conly_vec, key);
                     let (_, share) = shadow_pool::deposit_for_with(*key, account, account_addr, amount_as_input, *is_conly, shadow_pool_key);
                     account_position::deposit_with<Shadow>(*key, account, account_addr, share, *is_conly, account_position_key);
+                    sum_deposit = sum_deposit + amount_as_input;
                 };
                 i = i + 1;
             };
         };
+
+        if ((sum_deposit + sum_repay) != (sum_borrow + sum_withdraw)) {
+            let key = vector::borrow(&coins, 0);
+            
+            if ((sum_deposit + sum_repay) > (sum_borrow + sum_withdraw)) {
+                // do borrow or withdraw
+                let updated = (sum_deposit + sum_repay) - (sum_borrow + sum_withdraw);
+                if (sum_borrow != 0) {
+                    // do borrow
+                    let (_, _, share) = shadow_pool::borrow_for_with(*key, account_addr, account_addr, updated, shadow_pool_key);
+                    account_position::borrow_unsafe_with<Shadow>(*key, account_addr, share, account_position_key);
+                    sum_borrow = sum_borrow + updated;
+                } else {
+                    // do withdraw
+                    let is_conly = simple_map::borrow(&is_conly_vec, key);
+                    let (_, share) = shadow_pool::withdraw_for_with(*key, account_addr, account_addr, updated, *is_conly, 0, shadow_pool_key);
+                    account_position::withdraw_unsafe_with<Shadow>(*key, account_addr, share, *is_conly, account_position_key);
+                    sum_withdraw = sum_withdraw + updated;
+                }
+            } else {
+                // do deposit or repay
+                let updated = (sum_borrow + sum_withdraw) - (sum_deposit + sum_repay);
+                if (sum_deposit != 0) {
+                    // do deposit
+                    let is_conly = simple_map::borrow(&is_conly_vec, key);
+                    let (_, share) = shadow_pool::deposit_for_with(*key, account, account_addr, updated, *is_conly, shadow_pool_key);
+                    account_position::deposit_with<Shadow>(*key, account, account_addr, share, *is_conly, account_position_key);
+                    sum_deposit = sum_deposit + updated;
+                } else {
+                    // do repay
+                    let (_, share) = shadow_pool::repay_with(*key, account, updated, shadow_pool_key);
+                    account_position::repay_with<Shadow>(*key, account_addr, share, account_position_key);
+                    sum_repay = sum_repay + updated;
+                }
+            }
+        };
+
+        // check after reconcile
+        assert!((sum_deposit + sum_repay) == (sum_borrow + sum_withdraw), 0);
     }
     fun borrowed_shares_to_amounts_for_shadow(keys: vector<String>, shares: vector<u64>): (
         vector<u64>, // amounts
-        u64 // total amount // TODO: u128?
+        u64 // total amount
     ) {
         let i = 0;
         let amounts = vector::empty<u64>();
@@ -850,8 +910,8 @@ module leizd_aptos_logic::rebalance {
                 *vector::borrow<String>(&keys, i),
                 *vector::borrow<u64>(&shares, i),
             );
-            total_amount = total_amount + (amount as u64); // TODO: check type (u64?u128)
-            vector::push_back(&mut amounts, (amount as u64)); // TODO: check type (u64?u128)
+            total_amount = total_amount + (amount as u64);
+            vector::push_back(&mut amounts, (amount as u64));
             i = i + 1;
         };
         (amounts, total_amount)
@@ -1019,6 +1079,59 @@ module leizd_aptos_logic::rebalance {
             i = i - 1;
         };
 
+        // reconcile check
+        if ((sum_rebalanced_deposited + sum_rebalanced_repaid) != (sum_rebalanced_borrowed + sum_rebalanced_withdrawn)) {
+            if ((sum_rebalanced_deposited + sum_rebalanced_repaid) > (sum_rebalanced_borrowed + sum_rebalanced_withdrawn)) {
+                // do borrow or withdraw
+                let updated_volume = (sum_rebalanced_deposited + sum_rebalanced_repaid) - (sum_rebalanced_borrowed + sum_rebalanced_withdrawn);
+                if (vector::length<String>(&unprotected_coins_in_atos) > 0) {
+                    let key = vector::borrow(&unprotected_coins_in_atos, 0);
+                    let (_, share) = shadow_pool::rebalance_for_borrow(
+                        *key,
+                        target_addr,
+                        (price_oracle::to_amount(&key<USDZ>(), updated_volume) as u64),
+                        shadow_pool_key
+                    );
+                    account_position::borrow_unsafe_with<Shadow>(*key, target_addr, share, account_position_key);
+                    sum_rebalanced_borrowed = sum_rebalanced_borrowed + updated_volume;
+                } else if (vector::length<String>(&unprotected_coins_in_stoa) > 0) {
+                    let key = vector::borrow(&unprotected_coins_in_stoa, 0);
+                    let (_,share) = shadow_pool::rebalance_for_withdraw(
+                        *key,
+                        target_addr,
+                        (price_oracle::to_amount(&key<USDZ>(), updated_volume) as u64),
+                        shadow_pool_key
+                    );
+                    account_position::withdraw_by_rebalance(*key, target_addr, share, account_position_key);
+                    sum_rebalanced_withdrawn = sum_rebalanced_withdrawn + updated_volume;
+                };
+            } else {
+                // do deposit or repay
+                let updated_volume = (sum_rebalanced_borrowed + sum_rebalanced_withdrawn) - (sum_rebalanced_deposited + sum_rebalanced_repaid);
+                if (vector::length<String>(&unprotected_coins_in_atos) > 0) {
+                    let key = vector::borrow(&unprotected_coins_in_atos, 0);
+                    let (_, share) = shadow_pool::rebalance_for_repay(
+                        *key,
+                        target_addr,
+                        (price_oracle::to_amount(&key<USDZ>(), (updated_volume)) as u64),
+                        shadow_pool_key
+                    );
+                    account_position::repay_with<Shadow>(*key, target_addr, share, account_position_key);
+                    sum_rebalanced_repaid = sum_rebalanced_repaid + updated_volume;
+                } else {
+                    let key = vector::borrow(&unprotected_coins_in_stoa, 0);
+                    let share = shadow_pool::rebalance_for_deposit(
+                        *key,
+                        target_addr,
+                        (price_oracle::to_amount(&key<USDZ>(), updated_volume) as u64),
+                        shadow_pool_key
+                    );
+                    account_position::deposit_by_rebalance(*key, target_addr, share, account_position_key);
+                    sum_rebalanced_deposited = sum_rebalanced_deposited + updated_volume;
+                }
+            };
+        };
+
         event::emit_event<FlattenPositionsEvent>(
             &mut borrow_global_mut<RebalanceEventHandle>(permission::owner_address()).flatten_positions_event,
             FlattenPositionsEvent {
@@ -1030,16 +1143,6 @@ module leizd_aptos_logic::rebalance {
                 sum_rebalanced_borrowed,
                 sum_rebalanced_repaid,          },
         );
-
-        // TODO: check the diff - if there is any diff ...
-        // debug::print(&sum_rebalanced_deposited);
-        // debug::print(&sum_rebalanced_withdrawed);
-        // debug::print(&sum_rebalanced_borrowed);
-        // debug::print(&sum_rebalanced_repaid);
-
-        // should be equal
-        // debug::print(&(sum_rebalanced_deposited + sum_rebalanced_repaid));
-        // debug::print(&(sum_rebalanced_borrowed + sum_rebalanced_withdrawed));
     }
 
     #[test_only]
