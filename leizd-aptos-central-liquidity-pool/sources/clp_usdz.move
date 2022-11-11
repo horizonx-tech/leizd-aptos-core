@@ -54,9 +54,14 @@ module leizd_aptos_central_liquidity_pool::clp_usdz {
     }
 
     #[test_only]
+    use aptos_framework::account;
+    #[test_only]
     use leizd_aptos_trove::trove;
+    #[test_only]
+    use std::signer;
     #[test(owner = @leizd_aptos_central_liquidity_pool)]
     fun test_initialize(owner: &signer) {
+        account::create_account_for_test(signer::address_of(owner));
         trove::initialize(owner);
         initialize(owner);
         assert!(coin::is_coin_initialized<LiquidityCentralPoolCollateral>(), 0);
