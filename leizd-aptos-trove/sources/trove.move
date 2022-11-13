@@ -8,10 +8,8 @@ module leizd_aptos_trove::trove {
     use aptos_std::event;
     use aptos_framework::account;
     use aptos_framework::coin;
-    use leizd_aptos_lib::math128;
     use leizd_aptos_common::permission;
     use leizd_aptos_trove::usdz::{Self, USDZ};
-    use leizd_aptos_external::price_oracle;
     use leizd_aptos_common::coin_key;
     use leizd_aptos_lib::constant;
     use leizd_aptos_trove::collateral_manager;
@@ -373,11 +371,8 @@ module leizd_aptos_trove::trove {
             if (target_amount > redeemed_in_collateral_coin + unredeemed) {
                 target_amount = unredeemed
             };
-            let usdz_amount = current_amount_in_usdz(target_amount, key_of<C>());
-            usdz::burn_from(account, usdz_amount);
-            let vault = borrow_global_mut<Vault<C>>(permission::owner_address());
-            let deposited = coin::extract(&mut vault.coin, target_amount);
-            coin::deposit<C>(signer::address_of(account), deposited);
+            repay_usdz(account, usdz_amount);
+            coin_pool::send_from_active_pool<C>(signer::address_of(account), target_amount);
             decrease_trove_amount(*target_account, key_of<C>(), target_amount, usdz_amount);
             redeemed_in_collateral_coin = redeemed_in_collateral_coin + target_amount;
             unredeemed = unredeemed - target_amount;
@@ -501,10 +496,6 @@ module leizd_aptos_trove::trove {
         close_trove_internal<C>(account);
     }
 
-    public entry fun repay<C>(account: &signer, collateral_amount: u64) acquires Trove, TroveEventHandle, SupportedCoins {
-        repay_internal<C>(account, collateral_amount);
-    }
-
     public entry fun add_collateral<C>(account: &signer, collateral_amount: u64) acquires TroveEventHandle, Trove, BorrowingFeeVault, SupportedCoins {
         adjust_trove<C>(account, 0, collateral_amount, 0, false)
     }
@@ -534,7 +525,7 @@ module leizd_aptos_trove::trove {
         troves.debt
     }
 
-    fun adjust_trove<C>(account: &signer, collateral_withdrawal: u64, collateral_deposit: u64, usdz_change: u64, debt_increase: bool) acquires Vault, TroveEventHandle, Trove, BorrowingFeeVault, SupportedCoins {
+    fun adjust_trove<C>(account: &signer, collateral_withdrawal: u64, collateral_deposit: u64, usdz_change: u64, debt_increase: bool) acquires TroveEventHandle, Trove, BorrowingFeeVault, SupportedCoins {
         let recovery_mode = is_recovery_mode();
         if (is_recovery_mode()) {
             // _requireValidMaxFeePercentage(_maxFeePercentage, isRecoveryMode); TODO: add
@@ -546,11 +537,7 @@ module leizd_aptos_trove::trove {
         require_trove_is_active(position);
         let net_debt_change = usdz_change;
         if (!recovery_mode && debt_increase) {
-            let fee = borrowing_fee(usdz_change);
-            usdz::mint(account, fee);
-            let borrowing_fee_vault = borrow_global_mut<BorrowingFeeVault>(permission::owner_address());            
-            coin::merge(&mut borrowing_fee_vault.coin, coin::withdraw<USDZ>(account, fee));
-            net_debt_change = net_debt_change + fee;
+            net_debt_change = net_debt_change + trigger_borrowing_fee(account, usdz_change);
         };
         let old_icr = collateral_ratio_of(account_addr);
         let coin_key = key_of<C>();
@@ -587,6 +574,14 @@ module leizd_aptos_trove::trove {
         )
     }
 
+    fun trigger_borrowing_fee(account: &signer, amount: u64):u64 acquires BorrowingFeeVault {
+        base_rate::decay_base_rate_from_borrowing();
+        let borrowing_fee = borrowing_fee(amount);
+        let borrowing_fee_vault = borrow_global_mut<BorrowingFeeVault>(permission::owner_address());            
+        coin::merge(&mut borrowing_fee_vault.coin, coin::withdraw<USDZ>(account, borrowing_fee));
+        borrowing_fee
+    }
+
     fun update_trove_from_adjustment(account: address, key: String, coll_change: u64, coll_increase: bool, debt_change: u64, debt_increase: bool): (u64, u64) acquires Trove {
         if (coll_increase && debt_increase) {
             return increase_trove_amount(account, key, coll_change , debt_change)
@@ -602,19 +597,18 @@ module leizd_aptos_trove::trove {
         increase_trove_amount(account, key, 0 , debt_change)
     }
 
-    fun move_tokens_from_adjustment<C>(account: &signer, coll_change: u64, coll_increase: bool, usdz_change: u64, debt_increase: bool) acquires Vault {
+    fun move_tokens_from_adjustment<C>(account: &signer, coll_change: u64, coll_increase: bool, usdz_change: u64, debt_increase: bool) {
         let owner_address = permission::owner_address();
         let account_address = signer::address_of(account);
         if (debt_increase) {
-            usdz::mint(account, usdz_change)
+            borrow_usdz_without_gas(account, usdz_change)
         } else {
-            usdz::burn_from(account, usdz_change);
+            repay_usdz(account, usdz_change);
         };
         if (coll_increase) {
-            let vault = borrow_global_mut<Vault<C>>(owner_address);
-            coin::merge(&mut vault.coin, coin::withdraw<C>(account, coll_change));
+            coin_pool::deposit_to_active_pool<C>(account, coll_change)
         } else {
-            coin::deposit(account_address, coin::extract(&mut borrow_global_mut<Vault<C>>(owner_address).coin, coll_change));
+            coin_pool::send_from_active_pool<C>(account_address, coll_change);
         }
     }
 
@@ -697,7 +691,7 @@ module leizd_aptos_trove::trove {
         let net_debt = amount;
         let borrowing_fee = borrowing_fee(amount);
         if (!recovery_mode){ 
-            net_debt = net_debt + borrowing_fee;
+            net_debt = net_debt + trigger_borrowing_fee(account, amount);
         };
         let composite_debt = composite_debt(net_debt);
         validate_open_trove<C>(collateral_amount, net_debt, composite_debt, account_addr);
@@ -705,10 +699,8 @@ module leizd_aptos_trove::trove {
         increase_trove_amount(account_addr, key_of<C>(), collateral_amount, net_debt);
         let owner_address = permission::owner_address();
         reward_manager::upadte_trove_reward_snapshot_of(account_addr, &key_of<C>());
-        liquidation_manager::update_stake_of(account, collateral_amount);
+        liquidation_manager::update_stake_of(account, key_of<C>(), collateral_amount);
         borrow_by<C>(account, amount, net_debt, collateral_amount, borrowing_fee);
-//        let borrowing_fee_vault = borrow_global_mut<BorrowingFeeVault>(owner_address);
-        // TODO: mint borrowing fee to borrowing_fee_vault 
         event::emit_event<OpenTroveEvent>(
             &mut borrow_global_mut<TroveEventHandle>(permission::owner_address()).open_trove_event,
             OpenTroveEvent {
@@ -738,21 +730,28 @@ module leizd_aptos_trove::trove {
         coin_pool::send_gas_compensation(usdz::mint(GAS_COMPENSATION))
     }
 
+    fun borrow_usdz_without_gas(to: &signer, borrow_amount: u64) {
+        coin_pool::increase_active_debt(borrow_amount);
+        usdz::mint_for(to, borrow_amount);
+    }
+
+
     fun is_recovery_mode(): bool {
         total_collateral_ratio() < CRITICAL_COLLATERAL_RATIO
     }
 
 
-    fun close_trove_internal<C>(account: &signer) acquires Trove, TroveEventHandle, Vault, SupportedCoins, GasPool {
+    fun close_trove_internal<C>(account: &signer) acquires Trove, TroveEventHandle, SupportedCoins, GasPool {
         let account_addr = signer::address_of(account);
         let troves = borrow_global_mut<Trove>(account_addr);
         let position = simple_map::borrow_mut<String, Position>(&mut troves.amounts, &key_of<C>());
         validate_close_trove<C>(*position);
         let owner_addr = permission::owner_address();
-        usdz::burn_from(account, position.debt - GAS_COMPENSATION);
-        usdz::burn(coin::extract(&mut borrow_global_mut<GasPool>(owner_addr).coin, GAS_COMPENSATION));
-        coin::deposit(account_addr, coin::extract(&mut borrow_global_mut<Vault<C>>(owner_addr).coin, position.deposited));
+        liquidation_manager::remove_stake(account_addr);
 
+        repay_usdz(account, position.debt - GAS_COMPENSATION);
+        usdz::burn(coin::extract(&mut borrow_global_mut<GasPool>(owner_addr).coin, GAS_COMPENSATION));
+        coin_pool::send_from_active_pool<C>(signer::address_of(account), position.deposited);
         decrease_trove_amount(account_addr, key_of<C>(), position.deposited, position.debt);
         event::emit_event<CloseTroveEvent>(
             &mut borrow_global_mut<TroveEventHandle>(permission::owner_address()).close_trove_event,
@@ -763,239 +762,227 @@ module leizd_aptos_trove::trove {
         );
     }
 
-    fun repay_internal<C>(account: &signer, collateral_amount: u64) acquires Vault, Trove, TroveEventHandle, SupportedCoins {
-        validate_repay<C>();
-        let amount = current_amount_in_usdz(collateral_amount, key_of<C>());
+    fun repay_usdz(account: &signer, amount: u64) {
         usdz::burn_from(account, amount);
-        let vault = borrow_global_mut<Vault<C>>(permission::owner_address());
-        decrease_trove_amount(signer::address_of(account), key_of<C>(), collateral_amount, amount);
-        coin::deposit<C>(signer::address_of(account), coin::extract(&mut vault.coin, collateral_amount));
-        event::emit_event<RepayEvent>(
-            &mut borrow_global_mut<TroveEventHandle>(permission::owner_address()).repay_event,
-            RepayEvent {
-                caller: signer::address_of(account),
-                amount,
-                collateral_amount,
-                key: key_of<C>()
-            },
-        );
-    }
-
-    #[test_only]
-    use aptos_framework::managed_coin;
-    #[test_only]
-    use leizd_aptos_common::test_coin::{Self,USDC,USDT};
-    #[test_only]
-    use aptos_framework::timestamp;
-    #[test_only]
-    const USDC_AMT: u64 = 10000 * 100000000;
-
-
-    #[test_only]
-    fun set_up(owner: &signer, account1: &signer, aptos_framework: &signer) acquires SupportedCoins {
-        let owner_addr = signer::address_of(owner);
-        let account1_addr = signer::address_of(account1);
-        let amount = USDC_AMT;
-        account::create_account_for_test(owner_addr);
-        account::create_account_for_test(account1_addr);
-        test_coin::init_usdc(owner);
-        test_coin::init_usdt(owner);
-        managed_coin::register<USDC>(account1);
-        managed_coin::register<USDT>(account1);
-        initialize_oracle(owner);
-        managed_coin::register<usdz::USDZ>(account1);
-        managed_coin::mint<USDC>(owner, account1_addr, amount);
-        managed_coin::mint<USDT>(owner, account1_addr, amount);
-        initialize_internal(owner);
-        add_supported_coin_internal<USDC>(owner);
-        add_supported_coin_internal<USDT>(owner);
-        timestamp::set_time_has_started_for_testing(aptos_framework);
-    }
-
-    #[test_only]
-    fun set_up_account(owner: &signer, account: &signer) {
-        let account_addr = signer::address_of(account);
-        account::create_account_for_test(account_addr);
-        managed_coin::register<USDC>(account);
-        managed_coin::register<USDT>(account);
-        managed_coin::register<usdz::USDZ>(account);
-        managed_coin::mint<USDC>(owner, account_addr, USDC_AMT);
-        managed_coin::mint<USDT>(owner, account_addr, USDC_AMT);
-    }
-
-    #[test_only]
-    fun initialize_oracle(owner: &signer) {
-        price_oracle::initialize(owner);
-        price_oracle::register_oracle_with_fixed_price<USDC>(owner, 1000000, 6, false);
-        price_oracle::register_oracle_with_fixed_price<USDT>(owner, 1000000, 6, false);
-        price_oracle::change_mode<USDC>(owner, 1);
-        price_oracle::change_mode<USDT>(owner, 1);
-    }
-
-    #[test_only]
-    fun initialize_oracle_coin<C>(owner: &signer, price: u128, decimals: u8) {
-        price_oracle::register_oracle_with_fixed_price<C>(owner, price, decimals, false);
-        price_oracle::change_mode<C>(owner, 1);
-    }
-
-    #[test(owner=@leizd_aptos_trove)]
-    fun test_initialize(owner: &signer) {
-        let owner_addr = signer::address_of(owner);
-        account::create_account_for_test(owner_addr);
-        initialize_internal(owner);
-    }
-    #[test(owner=@leizd_aptos_trove)]
-    #[expected_failure(abort_code = 524290)]
-    fun test_initialize_twice(owner: &signer) {
-        let owner_addr = signer::address_of(owner);
-        account::create_account_for_test(owner_addr);
-        initialize_internal(owner);
-        initialize_internal(owner);
-    }
-    #[test(account=@0x111)]
-    #[expected_failure(abort_code = 65537)]
-    fun test_initialize_with_not_owner(account: &signer) {
-        initialize_internal(account);
-    }
-    #[test(owner=@leizd_aptos_trove)]
-    fun test_add_supported_coin(owner: &signer) acquires SupportedCoins {
-        let owner_addr = signer::address_of(owner);
-        account::create_account_for_test(owner_addr);
-        initialize_internal(owner);
-        add_supported_coin_internal<USDC>(owner);
-        assert!(is_coin_supported<USDC>(), 0);
-    }
-    #[test(owner=@leizd_aptos_trove)]
-    #[expected_failure(abort_code = 65538)]
-    fun test_add_supported_coin_twice(owner: &signer) acquires SupportedCoins {
-        account::create_account_for_test(signer::address_of(owner));
-        initialize_internal(owner);
-        add_supported_coin_internal<USDC>(owner);
-        add_supported_coin_internal<USDC>(owner);
-    }
-    #[test(owner=@leizd_aptos_trove, account = @0x111)]
-    #[expected_failure(abort_code = 65537)]
-    fun test_add_supported_coin_with_not_owner(owner: &signer, account: &signer) acquires SupportedCoins {
-        account::create_account_for_test(signer::address_of(owner));
-        initialize_internal(owner);
-        add_supported_coin_internal<USDC>(account);
-    }
-
-    #[test(owner=@leizd_aptos_trove,account1=@0x111,aptos_framework=@aptos_framework)]
-    fun test_open_trove(owner: signer, account1: signer, aptos_framework: signer) acquires Vault, Trove, TroveEventHandle, SupportedCoins, BorrowingFeeVault, GasPool {
-        set_up(&owner, &account1, &aptos_framework);
-        let account1_addr = signer::address_of(&account1);
-        let want = USDC_AMT * math64::pow(10, 8 - 6) * 8 / 10;
-        open_trove<USDC>(&account1, USDC_AMT, want);
-        assert!(comparator::is_equal(&comparator::compare(
-            &usdz::balance_of(account1_addr),
-            &(want - GAS_COMPENSATION)
-        )), usdz::balance_of(account1_addr));
-        assert!(comparator::is_equal(&comparator::compare(
-            &deposited_amount<USDC>(account1_addr),
-            &USDC_AMT
-        )), usdz::balance_of(account1_addr));
-        assert!(coin::balance<USDC>(account1_addr) == 0, 0);
-        // add more USDC
-        managed_coin::mint<USDC>(&owner, account1_addr, USDC_AMT);
-        open_trove<USDC>(&account1, USDC_AMT, want);
-        assert!(comparator::is_equal(&comparator::compare(
-            &usdz::balance_of(account1_addr),
-            &((want - GAS_COMPENSATION) * 2)
-        )), usdz::balance_of(account1_addr));
-        assert!(comparator::is_equal(&comparator::compare(
-            &deposited_amount<USDC>(account1_addr),
-            &(USDC_AMT * 2)
-        )), deposited_amount<USDC>(account1_addr));
-
-        // add USDT
-        open_trove<USDT>(&account1, USDC_AMT, want);
-        assert!(comparator::is_equal(&comparator::compare(
-            &usdz::balance_of(account1_addr),
-            &((want - GAS_COMPENSATION) * 3)
-        )), usdz::balance_of(account1_addr));
-        assert!(comparator::is_equal(&comparator::compare(
-            &deposited_amount<USDT>(account1_addr),
-            &(USDC_AMT)
-        )), usdz::balance_of(account1_addr));        
-    }
-
-    #[test(owner=@leizd_aptos_trove,account1=@0x111,aptos_framework=@aptos_framework)]
-    #[expected_failure(abort_code = 3)]
-    fun test_open_trove_below_min_cr(owner: signer, account1: signer, aptos_framework: signer) acquires Vault, Trove, TroveEventHandle, SupportedCoins, BorrowingFeeVault, GasPool {
-        set_up(&owner, &account1, &aptos_framework);
-        let account1_addr = signer::address_of(&account1);
-        // collateral raio under 110%
-        let want = USDC_AMT * math64::pow(10, 8 - 6) * 101 / 110;
-        open_trove<USDC>(&account1, USDC_AMT, want);
-        assert!(comparator::is_equal(&comparator::compare(
-            &usdz::balance_of(account1_addr),
-            &want
-        )), 0);
-    }
-
-    #[test(owner=@leizd_aptos_trove,account1=@0x111,aptos_framework=@aptos_framework)]
-    fun test_close_trove(owner: signer, account1: signer, aptos_framework: signer) acquires Vault, Trove, TroveEventHandle, SupportedCoins, BorrowingFeeVault, GasPool {
-        set_up(&owner, &account1, &aptos_framework);
-        let account1_addr = signer::address_of(&account1);
-        let want = USDC_AMT * math64::pow(10, 8 - 6) * 90 / 110;
-        open_trove<USDC>(&account1, USDC_AMT, want);
-        close_trove<USDC>(&account1);
-        assert!(comparator::is_equal(&comparator::compare(
-            &coin::balance<USDC>(account1_addr),
-            &USDC_AMT
-        )), 0);
-        assert!(comparator::is_equal(&comparator::compare(
-            &usdz::balance_of(account1_addr),
-            &0
-        )), 0);
-        let trove = borrow_global<Trove>(account1_addr);
-        assert!(comparator::is_equal(&comparator::compare(
-            &trove.debt,
-            &0
-        )), 0);
-        let amount = simple_map::borrow<String, Position>(&trove.amounts, &key_of<USDC>());
-        assert!(comparator::is_equal(&comparator::compare(
-            &amount.debt,
-            &0
-        )), 0);
-        assert!(comparator::is_equal(&comparator::compare(
-            &amount.deposited,
-            &0
-        )), 0);
+        coin_pool::decrease_active_debt(amount);
     }
 
 
+    //#[test_only]
+    //use aptos_framework::managed_coin;
+    //#[test_only]
+    //use leizd_aptos_common::test_coin::{Self,USDC,USDT};
+    //#[test_only]
+    //use aptos_framework::timestamp;
+    //#[test_only]
+    //const USDC_AMT: u64 = 10000 * 100000000;
+//
+//
+    //#[test_only]
+    //fun set_up(owner: &signer, account1: &signer, aptos_framework: &signer) acquires SupportedCoins {
+    //    let owner_addr = signer::address_of(owner);
+    //    let account1_addr = signer::address_of(account1);
+    //    let amount = USDC_AMT;
+    //    account::create_account_for_test(owner_addr);
+    //    account::create_account_for_test(account1_addr);
+    //    test_coin::init_usdc(owner);
+    //    test_coin::init_usdt(owner);
+    //    managed_coin::register<USDC>(account1);
+    //    managed_coin::register<USDT>(account1);
+    //    initialize_oracle(owner);
+    //    managed_coin::register<usdz::USDZ>(account1);
+    //    managed_coin::mint<USDC>(owner, account1_addr, amount);
+    //    managed_coin::mint<USDT>(owner, account1_addr, amount);
+    //    initialize_internal(owner);
+    //    add_supported_coin_internal<USDC>(owner);
+    //    add_supported_coin_internal<USDT>(owner);
+    //    timestamp::set_time_has_started_for_testing(aptos_framework);
+    //}
+//
+    //#[test_only]
+    //fun set_up_account(owner: &signer, account: &signer) {
+    //    let account_addr = signer::address_of(account);
+    //    account::create_account_for_test(account_addr);
+    //    managed_coin::register<USDC>(account);
+    //    managed_coin::register<USDT>(account);
+    //    managed_coin::register<usdz::USDZ>(account);
+    //    managed_coin::mint<USDC>(owner, account_addr, USDC_AMT);
+    //    managed_coin::mint<USDT>(owner, account_addr, USDC_AMT);
+    //}
+//
+    //#[test_only]
+    //fun initialize_oracle(owner: &signer) {
+    //    price_oracle::initialize(owner);
+    //    price_oracle::register_oracle_with_fixed_price<USDC>(owner, 1000000, 6, false);
+    //    price_oracle::register_oracle_with_fixed_price<USDT>(owner, 1000000, 6, false);
+    //    price_oracle::change_mode<USDC>(owner, 1);
+    //    price_oracle::change_mode<USDT>(owner, 1);
+    //}
+//
+    //#[test_only]
+    //fun initialize_oracle_coin<C>(owner: &signer, price: u128, decimals: u8) {
+    //    price_oracle::register_oracle_with_fixed_price<C>(owner, price, decimals, false);
+    //    price_oracle::change_mode<C>(owner, 1);
+    //}
+//
+    //#[test(owner=@leizd_aptos_trove)]
+    //fun test_initialize(owner: &signer) {
+    //    let owner_addr = signer::address_of(owner);
+    //    account::create_account_for_test(owner_addr);
+    //    initialize_internal(owner);
+    //}
+    //#[test(owner=@leizd_aptos_trove)]
+    //#[expected_failure(abort_code = 524290)]
+    //fun test_initialize_twice(owner: &signer) {
+    //    let owner_addr = signer::address_of(owner);
+    //    account::create_account_for_test(owner_addr);
+    //    initialize_internal(owner);
+    //    initialize_internal(owner);
+    //}
+    //#[test(account=@0x111)]
+    //#[expected_failure(abort_code = 65537)]
+    //fun test_initialize_with_not_owner(account: &signer) {
+    //    initialize_internal(account);
+    //}
+    //#[test(owner=@leizd_aptos_trove)]
+    //fun test_add_supported_coin(owner: &signer) acquires SupportedCoins {
+    //    let owner_addr = signer::address_of(owner);
+    //    account::create_account_for_test(owner_addr);
+    //    initialize_internal(owner);
+    //    add_supported_coin_internal<USDC>(owner);
+    //    assert!(is_coin_supported<USDC>(), 0);
+    //}
+    //#[test(owner=@leizd_aptos_trove)]
+    //#[expected_failure(abort_code = 65538)]
+    //fun test_add_supported_coin_twice(owner: &signer) acquires SupportedCoins {
+    //    account::create_account_for_test(signer::address_of(owner));
+    //    initialize_internal(owner);
+    //    add_supported_coin_internal<USDC>(owner);
+    //    add_supported_coin_internal<USDC>(owner);
+    //}
+    //#[test(owner=@leizd_aptos_trove, account = @0x111)]
+    //#[expected_failure(abort_code = 65537)]
+    //fun test_add_supported_coin_with_not_owner(owner: &signer, account: &signer) acquires SupportedCoins {
+    //    account::create_account_for_test(signer::address_of(owner));
+    //    initialize_internal(owner);
+    //    add_supported_coin_internal<USDC>(account);
+    //}
+//
+    //#[test(owner=@leizd_aptos_trove,account1=@0x111,aptos_framework=@aptos_framework)]
+    //fun test_open_trove(owner: signer, account1: signer, aptos_framework: signer) acquires Vault, Trove, TroveEventHandle, SupportedCoins, BorrowingFeeVault, GasPool {
+    //    set_up(&owner, &account1, &aptos_framework);
+    //    let account1_addr = signer::address_of(&account1);
+    //    let want = USDC_AMT * math64::pow(10, 8 - 6) * 8 / 10;
+    //    open_trove<USDC>(&account1, USDC_AMT, want);
+    //    assert!(comparator::is_equal(&comparator::compare(
+    //        &usdz::balance_of(account1_addr),
+    //        &(want - GAS_COMPENSATION)
+    //    )), usdz::balance_of(account1_addr));
+    //    assert!(comparator::is_equal(&comparator::compare(
+    //        &deposited_amount<USDC>(account1_addr),
+    //        &USDC_AMT
+    //    )), usdz::balance_of(account1_addr));
+    //    assert!(coin::balance<USDC>(account1_addr) == 0, 0);
+    //    // add more USDC
+    //    managed_coin::mint<USDC>(&owner, account1_addr, USDC_AMT);
+    //    open_trove<USDC>(&account1, USDC_AMT, want);
+    //    assert!(comparator::is_equal(&comparator::compare(
+    //        &usdz::balance_of(account1_addr),
+    //        &((want - GAS_COMPENSATION) * 2)
+    //    )), usdz::balance_of(account1_addr));
+    //    assert!(comparator::is_equal(&comparator::compare(
+    //        &deposited_amount<USDC>(account1_addr),
+    //        &(USDC_AMT * 2)
+    //    )), deposited_amount<USDC>(account1_addr));
+//
+    //    // add USDT
+    //    open_trove<USDT>(&account1, USDC_AMT, want);
+    //    assert!(comparator::is_equal(&comparator::compare(
+    //        &usdz::balance_of(account1_addr),
+    //        &((want - GAS_COMPENSATION) * 3)
+    //    )), usdz::balance_of(account1_addr));
+    //    assert!(comparator::is_equal(&comparator::compare(
+    //        &deposited_amount<USDT>(account1_addr),
+    //        &(USDC_AMT)
+    //    )), usdz::balance_of(account1_addr));        
+    //}
+//
     //#[test(owner=@leizd_aptos_trove,account1=@0x111,aptos_framework=@aptos_framework)]
     //#[expected_failure(abort_code = 3)]
-    //fun test_close_trove_below_min_cr(owner: signer, account1: signer) acquires Vault, Trove, TroveEventHandle, Statistics, SupportedCoins {
-    //    set_up(&owner, &account1);
-    //    let usdc_amt = 10000;
-    //    // over minCR
-    //    let want = usdc_amt * math64::pow(10, 8 - 6) * 110 / 110;
-    //    open_trove<USDT>(&account1, 10000, 0);
-    //    open_trove<USDC>(&account1, 10000, want);
-    //    close_trove<USDC>(&account1);
+    //fun test_open_trove_below_min_cr(owner: signer, account1: signer, aptos_framework: signer) acquires Vault, Trove, TroveEventHandle, SupportedCoins, BorrowingFeeVault, GasPool {
+    //    set_up(&owner, &account1, &aptos_framework);
+    //    let account1_addr = signer::address_of(&account1);
+    //    // collateral raio under 110%
+    //    let want = USDC_AMT * math64::pow(10, 8 - 6) * 101 / 110;
+    //    open_trove<USDC>(&account1, USDC_AMT, want);
+    //    assert!(comparator::is_equal(&comparator::compare(
+    //        &usdz::balance_of(account1_addr),
+    //        &want
+    //    )), 0);
     //}
-
-    #[test(owner=@leizd_aptos_trove,account=@0x111,aptos_framework=@aptos_framework)]
-    #[expected_failure(abort_code = 65537)]
-    fun test_open_trove_before_add_supported_coin(owner: &signer, account: &signer) acquires Vault, Trove, TroveEventHandle, SupportedCoins, BorrowingFeeVault, GasPool {
-        let owner_addr = signer::address_of(owner);
-        let account_addr = signer::address_of(account);
-        account::create_account_for_test(owner_addr);
-        account::create_account_for_test(account_addr);
-        test_coin::init_usdc(owner);
-        managed_coin::register<usdz::USDZ>(account);
-        managed_coin::register<USDC>(account);
-        managed_coin::mint<USDC>(owner, account_addr, 10000);
-
-        initialize_internal(owner);
-        price_oracle::initialize(owner);
-        price_oracle::register_oracle_with_fixed_price<USDC>(owner, 1000000, 6, false);
-        price_oracle::change_mode<USDC>(owner, 1);
-        open_trove<USDC>(account, 10000, 1000);
-    }
+//
+    //#[test(owner=@leizd_aptos_trove,account1=@0x111,aptos_framework=@aptos_framework)]
+    //fun test_close_trove(owner: signer, account1: signer, aptos_framework: signer) acquires Vault, Trove, TroveEventHandle, SupportedCoins, BorrowingFeeVault, GasPool {
+    //    set_up(&owner, &account1, &aptos_framework);
+    //    let account1_addr = signer::address_of(&account1);
+    //    let want = USDC_AMT * math64::pow(10, 8 - 6) * 90 / 110;
+    //    open_trove<USDC>(&account1, USDC_AMT, want);
+    //    close_trove<USDC>(&account1);
+    //    assert!(comparator::is_equal(&comparator::compare(
+    //        &coin::balance<USDC>(account1_addr),
+    //        &USDC_AMT
+    //    )), 0);
+    //    assert!(comparator::is_equal(&comparator::compare(
+    //        &usdz::balance_of(account1_addr),
+    //        &0
+    //    )), 0);
+    //    let trove = borrow_global<Trove>(account1_addr);
+    //    assert!(comparator::is_equal(&comparator::compare(
+    //        &trove.debt,
+    //        &0
+    //    )), 0);
+    //    let amount = simple_map::borrow<String, Position>(&trove.amounts, &key_of<USDC>());
+    //    assert!(comparator::is_equal(&comparator::compare(
+    //        &amount.debt,
+    //        &0
+    //    )), 0);
+    //    assert!(comparator::is_equal(&comparator::compare(
+    //        &amount.deposited,
+    //        &0
+    //    )), 0);
+    //}
+//
+//
+    ////#[test(owner=@leizd_aptos_trove,account1=@0x111,aptos_framework=@aptos_framework)]
+    ////#[expected_failure(abort_code = 3)]
+    ////fun test_close_trove_below_min_cr(owner: signer, account1: signer) acquires Vault, Trove, TroveEventHandle, Statistics, SupportedCoins {
+    ////    set_up(&owner, &account1);
+    ////    let usdc_amt = 10000;
+    ////    // over minCR
+    ////    let want = usdc_amt * math64::pow(10, 8 - 6) * 110 / 110;
+    ////    open_trove<USDT>(&account1, 10000, 0);
+    ////    open_trove<USDC>(&account1, 10000, want);
+    ////    close_trove<USDC>(&account1);
+    ////}
+//
+    //#[test(owner=@leizd_aptos_trove,account=@0x111,aptos_framework=@aptos_framework)]
+    //#[expected_failure(abort_code = 65537)]
+    //fun test_open_trove_before_add_supported_coin(owner: &signer, account: &signer) acquires Vault, Trove, TroveEventHandle, SupportedCoins, BorrowingFeeVault, GasPool {
+    //    let owner_addr = signer::address_of(owner);
+    //    let account_addr = signer::address_of(account);
+    //    account::create_account_for_test(owner_addr);
+    //    account::create_account_for_test(account_addr);
+    //    test_coin::init_usdc(owner);
+    //    managed_coin::register<usdz::USDZ>(account);
+    //    managed_coin::register<USDC>(account);
+    //    managed_coin::mint<USDC>(owner, account_addr, 10000);
+//
+    //    initialize_internal(owner);
+    //    price_oracle::initialize(owner);
+    //    price_oracle::register_oracle_with_fixed_price<USDC>(owner, 1000000, 6, false);
+    //    price_oracle::change_mode<USDC>(owner, 1);
+    //    open_trove<USDC>(account, 10000, 1000);
+    //}
 
     //#[test(owner=@leizd_aptos_trove,account1=@0x111,aptos_framework=@aptos_framework)]
     //fun test_close_trove(owner: signer, account1: signer) acquires Vault, TroveEventHandle {
@@ -1024,110 +1011,110 @@ module leizd_aptos_trove::trove {
 // //      as   sert!(coin::value(&trove2.coin) == 0, 0);
    //}
 
-    #[test(owner=@leizd_aptos_trove,alice=@0x111,bob=@0x222,carol=@0x333,dave=@0x444,aptos_framework=@aptos_framework)]
-    fun test_redeem(owner: &signer, alice: &signer, bob: &signer, carol: &signer, dave: &signer, aptos_framework: &signer) acquires SupportedCoins, Trove, TroveEventHandle, GasPool, BorrowingFeeVault, Vault {
-        set_up(owner, alice, aptos_framework);
-        set_up_account(owner, bob);
-        set_up_account(owner, carol);
-        set_up_account(owner, dave);
-        let now = 1662125899730897;
-        timestamp::update_global_time_for_test(now);
-        let redeem_amount = 10000000000;
-        usdz::mint_for_test(signer::address_of(dave), redeem_amount);
-        let mid_borrow = USDC_AMT * math64::pow(10, 8 - 6) * 7 / 10;
-        open_trove<USDC>(alice, USDC_AMT, mid_borrow);
-        open_trove<USDC>(bob, USDC_AMT, mid_borrow + 1);
-        open_trove<USDC>(carol, USDC_AMT, mid_borrow - 1);
-        let one_minute = 60 * 1000 * 1000;
-        timestamp::update_global_time_for_test(now + one_minute * 10);
-        // if redeems 100000000 USDZ
-        redeem<USDC>(dave, vector::singleton<address>(signer::address_of(bob)), redeem_amount);
-        assert!(comparator::is_equal(&comparator::compare(
-            &coin::balance<USDC>(signer::address_of(dave)),
-        // then returns 100000000 USDC
-            &(USDC_AMT + 100000000)
-        )), coin::balance<USDC>(signer::address_of(dave)));
-    }
-
-    #[test(owner=@leizd_aptos_trove,alice=@0x111,bob=@0x222,carol=@0x333,dave=@0x444,aptos_framework=@aptos_framework)]
-    #[expected_failure(abort_code = 4)]
-    fun test_not_redeemable(owner: &signer, alice: &signer, bob: &signer, carol: &signer, dave: &signer, aptos_framework: &signer) acquires SupportedCoins, Trove, TroveEventHandle, GasPool, BorrowingFeeVault, Vault {
-        set_up(owner, alice, aptos_framework);
-        set_up_account(owner, bob);
-        set_up_account(owner, carol);
-        set_up_account(owner, dave);
-        let redeem_amount = 1000 * 1000000;
-        usdz::mint_for_test(signer::address_of(dave), redeem_amount);
-        let mid_borrow = USDC_AMT * math64::pow(10, 8 - 6) * 5 / 10;
-        open_trove<USDC>(alice, USDC_AMT, mid_borrow);
-        open_trove<USDC>(bob, USDC_AMT, mid_borrow + 1000000);
-        open_trove<USDC>(carol, USDC_AMT, mid_borrow - 1000000 * 100);
-        assert!(!redeemable(signer::address_of(carol)), (collateral_ratio_of(signer::address_of(carol)) as u64));
-        redeem<USDC>(dave, vector::singleton<address>(signer::address_of(carol)), redeem_amount);
-    }
-
-    #[test(owner=@leizd_aptos_trove,aptos_framework=@aptos_framework)]
-    fun test_current_amount_in_usdz(owner: &signer) {
-        account::create_account_for_test(signer::address_of(owner));
-        test_coin::init_usdc(owner);
-        initialize(owner);
-        initialize_oracle(owner);
-
-        let usdc_amt = 12345678;
-        let usdc_want = usdc_amt * math64::pow(10, 8 - 6);
-        assert!(comparator::is_equal(&comparator::compare(
-            &current_amount_in_usdz(usdc_amt, key_of<USDC>()),
-            &usdc_want
-        )), 0);
-    }
-
-    #[test_only]
-    struct DummyCoin {}
-    #[test(owner=@leizd_aptos_trove,aptos_framework=@aptos_framework)]
-    fun test_current_amount_in_usdz__check_when_decimal_is_less_than_usdz(owner: &signer) {
-        account::create_account_for_test(signer::address_of(owner));
-        initialize(owner);
-        initialize_oracle(owner);
-        let decimals: u8 = 3;
-        test_coin::init_coin<DummyCoin>(owner, b"DUMMY", decimals);
-        initialize_oracle_coin<DummyCoin>(owner, 1000, decimals);
-
-        let expected = 100000 * math64::pow(10, (coin::decimals<usdz::USDZ>() - decimals as u64));
-        assert!(current_amount_in_usdz(100000, key_of<DummyCoin>()) == expected, 0);
-    }
-    #[test(owner=@leizd_aptos_trove,aptos_framework=@aptos_framework)]
-    fun test_current_amount_in_usdz__check_when_decimal_is_greater_than_usdz(owner: &signer) {
-        account::create_account_for_test(signer::address_of(owner));
-        initialize(owner);
-        initialize_oracle(owner);
-        let decimals: u8 = 12;
-        test_coin::init_coin<DummyCoin>(owner, b"DUMMY", decimals);
-        price_oracle::register_oracle_with_fixed_price<DummyCoin>(owner, 1000000000000, decimals, false);
-        price_oracle::change_mode<DummyCoin>(owner, 1);
-        let expected = 100000 / math64::pow(10, (decimals - coin::decimals<usdz::USDZ>() as u64));
-        assert!(current_amount_in_usdz(100000, key_of<DummyCoin>()) == expected, 0);
-    }
-    #[test(owner=@leizd_aptos_trove,aptos_framework=@aptos_framework)]
-    fun test_current_amount_in_usdz__check_overflow__maximum_allowable_value(owner: &signer) {
-        account::create_account_for_test(signer::address_of(owner));
-        test_coin::init_coin<DummyCoin>(owner, b"DUMMY", 8);
-        initialize(owner);
-        initialize_oracle(owner);
-        price_oracle::register_oracle_with_fixed_price<DummyCoin>(owner, 100000000, 8, false);
-        price_oracle::change_mode<DummyCoin>(owner, 1);
-
-        let u64_max: u64 = 18446744073709551615;
-        assert!(current_amount_in_usdz(u64_max, key_of<DummyCoin>()) == u64_max, 0);
-    }
-    #[test(owner=@leizd_aptos_trove,aptos_framework=@aptos_framework)]
-    #[expected_failure]
-    fun test_current_amount_in_usdz__check_overflow(owner: &signer) {
-        account::create_account_for_test(signer::address_of(owner));
-        test_coin::init_coin<DummyCoin>(owner, b"DUMMY", 0);
-        initialize(owner);
-        initialize_oracle(owner);
-
-        let u64_max: u64 = 18446744073709551615;
-        current_amount_in_usdz(u64_max, key_of<DummyCoin>());
-    }
+    //#[test(owner=@leizd_aptos_trove,alice=@0x111,bob=@0x222,carol=@0x333,dave=@0x444,aptos_framework=@aptos_framework)]
+    //fun test_redeem(owner: &signer, alice: &signer, bob: &signer, carol: &signer, dave: &signer, aptos_framework: &signer) acquires SupportedCoins, Trove, TroveEventHandle, GasPool, BorrowingFeeVault, Vault {
+    //    set_up(owner, alice, aptos_framework);
+    //    set_up_account(owner, bob);
+    //    set_up_account(owner, carol);
+    //    set_up_account(owner, dave);
+    //    let now = 1662125899730897;
+    //    timestamp::update_global_time_for_test(now);
+    //    let redeem_amount = 10000000000;
+    //    usdz::mint_for_test(signer::address_of(dave), redeem_amount);
+    //    let mid_borrow = USDC_AMT * math64::pow(10, 8 - 6) * 7 / 10;
+    //    open_trove<USDC>(alice, USDC_AMT, mid_borrow);
+    //    open_trove<USDC>(bob, USDC_AMT, mid_borrow + 1);
+    //    open_trove<USDC>(carol, USDC_AMT, mid_borrow - 1);
+    //    let one_minute = 60 * 1000 * 1000;
+    //    timestamp::update_global_time_for_test(now + one_minute * 10);
+    //    // if redeems 100000000 USDZ
+    //    redeem<USDC>(dave, vector::singleton<address>(signer::address_of(bob)), redeem_amount);
+    //    assert!(comparator::is_equal(&comparator::compare(
+    //        &coin::balance<USDC>(signer::address_of(dave)),
+    //    // then returns 100000000 USDC
+    //        &(USDC_AMT + 100000000)
+    //    )), coin::balance<USDC>(signer::address_of(dave)));
+    //}
+//
+    //#[test(owner=@leizd_aptos_trove,alice=@0x111,bob=@0x222,carol=@0x333,dave=@0x444,aptos_framework=@aptos_framework)]
+    //#[expected_failure(abort_code = 4)]
+    //fun test_not_redeemable(owner: &signer, alice: &signer, bob: &signer, carol: &signer, dave: &signer, aptos_framework: &signer) acquires SupportedCoins, Trove, TroveEventHandle, GasPool, BorrowingFeeVault, Vault {
+    //    set_up(owner, alice, aptos_framework);
+    //    set_up_account(owner, bob);
+    //    set_up_account(owner, carol);
+    //    set_up_account(owner, dave);
+    //    let redeem_amount = 1000 * 1000000;
+    //    usdz::mint_for_test(signer::address_of(dave), redeem_amount);
+    //    let mid_borrow = USDC_AMT * math64::pow(10, 8 - 6) * 5 / 10;
+    //    open_trove<USDC>(alice, USDC_AMT, mid_borrow);
+    //    open_trove<USDC>(bob, USDC_AMT, mid_borrow + 1000000);
+    //    open_trove<USDC>(carol, USDC_AMT, mid_borrow - 1000000 * 100);
+    //    assert!(!redeemable(signer::address_of(carol)), (collateral_ratio_of(signer::address_of(carol)) as u64));
+    //    redeem<USDC>(dave, vector::singleton<address>(signer::address_of(carol)), redeem_amount);
+    //}
+//
+    //#[test(owner=@leizd_aptos_trove,aptos_framework=@aptos_framework)]
+    //fun test_current_amount_in_usdz(owner: &signer) {
+    //    account::create_account_for_test(signer::address_of(owner));
+    //    test_coin::init_usdc(owner);
+    //    initialize(owner);
+    //    initialize_oracle(owner);
+//
+    //    let usdc_amt = 12345678;
+    //    let usdc_want = usdc_amt * math64::pow(10, 8 - 6);
+    //    assert!(comparator::is_equal(&comparator::compare(
+    //        &current_amount_in_usdz(usdc_amt, key_of<USDC>()),
+    //        &usdc_want
+    //    )), 0);
+    //}
+//
+    //#[test_only]
+    //struct DummyCoin {}
+    //#[test(owner=@leizd_aptos_trove,aptos_framework=@aptos_framework)]
+    //fun test_current_amount_in_usdz__check_when_decimal_is_less_than_usdz(owner: &signer) {
+    //    account::create_account_for_test(signer::address_of(owner));
+    //    initialize(owner);
+    //    initialize_oracle(owner);
+    //    let decimals: u8 = 3;
+    //    test_coin::init_coin<DummyCoin>(owner, b"DUMMY", decimals);
+    //    initialize_oracle_coin<DummyCoin>(owner, 1000, decimals);
+//
+    //    let expected = 100000 * math64::pow(10, (coin::decimals<usdz::USDZ>() - decimals as u64));
+    //    assert!(current_amount_in_usdz(100000, key_of<DummyCoin>()) == expected, 0);
+    //}
+    //#[test(owner=@leizd_aptos_trove,aptos_framework=@aptos_framework)]
+    //fun test_current_amount_in_usdz__check_when_decimal_is_greater_than_usdz(owner: &signer) {
+    //    account::create_account_for_test(signer::address_of(owner));
+    //    initialize(owner);
+    //    initialize_oracle(owner);
+    //    let decimals: u8 = 12;
+    //    test_coin::init_coin<DummyCoin>(owner, b"DUMMY", decimals);
+    //    price_oracle::register_oracle_with_fixed_price<DummyCoin>(owner, 1000000000000, decimals, false);
+    //    price_oracle::change_mode<DummyCoin>(owner, 1);
+    //    let expected = 100000 / math64::pow(10, (decimals - coin::decimals<usdz::USDZ>() as u64));
+    //    assert!(current_amount_in_usdz(100000, key_of<DummyCoin>()) == expected, 0);
+    //}
+    //#[test(owner=@leizd_aptos_trove,aptos_framework=@aptos_framework)]
+    //fun test_current_amount_in_usdz__check_overflow__maximum_allowable_value(owner: &signer) {
+    //    account::create_account_for_test(signer::address_of(owner));
+    //    test_coin::init_coin<DummyCoin>(owner, b"DUMMY", 8);
+    //    initialize(owner);
+    //    initialize_oracle(owner);
+    //    price_oracle::register_oracle_with_fixed_price<DummyCoin>(owner, 100000000, 8, false);
+    //    price_oracle::change_mode<DummyCoin>(owner, 1);
+//
+    //    let u64_max: u64 = 18446744073709551615;
+    //    assert!(current_amount_in_usdz(u64_max, key_of<DummyCoin>()) == u64_max, 0);
+    //}
+    //#[test(owner=@leizd_aptos_trove,aptos_framework=@aptos_framework)]
+    //#[expected_failure]
+    //fun test_current_amount_in_usdz__check_overflow(owner: &signer) {
+    //    account::create_account_for_test(signer::address_of(owner));
+    //    test_coin::init_coin<DummyCoin>(owner, b"DUMMY", 0);
+    //    initialize(owner);
+    //    initialize_oracle(owner);
+//
+    //    let u64_max: u64 = 18446744073709551615;
+    //    current_amount_in_usdz(u64_max, key_of<DummyCoin>());
+    //}
 }

@@ -8,7 +8,7 @@ module leizd_aptos_trove::price_calculator {
     use aptos_framework::coin;
     use leizd_aptos_trove::usdz::{USDZ};
 
-    struct CoinInfo has copy {
+    struct CoinInfo has copy, drop {
         key: String,
         price: u128,
         decimals: u8,

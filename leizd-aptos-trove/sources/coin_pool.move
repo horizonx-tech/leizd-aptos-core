@@ -70,7 +70,6 @@ module leizd_aptos_trove::coin_pool {
     }
 
 
-
     public(friend) fun increase_active_debt(amount: u64) acquires USDZPool {
         let pool = borrow_global_mut<USDZPool>(permission::owner_address());
         pool.active_amount = pool.active_amount + amount

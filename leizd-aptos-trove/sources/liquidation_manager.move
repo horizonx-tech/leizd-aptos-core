@@ -2,6 +2,8 @@
 module leizd_aptos_trove::liquidation_manager {
     use leizd_aptos_common::permission;
     use std::signer;
+    use std::string::{String};
+    friend leizd_aptos_trove::trove;
 
     struct SystemSnapshot has key {
         total_stake: u64,
@@ -12,14 +14,14 @@ module leizd_aptos_trove::liquidation_manager {
         value: u64
     }
 
-    fun remove_stake(account: address) acquires UserStake, SystemSnapshot {
+    public(friend) fun remove_stake(account: address) acquires UserStake, SystemSnapshot {
         let stake = borrow_global_mut<UserStake>(account);
         let system_snapshot = borrow_global_mut<SystemSnapshot>(permission::owner_address());
         system_snapshot.total_stake = system_snapshot.total_stake - stake.value;
         stake.value = 0
     }
 
-   fun update_stake_of(account: &signer, key: String, new_collateral: u64) acquires UserStake, SystemSnapshot {
+   public(friend) fun update_stake_of(account: &signer, key: String, new_collateral: u64) acquires UserStake, SystemSnapshot {
         let account_addr = signer::address_of(account);
         if (!exists<UserStake>(signer::address_of(account))) {
             move_to(account, UserStake {

@@ -52,6 +52,6 @@ module leizd_aptos_trove::usdz {
     }
     #[test_only]
     public fun mint_for_test(account_addr: address, amount: u64) {
-        mint_internal(account_addr, amount);
+        mint_for_internal(account_addr, amount);
     }
 }
