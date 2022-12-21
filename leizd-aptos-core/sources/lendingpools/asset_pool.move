@@ -119,14 +119,13 @@ module leizd::asset_pool {
     ////////////////////////////////////////////////////
     /// Initialize
     ////////////////////////////////////////////////////
-    public entry fun initialize(owner: &signer): OperatorKey {
+    public entry fun initialize(owner: &signer) {
         let owner_addr = signer::address_of(owner);
         permission::assert_owner(owner_addr);
 
         initialize_module(owner);
         connect_with_mods_to_manage_assets(owner);
-        let key = publish_operator_key(owner);
-        key
+        publish_operator_key(owner);
     }
     fun initialize_module(owner: &signer) {
         let owner_addr = signer::address_of(owner);

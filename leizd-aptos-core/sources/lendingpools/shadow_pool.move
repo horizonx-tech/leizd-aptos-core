@@ -121,13 +121,12 @@ module leizd::shadow_pool {
     ////////////////////////////////////////////////////
     /// Initialize
     ////////////////////////////////////////////////////
-    public entry fun initialize(owner: &signer): OperatorKey {
+    public entry fun initialize(owner: &signer) {
         permission::assert_owner(signer::address_of(owner));
 
         initialize_module(owner);
         connect_to_central_liquidity_pool(owner);
-        let key = publish_operator_key(owner);
-        key
+        publish_operator_key(owner);
     }
     fun initialize_module(owner: &signer) {
         let owner_addr = signer::address_of(owner);
