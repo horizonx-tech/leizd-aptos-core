@@ -75,7 +75,7 @@ module leizd::account_position {
         update_global_position_event: event::EventHandle<UpdateUserPositionEvent>,
     }
 
-    public entry fun initialize(owner: &signer): OperatorKey {
+    public fun initialize(owner: &signer): OperatorKey {
         let owner_addr = signer::address_of(owner);
         permission::assert_owner(owner_addr);
         move_to(owner, GlobalPositionEventHandle<AssetToShadow> {
