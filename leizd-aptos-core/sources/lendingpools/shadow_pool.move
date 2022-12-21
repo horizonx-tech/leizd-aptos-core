@@ -121,7 +121,7 @@ module leizd::shadow_pool {
     ////////////////////////////////////////////////////
     /// Initialize
     ////////////////////////////////////////////////////
-    public fun initialize(owner: &signer): OperatorKey {
+    public entry fun initialize(owner: &signer): OperatorKey {
         permission::assert_owner(signer::address_of(owner));
 
         initialize_module(owner);
